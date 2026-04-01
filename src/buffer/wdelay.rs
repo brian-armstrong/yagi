@@ -1,4 +1,4 @@
-use crate::error::{Error, Result};
+use crate::error::Result;
 
 #[derive(Debug, Clone)]
 pub struct WDelay<T> {
@@ -9,10 +9,6 @@ pub struct WDelay<T> {
 
 impl<T: Default + Clone + Copy> WDelay<T> {
     pub fn create(delay: usize) -> Result<Self> {
-        if delay == 0 {
-            return Err(Error::Config("delay must be greater than zero".to_string()));
-        }
-
         let mut wdelay = WDelay {
             v: vec![T::default(); delay + 1],
             delay,
