@@ -6,12 +6,12 @@ use crate::matrix::{matrix_mul, matrix_transpose_mul, FloatComplex};
 
 const DEBUG_CGSOLVE: bool = false;
 
-// Solve linear system of equations using conjugate gradient method
-//  _A      :   symmetric positive definite matrix [size: _n x _n]
-//  _n      :   system dimension
-//  _b      :   equality [size: _n x 1]
-//  _x      :   solution estimate [size: _n x 1]
-//  _opts   :   options (ignored for now)
+/// Solve linear system of equations using conjugate gradient method
+///  _A      :   symmetric positive definite matrix [size: _n x _n]
+///  _n      :   system dimension
+///  _b      :   equality [size: _n x 1]
+///  _x      :   solution estimate [size: _n x 1]
+///  _opts   :   options (ignored for now)
 pub fn matrix_cgsolve<T>(a: &[T], n: usize, b: &[T], x: &mut [T], _opts: Option<()>) -> Result<()>
 where
     T: FloatComplex,

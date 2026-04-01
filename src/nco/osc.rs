@@ -25,7 +25,7 @@ enum OscData {
     Vco(Vco),
 }
 
-// Main NCO structure
+/// Main NCO structure
 #[derive(Debug, Clone)]
 pub struct Osc {
     theta: u32,

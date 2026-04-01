@@ -21,12 +21,12 @@ use libm::{erff, erfcf};
 
 use crate::error::{Error, Result};
 
-// Q-function
+/// Q-function
 pub fn qf(z: f32) -> f32 {
     0.5 * (1.0 - erff(z / SQRT_2))
 }
 
-// Marcum Q-function
+/// Marcum Q-function
 pub fn marcumqf(m: i32, alpha: f32, beta: f32) -> f32 {
     // Use approximation [Helstrom:1992] (Eq. 25)
     // Q_M(a,b) ~ erfc(x),
@@ -38,7 +38,7 @@ pub fn marcumqf(m: i32, alpha: f32, beta: f32) -> f32 {
     erfcf(x)
 }
 
-// Marcum Q-function (M=1)
+/// Marcum Q-function (M=1)
 pub fn marcumq1f(alpha: f32, beta: f32) -> f32 {
     const NUM_MARCUMQ1_ITERATIONS: usize = 64;
 
@@ -59,7 +59,7 @@ pub fn marcumq1f(alpha: f32, beta: f32) -> f32 {
     t0 * y
 }
 
-// compute sinc(x) = sin(pi*x) / (pi*x)
+/// compute sinc(x) = sin(pi*x) / (pi*x)
 pub fn sincf(x: f32) -> f32 {
     if x.abs() < 0.01 {
         (PI * x / 2.0).cos() * (PI * x / 4.0).cos() * (PI * x / 8.0).cos()
@@ -76,7 +76,7 @@ pub fn sincd(x: f64) -> f64 {
     }
 }
 
-// next power of 2 : y = ceil(log2(_x))
+/// next power of 2 : y = ceil(log2(_x))
 pub fn nextpow2(mut x: u32) -> Result<u32> {
     if x == 0 {
         return Err(Error::Value("nextpow2(), input must be greater than zero".to_owned()));
@@ -91,7 +91,7 @@ pub fn nextpow2(mut x: u32) -> Result<u32> {
     Ok(n)
 }
 
-// (n choose k) = n! / ( k! (n-k)! )
+/// (n choose k) = n! / ( k! (n-k)! )
 pub fn nchoosek(n: u32, k: u32) -> Result<f32> {
     if k > n {
         return Err(Error::Value(("invalid input: k cannot exceed n").to_owned()));

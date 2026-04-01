@@ -36,7 +36,7 @@ const MSEQUENCE_GENPOLY_M29: u32 = 0x10000002;  // 29   536,870,911
 const MSEQUENCE_GENPOLY_M30: u32 = 0x20000029;  // 30   1,073,741,823
 const MSEQUENCE_GENPOLY_M31: u32 = 0x40000004;  // 31   2,147,483,647
 
-// maximal-length sequence
+/// maximal-length sequence
 #[derive(Debug, Clone, Copy)]
 pub struct MSequence {
     m: u32,     // length generator polynomial, shift register

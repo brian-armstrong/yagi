@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::random::randf;
 
-// Exponential
+/// Exponential
 pub fn randexpf(lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {
@@ -20,7 +20,7 @@ pub fn randexpf(lambda: f32) -> Result<f32> {
     Ok(-u.ln() / lambda)
 }
 
-// Exponential random number probability distribution function
+/// Exponential random number probability distribution function
 pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {
@@ -34,7 +34,7 @@ pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
     }
 }
 
-// Exponential random number cumulative distribution function
+/// Exponential random number cumulative distribution function
 pub fn randexpf_cdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {

@@ -3,11 +3,11 @@ use num_traits::{Float, Zero};
 use crate::matrix::{matrix_access, matrix_access_mut, FloatComplex};
 use crate::error::{Result, Error};
 
-// Compute Cholesky decomposition of a symmetric/Hermitian positive-
-// definite matrix as A = L * L^T
-//  _a      :   input square matrix [size: _n x _n]
-//  _n      :   input matrix dimension
-//  _l      :   output lower-triangular matrix
+/// Compute Cholesky decomposition of a symmetric/Hermitian positive-
+/// definite matrix as A = L * L^T
+///  _a      :   input square matrix [size: _n x _n]
+///  _n      :   input matrix dimension
+///  _l      :   output lower-triangular matrix
 pub fn matrix_chol<T>(a: &[T], n: usize, l: &mut [T]) -> Result<()>
 where
     T: FloatComplex,

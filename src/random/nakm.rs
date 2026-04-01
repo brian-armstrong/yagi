@@ -19,14 +19,14 @@ pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
     Ok(x.sqrt())
 }
 
-// Nakagami-m distribution probability distribution function
-// Nakagami-m
-//  f(x) = (2/Gamma(m)) (m/omega)^m x^(2m-1) exp{-(m/omega)x^2}
-// where
-//      m       : shape parameter, m >= 0.5
-//      omega   : spread parameter, omega > 0
-//      Gamma(z): regular complete gamma function
-//      x >= 0
+/// Nakagami-m distribution probability distribution function
+/// Nakagami-m
+///  f(x) = (2/Gamma(m)) (m/omega)^m x^(2m-1) exp{-(m/omega)x^2}
+/// where
+///      m       : shape parameter, m >= 0.5
+///      omega   : spread parameter, omega > 0
+///      Gamma(z): regular complete gamma function
+///      x >= 0
 pub fn randnakmf_pdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     // validate input
     if m < 0.5 {

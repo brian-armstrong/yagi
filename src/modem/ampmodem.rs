@@ -4,7 +4,7 @@ use crate::filter::{FirHilbertFilter, FirFilter};
 use crate::buffer::WDelay;
 use num_complex::Complex32;
 
-// Modulation types
+/// Modulation types
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AmpmodemType {
     Dsb,  // Double side-band

@@ -512,12 +512,12 @@ impl Modem {
     
 }
 
-// gray encoding
+/// gray encoding
 pub fn gray_encode(symbol_in: u32) -> u32 {
     symbol_in ^ (symbol_in >> 1)
 }
 
-// gray decoding
+/// gray decoding
 pub fn gray_decode(symbol_in: u32) -> u32 {
     let mut mask = symbol_in;
     let mut symbol_out = symbol_in;
@@ -536,10 +536,10 @@ pub fn gray_decode(symbol_in: u32) -> u32 {
     symbol_out
 }
 
-// pack soft bits into symbol
-//  soft_bits  :   soft input bits [size: bps x 1]
-//  bps        :   bits per symbol
-//  sym_out    :   output symbol, value in [0,2^bps)
+/// pack soft bits into symbol
+///  soft_bits  :   soft input bits [size: bps x 1]
+///  bps        :   bits per symbol
+///  sym_out    :   output symbol, value in [0,2^bps)
 pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
     // validate input
     if bps > MAX_MOD_BITS_PER_SYMBOL {
@@ -554,10 +554,10 @@ pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
     Ok(s)
 }
 
-// unpack soft bits into symbol
-//  sym_in     :   input symbol, value in [0,2^bps)
-//  bps        :   bits per symbol
-//  soft_bits  :   soft output bits [size: bps x 1]
+/// unpack soft bits into symbol
+///  sym_in     :   input symbol, value in [0,2^bps)
+///  bps        :   bits per symbol
+///  soft_bits  :   soft output bits [size: bps x 1]
 pub fn unpack_soft_bits(sym_in: u32, bps: usize, soft_bits: &mut [u8]) -> Result<()> {
     // validate input
     if bps > MAX_MOD_BITS_PER_SYMBOL {

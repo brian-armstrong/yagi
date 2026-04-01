@@ -21,16 +21,16 @@ pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
     Ok(y.norm())
 }
 
-// Rice-K random number probability distribution function
-//  f(x) = (x/sigma^2) exp{ -(x^2+s^2)/(2sigma^2) } I0( x s / sigma^2 )
-// where
-//  s     = sqrt( omega*K/(K+1) )
-//  sigma = sqrt(0.5 omega/(K+1))
-// and
-//  K     = shape parameter
-//  omega = spread parameter
-//  I0    = modified Bessel function of the first kind
-//  x >= 0
+/// Rice-K random number probability distribution function
+///  f(x) = (x/sigma^2) exp{ -(x^2+s^2)/(2sigma^2) } I0( x s / sigma^2 )
+/// where
+///  s     = sqrt( omega*K/(K+1) )
+///  sigma = sqrt(0.5 omega/(K+1))
+/// and
+///  K     = shape parameter
+///  omega = spread parameter
+///  I0    = modified Bessel function of the first kind
+///  x >= 0
 pub fn randricekf_pdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // validate input
     if k < 0.0 {
@@ -62,7 +62,7 @@ pub fn randricekf_pdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // Ok((x / sig2) * (-t / (2.0 * sig2)).exp() * lnbesselif(0.0, x * s / sig2))
 }
 
-// Rice-K random number cumulative distribution function
+/// Rice-K random number cumulative distribution function
 pub fn randricekf_cdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // validate input
     if k < 0.0 {

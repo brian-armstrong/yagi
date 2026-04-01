@@ -1,13 +1,13 @@
 use crate::error::{Error, Result};
 use rand::Rng;
 
-// Uniform random number generator
+/// Uniform random number generator
 pub fn randf() -> f32 {
     let mut rng = rand::thread_rng();
     rng.gen::<f32>()
 }
 
-// Uniform random number probability distribution function
+/// Uniform random number probability distribution function
 pub fn randf_pdf(x: f32) -> f32 {
     if x < 0.0 || x > 1.0 {
         0.0
@@ -16,7 +16,7 @@ pub fn randf_pdf(x: f32) -> f32 {
     }
 }
 
-// Uniform random number cumulative distribution function
+/// Uniform random number cumulative distribution function
 pub fn randf_cdf(x: f32) -> f32 {
     if x < 0.0 {
         0.0
@@ -27,7 +27,7 @@ pub fn randf_cdf(x: f32) -> f32 {
     }
 }
 
-// Uniform random number generator with arbitrary bounds
+/// Uniform random number generator with arbitrary bounds
 pub fn randuf(a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf({},{}) has invalid range", a, b)));
@@ -36,7 +36,7 @@ pub fn randuf(a: f32, b: f32) -> Result<f32> {
     Ok(a + (b - a) * randf())
 }
 
-// Uniform random number probability distribution function
+/// Uniform random number probability distribution function
 pub fn randuf_pdf(x: f32, a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf_pdf({},{},{}) has invalid range", x, a, b)));
@@ -45,7 +45,7 @@ pub fn randuf_pdf(x: f32, a: f32, b: f32) -> Result<f32> {
     Ok(if x < a || x > b { 0.0 } else { 1.0 / (b - a) })
 }
 
-// Uniform random number cumulative distribution function
+/// Uniform random number cumulative distribution function
 pub fn randuf_cdf(x: f32, a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf_cdf({},{},{}) has invalid range", x, a, b)));

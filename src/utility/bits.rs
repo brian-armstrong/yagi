@@ -37,27 +37,27 @@ const REVERSE_BYTE_GENTAB: [u8; 256] = [
     0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff,
 ];
 
-// Count the number of ones in an integer
+/// Count the number of ones in an integer
 pub fn count_ones(x: u32) -> u32 {
     x.count_ones() as u32
 }
 
-// Count the number of ones in an integer, modulo 2
+/// Count the number of ones in an integer, modulo 2
 pub fn count_ones_mod2(x: u32) -> u32 {
     x.count_ones() & 1
 }
 
-// Count the binary dot-product between two integers
+/// Count the binary dot-product between two integers
 pub fn bdotprod(x: u32, y: u32) -> u32 {
     (x & y).count_ones() & 1 as u32
 }
 
-// Counts the number of different bits between two symbols
+/// Counts the number of different bits between two symbols
 pub fn count_bit_errors(s1: u32, s2: u32) -> u32 {
     (s1 ^ s2).count_ones() as u32
 }
 
-// Counts the number of different bits between two arrays of symbols
+/// Counts the number of different bits between two arrays of symbols
 pub fn count_bit_errors_array(msg0: &[u8], msg1: &[u8]) -> u32 {
     msg0.iter()
         .zip(msg1.iter())
@@ -65,37 +65,37 @@ pub fn count_bit_errors_array(msg0: &[u8], msg1: &[u8]) -> u32 {
         .sum()
 }
 
-// Print string of bits to standard output
+/// Print string of bits to standard output
 pub fn print_bitstring(x: u32, n: u32) {
     for i in (0..n).rev() {
         print!("{}", (x >> i) & 1);
     }
 }
 
-// Slow implementation of byte reversal
+/// Slow implementation of byte reversal
 pub fn reverse_byte(x: u8) -> u8 {
     REVERSE_BYTE_GENTAB[x as usize] as u8
 }
 
-// Reverse integer with 8 bits of data
+/// Reverse integer with 8 bits of data
 pub fn reverse_8(x: u32) -> u32 {
     REVERSE_BYTE_GENTAB[x as usize] as u32
 }
 
-// Reverse integer with 16 bits of data
+/// Reverse integer with 16 bits of data
 pub fn reverse_16(x: u32) -> u32 {
     ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 8) |
     (REVERSE_BYTE_GENTAB[(x >> 8) as usize] as u32)
 }
 
-// Reverse integer with 24 bits of data
+/// Reverse integer with 24 bits of data
 pub fn reverse_24(x: u32) -> u32 {
     ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 16) |
     ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 8) |
     (REVERSE_BYTE_GENTAB[((x >> 16) & 0xff) as usize] as u32)
 }
 
-// Reverse integer with 32 bits of data
+/// Reverse integer with 32 bits of data
 pub fn reverse_32(x: u32) -> u32 {
     ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 24) |
     ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 16) |

@@ -2,7 +2,7 @@ use crate::error::Result;
 use num_complex::ComplexFloat;
 use crate::filter::iir::design::iir_group_delay;
 
-// Struct definition
+/// Struct definition
 #[derive(Debug, Clone)]
 pub struct IirFilterSos<T, Coeff = T> {
     b: [Coeff; 3],  // feed-forward coefficients

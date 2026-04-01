@@ -4,7 +4,7 @@ use num_complex::{Complex, ComplexFloat};
 use crate::matrix::{matrix_access, matrix_access_mut, FloatComplex};
 use crate::error::{Error, Result};
 
-// Q/R decomposition using the Gram-Schmidt algorithm
+/// Q/R decomposition using the Gram-Schmidt algorithm
 pub fn matrix_qrdecomp_gramschmidt<T>(x: &[T], m: usize, n: usize, q: &mut [T], r: &mut [T]) -> Result<()>
 where
     T: FloatComplex,

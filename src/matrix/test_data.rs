@@ -2,7 +2,7 @@
 
 // Test data for matrix addition
 
-// matrixf_data_add_x [size: 5 x 4]
+/// matrixf_data_add_x [size: 5 x 4]
 pub const MATRIXF_DATA_ADD_X: [f32; 20] = [
     -2.153858900070, /* ( 0, 0) */
      0.374406367540, /* ( 0, 1) */
@@ -26,7 +26,7 @@ pub const MATRIXF_DATA_ADD_X: [f32; 20] = [
     -1.207890510559, /* ( 4, 3) */
 ];
 
-// matrixf_data_add_y [size: 5 x 4]
+/// matrixf_data_add_y [size: 5 x 4]
 pub const MATRIXF_DATA_ADD_Y: [f32; 20] = [
     -1.569433808327, /* ( 0, 0) */
      0.182892739773, /* ( 0, 1) */
@@ -50,7 +50,7 @@ pub const MATRIXF_DATA_ADD_Y: [f32; 20] = [
      0.713486075401, /* ( 4, 3) */
 ];
 
-// matrixf_data_add_z [size: 5 x 4]
+/// matrixf_data_add_z [size: 5 x 4]
 pub const MATRIXF_DATA_ADD_Z: [f32; 20] = [
     -3.723292708397, /* ( 0, 0) */
      0.557299107313, /* ( 0, 1) */
@@ -76,7 +76,7 @@ pub const MATRIXF_DATA_ADD_Z: [f32; 20] = [
 
 // Test data for matrix augmentation
 
-// matrixf_data_aug_x [size: 5 x 4]
+/// matrixf_data_aug_x [size: 5 x 4]
 pub const MATRIXF_DATA_AUG_X: [f32; 20] = [
    -0.747572302818, /* ( 0, 0) */
     1.023007512093, /* ( 0, 1) */
@@ -100,7 +100,7 @@ pub const MATRIXF_DATA_AUG_X: [f32; 20] = [
    -0.058893665671, /* ( 4, 3) */
 ];
 
-// matrixf_data_aug_y [size: 5 x 3]
+/// matrixf_data_aug_y [size: 5 x 3]
 pub const MATRIXF_DATA_AUG_Y: [f32; 15] = [
     0.376702636480, /* ( 0, 0) */
     0.790158689022, /* ( 0, 1) */
@@ -119,7 +119,7 @@ pub const MATRIXF_DATA_AUG_Y: [f32; 15] = [
    -0.896481394768, /* ( 4, 2) */
 ];
 
-// matrixf_data_aug_z [size: 5 x 7]
+/// matrixf_data_aug_z [size: 5 x 7]
 pub const MATRIXF_DATA_AUG_Z: [f32; 35] = [
    -0.747572302818, /* ( 0, 0) */
     1.023007512093, /* ( 0, 1) */
@@ -160,7 +160,7 @@ pub const MATRIXF_DATA_AUG_Z: [f32; 35] = [
 
 // Test data for conjugate gradient solver
 
-// matrixf_data_cgsolve_A [size: 8 x 8]
+/// matrixf_data_cgsolve_A [size: 8 x 8]
 pub const MATRIXF_DATA_CGSOLVE_A: [f32; 64] = [
    12.722920400000, /* ( 0, 0) */
     0.000000000000, /* ( 0, 1) */
@@ -228,7 +228,7 @@ pub const MATRIXF_DATA_CGSOLVE_A: [f32; 64] = [
     2.063114900000, /* ( 7, 7) */
 ];
 
-// matrixf_data_cgsolve_x [size: 8 x 1]
+/// matrixf_data_cgsolve_x [size: 8 x 1]
 pub const MATRIXF_DATA_CGSOLVE_X: [f32; 8] = [
     0.162052200000, /* ( 0, 0) */
    -0.012720300000, /* ( 1, 0) */
@@ -240,7 +240,7 @@ pub const MATRIXF_DATA_CGSOLVE_X: [f32; 8] = [
    -0.825784600000, /* ( 7, 0) */
 ];
 
-// matrixf_data_cgsolve_b [size: 8 x 1]
+/// matrixf_data_cgsolve_b [size: 8 x 1]
 pub const MATRIXF_DATA_CGSOLVE_B: [f32; 8] = [
    -2.625551095190, /* ( 0, 0) */
    -0.002183088520, /* ( 1, 0) */
@@ -254,7 +254,7 @@ pub const MATRIXF_DATA_CGSOLVE_B: [f32; 8] = [
 
 // Test data for Cholesky decomposition
 
-// matrixf_data_chol_L [size: 4 x 4]
+/// matrixf_data_chol_L [size: 4 x 4]
 pub const MATRIXF_DATA_CHOL_L: [f32; 16] = [
     1.010000000000, /* ( 0, 0) */
     0.000000000000, /* ( 0, 1) */
@@ -274,7 +274,7 @@ pub const MATRIXF_DATA_CHOL_L: [f32; 16] = [
     1.070000000000, /* ( 3, 3) */
 ];
 
-// matrixf_data_chol_A [size: 4 x 4]
+/// matrixf_data_chol_A [size: 4 x 4]
 pub const MATRIXF_DATA_CHOL_A: [f32; 16] = [
     1.020100000000, /* ( 0, 0) */
    -1.434200000000, /* ( 0, 1) */
@@ -296,7 +296,7 @@ pub const MATRIXF_DATA_CHOL_A: [f32; 16] = [
 
 // Test data for Gram-Schmidt orthonormalization
 
-// matrixf_data_gramschmidt_A [size: 4 x 3]
+/// matrixf_data_gramschmidt_A [size: 4 x 3]
 pub const MATRIXF_DATA_GRAMSCHMIDT_A: [f32; 12] = [
     1.000000000000, /* ( 0, 0) */
     2.000000000000, /* ( 0, 1) */
@@ -312,7 +312,7 @@ pub const MATRIXF_DATA_GRAMSCHMIDT_A: [f32; 12] = [
     0.000000000000, /* ( 3, 2) */
 ];
 
-// matrixf_data_gramschmidt_V [size: 4 x 3]
+/// matrixf_data_gramschmidt_V [size: 4 x 3]
 pub const MATRIXF_DATA_GRAMSCHMIDT_V: [f32; 12] = [
     0.408248290464, /* ( 0, 0) */
     0.235702260396, /* ( 0, 1) */
@@ -330,7 +330,7 @@ pub const MATRIXF_DATA_GRAMSCHMIDT_V: [f32; 12] = [
 
 // Test data for matrix inversion
 
-// matrixf_data_inv_x [size: 5 x 5]
+/// matrixf_data_inv_x [size: 5 x 5]
 pub const MATRIXF_DATA_INV_X: [f32; 25] = [
     0.145655393600, /* ( 0, 0) */
    -2.292126655579, /* ( 0, 1) */
@@ -359,7 +359,7 @@ pub const MATRIXF_DATA_INV_X: [f32; 25] = [
    -0.886025428772, /* ( 4, 4) */
 ];
 
-// matrixf_data_inv_y [size: 5 x 5]
+/// matrixf_data_inv_y [size: 5 x 5]
 pub const MATRIXF_DATA_INV_Y: [f32; 25] = [
     0.123047731616, /* ( 0, 0) */
     1.264793339850, /* ( 0, 1) */
@@ -390,7 +390,7 @@ pub const MATRIXF_DATA_INV_Y: [f32; 25] = [
 
 // Test data for linear solver
 
-// matrixf_data_linsolve_A [size: 5 x 5]
+/// matrixf_data_linsolve_A [size: 5 x 5]
 pub const MATRIXF_DATA_LINSOLVE_A: [f32; 25] = [
     0.359868824482, /* ( 0, 0) */
    -0.821193814278, /* ( 0, 1) */
@@ -419,7 +419,7 @@ pub const MATRIXF_DATA_LINSOLVE_A: [f32; 25] = [
     1.367745161057, /* ( 4, 4) */
 ];
 
-// matrixf_data_linsolve_x [size: 5 x 1]
+/// matrixf_data_linsolve_x [size: 5 x 1]
 pub const MATRIXF_DATA_LINSOLVE_X: [f32; 5] = [
    -0.848446607590, /* ( 0, 0) */
     1.041861057281, /* ( 1, 0) */
@@ -428,7 +428,7 @@ pub const MATRIXF_DATA_LINSOLVE_X: [f32; 5] = [
     1.200846910477, /* ( 4, 0) */
 ];
 
-// matrixf_data_linsolve_b [size: 5 x 1]
+/// matrixf_data_linsolve_b [size: 5 x 1]
 pub const MATRIXF_DATA_LINSOLVE_B: [f32; 5] = [
    -1.938755917550, /* ( 0, 0) */
    -1.636609601788, /* ( 1, 0) */
@@ -439,7 +439,7 @@ pub const MATRIXF_DATA_LINSOLVE_B: [f32; 5] = [
 
 // Test data for L/U decomposition
 
-// matrixf_data_ludecomp_A [size: 8 x 8]
+/// matrixf_data_ludecomp_A [size: 8 x 8]
 pub const MATRIXF_DATA_LUDECOMP_A: [f32; 64] = [
     0.936903119087, /* ( 0, 0) */
     1.048182249069, /* ( 0, 1) */
@@ -509,7 +509,7 @@ pub const MATRIXF_DATA_LUDECOMP_A: [f32; 64] = [
 
 // Test data for matrix multiplication
 
-// matrixf_data_mul_x [size: 5 x 4]
+/// matrixf_data_mul_x [size: 5 x 4]
 pub const MATRIXF_DATA_MUL_X: [f32; 20] = [
    -0.348304957151, /* ( 0, 0) */
     1.638695955276, /* ( 0, 1) */
@@ -533,7 +533,7 @@ pub const MATRIXF_DATA_MUL_X: [f32; 20] = [
     0.034179374576, /* ( 4, 3) */
 ];
 
-// matrixf_data_mul_y [size: 4 x 3]
+/// matrixf_data_mul_y [size: 4 x 3]
 pub const MATRIXF_DATA_MUL_Y: [f32; 12] = [
     0.445414155722, /* ( 0, 0) */
     0.233421698213, /* ( 0, 1) */
@@ -549,7 +549,7 @@ pub const MATRIXF_DATA_MUL_Y: [f32; 12] = [
    -0.184585332870, /* ( 3, 2) */
 ];
 
-// matrixf_data_mul_z [size: 5 x 3]
+/// matrixf_data_mul_z [size: 5 x 3]
 pub const MATRIXF_DATA_MUL_Z: [f32; 15] = [
    -2.232843128510, /* ( 0, 0) */
    -0.086305075740, /* ( 0, 1) */
@@ -570,7 +570,7 @@ pub const MATRIXF_DATA_MUL_Z: [f32; 15] = [
 
 // Test data for Q/R decomposition
 
-// matrixf_data_qrdecomp_A [size: 4 x 4]
+/// matrixf_data_qrdecomp_A [size: 4 x 4]
 pub const MATRIXF_DATA_QRDECOMP_A: [f32; 16] = [
     1.000000000000, /* ( 0, 0) */
     2.000000000000, /* ( 0, 1) */
@@ -590,7 +590,7 @@ pub const MATRIXF_DATA_QRDECOMP_A: [f32; 16] = [
     1.000000000000, /* ( 3, 3) */
 ];
 
-// matrixf_data_qrdecomp_Q [size: 4 x 4]
+/// matrixf_data_qrdecomp_Q [size: 4 x 4]
 pub const MATRIXF_DATA_QRDECOMP_Q: [f32; 16] = [
     0.125988157670, /* ( 0, 0) */
     0.617707763884, /* ( 0, 1) */
@@ -610,7 +610,7 @@ pub const MATRIXF_DATA_QRDECOMP_Q: [f32; 16] = [
    -0.408248290464, /* ( 3, 3) */
 ];
 
-// matrixf_data_qrdecomp_R [size: 4 x 4]
+/// matrixf_data_qrdecomp_R [size: 4 x 4]
 pub const MATRIXF_DATA_QRDECOMP_R: [f32; 16] = [
     7.937253933194, /* ( 0, 0) */
     6.425396041157, /* ( 0, 1) */
@@ -632,7 +632,7 @@ pub const MATRIXF_DATA_QRDECOMP_R: [f32; 16] = [
 
 // Test data for multiply/transpose
 
-// matrixf_data_transmul_x [size: 5 x 4]
+/// matrixf_data_transmul_x [size: 5 x 4]
 pub const MATRIXF_DATA_TRANSMUL_X: [f32; 20] = [
     1.366575479507, /* ( 0, 0) */
     1.982354640961, /* ( 0, 1) */
@@ -656,7 +656,7 @@ pub const MATRIXF_DATA_TRANSMUL_X: [f32; 20] = [
    -0.176615595818, /* ( 4, 3) */
 ];
 
-// matrixf_data_transmul_xxT [size: 5 x 5]
+/// matrixf_data_transmul_xxT [size: 5 x 5]
 pub const MATRIXF_DATA_TRANSMUL_XXT: [f32; 25] = [
     7.082042816423, /* ( 0, 0) */
     0.271085233449, /* ( 0, 1) */
@@ -685,7 +685,7 @@ pub const MATRIXF_DATA_TRANSMUL_XXT: [f32; 25] = [
     2.507462799831, /* ( 4, 4) */
 ];
 
-// matrixf_data_transmul_xxH [size: 5 x 5]
+/// matrixf_data_transmul_xxH [size: 5 x 5]
 pub const MATRIXF_DATA_TRANSMUL_XXH: [f32; 25] = [
     7.082042816423, /* ( 0, 0) */
     0.271085233449, /* ( 0, 1) */
@@ -714,7 +714,7 @@ pub const MATRIXF_DATA_TRANSMUL_XXH: [f32; 25] = [
     2.507462799831, /* ( 4, 4) */
 ];
 
-// matrixf_data_transmul_xTx [size: 4 x 4]
+/// matrixf_data_transmul_xTx [size: 4 x 4]
 pub const MATRIXF_DATA_TRANSMUL_XTX: [f32; 16] = [
     2.846505957177, /* ( 0, 0) */
     3.736623075087, /* ( 0, 1) */
@@ -734,7 +734,7 @@ pub const MATRIXF_DATA_TRANSMUL_XTX: [f32; 16] = [
     2.706786656609, /* ( 3, 3) */
 ];
 
-// matrixf_data_transmul_xHx [size: 4 x 4]
+/// matrixf_data_transmul_xHx [size: 4 x 4]
 pub const MATRIXF_DATA_TRANSMUL_XHX: [f32; 16] = [
     2.846505957177, /* ( 0, 0) */
     3.736623075087, /* ( 0, 1) */
@@ -756,7 +756,7 @@ pub const MATRIXF_DATA_TRANSMUL_XHX: [f32; 16] = [
 
 // Test data for matrix addition, complex
 
-// matrixcf_data_add_x [size: 5 x 4]
+/// matrixcf_data_add_x [size: 5 x 4]
 pub const MATRIXCF_DATA_ADD_X: [Complex<f32>; 20] = [
     Complex::new(1.366575479507, -1.463535666466), /* ( 0, 0) */
     Complex::new(1.982354640961,  0.090445250273), /* ( 0, 1) */
@@ -780,7 +780,7 @@ pub const MATRIXCF_DATA_ADD_X: [Complex<f32>; 20] = [
     Complex::new(-0.176615595818, -0.414863616228), /* ( 4, 3) */
 ];
 
-// matrixcf_data_add_y [size: 5 x 4]
+/// matrixcf_data_add_y [size: 5 x 4]
 pub const MATRIXCF_DATA_ADD_Y: [Complex<f32>; 20] = [
     Complex::new(-0.345586329699,  0.240964725614), /* ( 0, 0) */
     Complex::new(-0.025732314214,  1.212726473808), /* ( 0, 1) */
@@ -804,7 +804,7 @@ pub const MATRIXCF_DATA_ADD_Y: [Complex<f32>; 20] = [
     Complex::new(-0.290932357311,  0.302335798740), /* ( 4, 3) */
 ];
 
-// matrixcf_data_add_z [size: 5 x 4]
+/// matrixcf_data_add_z [size: 5 x 4]
 pub const MATRIXCF_DATA_ADD_Z: [Complex<f32>; 20] = [
     Complex::new(1.020989149809, -1.222570940852), /* ( 0, 0) */
     Complex::new(1.956622326747,  1.303171724081), /* ( 0, 1) */
@@ -830,7 +830,7 @@ pub const MATRIXCF_DATA_ADD_Z: [Complex<f32>; 20] = [
 
 // Test data for matrix augmentation, complex
 
-// matrixcf_data_aug_x [size: 5 x 4]
+/// matrixcf_data_aug_x [size: 5 x 4]
 pub const MATRIXCF_DATA_AUG_X: [Complex<f32>; 20] = [
     Complex::new(-1.383545994759,  0.803655147552), /* ( 0, 0) */
     Complex::new(-0.918114125729, -1.194809913635), /* ( 0, 1) */
@@ -854,7 +854,7 @@ pub const MATRIXCF_DATA_AUG_X: [Complex<f32>; 20] = [
     Complex::new( 1.450994849205, -0.595933079720), /* ( 4, 3) */
 ];
 
-// matrixcf_data_aug_y [size: 5 x 3]
+/// matrixcf_data_aug_y [size: 5 x 3]
 pub const MATRIXCF_DATA_AUG_Y: [Complex<f32>; 15] = [
     Complex::new( 0.301848381758,  0.353115469217), /* ( 0, 0) */
     Complex::new( 0.703616917133,  0.044240720570), /* ( 0, 1) */
@@ -873,7 +873,7 @@ pub const MATRIXCF_DATA_AUG_Y: [Complex<f32>; 15] = [
     Complex::new( 0.204153224826, -0.616621196270), /* ( 4, 2) */
 ];
 
-// matrixcf_data_aug_z [size: 5 x 7]
+/// matrixcf_data_aug_z [size: 5 x 7]
 pub const MATRIXCF_DATA_AUG_Z: [Complex<f32>; 35] = [
     Complex::new(-1.383545994759,  0.803655147552), /* ( 0, 0) */
     Complex::new(-0.918114125729, -1.194809913635), /* ( 0, 1) */
@@ -914,7 +914,7 @@ pub const MATRIXCF_DATA_AUG_Z: [Complex<f32>; 35] = [
 
 // Test data for matrix Cholesky decomposition, complex
 
-// matrixcf_data_chol_L [size: 4 x 4]
+/// matrixcf_data_chol_L [size: 4 x 4]
 pub const MATRIXCF_DATA_CHOL_L: [Complex<f32>; 16] = [
     Complex::new( 1.010000000000,  0.000000000000), /* ( 0, 0) */
     Complex::new( 0.000000000000,  0.000000000000), /* ( 0, 1) */
@@ -934,7 +934,7 @@ pub const MATRIXCF_DATA_CHOL_L: [Complex<f32>; 16] = [
     Complex::new( 1.070000000000,  0.000000000000), /* ( 3, 3) */
 ];
 
-// matrixcf_data_chol_A [size: 4 x 4]
+/// matrixcf_data_chol_A [size: 4 x 4]
 pub const MATRIXCF_DATA_CHOL_A: [Complex<f32>; 16] = [
     Complex::new( 1.020100000000,  0.000000000000), /* ( 0, 0) */
     Complex::new(-1.434200000000, -0.252500000000), /* ( 0, 1) */
@@ -956,7 +956,7 @@ pub const MATRIXCF_DATA_CHOL_A: [Complex<f32>; 16] = [
 
 // Test data for matrix inverse, complex
 
-// matrixcf_data_inv_x [size: 5 x 5]
+/// matrixcf_data_inv_x [size: 5 x 5]
 pub const MATRIXCF_DATA_INV_X: [Complex<f32>; 25] = [
     Complex::new(-0.911099433899, -0.436777323484), /* ( 0, 0) */
     Complex::new( 0.598295390606, -0.283340752125), /* ( 0, 1) */
@@ -985,7 +985,7 @@ pub const MATRIXCF_DATA_INV_X: [Complex<f32>; 25] = [
     Complex::new( 0.200873896480, -0.036809749901), /* ( 4, 4) */
 ];
 
-// matrixcf_data_inv_y [size: 5 x 5]
+/// matrixcf_data_inv_y [size: 5 x 5]
 pub const MATRIXCF_DATA_INV_Y: [Complex<f32>; 25] = [
     Complex::new(-0.127852678827, -0.009178191835), /* ( 0, 0) */
     Complex::new(-0.199905444866,  0.033789259175), /* ( 0, 1) */
@@ -1016,7 +1016,7 @@ pub const MATRIXCF_DATA_INV_Y: [Complex<f32>; 25] = [
 
 // Test data for linear solver, complex
 
-// matrixcf_data_linsolve_A [size: 5 x 5]
+/// matrixcf_data_linsolve_A [size: 5 x 5]
 pub const MATRIXCF_DATA_LINSOLVE_A: [Complex<f32>; 25] = [
     Complex::new(-0.482884645462, -0.221723198891), /* ( 0, 0) */
     Complex::new(-0.387645065784,  0.086682170630), /* ( 0, 1) */
@@ -1045,7 +1045,7 @@ pub const MATRIXCF_DATA_LINSOLVE_A: [Complex<f32>; 25] = [
     Complex::new(-0.241452947259,  1.540177464485), /* ( 4, 4) */
 ];
 
-// matrixcf_data_linsolve_x [size: 5 x 1]
+/// matrixcf_data_linsolve_x [size: 5 x 1]
 pub const MATRIXCF_DATA_LINSOLVE_X: [Complex<f32>; 5] = [
     Complex::new(-0.686784207821,  0.516409814358), /* ( 0, 0) */
     Complex::new( 0.725918948650, -0.725804686546), /* ( 1, 0) */
@@ -1054,7 +1054,7 @@ pub const MATRIXCF_DATA_LINSOLVE_X: [Complex<f32>; 5] = [
     Complex::new( 1.000079274178,  0.117630988359), /* ( 4, 0) */
 ];
 
-// matrixcf_data_linsolve_b [size: 5 x 1]
+/// matrixcf_data_linsolve_b [size: 5 x 1]
 pub const MATRIXCF_DATA_LINSOLVE_B: [Complex<f32>; 5] = [
     Complex::new( 1.889372086452,  2.079795053851), /* ( 0, 0) */
     Complex::new( 4.099006087145,  0.093571115573), /* ( 1, 0) */
@@ -1065,7 +1065,7 @@ pub const MATRIXCF_DATA_LINSOLVE_B: [Complex<f32>; 5] = [
 
 // Test data for matrix LU decomposition, complex
 
-// matrixcf_data_ludecomp_A [size: 8 x 8]
+/// matrixcf_data_ludecomp_A [size: 8 x 8]
 pub const MATRIXCF_DATA_LUDECOMP_A: [Complex<f32>; 64] = [
     Complex::new( 0.455808967352,  0.239869371057), /* ( 0, 0) */
     Complex::new( 1.076113820076,  0.303303003311), /* ( 0, 1) */
@@ -1135,7 +1135,7 @@ pub const MATRIXCF_DATA_LUDECOMP_A: [Complex<f32>; 64] = [
 
 // Test data for matrix multiplication, complex
 
-// matrixcf_data_mul_x [size: 5 x 4]
+/// matrixcf_data_mul_x [size: 5 x 4]
 pub const MATRIXCF_DATA_MUL_X: [Complex<f32>; 20] = [
     Complex::new( 1.131277322769, -2.908640623093), /* ( 0, 0) */
     Complex::new( 0.847201466560, -1.637244105339), /* ( 0, 1) */
@@ -1159,7 +1159,7 @@ pub const MATRIXCF_DATA_MUL_X: [Complex<f32>; 20] = [
     Complex::new( 2.234328985214,  0.855401337147), /* ( 4, 3) */
 ];
 
-// matrixcf_data_mul_y [size: 4 x 3]
+/// matrixcf_data_mul_y [size: 4 x 3]
 pub const MATRIXCF_DATA_MUL_Y: [Complex<f32>; 12] = [
     Complex::new( 0.122429788113, -1.041572093964), /* ( 0, 0) */
     Complex::new(-1.123313307762, -1.396123170853), /* ( 0, 1) */
@@ -1175,7 +1175,7 @@ pub const MATRIXCF_DATA_MUL_Y: [Complex<f32>; 12] = [
     Complex::new( 0.562124013901,  0.047597970814), /* ( 3, 2) */
 ];
 
-// matrixcf_data_mul_z [size: 5 x 3]
+/// matrixcf_data_mul_z [size: 5 x 3]
 pub const MATRIXCF_DATA_MUL_Z: [Complex<f32>; 15] = [
     Complex::new(-3.015598273252, -3.823225604286), /* ( 0, 0) */
     Complex::new(-6.503138041472,  2.522251659946), /* ( 0, 1) */
@@ -1196,7 +1196,7 @@ pub const MATRIXCF_DATA_MUL_Z: [Complex<f32>; 15] = [
 
 // Test data for matrix QR decomposition, complex
 
-// matrixcf_data_qrdecomp_A [size: 4 x 4]
+/// matrixcf_data_qrdecomp_A [size: 4 x 4]
 pub const MATRIXCF_DATA_QRDECOMP_A: [Complex<f32>; 16] = [
     Complex::new( 2.114020000000, -0.576040000000), /* ( 0, 0) */
     Complex::new( 0.417500000000,  1.008330000000), /* ( 0, 1) */
@@ -1216,7 +1216,7 @@ pub const MATRIXCF_DATA_QRDECOMP_A: [Complex<f32>; 16] = [
     Complex::new(-0.127670000000, -0.539970000000), /* ( 3, 3) */
 ];
 
-// matrixcf_data_qrdecomp_Q [size: 4 x 4]
+/// matrixcf_data_qrdecomp_Q [size: 4 x 4]
 pub const MATRIXCF_DATA_QRDECOMP_Q: [Complex<f32>; 16] = [
     Complex::new( 0.491706158979, -0.133982845866), /* ( 0, 0) */
     Complex::new( 0.429660711419,  0.559833033911), /* ( 0, 1) */
@@ -1236,7 +1236,7 @@ pub const MATRIXCF_DATA_QRDECOMP_Q: [Complex<f32>; 16] = [
     Complex::new(-0.173581995183, -0.293616086507), /* ( 3, 3) */
 ];
 
-// matrixcf_data_qrdecomp_R [size: 4 x 4]
+/// matrixcf_data_qrdecomp_R [size: 4 x 4]
 pub const MATRIXCF_DATA_QRDECOMP_R: [Complex<f32>; 16] = [
     Complex::new( 4.299356356224,  0.000000000000), /* ( 0, 0) */
     Complex::new(-0.922616273377, -0.789487259898), /* ( 0, 1) */
@@ -1258,7 +1258,7 @@ pub const MATRIXCF_DATA_QRDECOMP_R: [Complex<f32>; 16] = [
 
 // Test data for multiply/transpose, complex
 
-// matrixcf_data_transmul_x [size: 5 x 4]
+/// matrixcf_data_transmul_x [size: 5 x 4]
 pub const MATRIXCF_DATA_TRANSMUL_X: [Complex<f32>; 20] = [
     Complex::new( 0.897770464420, -1.137341141701), /* ( 0, 0) */
     Complex::new( 0.816529691219, -0.575469911098), /* ( 0, 1) */
@@ -1282,7 +1282,7 @@ pub const MATRIXCF_DATA_TRANSMUL_X: [Complex<f32>; 20] = [
     Complex::new( 0.089408367872, -1.864659070969), /* ( 4, 3) */
 ];
 
-// matrixcf_data_transmul_xxT [size: 5 x 5]
+/// matrixcf_data_transmul_xxT [size: 5 x 5]
 pub const MATRIXCF_DATA_TRANSMUL_XXT: [Complex<f32>; 25] = [
     Complex::new(13.946043026996,  0.000000000000), /* ( 0, 0) */
     Complex::new( 1.715635857916,  6.831514803023), /* ( 0, 1) */
@@ -1311,7 +1311,7 @@ pub const MATRIXCF_DATA_TRANSMUL_XXT: [Complex<f32>; 25] = [
     Complex::new( 5.591988375464,  0.000000000000), /* ( 4, 4) */
 ];
 
-// matrixcf_data_transmul_xxH [size: 5 x 5]
+/// matrixcf_data_transmul_xxH [size: 5 x 5]
 pub const MATRIXCF_DATA_TRANSMUL_XXH: [Complex<f32>; 25] = [
     Complex::new( 2.693069394806,  5.019630491560), /* ( 0, 0) */
     Complex::new( 1.208446246635, -4.757020341403), /* ( 0, 1) */
@@ -1340,7 +1340,7 @@ pub const MATRIXCF_DATA_TRANSMUL_XXH: [Complex<f32>; 25] = [
     Complex::new(-3.106642538055,  1.664057265760), /* ( 4, 4) */
 ];
 
-// matrixcf_data_transmul_xTx [size: 4 x 4]
+/// matrixcf_data_transmul_xTx [size: 4 x 4]
 pub const MATRIXCF_DATA_TRANSMUL_XTX: [Complex<f32>; 16] = [
     Complex::new( 9.323024431917,  0.000000000000), /* ( 0, 0) */
     Complex::new( 0.563876592623,  2.570030362211), /* ( 0, 1) */
@@ -1360,7 +1360,7 @@ pub const MATRIXCF_DATA_TRANSMUL_XTX: [Complex<f32>; 16] = [
     Complex::new(10.759653720678,  0.000000000000), /* ( 3, 3) */
 ];
 
-// matrixcf_data_transmul_xHx [size: 4 x 4]
+/// matrixcf_data_transmul_xHx [size: 4 x 4]
 pub const MATRIXCF_DATA_TRANSMUL_XHX: [Complex<f32>; 16] = [
     Complex::new(-1.137085237839, -2.939337742229), /* ( 0, 0) */
     Complex::new(-1.429264118470, -4.526184217761), /* ( 0, 1) */

@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 use crate::math::bessel::*;
 use crate::error::{Error, Result};
 
-// Enum for window types
+/// Enum for window types
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowType {
     Unknown,
@@ -17,7 +17,7 @@ pub enum WindowType {
     Kbd,
 }
 
-// Struct to hold window information
+/// Struct to hold window information
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WindowInfo {
     short_name: &'static str,
@@ -38,7 +38,7 @@ const WINDOW_INFO: [WindowInfo; 10] = [
     WindowInfo { short_name: "kbd", long_name: "Kaiser-Bessel derived" },
 ];
 
-// Function to print available window functions
+/// Function to print available window functions
 pub fn print_windows() {
     println!("Available window functions:");
     for info in &WINDOW_INFO {
@@ -46,7 +46,7 @@ pub fn print_windows() {
     }
 }
 
-// Function to get WindowType from string
+/// Function to get WindowType from string
 pub fn get_window_type(name: &str) -> Result<WindowType> {
     for (i, info) in WINDOW_INFO.iter().enumerate() {
         if info.short_name == name {
@@ -56,7 +56,7 @@ pub fn get_window_type(name: &str) -> Result<WindowType> {
     Err(Error::Config("Unknown window type".to_string()))
 }
 
-// Generic window function
+/// Generic window function
 pub fn window(window_type: WindowType, i: usize, wlen: usize, arg: f32) -> Result<f32> {
     match window_type {
         WindowType::Hamming => hamming(i, wlen),
@@ -72,7 +72,7 @@ pub fn window(window_type: WindowType, i: usize, wlen: usize, arg: f32) -> Resul
     }
 }
 
-// Implement individual window functions
+/// Implement individual window functions
 pub fn kaiser(i: usize, wlen: usize, beta: f32) -> Result<f32> {
     if i >= wlen {
         return Err(Error::Value("Kaiser window: sample index must not exceed window length".to_string()));

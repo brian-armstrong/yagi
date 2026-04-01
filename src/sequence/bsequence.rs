@@ -3,7 +3,7 @@ use crate::utility::bits::count_ones;
 use crate::sequence::msequence::MSequence;
 
 
-// binary sequence
+/// binary sequence
 #[derive(Debug, Clone)]
 pub struct BSequence {
     s: Vec<u32>,

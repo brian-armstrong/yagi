@@ -4,7 +4,7 @@ const DEBUG_MATRIX_GRAMSCHMIDT: bool = false;
 use crate::matrix::FloatComplex;
 use crate::error::{Result, Error};
 
-// Compute projection of _u onto _v, store in _e
+/// Compute projection of _u onto _v, store in _e
 pub fn matrix_proj<T>(u: &[T], v: &[T], e: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
@@ -31,7 +31,7 @@ where
     Ok(())
 }
 
-// Orthonormalization using the Gram-Schmidt algorithm
+/// Orthonormalization using the Gram-Schmidt algorithm
 pub fn matrix_gramschmidt<T>(x: &[T], rx: usize, cx: usize, v: &mut [T]) -> Result<()>
 where
     T: FloatComplex,

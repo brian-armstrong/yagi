@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::random::randf;
 
-// Weibull
+/// Weibull
 pub fn randweibf(alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {
@@ -20,7 +20,7 @@ pub fn randweibf(alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     Ok(gamma + beta * (-u.ln()).powf(1.0 / alpha))
 }
 
-// Weibull random number probability distribution function
+/// Weibull random number probability distribution function
 pub fn randweibf_pdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {

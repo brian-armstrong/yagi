@@ -5,7 +5,7 @@ use libm::erff;
 
 use crate::error::{Error, Result};
 
-// Gauss
+/// Gauss
 pub fn randnf() -> f32 {
     let mut rng = rand::thread_rng();
 
@@ -25,7 +25,7 @@ pub fn awgn(x: &mut f32, nstd: f32) {
     *x += randnf() * nstd;
 }
 
-// Complex Gauss
+/// Complex Gauss
 pub fn crandnf() -> Complex<f32> {
     let mut rng = rand::thread_rng();
 
@@ -47,7 +47,7 @@ pub fn cawgn(x: &mut Complex<f32>, nstd: f32) {
     *x += crandnf() * nstd * 0.707106781186547;
 }
 
-// Gauss random number probability distribution function
+/// Gauss random number probability distribution function
 pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     if sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));
@@ -58,7 +58,7 @@ pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     Ok((-t * t / (2.0 * s2)).exp() / (2.0 * PI * s2).sqrt())
 }
 
-// Gauss random number cumulative distribution function
+/// Gauss random number cumulative distribution function
 pub fn randnf_cdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     if sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));

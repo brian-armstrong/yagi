@@ -26,15 +26,15 @@ pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {
     Ok(beta * (x_delta + x_n))
 }
 
-// Gamma distribution probability distribution function
-//          x^(a-1) exp{-x/b)
-//  f(x) = -------------------
-//            Gamma(a) b^a
-//  where
-//      a = alpha, a > 0
-//      b = beta,  b > 0
-//      Gamma(z) = regular gamma function
-//      x >= 0
+/// Gamma distribution probability distribution function
+///          x^(a-1) exp{-x/b)
+///  f(x) = -------------------
+///            Gamma(a) b^a
+///  where
+///      a = alpha, a > 0
+///      b = beta,  b > 0
+///      Gamma(z) = regular gamma function
+///      x >= 0
 pub fn randgammaf_pdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {

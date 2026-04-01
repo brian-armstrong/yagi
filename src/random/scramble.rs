@@ -33,7 +33,7 @@ pub fn unscramble_data(x: &mut [u8]) {
     scramble_data(x);
 }
 
-// unscramble soft bits
+/// unscramble soft bits
 pub fn unscramble_data_soft(x: &mut [u8]) {
     for (i, chunk) in x.chunks_exact_mut(8).enumerate() {
         let mask = match i % 4 {

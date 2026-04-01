@@ -1,7 +1,7 @@
 use num_complex::{Complex, ComplexFloat};
 use num_traits::{Float, Zero};
 
-// Extension trait for complex number support
+/// Extension trait for complex number support
 pub trait IsComplex {
     fn is_complex() -> bool;
 }
@@ -101,7 +101,7 @@ where
     }
 }
 
-// Helper function to access matrix elements
+/// Helper function to access matrix elements
 #[inline]
 pub fn matrix_access<T>(matrix: &[T], _rows: usize, cols: usize, r: usize, c: usize) -> T
 where
@@ -110,7 +110,7 @@ where
     matrix[r * cols + c]
 }
 
-// Helper function to mutably access matrix elements
+/// Helper function to mutably access matrix elements
 #[inline]
 pub fn matrix_access_mut<T>(matrix: &mut [T], _rows: usize, cols: usize, r: usize, c: usize, value: T) {
     matrix[r * cols + c] = value;
