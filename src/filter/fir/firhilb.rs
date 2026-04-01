@@ -30,7 +30,7 @@ impl FirHilbertFilter {
     /// # Arguments
     /// 
     /// * `m` - filter semi-length, delay is 2*m+1
-    /// * `as_` - filter stop-band attenuation [dB]
+    /// * `as_` - filter stop-band attenuation \[dB\]
     /// 
     /// # Returns
     ///

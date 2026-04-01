@@ -282,11 +282,13 @@ where
         Ok(filter)
     }   
 
-    // create DC-blocking filter
-    //
+    /// Create DC-blocking filter
+    ///
+    /// ```text
     ///          1 -          z^-1
     ///  H(z) = ------------------
     ///          1 - (1-alpha)z^-1
+    /// ```
     pub fn new_dc_blocker(alpha: f32) -> Result<Self> {
         if alpha <= 0.0 {
             return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));

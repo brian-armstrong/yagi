@@ -84,7 +84,7 @@ where
 /// Expands the polynomial:
 ///  P_n(x) = (1+x)^n
 /// as
-///  P_n(x) = p[0] + p[1]*x + p[2]*x^2 + ... + p[n]x^n
+///  P_n(x) = p`[0]` + p`[1]`*x + p`[2]`*x^2 + ... + p`[n]`x^n
 ///
 /// # Arguments
 ///
@@ -116,7 +116,7 @@ where
 /// Expands the polynomial:
 ///  P_n(x) = (1+x)^m * (1-x)^k
 /// as
-///  P_n(x) = p[0] + p[1]*x + p[2]*x^2 + ... + p[n]x^n
+///  P_n(x) = p`[0]` + p`[1]`*x + p`[2]`*x^2 + ... + p`[n]`x^n
 ///
 /// # Arguments
 ///
@@ -156,10 +156,10 @@ where
 }
 
 /// Perform root expansion on the polynomial:
-///  P_n(x) = (x-r[0]) * (x-r[1]) * ... * (x-r[n-1])
+///  P_n(x) = (x-r`[0]`) * (x-r`[1]`) * ... * (x-r[n-1])
 /// as
-///  P_n(x) = p[0] + p[1]*x + ... + p[n]*x^n
-/// where r[0],r[1],...,r[n-1] are the roots of P_n(x)
+///  P_n(x) = p`[0]` + p`[1]`*x + ... + p`[n]`*x^n
+/// where r`[0]`,r`[1]`,...,r[n-1] are the roots of P_n(x)
 /// 
 /// # Arguments
 ///
@@ -191,9 +191,9 @@ where
 }
 
 /// Perform root expansion on the polynomial:
-///  P_n(x) = (x*b[0]-a[0]) * (x*b[1]-a[1]) * ... * (x*b[n-1]-a[n-1])
+///  P_n(x) = (x*b`[0]`-a`[0]`) * (x*b`[1]`-a`[1]`) * ... * (x*b[n-1]-a[n-1])
 /// as
-///  P_n(x) = p[0] + p[1]*x + ... + p[n]*x^n
+///  P_n(x) = p`[0]` + p`[1]`*x + ... + p`[n]`*x^n
 ///
 /// # Arguments
 ///
@@ -224,9 +224,9 @@ where
 
 /// Expands the multiplication of two polynomials
 ///
-/// (a[0] + a[1]*x + a[2]*x^2 + ...) * (b[0] + b[1]*x + b[2]*x^2 + ...)
+/// (a`[0]` + a`[1]`*x + a`[2]`*x^2 + ...) * (b`[0]` + b`[1]`*x + b`[2]`*x^2 + ...)
 /// as
-/// c[0] + c[1]*x + c[2]*x^2 + ... + c[n]*x^n
+/// c`[0]` + c`[1]`*x + c`[2]`*x^2 + ... + c`[n]`*x^n
 ///
 /// where order(c)  = order(a)  + order(b) + 1
 ///    :: length(c) = length(a) + length(b) - 1

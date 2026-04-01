@@ -43,7 +43,7 @@ pub fn design_lpc(x: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
 /// * `e`: error variance [size: p+1 x 1]
 ///
 /// # Notes
-/// By definition a[0] = 1.0
+/// By definition a`[0]` = 1.0
 pub fn levinson(r: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     // check allocation length
     if p > LEVINSON_MAXORDER {

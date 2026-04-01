@@ -87,7 +87,7 @@ where
     /// * `num_filters` - number of filters in the bank
     /// * `m` - filter delay
     /// * `fc` - filter normalized cut-off frequency
-    /// * `as_` - filter stop-band suppression [dB]
+    /// * `as_` - filter stop-band suppression \[dB\]
     /// 
     /// # Returns
     /// 

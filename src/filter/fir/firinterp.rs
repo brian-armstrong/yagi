@@ -65,7 +65,7 @@ where
     /// 
     /// * `interp` - interpolation factor
     /// * `m` - filter delay
-    /// * `as_` - stop-band attenuation [dB]
+    /// * `as_` - stop-band attenuation \[dB\]
     /// 
     /// # Returns
     /// 

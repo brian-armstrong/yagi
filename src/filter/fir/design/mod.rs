@@ -130,7 +130,7 @@ const USE_KAISER_REQ_FILTER_LEN_ESTIMATE: bool = true;
 ///
 /// # Arguments
 /// * `df`     : transition bandwidth (0 < df < 0.5)
-/// * `as_`    : stopband suppression level [dB] (as_ > 0)
+/// * `as_`    : stopband suppression level \[dB\] (as_ > 0)
 ///
 /// # Returns
 /// 
@@ -157,7 +157,7 @@ pub fn estimate_req_filter_len(df: f32, as_: f32) -> Result<usize> {
 ///
 /// # Returns
 /// 
-/// Stop-band attenuation [dB]
+/// Stop-band attenuation \[dB\]
 pub fn estimate_req_filter_stopband_attenuation(df: f32, n: usize) -> Result<f32> {
     // run search for stop-band attenuation which gives these results
     let mut as0 = 0.01;    // lower bound
@@ -184,7 +184,7 @@ pub fn estimate_req_filter_stopband_attenuation(df: f32, n: usize) -> Result<f32
 }
 
 /// estimate filter transition bandwidth given
-/// * `as_`    : stop-band attenuation [dB], as_ > 0
+/// * `as_`    : stop-band attenuation \[dB\], as_ > 0
 /// * `n`      : filter length
 ///
 /// # Returns
@@ -220,7 +220,7 @@ pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f3
 ///
 /// # Arguments
 /// * `df`     : transition bandwidth (0 < df < 0.5)
-/// * `as_`    : stop-band attenuation [dB] (as_ > 0)
+/// * `as_`    : stop-band attenuation \[dB\] (as_ > 0)
 ///
 /// # Returns
 /// 
@@ -242,7 +242,7 @@ pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
 ///
 /// # Arguments
 /// * `df`     : transition bandwidth (0 < df < 0.5)
-/// * `as_`    : stop-band attenuation [dB] (as_ > 0)
+/// * `as_`    : stop-band attenuation \[dB\] (as_ > 0)
 ///
 /// # Returns
 /// 
@@ -326,9 +326,9 @@ pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f3
 /// Design finite impulse response notch filter
 ///
 /// # Arguments
-/// * `m`      : filter semi-length, m in [1,1000]
+/// * `m`      : filter semi-length, m in \[1,1000\]
 /// * `f0`     : filter notch frequency (normalized), -0.5 <= f0 <= 0.5
-/// * `as_`    : stop-band attenuation [dB], as_ > 0
+/// * `as_`    : stop-band attenuation \[dB\], as_ > 0
 ///
 /// # Returns
 /// 
@@ -383,7 +383,7 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
 /// * `ftype`  : filter type (e.g. FirdesFilterType::Rrcos)
 /// * `k`      : samples/symbol
 /// * `m`      : symbol delay
-/// * `beta`   : excess bandwidth factor, beta in [0,1]
+/// * `beta`   : excess bandwidth factor, beta in \[0,1\]
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns

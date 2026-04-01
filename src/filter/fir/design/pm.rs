@@ -623,8 +623,8 @@ pub fn fir_design_pm(
 /// 
 /// * `n` : filter length, n > 0
 /// * `fc` : cutoff frequency, 0 < fc < 0.5
-/// * `as_` : stop-band attenuation [dB], as_ > 0
-/// * `mu` : fractional sample offset, -0.5 < mu < 0.5 [ignored]
+/// * `as_` : stop-band attenuation \[dB\], as_ > 0
+/// * `mu` : fractional sample offset, -0.5 < mu < 0.5 \[ignored\]
 /// 
 /// # Returns
 /// 
