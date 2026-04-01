@@ -95,6 +95,13 @@ where
         Ok(())
     }
 
+    pub fn execute_input_block(&mut self, x: &[T]) -> Result<()> {
+        for x_i in x.iter() {
+            self.execute(*x_i)?;
+        }
+        Ok(())
+    }
+
     pub fn lock(&mut self) {
         self.is_locked = true;
     }
