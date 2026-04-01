@@ -19,7 +19,7 @@ where
     T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T>,
     Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T>,
 {
-    // create iirfiltsos object
+    /// create iirfiltsos object
     pub fn new(b: &[Coeff; 3], a: &[Coeff; 3]) -> Result<Self> {
         let mut filter = IirFilterSos {
             b: [Coeff::default(); 3],
@@ -37,7 +37,7 @@ where
         Ok(filter)
     }
 
-    // set internal filter coefficients
+    /// set internal filter coefficients
     pub fn set_coefficients(&mut self, b: &[Coeff; 3], a: &[Coeff; 3]) -> Result<()> {
         // retain a0 coefficient for normalization
         let a0 = a[0];
@@ -55,7 +55,7 @@ where
         Ok(())
     }
 
-    // clear/reset iirfiltsos object internals
+    /// clear/reset iirfiltsos object internals
     pub fn reset(&mut self) {
         self.v[0] = T::default();
         self.v[1] = T::default();
@@ -70,12 +70,12 @@ where
         self.y[2] = T::default();
     }
 
-    // compute filter output
+    /// compute filter output
     pub fn execute(&mut self, x: T) -> T {
         self.execute_df2(x)
     }
 
-    // compute filter output, direct form I method
+    /// compute filter output, direct form I method
     pub fn execute_df1(&mut self, x: T) -> T {
         // advance buffer x
         self.x[2] = self.x[1];
@@ -99,7 +99,7 @@ where
         self.y[0]
     }
 
-    // compute filter output, direct form II method
+    /// compute filter output, direct form II method
     pub fn execute_df2(&mut self, x: T) -> T {
         // advance buffer
         self.v[2] = self.v[1];
@@ -116,7 +116,7 @@ where
         self.b[2] * self.v[2]
     }
 
-    // compute group delay in samples
+    /// compute group delay in samples
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         // copy coefficients
         let b: [f32; 3] = [self.b[0].re(), self.b[1].re(), self.b[2].re()];

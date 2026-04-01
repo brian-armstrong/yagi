@@ -47,11 +47,11 @@ pub struct MSequence {
 }
 
 impl MSequence {
-    // create a maximal-length sequence (m-sequence) object with
-    // an internal shift register length of _m bits.
-    //  m      :   generator polynomial length, sequence length is (2^m)-1
-    //  g      :   generator polynomial, starting with most-significant bit
-    //  a      :   initial shift register state, default: 000...001
+    /// create a maximal-length sequence (m-sequence) object with
+    /// an internal shift register length of _m bits.
+    ///  m      :   generator polynomial length, sequence length is (2^m)-1
+    ///  g      :   generator polynomial, starting with most-significant bit
+    ///  a      :   initial shift register state, default: 000...001
     pub fn new(m: u32, g: u32, a: u32) -> Result<Self> {
         if m > MAX_MSEQUENCE_M || m < MIN_MSEQUENCE_M {
             return Err(Error::Config(format!("m ({}) not in range", m)));
@@ -134,7 +134,7 @@ impl MSequence {
         self.state = self.a;
     }
 
-    // Getter methods
+    /// Getter methods
     pub fn get_genpoly_length(&self) -> u32 { self.m }
     pub fn get_length(&self) -> u32 { self.n }
     pub fn get_genpoly(&self) -> u32 { self.g }

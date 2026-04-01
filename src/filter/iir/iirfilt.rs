@@ -99,15 +99,15 @@ where
         Ok(filter)
     }
 
-    // create iirfilt object based on second-order sections form
-    // _B      :   numerator, feed-forward coefficients [size: _nsos x 3]
-    // _A      :   denominator, feed-back coefficients  [size: _nsos x 3]
-    // _nsos   :   number of second-order sections
-    // NOTE: The number of second-order sections can be computed from the
-    // filter's order, n, as such:
-    //   r = n % 2
-    //   L = (n-r)/2
-    //   nsos = L+r
+    /// create iirfilt object based on second-order sections form
+    /// _B      :   numerator, feed-forward coefficients [size: _nsos x 3]
+    /// _A      :   denominator, feed-back coefficients  [size: _nsos x 3]
+    /// _nsos   :   number of second-order sections
+    /// NOTE: The number of second-order sections can be computed from the
+    /// filter's order, n, as such:
+    ///   r = n % 2
+    ///   L = (n-r)/2
+    ///   nsos = L+r
     pub fn new_sos(b: &[Coeff], a: &[Coeff], nsos: usize) -> Result<Self> {
         if nsos == 0 {
             return Err(Error::Config("filter must have at least one 2nd-order section".into()));
@@ -135,16 +135,16 @@ where
         Ok(filter)
     }
 
-    // create iirfilt (infinite impulse response filter) object based
-    // on prototype
-    //  _ftype      :   filter type (e.g. LIQUID_IIRDES_BUTTER)
-    //  _btype      :   band type (e.g. LIQUID_IIRDES_BANDPASS)
-    //  _format     :   coefficients format (e.g. LIQUID_IIRDES_SOS)
-    //  _order      :   filter order
-    //  _fc         :   low-pass prototype cut-off frequency
-    //  _f0         :   center frequency (band-pass, band-stop)
-    //  _ap         :   pass-band ripple in dB
-    //  _as         :   stop-band ripple in dB
+    /// create iirfilt (infinite impulse response filter) object based
+    /// on prototype
+    ///  _ftype      :   filter type (e.g. LIQUID_IIRDES_BUTTER)
+    ///  _btype      :   band type (e.g. LIQUID_IIRDES_BANDPASS)
+    ///  _format     :   coefficients format (e.g. LIQUID_IIRDES_SOS)
+    ///  _order      :   filter order
+    ///  _fc         :   low-pass prototype cut-off frequency
+    ///  _f0         :   center frequency (band-pass, band-stop)
+    ///  _ap         :   pass-band ripple in dB
+    ///  _as         :   stop-band ripple in dB
     pub fn new_prototype(
         ftype: design::IirFilterShape,
         btype: design::IirBandType,
@@ -183,9 +183,9 @@ where
         Ok(filter)
     }
 
-    // create simplified low-pass Butterworth IIR filter
-    //  _n      : filter order
-    //  _fc     : low-pass prototype cut-off frequency
+    /// create simplified low-pass Butterworth IIR filter
+    ///  _n      : filter order
+    ///  _fc     : low-pass prototype cut-off frequency
     pub fn new_lowpass(order: usize, fc: f32) -> Result<Self> {
         let filter = IirFilter::<T, Coeff>::new_prototype(
             design::IirFilterShape::Butter,
@@ -200,7 +200,7 @@ where
         Ok(filter)
     }
 
-    // create 8th-order integrating filter
+    /// create 8th-order integrating filter
     pub fn new_integrator() -> Result<Self> {
         // integrator digital zeros/poles/gain, [Pintelon:1990] Table II
         //
@@ -241,7 +241,7 @@ where
         Ok(filter)
     }
 
-    // create 8th-order differentiating filter
+    /// create 8th-order differentiating filter
     pub fn new_differentiator() -> Result<Self> {
         // differentiator digital zeros/poles/gain, [Pintelon:1990] Table IV
         //
@@ -284,9 +284,9 @@ where
 
     // create DC-blocking filter
     //
-    //          1 -          z^-1
-    //  H(z) = ------------------
-    //          1 - (1-alpha)z^-1
+    ///          1 -          z^-1
+    ///  H(z) = ------------------
+    ///          1 - (1-alpha)z^-1
     pub fn new_dc_blocker(alpha: f32) -> Result<Self> {
         if alpha <= 0.0 {
             return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));
@@ -303,10 +303,10 @@ where
         Ok(filter)
     }
 
-    // create phase-locked loop iirfilt object
-    //  _w      :   filter bandwidth
-    //  _zeta   :   damping factor (1/sqrt(2) suggested)
-    //  _K      :   loop gain (1000 suggested)
+    /// create phase-locked loop iirfilt object
+    ///  _w      :   filter bandwidth
+    ///  _zeta   :   damping factor (1/sqrt(2) suggested)
+    ///  _K      :   loop gain (1000 suggested)
     pub fn new_pll(w: f32, zeta: f32, k: f32) -> Result<Self> {
         if w <= 0.0 || w >= 1.0 {
             return Err(Error::Config("PLL bandwidth must be in (0,1)".into()));
@@ -329,7 +329,7 @@ where
         Ok(filter)
     }
 
-    // reset internal state of iirfilt object
+    /// reset internal state of iirfilt object
     pub fn reset(&mut self) {
         if self.filter_type == IirFilterType::Sos {
             for sos in &mut self.qsos {
@@ -342,17 +342,17 @@ where
         }
     }
 
-    // set output scaling for filter
+    /// set output scaling for filter
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
-    // get output scaling for filter
+    /// get output scaling for filter
     pub fn get_scale(&self) -> Coeff {
         self.scale
     }
 
-    // set coefficients for filter
+    /// set coefficients for filter
     pub fn set_coefficients(&mut self, b: &[Coeff], a: &[Coeff]) -> Result<()> {
         if self.filter_type == IirFilterType::Sos && self.qsos.len() == 1 {
             return self.qsos[0].set_coefficients(&[b[0], b[1], b[2]], &[a[0], a[1], a[2]]);
@@ -375,7 +375,7 @@ where
         Ok(())
     }
 
-    // get coefficients for filter
+    /// get coefficients for filter
     pub fn get_coeffs(&self) -> (Vec<Coeff>, Vec<Coeff>) {
         (self.b.clone(), self.a.clone())
     }
@@ -410,9 +410,9 @@ where
         y * self.scale
     }
 
-    // execute iir filter, switching to type-specific function
-    //  _x      :   input sample
-    //  _y      :   output sample
+    /// execute iir filter, switching to type-specific function
+    ///  _x      :   input sample
+    ///  _y      :   output sample
     pub fn execute(&mut self, x: T) -> T {
         match self.filter_type {
             IirFilterType::Norm => self.execute_norm(x),
@@ -420,7 +420,7 @@ where
         }
     }
 
-    // execute filter block
+    /// execute filter block
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
         if x.len() != y.len() {
             return Err(Error::Config("input and output block lengths must be equal".into()));
@@ -442,14 +442,14 @@ where
         Ok(())
     }
 
-    // get filter length (order + 1)
+    /// get filter length (order + 1)
     pub fn get_length(&self) -> usize {
         self.n
     }
 
-    // compute complex frequency response
-    //  _fc     :   frequency
-    //  _H      :   output frequency response
+    /// compute complex frequency response
+    ///  _fc     :   frequency
+    ///  _H      :   output frequency response
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         let mut h;
 
@@ -486,13 +486,13 @@ where
         h * self.scale.into()
     }
 
-    // compute power spectral density response of filter object in dB
+    /// compute power spectral density response of filter object in dB
     pub fn get_psd(&self, fc: f32) -> f32 {
         let h = self.freqresponse(fc);
         10.0 * (h * h.conj()).re.log10()
     }
 
-    // compute group delay in samples
+    /// compute group delay in samples
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         let mut groupdelay = 0.0;
 

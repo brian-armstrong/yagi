@@ -17,7 +17,7 @@ where
     std::collections::VecDeque<T>: DotProd<Coeff, Output = T>,
     f32: Into<Coeff>,
 {
-    // create interpolator from external coefficients
+    /// create interpolator from external coefficients
     pub fn new(m: usize, b: &[Coeff], a: &[Coeff]) -> Result<Self> {
         // validate input
         if m < 2 {
@@ -30,7 +30,7 @@ where
         Ok(IirInterpolationFilter { m, iirfilt })
     }
 
-    // create interpolator with default Butterworth prototype
+    /// create interpolator with default Butterworth prototype
     pub fn new_default(m: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
             m,
@@ -45,7 +45,7 @@ where
         )
     }
 
-    // create interpolator from prototype
+    /// create interpolator from prototype
     pub fn new_prototype(
         m: usize,
         ftype: IirFilterShape,
@@ -84,12 +84,12 @@ where
     //     println!("<liquid.iirinterp, interp={}>", self.m);
     // }
 
-    // clear internal state
+    /// clear internal state
     pub fn reset(&mut self) {
         self.iirfilt.reset();
     }
 
-    // execute interpolator
+    /// execute interpolator
     pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<()> {
         if y.len() != self.m {
             return Err(Error::Config("output array must be of length m".into()));
@@ -102,7 +102,7 @@ where
         Ok(())
     }
 
-    // execute interpolation on block of input samples
+    /// execute interpolation on block of input samples
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
         if y.len() != x.len() * self.m {
             return Err(Error::Config("output array must be of length n * m".into()));
@@ -114,7 +114,7 @@ where
         Ok(())
     }
 
-    // get system group delay at frequency fc
+    /// get system group delay at frequency fc
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         Ok(self.iirfilt.groupdelay(fc)? / (self.m as f32))
     }

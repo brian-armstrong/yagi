@@ -36,7 +36,7 @@ pub struct Osc {
 }
 
 impl Osc {
-    // Create a new NCO
+    /// Create a new NCO
     pub fn new(osc_scheme: OscScheme) -> Self {
         let data = match osc_scheme {
             OscScheme::Direct => OscData::Direct(Direct::new()),
@@ -60,43 +60,43 @@ impl Osc {
         nco
     }
 
-    // Reset internal state
+    /// Reset internal state
     pub fn reset(&mut self) {
         self.theta = 0;
         self.d_theta = 0;
     }
 
-    // Set frequency
+    /// Set frequency
     pub fn set_frequency(&mut self, dtheta: f32) {
         self.d_theta = Self::constrain(dtheta);
     }
 
-    // Adjust frequency
+    /// Adjust frequency
     pub fn adjust_frequency(&mut self, df: f32) {
         self.d_theta = self.d_theta.wrapping_add(Self::constrain(df));
     }
 
-    // Set phase
+    /// Set phase
     pub fn set_phase(&mut self, phi: f32) {
         self.theta = Self::constrain(phi);
     }
 
-    // Adjust phase
+    /// Adjust phase
     pub fn adjust_phase(&mut self, dphi: f32) {
         self.theta = self.theta.wrapping_add(Self::constrain(dphi));
     }
 
-    // Increment internal phase
+    /// Increment internal phase
     pub fn step(&mut self) {
         self.theta = self.theta.wrapping_add(self.d_theta);
     }
 
-    // Get phase
+    /// Get phase
     pub fn get_phase(&self) -> f32 {
         2.0 * PI * self.theta as f32 / ((1u64 << 32) as f32)
     }
 
-    // Get frequency
+    /// Get frequency
     pub fn get_frequency(&self) -> f32 {
         let d_theta = 2.0 * PI * self.d_theta as f32 / (1u64 << 32) as f32;
         if d_theta > PI {
@@ -106,7 +106,7 @@ impl Osc {
         }
     }
 
-    // Compute sine of internal phase
+    /// Compute sine of internal phase
     pub fn sin(&self) -> f32 {
         match self.osc {
             OscData::Direct(ref direct) => direct.sin(self.theta),
@@ -115,7 +115,7 @@ impl Osc {
         }
     }
 
-    // Compute cosine of internal phase
+    /// Compute cosine of internal phase
     pub fn cos(&self) -> f32 {
         match self.osc {
             OscData::Direct(ref direct) => direct.cos(self.theta),
@@ -124,7 +124,7 @@ impl Osc {
         }
     }
 
-    // Compute sine and cosine of internal phase
+    /// Compute sine and cosine of internal phase
     pub fn sin_cos(&self) -> (f32, f32) {
         match self.osc {
             OscData::Direct(ref direct) => direct.sin_cos(self.theta),
@@ -133,7 +133,7 @@ impl Osc {
         }
     }
 
-    // Compute complex exponential of internal phase
+    /// Compute complex exponential of internal phase
     pub fn cexp(&self) -> Complex<f32> {
         let (sin, cos) = self.sin_cos();
         Complex::new(cos, sin)
@@ -177,7 +177,7 @@ impl Osc {
 
     // PLL methods
 
-    // Set PLL bandwidth
+    /// Set PLL bandwidth
     pub fn pll_set_bandwidth(&mut self, bw: f32) {
         if bw < 0.0 {
             panic!("Bandwidth must be positive");
@@ -186,7 +186,7 @@ impl Osc {
         self.beta = bw.sqrt();
     }
 
-    // Advance PLL phase
+    /// Advance PLL phase
     pub fn pll_step(&mut self, dphi: f32) {
         self.adjust_frequency(dphi * self.alpha);
         self.adjust_phase(dphi * self.beta);
@@ -194,13 +194,13 @@ impl Osc {
 
     // Mixing methods
 
-    // Mix up
+    /// Mix up
     pub fn mix_up(&self, input: Complex<f32>) -> Complex<f32> {
         let (sin, cos) = self.sin_cos();
         input * Complex::new(cos, sin)
     }
 
-    // Mix block up
+    /// Mix block up
     pub fn mix_block_up(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<()> {
         if input.len() != output.len() {
             return Err(Error::Range("Input and output slices must have the same length".to_owned()));
@@ -212,13 +212,13 @@ impl Osc {
         Ok(())
     }
 
-    // Mix down
+    /// Mix down
     pub fn mix_down(&self, input: Complex<f32>) -> Complex<f32> {
         let (sin, cos) = self.sin_cos();
         input * Complex::new(cos, sin).conj()
     }
 
-    // Mix block down
+    /// Mix block down
     pub fn mix_block_down(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<()> {
         if input.len() != output.len() {
             return Err(Error::Range("Input and output slices must have the same length".to_owned()));

@@ -29,8 +29,8 @@ impl BSequence {
         bs
     }
 
-    // initialize two sequences to complementary codes.  sequences must
-    // be of length at least 8 and a power of 2 (e.g. 8, 16, 32, 64,...)
+    /// initialize two sequences to complementary codes.  sequences must
+    /// be of length at least 8 and a power of 2 (e.g. 8, 16, 32, 64,...)
     pub fn create_ccodes(qa: &mut BSequence, qb: &mut BSequence) -> Result<()> {
         if qa.num_bits != qb.num_bits {
             return Err(Error::Config("sequence lengths must match".into()));
@@ -91,7 +91,7 @@ impl BSequence {
         self.s.fill(0);
     }
 
-    // initialize sequence on external array
+    /// initialize sequence on external array
     pub fn init(&mut self, v: &[u8]) {
         let mut k = 0;
         let mut byte = 0;
@@ -111,7 +111,7 @@ impl BSequence {
         println!("<bsequence, bits={}>", self.num_bits);
     }
 
-    // push bits in from the right
+    /// push bits in from the right
     pub fn push(&mut self, bit: u32) {
         let p = 32;
         self.s[0] = (self.s[0] << 1) & self.bit_mask_msb;
@@ -126,14 +126,14 @@ impl BSequence {
         self.s[l - 1] |= bit & 1;
     }
 
-    // circular shift (left)
+    /// circular shift (left)
     pub fn circshift(&mut self) {
         let msb_mask = 1u32.checked_shl(self.num_bits_msb as u32 - 1).unwrap_or(0);
         let b = (self.s[0] & msb_mask) >> (self.num_bits_msb - 1);
         self.push(b);
     }
 
-    // Correlate two binary sequences together
+    /// Correlate two binary sequences together
     pub fn correlate(&self, bs2: &BSequence) -> Result<i32> {
         if self.s.len() != bs2.s.len() {
             return Err(Error::Config("binary sequences must be the same length".into()));
@@ -149,7 +149,7 @@ impl BSequence {
         Ok(rxy)
     }
 
-    // compute the binary addition of two bit sequences
+    /// compute the binary addition of two bit sequences
     pub fn add(&self, bs2: &BSequence, bs3: &mut BSequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
@@ -162,7 +162,7 @@ impl BSequence {
         Ok(())
     }
 
-    // compute the binary multiplication of two bit sequences
+    /// compute the binary multiplication of two bit sequences
     pub fn mul(&self, bs2: &BSequence, bs3: &mut BSequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
@@ -175,7 +175,7 @@ impl BSequence {
         Ok(())
     }
 
-    // accumulate the 1's in a binary sequence
+    /// accumulate the 1's in a binary sequence
     pub fn accumulate(&self) -> u32 {
         self.s.iter().map(|&x| count_ones(x)).sum()
     }

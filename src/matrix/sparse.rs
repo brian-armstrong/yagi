@@ -44,7 +44,7 @@ pub struct SMatrix<T> {
 }
 
 impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> SMatrix<T> {
-    // create _m x _n matrix, initialized with zeros
+    /// create _m x _n matrix, initialized with zeros
     pub fn new(m: usize, n: usize) -> Result<Self> {
         if m == 0 || n == 0 {
             return Err(Error::Config("smatrix_create(), dimensions must be greater than zero".to_string()));
@@ -64,7 +64,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         })
     }
 
-    // create _m x _n matrix, initialized on array
+    /// create _m x _n matrix, initialized on array
     pub fn from_array(v: &[T], m: usize, n: usize) -> Result<Self> {
         let mut q = Self::new(m, n)?;
 
@@ -79,7 +79,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(q)
     }
 
-    // print compact form
+    /// print compact form
     pub fn print(&self) {
         println!("dims : {} {}", self.m, self.n);
         println!("max  : {} {}", self.max_num_mlist, self.max_num_nlist);
@@ -141,7 +141,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    // print expanded form
+    /// print expanded form
     pub fn print_expanded(&self) {
         for i in 0..self.m {
             let mut t = 0;
@@ -159,12 +159,12 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    // get matrix dimensions
+    /// get matrix dimensions
     pub fn size(&self) -> (usize, usize) {
         (self.m, self.n)
     }
 
-    // zero all values, retaining memory allocation
+    /// zero all values, retaining memory allocation
     pub fn clear(&mut self) {
         for i in 0..self.m {
             for j in 0..self.num_mlist[i] {
@@ -179,7 +179,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    // zero all values, clearing memory
+    /// zero all values, clearing memory
     pub fn reset(&mut self) {
         for i in 0..self.m {
             self.num_mlist[i] = 0;
@@ -192,7 +192,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         self.max_num_nlist = 0;
     }
 
-    // determine if element is set
+    /// determine if element is set
     pub fn isset(&self, m: usize, n: usize) -> Result<bool> {
         if m >= self.m || n >= self.n {
             return Err(Error::Range(format!("smatrix_isset({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n)));
@@ -238,7 +238,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(())
     }
 
-    // delete element at index
+    /// delete element at index
     pub fn delete(&mut self, m: usize, n: usize) -> Result<()> {
         if m > self.m || n > self.n {
             return Err(Error::Range(format!("smatrix_delete({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n)));
@@ -273,7 +273,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(())
     }
 
-    // set element value at index
+    /// set element value at index
     pub fn set(&mut self, m: usize, n: usize, v: T) {
         if m >= self.m || n >= self.n {
             panic!("smatrix_set({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n);
@@ -295,7 +295,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         ()
     }
 
-    // get element value at index (return zero if not set)
+    /// get element value at index (return zero if not set)
     pub fn get(&self, m: usize, n: usize) -> T {
         if m >= self.m || n >= self.n {
             panic!("smatrix_get({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n);
@@ -308,7 +308,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    // initialize to identity matrix
+    /// initialize to identity matrix
     pub fn eye(&mut self) {
         // reset all elements
         self.reset();
@@ -320,7 +320,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    // multiply two sparse matrices
+    /// multiply two sparse matrices
     pub fn mul(&self, b: &SMatrix<T>, c: &mut SMatrix<T>) -> Result<()> {
         // validate input
         if c.m != self.m || c.n != b.n || self.n != b.m {
@@ -377,10 +377,10 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(())
     }
 
-    // multiply by vector
-    //  self  :   sparse matrix
-    //  x  :   input vector [size: _n x 1]
-    //  y  :   output vector [size: _m x 1]
+    /// multiply by vector
+    ///  self  :   sparse matrix
+    ///  x  :   input vector [size: _n x 1]
+    ///  y  :   output vector [size: _m x 1]
     pub fn vmul(&self, x: &[T], y: &mut [T]) {
         // initialize to zero
         for i in 0..self.m {
