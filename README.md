@@ -16,6 +16,6 @@ liquid-dsp has more than 1000 tests, all of which are now being implemented in Y
 
 Yagi is still a work in progress. The first priority is to complete the Rust rewrite of liquid-dsp. Once this is completed, we can begin investigating integrations with other libraries in order to provide SDR device access, plotting, and audio input/output. It may be useful to create some full end-to-end examples such as a stereo FM decoder.
 
-## Created with Cursor
+## Contributing
 
-Development of this library shamelessly accelerated with the help of AI.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

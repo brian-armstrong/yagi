@@ -1439,12 +1439,12 @@
 ## ampmodem
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| ampmodem_dsb_carrier_on                  | ✅ | ❓ |
-| ampmodem_usb_carrier_on                  | ✅ | ❓ |
-| ampmodem_lsb_carrier_on                  | ✅ | ❓ |
-| ampmodem_dsb_carrier_off                 | ✅ | ❓ |
-| ampmodem_usb_carrier_off                 | ✅ | ❓ |
-| ampmodem_lsb_carrier_off                 | ✅ | ❓ |
+| ampmodem_dsb_carrier_on                  | ✅ | ✅ |
+| ampmodem_usb_carrier_on                  | ✅ | ✅ |
+| ampmodem_lsb_carrier_on                  | ✅ | ✅ |
+| ampmodem_dsb_carrier_off                 | ✅ | ✅ |
+| ampmodem_usb_carrier_off                 | ✅ | ✅ |
+| ampmodem_lsb_carrier_off                 | ✅ | ✅ |
 
 
 ## cpfskmodem
