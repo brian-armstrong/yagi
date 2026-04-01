@@ -153,19 +153,15 @@ fn dotprod_crc_simd8(a: &[Complex<f32>], b: &[f32]) -> Complex<f32> {
     let mut sum_im = f32x8::splat(0.0);
     let chunks = a.len() / CHUNK_SIZE; // We process 4 complex numbers at a time
 
+    let a_floats: &[f32] = unsafe {
+        std::slice::from_raw_parts(a.as_ptr() as *const f32, a.len() * 2)
+    };
+
     for i in 0..chunks {
-        let start = i * CHUNK_SIZE;
-        let a_chunk = f32x8::from_slice(&[
-            a[start].re,
-            a[start].im,
-            a[start + 1].re,
-            a[start + 1].im,
-            a[start + 2].re,
-            a[start + 2].im,
-            a[start + 3].re,
-            a[start + 3].im,
-        ]);
-        let b_chunk = f32x8::from_slice(&[b[start], 0.0, b[start + 1], 0.0, b[start + 2], 0.0, b[start + 3], 0.0]);
+        let a_start = i * CHUNK_SIZE * 2;
+        let b_start = i * CHUNK_SIZE;
+        let a_chunk = f32x8::from_slice(&a_floats[a_start..a_start + 8]);
+        let b_chunk = f32x8::from_slice(&[b[b_start], 0.0, b[b_start + 1], 0.0, b[b_start + 2], 0.0, b[b_start + 3], 0.0]);
 
         let prod_a = a_chunk * b_chunk;
         let prod_b = simd_swizzle!(a_chunk, [1, 0, 3, 2, 5, 4, 7, 6]) * b_chunk;
