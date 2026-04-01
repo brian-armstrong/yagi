@@ -291,28 +291,45 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
     /// from current buffer contents
     pub fn get_psd_mag(&self) -> Vec<f32> {
         let mut psd_mag = vec![0.0; self.nfft];
+        self.read_psd_mag(&mut psd_mag).unwrap();
+        psd_mag
+    }
+
+    pub fn read_psd_mag(&self, psd_mag: &mut [f32]) -> Result<()> {
+        if psd_mag.len() != self.nfft {
+            return Err(Error::Value("psd_mag must be the same length as the fft size".into()));
+        }
+
         let nfft_2 = self.nfft / 2; 
         let scale = if self.accumulate {
             1.0 / max(1, self.num_transforms) as f32
         } else {
-            0.0
+            // 0.0
+            // 1.0 / max(1, self.num_transforms) as f32
+            1.0
         };
         for i in 0..self.nfft {
             let k = (i + nfft_2) % self.nfft;
             psd_mag[i] = self.psd[k].max(SPGRAM_PSD_MIN) * scale;
         }
-        psd_mag
+
+        Ok(())
     }
 
     /// compute spectral periodogram output (fft-shifted values
     /// in dB) from current buffer contents
     pub fn get_psd(&self) -> Vec<f32> {
-        let psd_mag = self.get_psd_mag();
         let mut psd = vec![0.0; self.nfft];
-        for i in 0..self.nfft {
-            psd[i] = 10.0 * psd_mag[i].log10();
-        }
+        self.read_psd(&mut psd).unwrap();
         psd
+    }
+
+    pub fn read_psd(&self, psd: &mut [f32]) -> Result<()> {
+        self.read_psd_mag(psd)?;
+        for i in 0..self.nfft {
+            psd[i] = 10.0 * psd[i].log10();
+        }
+        Ok(())
     }
 
     /// estimate spectrum on input signal

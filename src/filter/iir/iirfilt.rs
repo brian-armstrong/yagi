@@ -352,6 +352,34 @@ where
         self.scale
     }
 
+    // set coefficients for filter
+    pub fn set_coefficients(&mut self, b: &[Coeff], a: &[Coeff]) -> Result<()> {
+        if self.filter_type == IirFilterType::Sos && self.qsos.len() == 1 {
+            return self.qsos[0].set_coefficients(&[b[0], b[1], b[2]], &[a[0], a[1], a[2]]);
+        }
+
+        if b.len() != self.nb || a.len() != self.na {
+            return Err(Error::Config("coefficient vector lengths must match filter order".into()));
+        }
+
+        self.b = b.to_vec();
+        self.a = a.to_vec();
+
+        let a0 = self.a[0];
+        for i in 0..self.nb {
+            self.b[i] = self.b[i] / a0;
+        }
+        for i in 0..self.na {
+            self.a[i] = self.a[i] / a0;
+        }
+        Ok(())
+    }
+
+    // get coefficients for filter
+    pub fn get_coeffs(&self) -> (Vec<Coeff>, Vec<Coeff>) {
+        (self.b.clone(), self.a.clone())
+    }
+
     // execute normal iir filter using traditional numerator/denominator
     // form (not second-order sections form)
     //  _x      :   input sample
@@ -398,8 +426,17 @@ where
             return Err(Error::Config("input and output block lengths must be equal".into()));
         }
 
-        for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
-            *y_s = self.execute(*x_s);
+        match self.filter_type {
+            IirFilterType::Norm => {
+                for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
+                    *y_s = self.execute_norm(*x_s);
+                }
+            }
+            IirFilterType::Sos => {
+                for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
+                    *y_s = self.execute_sos(*x_s);
+                }
+            }
         }
 
         Ok(())

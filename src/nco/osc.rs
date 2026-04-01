@@ -4,6 +4,7 @@ use std::f32::consts::PI;
 
 use crate::error::{Error, Result};
 
+use super::direct::Direct;
 use super::nco::Nco;
 use super::vco::Vco;
 
@@ -12,12 +13,14 @@ const PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OscScheme {
+    Direct,
     Nco,
     Vco,
 }
 
 #[derive(Debug, Clone)]
 enum OscData {
+    Direct(Direct),
     Nco(Nco),
     Vco(Vco),
 }
@@ -36,6 +39,7 @@ impl Osc {
     // Create a new NCO
     pub fn new(osc_scheme: OscScheme) -> Self {
         let data = match osc_scheme {
+            OscScheme::Direct => OscData::Direct(Direct::new()),
             OscScheme::Nco => OscData::Nco(Nco::new()),
             OscScheme::Vco => OscData::Vco(Vco::new()),
         };
@@ -105,6 +109,7 @@ impl Osc {
     // Compute sine of internal phase
     pub fn sin(&self) -> f32 {
         match self.osc {
+            OscData::Direct(ref direct) => direct.sin(self.theta),
             OscData::Nco(ref nco) => nco.sin(self.theta),
             OscData::Vco(ref vco) => vco.sin(self.theta),
         }
@@ -113,6 +118,7 @@ impl Osc {
     // Compute cosine of internal phase
     pub fn cos(&self) -> f32 {
         match self.osc {
+            OscData::Direct(ref direct) => direct.cos(self.theta),
             OscData::Nco(ref nco) => nco.cos(self.theta),
             OscData::Vco(ref vco) => vco.cos(self.theta),
         }
@@ -121,6 +127,7 @@ impl Osc {
     // Compute sine and cosine of internal phase
     pub fn sin_cos(&self) -> (f32, f32) {
         match self.osc {
+            OscData::Direct(ref direct) => direct.sin_cos(self.theta),
             OscData::Nco(ref nco) => nco.sin_cos(self.theta),
             OscData::Vco(ref vco) => vco.sin_cos(self.theta),
         }
@@ -130,6 +137,42 @@ impl Osc {
     pub fn cexp(&self) -> Complex<f32> {
         let (sin, cos) = self.sin_cos();
         Complex::new(cos, sin)
+    }
+
+    pub fn sin_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
+        let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
+        match self.osc {
+            OscData::Direct(ref direct) => direct.sin(theta) * scale,
+            OscData::Nco(ref nco) => nco.sin(theta) * scale,
+            OscData::Vco(ref vco) => vco.sin(theta) * scale,
+        }
+    }
+
+    pub fn cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
+        let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
+        match self.osc {
+            OscData::Direct(ref direct) => direct.cos(theta) * scale,
+            OscData::Nco(ref nco) => nco.cos(theta) * scale,
+            OscData::Vco(ref vco) => vco.cos(theta) * scale,
+        }
+    }
+
+    pub fn sin_cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> (f32, f32) {
+        let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
+        match self.osc {
+            OscData::Direct(ref direct) => {
+                let (sin, cos) = direct.sin_cos(theta);
+                (sin * scale, cos * scale)
+            }
+            OscData::Nco(ref nco) => {
+                let (sin, cos) = nco.sin_cos(theta);
+                (sin * scale, cos * scale)
+            }
+            OscData::Vco(ref vco) => {
+                let (sin, cos) = vco.sin_cos(theta);
+                (sin * scale, cos * scale)
+            }
+        }
     }
 
     // PLL methods
@@ -189,13 +232,14 @@ impl Osc {
 
     // Helper functions
     fn constrain(theta: f32) -> u32 {
-        let mut theta = theta;
-        while theta >= 2.0 * PI {
-            theta -= 2.0 * PI;
-        }
-        while theta < 0.0 {
-            theta += 2.0 * PI;
-        }
+        // let mut theta = theta;
+        // while theta >= 2.0 * PI {
+        //     theta -= 2.0 * PI;
+        // }
+        // while theta < 0.0 {
+        //     theta += 2.0 * PI;
+        // }
+        let theta = theta.rem_euclid(2.0 * PI);
         ((theta / (2.0 * PI)) * (u32::MAX as f32)) as u32
     }
 }

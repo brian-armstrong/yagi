@@ -350,5 +350,4 @@ mod tests {
     fn test_fft_509() {
         fft_test_runner(&FFT_TEST_X509, &FFT_TEST_Y509, 509);
     }
-    
 }

@@ -193,6 +193,15 @@ where
         Ok(())
     }
 
+    pub fn set_fractional_rate(&mut self, rate: f32) -> Result<()> {
+        if rate <= 0.0 {
+            return Err(Error::Config("rate must be greater than 0".into()));
+        }
+        self.rate = rate;
+        self.del = self.rate;
+        Ok(())
+    }
+
     pub fn set_lf_bw(&mut self, _bandwidth: f32) -> Result<()> {
         if _bandwidth < 0.0 || _bandwidth > 1.0 {
             return Err(Error::Config("bandwidth must be in [0,1]".into()));
@@ -214,6 +223,22 @@ where
 
     pub fn get_tau(&self) -> f32 {
         self.tau_decim
+    }
+
+    pub fn get_rate(&self) -> f32 {
+        self.rate
+    }
+
+    pub fn get_del(&self) -> f32 {
+        self.del
+    }
+
+    pub fn get_q(&self) -> f32 {
+        self.q
+    }
+
+    pub fn get_q_hat(&self) -> f32 {
+        self.q_hat
     }
 
     pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
@@ -431,7 +456,7 @@ mod tests {
         //
 
         // design interpolating filter
-        let mut interp = FirInterpolationFilter::<Complex32>::new_prototype(ftype_tx, k, m, beta, dt).unwrap();
+        let mut interp = FirInterpolationFilter::<Complex32>::new_prototype(ftype_tx, k as usize, m, beta, dt).unwrap();
 
         // interpolate block of samples
         interp.execute_block(&s[..num_symbols as usize], &mut x[..num_samples as usize]).unwrap();
@@ -520,7 +545,8 @@ mod tests {
                          m: usize,
                          beta: f32,
                          tau: f32,
-                         rate: f32)
+                         rate: f32,
+                         expected_rate: f32)
     {
         // options
         let tol        = 0.20f32;   // error tolerance
@@ -573,7 +599,7 @@ mod tests {
         //
 
         // design interpolating filter
-        let mut interp = FirInterpolationFilter::<f32>::new_prototype(ftype_tx, k, m, beta, dt).unwrap();
+        let mut interp = FirInterpolationFilter::<f32>::new_prototype(ftype_tx, k as usize, m, beta, dt).unwrap();
 
         // interpolate block of samples
         interp.execute_block(&s[..num_symbols], &mut x).unwrap();
@@ -606,6 +632,9 @@ mod tests {
         // set loop filter bandwidth
         sync.set_lf_bw(bt).unwrap();
 
+        // set fractional rate
+        sync.set_fractional_rate(expected_rate).unwrap();
+
         // execute on entire block of samples
         let nz = sync.execute(&y[..ny], &mut z).unwrap();
 
@@ -626,34 +655,61 @@ mod tests {
     // autotest scenarios (root-Nyquist)
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_0)]
-    fn symsync_rrrf_scenario_0() { symsync_rrrf_test("rnyquist", 2, 7, 0.35,  0.00, 1.0    ); }
+    fn symsync_rrrf_scenario_0() { symsync_rrrf_test("rnyquist", 2, 7, 0.35,  0.00, 1.0, 2.0    ); }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_1)]
-    fn symsync_rrrf_scenario_1() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0    ); }
+    fn symsync_rrrf_scenario_1() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0, 2.0    ); }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_2)]
-    fn symsync_rrrf_scenario_2() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0001 ); }
+    fn symsync_rrrf_scenario_2() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0 ); }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_3)]
-    fn symsync_rrrf_scenario_3() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 0.9999 ); }
+    fn symsync_rrrf_scenario_3() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0 ); }
 
     // autotest scenarios (Nyquist)
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_4)]
-    fn symsync_rrrf_scenario_4() { symsync_rrrf_test("nyquist", 2, 7, 0.35,  0.00, 1.0    ); }
+    fn symsync_rrrf_scenario_4() { symsync_rrrf_test("nyquist", 2, 7, 0.35,  0.00, 1.0, 2.0    ); }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_5)]
-    fn symsync_rrrf_scenario_5() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0    ); }
+    fn symsync_rrrf_scenario_5() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0, 2.0    ); }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_6)]
-    fn symsync_rrrf_scenario_6() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0001 ); }
+    fn symsync_rrrf_scenario_6() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0 ); }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_7)]
-    fn symsync_rrrf_scenario_7() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999 ); }
+    fn symsync_rrrf_scenario_7() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_8() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.996 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_9() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.994 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_10() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.998 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_11() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.98 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_12() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.981 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_13() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.979 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_14() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.96 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_15() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.962 ); }
+
+    #[test]
+    fn symsync_rrrf_scenario_16() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.958 ); }
 }
