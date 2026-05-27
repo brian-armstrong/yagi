@@ -5,6 +5,132 @@ use std::collections::VecDeque;
 use std::f32::consts::PI;
 use num_complex::{ComplexFloat, Complex32};
 
+/// create coefficients for a Kaiser-Bessel windowed sinc filter
+///
+/// # Arguments
+///
+/// * `n` - filter length
+/// * `fc` - cutoff frequency
+/// * `as_` - stop-band attenuation
+/// * `mu` - fractional sample offset
+///
+/// # Returns
+///
+/// Vec of filter coefficients
+pub fn fir_filter_design_kaiser<Coeff>(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<Coeff>>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    let h = filter::fir_design_kaiser(n, fc, as_, mu)?;
+    let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    Ok(h_c)
+}
+
+/// create coefficients for a square-root Nyquist prototype
+///
+/// # Arguments
+///
+/// * `ftype` - filter type
+/// * `k` - nominal samples/symbol
+/// * `m` - filter delay
+/// * `beta` - rolloff factor
+/// * `mu` - fractional sample offset
+///
+/// # Returns
+///
+/// Vec of filter coefficients
+pub fn fir_filter_design_rnyquist<Coeff>(ftype: filter::FirFilterShape, k: usize, m: usize, beta: f32, mu: f32) -> Result<Vec<Coeff>>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    let h = filter::fir_design_prototype(ftype, k, m, beta, mu)?;
+    let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    Ok(h_c)
+}
+
+/// create coefficients for a Parks-McClellan algorithm
+///
+/// # Arguments
+///
+/// * `h_len` - filter length
+/// * `fc` - cutoff frequency
+/// * `as_` - stop-band attenuation
+///
+/// # Returns
+///
+/// Vec of filter coefficients
+pub fn fir_filter_design_firdespm<Coeff>(h_len: usize, fc: f32, as_: f32) -> Result<Vec<Coeff>>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    let mut h = filter::fir_design_pm_lowpass(h_len, fc, as_, 0.0)?;
+    // scale by filter bandwidth to be consistent with other lowpass prototypes
+    for h_i in h.iter_mut() {
+        *h_i = *h_i * 0.5 / fc;
+    }
+    let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    Ok(h_c)
+}
+
+/// create coefficients for a rectangular filter prototype
+///
+/// # Arguments
+///
+/// * `n` - filter length
+///
+/// # Returns
+///
+/// Vec of filter coefficients
+pub fn fir_filter_design_rect<Coeff>(n: usize) -> Result<Vec<Coeff>>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    if n == 0 || n > 1024 {
+        return Err(Error::Config("filter length must be in [1,1024]".into()));
+    }
+    let h = vec![Coeff::one(); n];
+    Ok(h)
+}
+
+/// create coefficients for a DC blocking filter
+///
+/// # Arguments
+///
+/// * `m` - filter delay
+/// * `as_` - stop-band attenuation
+///
+/// # Returns
+///
+/// Vec of filter coefficients
+pub fn fir_filter_design_dc_blocker<Coeff>(m: usize, as_: f32) -> Result<Vec<Coeff>>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    let h = filter::fir_design_notch(m, 0.0, as_)?;
+    let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    Ok(h_c)
+}
+
+/// create coefficients for a notch filter
+///
+/// # Arguments
+///
+/// * `m` - filter delay
+/// * `as_` - stop-band attenuation
+/// * `f0` - center frequency
+///
+/// # Returns
+///
+/// Vec of filter coefficients
+pub fn fir_filter_design_notch<Coeff>(m: usize, as_: f32, f0: f32) -> Result<Vec<Coeff>>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32> + ComplexNotch,
+    f32: Into<Coeff>,
+{
+    let h = Coeff::notch(m, as_, f0)?;
+    Ok(h)
+}
+
+
 /// Finite impulse response (FIR) filter
 #[derive(Debug, Clone)]
 pub struct FirFilter<T, Coeff = T> {
@@ -91,9 +217,8 @@ where
     /// 
     /// A new `Firfilt` object.
     pub fn new_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Self> {
-        let h = filter::fir_design_kaiser(n, fc, as_, mu)?;
-        let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        Self::new(&h_c)
+        let h = fir_filter_design_kaiser(n, fc, as_, mu)?;
+        Self::new(&h)
     }
 
     /// create filter using square-root Nyquist prototype
@@ -110,9 +235,8 @@ where
     /// 
     /// A new `Firfilt` object.
     pub fn new_rnyquist(ftype: filter::FirFilterShape, k: usize, m: usize, beta: f32, mu: f32) -> Result<Self> {
-        let h = filter::fir_design_prototype(ftype, k, m, beta, mu)?;
-        let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        Self::new(&h_c)
+        let h = fir_filter_design_rnyquist(ftype, k, m, beta, mu)?;
+        Self::new(&h)
     }
 
     /// create filter using Parks-McClellan algorithm
@@ -127,13 +251,8 @@ where
     /// 
     /// A new `Firfilt` object.
     pub fn new_firdespm(h_len: usize, fc: f32, as_: f32) -> Result<Self> {
-        let mut h = filter::fir_design_pm_lowpass(h_len, fc, as_, 0.0)?;
-        // scale by filter bandwidth to be consistent with other lowpass prototypes
-        for h_i in h.iter_mut() {
-            *h_i = *h_i * 0.5 / fc;
-        }
-        let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        Self::new(&h_c)
+        let h = fir_filter_design_firdespm(h_len, fc, as_)?;
+        Self::new(&h)
     }
 
     /// create rectangular filter prototype
@@ -146,10 +265,7 @@ where
     /// 
     /// A new `Firfilt` object.
     pub fn new_rect(n: usize) -> Result<Self> {
-        if n == 0 || n > 1024 {
-            return Err(Error::Config("filter length must be in [1,1024]".into()));
-        }
-        let h = vec![Coeff::one(); n];
+        let h = fir_filter_design_rect(n)?;
         Self::new(&h)
     }
 
@@ -164,9 +280,8 @@ where
     /// 
     /// A new `Firfilt` object.
     pub fn new_dc_blocker(m: usize, as_: f32) -> Result<Self> {
-        let h = filter::fir_design_notch(m, 0.0, as_)?;
-        let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        Self::new(&h_c)
+        let h = fir_filter_design_dc_blocker(m, as_)?;
+        Self::new(&h)
     }
 
     /// create notch filter
@@ -181,7 +296,7 @@ where
     /// 
     /// A new `Firfilt` object.
     pub fn new_notch(m: usize, as_: f32, f0: f32) -> Result<Self> {
-        let h = Coeff::notch(m, as_, f0)?;
+        let h = fir_filter_design_notch(m, as_, f0)?;
         Self::new(&h)
     }
 

@@ -20,6 +20,235 @@ enum IirFilterType {
     Sos,
 }
 
+
+/// design coefficients for a prototype IIR filter
+///  _ftype      :   filter type (e.g. LIQUID_IIRDES_BUTTER)
+///  _btype      :   band type (e.g. LIQUID_IIRDES_BANDPASS)
+///  _format     :   coefficients format (e.g. LIQUID_IIRDES_SOS)
+///  _order      :   filter order
+///  _fc         :   low-pass prototype cut-off frequency
+///  _f0         :   center frequency (band-pass, band-stop)
+///  _ap         :   pass-band ripple in dB
+///  _as         :   stop-band ripple in dB
+pub fn iir_filter_design_prototype<Coeff>(
+    ftype: design::IirFilterShape,
+    btype: design::IirBandType,
+    format: design::IirFormat,
+    order: usize,
+    fc: f32,
+    f0: f32,
+    ap: f32,
+    as_: f32,
+) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    // filter length
+    let mut n = order;
+
+    if btype == design::IirBandType::Bandpass || btype == design::IirBandType::Bandstop {
+        n *= 2;
+    }
+
+    let r = n % 2; // odd/even order
+    let l = (n - r) / 2; // filter semi-length
+
+    let h_len = if format == design::IirFormat::SecondOrderSections { 3*(l+r) } else { n+1 };
+    let mut b = vec![0.0; h_len];
+    let mut a = vec![0.0; h_len];
+
+    design::iir_design(ftype, btype, format, order, fc, f0, ap, as_, &mut b, &mut a)?;
+
+    let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+
+    let nsos = if format == design::IirFormat::SecondOrderSections { l + r } else { 0 };
+
+    Ok((b, a, nsos))
+}
+
+
+/// create coefficients for a simplified low-pass Butterworth IIR filter
+///  order  : filter order
+///  fc     : low-pass prototype cut-off frequency
+pub fn iir_filter_design_lowpass<Coeff>(
+    order: usize,
+    fc: f32,
+) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+        iir_filter_design_prototype(
+            design::IirFilterShape::Butter,
+            design::IirBandType::Lowpass,
+            design::IirFormat::SecondOrderSections,
+            order,
+            fc,
+            0.0,
+            0.1,
+            60.0,
+        )
+}
+
+/// create coefficients for an 8th-order integrating filter
+pub fn iir_filter_design_integrator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    // integrator digital zeros/poles/gain, [Pintelon:1990] Table II
+    //
+    // zeros, digital, integrator
+    let zdi = [
+        Complex32::from(1.175839 * -1.0),
+        3.371020 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.1125),
+        3.371020 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  125.1125),
+        4.549710 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -80.96404),
+        4.549710 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   80.96404),
+        5.223966 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -40.09347),
+        5.223966 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   40.09347),
+        Complex32::from(5.443743),
+    ];
+    // poles, digital, integrator
+    let pdi = [
+        Complex32::from(0.5805235 * -1.0),
+        0.2332021 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -114.0968),
+        0.2332021 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  114.0968),
+        0.1814755 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -66.33969),
+        0.1814755 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   66.33969),
+        0.1641457 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -21.89539),
+        0.1641457 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   21.89539),
+        Complex32::from(1.0),
+    ];
+    // gain, digital, integrator (slight adjustment added for proper gain)
+    let kdi = Complex32::from(-1.89213380759321e-05 / 0.9695401191711425781);
+
+    // second-order sections
+    let mut b = vec![0.0; 12];
+    let mut a = vec![0.0; 12];
+    design::iir_design_d2sos(&zdi, &pdi, 8, kdi, &mut b, &mut a)?;
+
+    let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+
+    Ok((b, a, 4))
+}
+
+
+/// create coefficients for an 8th-order differentiating filter
+pub fn iir_filter_design_differentiator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    // differentiator digital zeros/poles/gain, [Pintelon:1990] Table IV
+    //
+    // zeros, digital, differentiator
+    let zdd = [
+        Complex32::from(1.702575 * -1.0),
+        5.877385 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -221.4063),
+        5.877385 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  221.4063),
+        4.197421 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -144.5972),
+        4.197421 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  144.5972),
+        5.350284 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -66.88802),
+        5.350284 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   66.88802),
+        Complex32::from(1.0),
+    ];
+    let pdd = [
+        Complex32::from(0.8476936 * -1.0),
+        0.2990781 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.5188),
+        0.2990781 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  125.5188),
+        0.2232427 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -81.52326),
+        0.2232427 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   81.52326),
+        0.1958670 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -40.51510),
+        0.1958670 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   40.51510),
+        Complex32::from(0.1886088),
+    ];
+    // gain, digital, differentiator (slight adjustment added for proper gain)
+    let kdd = Complex32::from(2.09049284907492e-05 / 1.033477783203125000);
+
+    // second-order sections
+    let mut b = vec![0.0; 12];
+    let mut a = vec![0.0; 12];
+    design::iir_design_d2sos(&zdd, &pdd, 8, kdd, &mut b, &mut a)?;
+
+    let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+
+    Ok((b, a, 4))
+}
+
+/// create coefficients for a DC-blocking filter
+///  alpha  : DC-blocking filter bandwidth
+///
+/// ```text
+///          1 -          z^-1
+///  H(z) = ------------------
+///          1 - (1-alpha)z^-1
+/// ```
+pub fn iir_filter_design_dc_blocker<Coeff>(alpha: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    if alpha <= 0.0 {
+        return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));
+    }
+
+    let bf = [1.0, -1.0];
+    let af = [1.0, -1.0 + alpha];
+
+    let b = bf.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    let a = af.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+
+    Ok((b, a, 0))
+}
+
+/// create scaling factor for a DC-blocking filter
+///  alpha  : DC-blocking filter bandwidth
+///
+/// ```text
+///          1 -          z^-1
+///  H(z) = ------------------
+///          1 - (1-alpha)z^-1
+/// ```
+pub fn iir_filter_design_dc_blocker_scale<Coeff>(alpha: f32) -> Result<Coeff>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>
+{
+    if alpha <= 0.0 {
+        return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));
+    }
+
+    Ok(Coeff::from((1.0 - alpha).sqrt()).unwrap())
+}
+
+/// create coefficients for a phase-locked loop iirfilt object
+///  _w      :   filter bandwidth
+///  _zeta   :   damping factor (1/sqrt(2) suggested)
+///  _K      :   loop gain (1000 suggested)
+pub fn iir_filter_design_pll<Coeff>(w: f32, zeta: f32, k: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    f32: Into<Coeff>,
+{
+    if w <= 0.0 || w >= 1.0 {
+        return Err(Error::Config("PLL bandwidth must be in (0,1)".into()));
+    }
+    if zeta <= 0.0 || zeta >= 1.0 {
+        return Err(Error::Config("PLL damping factor must be in (0,1)".into()));
+    }
+    if k <= 0.0 {
+        return Err(Error::Config("PLL loop gain must be greater than zero".into()));
+    }
+
+    let mut bf = [0.0; 3];
+    let mut af = [0.0; 3];
+    design::iir_design_pll_active_lag(w, zeta, k, &mut bf, &mut af)?;
+
+    let b = bf.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+    let a = af.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
+
+    Ok((b, a, 1))
+}
+
+
 /// Infinite impulse response (IIR) filter
 #[derive(Debug, Clone)]
 pub struct IirFilter<T, Coeff = T> {
@@ -156,30 +385,13 @@ where
         as_: f32,
     ) -> Result<Self> {
         // filter length
-        let mut n = order;
+        let (b, a, nsos) = iir_filter_design_prototype(ftype, btype, format, order, fc, f0, ap, as_)?;
 
-        if btype == design::IirBandType::Bandpass || btype == design::IirBandType::Bandstop {
-            n *= 2;
-        }
-
-        let r = n % 2; // odd/even order
-        let l = (n - r) / 2; // filter semi-length
-
-        let h_len = if format == design::IirFormat::SecondOrderSections { 3*(l+r) } else { n+1 };
-        let mut b = vec![0.0; h_len];
-        let mut a = vec![0.0; h_len];
-
-        design::iir_design(ftype, btype, format, order, fc, f0, ap, as_, &mut b, &mut a)?;
-
-        let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-
-        if format == design::IirFormat::SecondOrderSections {
-            let filter = IirFilter::<T, Coeff>::new_sos(&b, &a, l+r)?;
-            return Ok(filter);
-        }
-
-        let filter = IirFilter::<T, Coeff>::new(&b, &a)?;
+        let filter = if format == design::IirFormat::SecondOrderSections {
+            IirFilter::<T, Coeff>::new_sos(&b, &a, nsos)?
+        } else {
+            IirFilter::<T, Coeff>::new(&b, &a)?
+        };
         Ok(filter)
     }
 
@@ -187,100 +399,21 @@ where
     ///  _n      : filter order
     ///  _fc     : low-pass prototype cut-off frequency
     pub fn new_lowpass(order: usize, fc: f32) -> Result<Self> {
-        let filter = IirFilter::<T, Coeff>::new_prototype(
-            design::IirFilterShape::Butter,
-            design::IirBandType::Lowpass,
-            design::IirFormat::SecondOrderSections,
-            order,
-            fc,
-            0.0,
-            0.1,
-            60.0,
-        )?;
-        Ok(filter)
+        let (b, a, nsos) = iir_filter_design_lowpass(order, fc)?;
+        Self::new_sos(&b, &a, nsos)
     }
 
     /// create 8th-order integrating filter
     pub fn new_integrator() -> Result<Self> {
-        // integrator digital zeros/poles/gain, [Pintelon:1990] Table II
-        //
-        // zeros, digital, integrator
-        let zdi = [
-            Complex32::from(1.175839 * -1.0),
-            3.371020 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.1125),
-            3.371020 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  125.1125),
-            4.549710 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -80.96404),
-            4.549710 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   80.96404),
-            5.223966 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -40.09347),
-            5.223966 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   40.09347),
-            Complex32::from(5.443743),
-        ];
-        // poles, digital, integrator
-        let pdi = [
-            Complex32::from(0.5805235 * -1.0),
-            0.2332021 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -114.0968),
-            0.2332021 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  114.0968),
-            0.1814755 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -66.33969),
-            0.1814755 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   66.33969),
-            0.1641457 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -21.89539),
-            0.1641457 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   21.89539),
-            Complex32::from(1.0),
-        ];
-        // gain, digital, integrator (slight adjustment added for proper gain)
-        let kdi = Complex32::from(-1.89213380759321e-05 / 0.9695401191711425781);
-
-        // second-order sections
-        let mut b = vec![0.0; 12];
-        let mut a = vec![0.0; 12];
-        design::iir_design_d2sos(&zdi, &pdi, 8, kdi, &mut b, &mut a)?;
-
-        let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-
-        let filter = IirFilter::<T, Coeff>::new_sos(&b, &a, 4)?;
-        Ok(filter)
+        let (b, a, nsos) = iir_filter_design_integrator()?;
+        Self::new_sos(&b, &a, nsos)
     }
 
     /// create 8th-order differentiating filter
     pub fn new_differentiator() -> Result<Self> {
-        // differentiator digital zeros/poles/gain, [Pintelon:1990] Table IV
-        //
-        // zeros, digital, differentiator
-        let zdd = [
-            Complex32::from(1.702575 * -1.0),
-            5.877385 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -221.4063),
-            5.877385 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  221.4063),
-            4.197421 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -144.5972),
-            4.197421 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  144.5972),
-            5.350284 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -66.88802),
-            5.350284 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   66.88802),
-            Complex32::from(1.0),
-        ];
-        // poles, digital, differentiator
-        let pdd = [
-            Complex32::from(0.8476936 * -1.0),
-            0.2990781 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.5188),
-            0.2990781 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  125.5188),
-            0.2232427 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -81.52326),
-            0.2232427 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   81.52326),
-            0.1958670 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -40.51510),
-            0.1958670 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   40.51510),
-            Complex32::from(0.1886088),
-        ];
-        // gain, digital, differentiator (slight adjustment added for proper gain)
-        let kdd = Complex32::from(2.09049284907492e-05 / 1.033477783203125000);
-
-        // second-order sections
-        let mut b = vec![0.0; 12];
-        let mut a = vec![0.0; 12];
-        design::iir_design_d2sos(&zdd, &pdd, 8, kdd, &mut b, &mut a)?;
-
-        let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-
-        let filter = IirFilter::<T, Coeff>::new_sos(&b, &a, 4)?;
-        Ok(filter)
-    }   
+        let (b, a, nsos) = iir_filter_design_differentiator()?;
+        Self::new_sos(&b, &a, nsos)
+    }
 
     /// Create DC-blocking filter
     ///
@@ -290,18 +423,10 @@ where
     ///          1 - (1-alpha)z^-1
     /// ```
     pub fn new_dc_blocker(alpha: f32) -> Result<Self> {
-        if alpha <= 0.0 {
-            return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));
-        }
-
-        let bf = [1.0, -1.0];
-        let af = [1.0, -1.0 + alpha];
-
-        let b = bf.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        let a = af.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-
-        let mut filter = IirFilter::<T, Coeff>::new(&b, &a)?;
-        filter.set_scale(Coeff::from((1.0 - alpha).sqrt()).unwrap());
+        let (b, a, _nsos) = iir_filter_design_dc_blocker(alpha)?;
+        let scale = iir_filter_design_dc_blocker_scale(alpha)?;
+        let mut filter = Self::new(&b, &a)?;
+        filter.set_scale(scale);
         Ok(filter)
     }
 
@@ -310,25 +435,8 @@ where
     ///  _zeta   :   damping factor (1/sqrt(2) suggested)
     ///  _K      :   loop gain (1000 suggested)
     pub fn new_pll(w: f32, zeta: f32, k: f32) -> Result<Self> {
-        if w <= 0.0 || w >= 1.0 {
-            return Err(Error::Config("PLL bandwidth must be in (0,1)".into()));
-        }
-        if zeta <= 0.0 || zeta >= 1.0 {
-            return Err(Error::Config("PLL damping factor must be in (0,1)".into()));
-        }
-        if k <= 0.0 {
-            return Err(Error::Config("PLL loop gain must be greater than zero".into()));
-        }
-
-        let mut bf = [0.0; 3];
-        let mut af = [0.0; 3];
-        design::iir_design_pll_active_lag(w, zeta, k, &mut bf, &mut af)?;
-
-        let b = bf.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-        let a = af.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
-
-        let filter = IirFilter::<T, Coeff>::new_sos(&b, &a, 1)?;
-        Ok(filter)
+        let (b, a, nsos) = iir_filter_design_pll(w, zeta, k)?;
+        Self::new_sos(&b, &a, nsos)
     }
 
     /// reset internal state of iirfilt object
