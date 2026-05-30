@@ -248,6 +248,121 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     Ok((b, a, 1))
 }
 
+/// compute complex frequency response of filter coefficients
+///
+/// # Arguments
+///
+/// * `b` - numerator coefficients
+/// * `a` - denominator coefficients
+/// * `scale` - output scaling
+/// * `fc` - frequency
+///
+/// # Returns
+///
+/// The frequency response
+pub fn iir_filter_freqresponse<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> Complex32
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+{
+    let mut hb = Complex32::default();
+    let mut ha = Complex32::default();
+
+    for i in 0..b.len() {
+        hb += b[i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+    }
+
+    for i in 0..a.len() {
+        ha += a[i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+    }
+
+    // TODO : check to see if we need to take conjugate
+    let h = hb / ha;
+
+    h * scale.into()
+}
+
+/// compute complex frequency response of filter coefficients in second-order sections form
+///
+/// # Arguments
+///
+/// * `b` - numerator coefficients
+/// * `a` - denominator coefficients
+/// * `scale` - output scaling
+/// * `nsos` - number of second-order sections
+/// * `fc` - frequency
+///
+/// # Returns
+///
+/// The frequency response
+pub fn iir_filter_freqresponse_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> Complex32
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+{
+    let mut h;
+
+    h = Complex32::from(1.0);
+
+    for i in 0..nsos {
+        let hb = b[3*i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0) +
+                    b[3*i+1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0) +
+                    b[3*i+2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
+
+        let ha = a[3*i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0) +
+                    a[3*i+1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0) +
+                    a[3*i+2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
+
+        h *= hb / ha;
+    }
+
+    h * scale.into()
+}
+
+/// compute power spectral density response of filter coefficients in dB
+pub fn iir_filter_get_psd<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> f32
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+{
+    let h = iir_filter_freqresponse(b, a, scale, fc);
+    10.0 * (h * h.conj()).re.log10()
+}
+
+/// compute power spectral density response of filter coefficients in dB
+pub fn iir_filter_get_psd_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> f32
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+{
+    let h = iir_filter_freqresponse_sos(b, a, scale, nsos, fc);
+    10.0 * (h * h.conj()).re.log10()
+}
+
+/// compute group delay in samples
+pub fn iir_filter_groupdelay<Coeff>(b: &[Coeff], a: &[Coeff], fc: f32) -> Result<f32>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+{
+    let mut b_re = vec![0.0; b.len()];
+    let mut a_re = vec![0.0; a.len()];
+    for i in 0..b.len() {
+        b_re[i] = b[i].re();
+    }
+    for i in 0..a.len() {
+        a_re[i] = a[i].re();
+    }
+    let groupdelay = design::iir_group_delay(&b_re, &a_re, fc)?;
+
+    Ok(groupdelay)
+}
+
+/// compute group delay in samples
+pub fn iir_filter_groupdelay_sos<Coeff>(b: &[Coeff], a: &[Coeff], nsos: usize, fc: f32) -> Result<f32>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+{
+    let mut groupdelay = 0.0;
+
+    for i in 0..nsos {
+        let b_re: [f32; 3] = [b[3*i].re(), b[3*i+1].re(), b[3*i+2].re()];
+        let a_re: [f32; 3] = [a[3*i].re(), a[3*i+1].re(), a[3*i+2].re()];
+
+        groupdelay += design::iir_group_delay(&b_re, &a_re, fc)?;
+    }
+
+    Ok(groupdelay)
+}
 
 /// Infinite impulse response (IIR) filter
 #[derive(Debug, Clone)]
@@ -561,68 +676,29 @@ where
     ///  _fc     :   frequency
     ///  _H      :   output frequency response
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
-        let mut h;
-
         if self.filter_type == IirFilterType::Norm {
-            let mut hb = Complex32::default();
-            let mut ha = Complex32::default();
-
-            for i in 0..self.nb {
-                hb += self.b[i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
-            }
-
-            for i in 0..self.na {
-                ha += self.a[i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
-            }
-
-            // TODO : check to see if we need to take conjugate
-            h = hb / ha;
+            iir_filter_freqresponse(&self.b, &self.a, self.scale, fc)
         } else {
-            h = Complex32::from(1.0);
-
-            for i in 0..self.qsos.len() {
-                let hb = self.b[3*i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0) +
-                         self.b[3*i+1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0) +
-                         self.b[3*i+2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
-
-                let ha = self.a[3*i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0) +
-                         self.a[3*i+1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0) +
-                         self.a[3*i+2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
-
-                h *= hb / ha;
-            }
+            iir_filter_freqresponse_sos(&self.b, &self.a, self.scale, self.qsos.len(), fc)
         }
-
-        h * self.scale.into()
     }
 
     /// compute power spectral density response of filter object in dB
     pub fn get_psd(&self, fc: f32) -> f32 {
-        let h = self.freqresponse(fc);
-        10.0 * (h * h.conj()).re.log10()
+        if self.filter_type == IirFilterType::Norm {
+            iir_filter_get_psd(&self.b, &self.a, self.scale, fc)
+        } else {
+            iir_filter_get_psd_sos(&self.b, &self.a, self.scale, self.qsos.len(), fc)
+        }
     }
 
     /// compute group delay in samples
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
-        let mut groupdelay = 0.0;
-
         if self.filter_type == IirFilterType::Norm {
-            let mut b = vec![0.0; self.nb];
-            let mut a = vec![0.0; self.na];
-            for i in 0..self.nb {
-                b[i] = self.b[i].re();
-            }
-            for i in 0..self.na {
-                a[i] = self.a[i].re();
-            }
-            groupdelay = design::iir_group_delay(&b, &a, fc)?;
+            iir_filter_groupdelay(&self.b, &self.a, fc)
         } else {
-            for i in 0..self.qsos.len() {
-                groupdelay += self.qsos[i].groupdelay(fc)? - 2.0;
-            }
+            iir_filter_groupdelay_sos(&self.b, &self.a, self.qsos.len(), fc)
         }
-        
-        Ok(groupdelay)
     }
 }
 

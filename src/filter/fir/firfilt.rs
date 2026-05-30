@@ -130,6 +130,61 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32> + ComplexNotch,
     Ok(h)
 }
 
+/// compute complex frequency response of filter coefficients
+///
+/// # Arguments
+///
+/// * `h` - filter coefficients
+/// * `scale` - output scaling
+/// * `fc` - normalized frequency for evaluation
+///
+/// # Returns
+///
+/// The frequency response
+pub fn fir_filter_freqresponse<Coeff>(h: &[Coeff], scale: Coeff, fc: f32) -> Complex32
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    Complex32: From<Coeff>,
+{
+    let h_fc = filter::freqresponse(h, fc).unwrap();
+    h_fc * Complex32::from(scale)
+}
+
+
+/// compute power spectral density response of filter coefficients in dB
+///
+/// # Arguments
+///
+/// * `h` - filter coefficients
+/// * `scale` - output scaling
+/// * `fc` - normalized frequency for evaluation
+///
+/// # Returns
+///
+/// The power spectral density
+pub fn fir_filter_get_psd<Coeff>(h: &[Coeff], scale: Coeff, fc: f32) -> f32
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+    Complex32: From<Coeff>,
+{
+    let h = fir_filter_freqresponse(h, scale, fc);
+    10.0 * (h * h.conj()).re.log10()
+}
+
+/// compute and return group delay of filter coefficients
+///
+/// # Arguments
+///
+/// * `h` - filter coefficients
+/// * `fc` - normalized frequency for evaluation
+///
+/// # Returns
+///
+/// The group delay
+pub fn fir_filter_groupdelay<Coeff>(h: &[Coeff], fc: f32) -> Result<f32>
+where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+{
+    let h = h.iter().map(|&x| x.re()).collect::<Vec<f32>>();
+    filter::fir_group_delay(&h, fc)
+}
 
 /// Finite impulse response (FIR) filter
 #[derive(Debug, Clone)]
@@ -438,8 +493,20 @@ where
     /// 
     /// The frequency response
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
-        let h_fc = filter::freqresponse(&self.h, fc).unwrap();
-        h_fc * Complex32::from(self.scale)
+        fir_filter_freqresponse(&self.h, self.scale, fc)
+    }
+
+    /// compute power spectral density response of filter object in dB
+    ///
+    /// # Arguments
+    ///
+    /// * `fc` - normalized frequency for evaluation
+    ///
+    /// # Returns
+    ///
+    /// The power spectral density
+    pub fn get_psd(&self, fc: f32) -> f32 {
+        fir_filter_get_psd(&self.h, self.scale, fc)
     }
 
     /// compute and return group delay of filter object
@@ -452,8 +519,7 @@ where
     /// 
     /// The group delay
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
-        let h = self.h.iter().map(|&x| x.re()).collect::<Vec<f32>>();
-        filter::fir_group_delay(&h, fc)
+        fir_filter_groupdelay(&self.h, fc)
     }
 }
 
