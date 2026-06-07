@@ -119,6 +119,26 @@ where
         }
     }
 
+    pub fn get_max_input(&self, max_output: usize) -> usize {
+        match self.type_ {
+            ResampType::Interp => {
+                let halfband_factor = 1 << self.num_halfband_stages;
+                let max_arbitrary_outputs = max_output / halfband_factor;
+                self.arbitrary_resamp.get_max_input(max_arbitrary_outputs)
+            }
+            ResampType::Decim => {
+                let halfband_factor = 1 << self.num_halfband_stages;
+                let max_halfband_outputs = self.arbitrary_resamp.get_max_input(max_output);
+
+                if max_halfband_outputs == 0 {
+                    halfband_factor - 1 - self.buffer_index
+                } else {
+                    max_halfband_outputs * halfband_factor - self.buffer_index + (halfband_factor - 1)
+                }
+            }
+        }
+    }
+
     pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         match self.type_ {
             ResampType::Interp => self.interp_execute(x, y),
@@ -288,6 +308,61 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_7)]
     fn test_msresamp_crcf_num_output_7() { testbench_msresamp_crcf_num_output((-8.0f32).exp()); }
+
+    fn testbench_msresamp_crcf_max_input(rate: f32) {
+        // create object
+        let as_ = 60.0f32;
+        let mut q = MsResamp::<Complex32, f32>::new(rate, as_).unwrap();
+
+        // allocate buffers
+        let max_input = 2048;
+        let max_output = 16 + (4.0 * max_input as f32 * rate.max(1.0)) as usize;
+        let buf_0 = vec![Complex32::new(0.0, 0.0); max_input];
+        let mut buf_1 = vec![Complex32::new(0.0, 0.0); max_output];
+
+        // test various output limits
+        for output_limit in [1, 2, 3, 5, 10, 20, 50, 100] {
+            let num_input = q.get_max_input(output_limit);
+            let num_output = q.get_num_output(num_input);
+
+            // get_max_input returns the max inputs that produce at most output_limit outputs
+            assert!(
+                num_output <= output_limit,
+                "rate={}, limit={}, num_input={}, num_output={}",
+                rate, output_limit, num_input, num_output
+            );
+
+            // verify that one more input would exceed the limit
+            let num_output_more = q.get_num_output(num_input + 1);
+            assert!(
+                num_output_more > output_limit,
+                "rate={}, limit={}, num_input+1={}, num_output_more={}",
+                rate, output_limit, num_input + 1, num_output_more
+            );
+
+            // actually run the resampler to verify
+            let num_written = q.execute(&buf_0[..num_input], &mut buf_1).unwrap();
+            assert_eq!(num_output, num_written);
+        }
+    }
+
+    #[test]
+    fn test_msresamp_crcf_max_input_0() { testbench_msresamp_crcf_max_input(1.00); }
+
+    #[test]
+    fn test_msresamp_crcf_max_input_1() { testbench_msresamp_crcf_max_input(0.50); }
+
+    #[test]
+    fn test_msresamp_crcf_max_input_2() { testbench_msresamp_crcf_max_input(2.0); }
+
+    #[test]
+    fn test_msresamp_crcf_max_input_3() { testbench_msresamp_crcf_max_input(0.127115323); }
+
+    #[test]
+    fn test_msresamp_crcf_max_input_4() { testbench_msresamp_crcf_max_input(std::f32::consts::PI); }
+
+    #[test]
+    fn test_msresamp_crcf_max_input_5() { testbench_msresamp_crcf_max_input(1.0 / std::f32::consts::PI); }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_copy)]

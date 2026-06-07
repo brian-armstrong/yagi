@@ -261,6 +261,10 @@ where
         let mut ny = 0;
 
         while self.b < self.npfb {
+            if ny >= y.len() {
+                return Err(Error::Range("symsync output buffer full".into()));
+            }
+
             mf = self.mf.execute(self.b)?;
             y[ny] = mf / (self.k as f32).into();
 
@@ -712,4 +716,30 @@ mod tests {
 
     #[test]
     fn symsync_rrrf_scenario_16() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.958 ); }
+
+    // Test that when rate < 1.0 (more outputs than inputs), execute returns an
+    // error if the output buffer is too small, rather than panicking.
+    #[test]
+    fn test_symsync_output_buffer_full() {
+        let mut sync = Symsync::<Complex32>::new_kaiser(2, 7, 0.3, 32).unwrap();
+
+        // Set rate to 0.5 - this means ~2 outputs per input
+        sync.set_fractional_rate(0.5).unwrap();
+        assert!(sync.get_rate() < 1.0);
+
+        // Input buffer with 100 samples
+        let x: Vec<Complex32> = (0..100)
+            .map(|i| Complex32::new(i as f32 * 0.1, 0.0))
+            .collect();
+
+        // Output buffer sized for normal decimation (1 output per 2 inputs = 50)
+        // With rate=0.5, we'd get ~2 outputs per input, so 100 inputs -> ~200 outputs
+        // but we only have space for 50
+        let mut y = vec![Complex32::new(0.0, 0.0); 50];
+
+        // This should return an error because the output buffer is too small
+        let result = sync.execute(&x, &mut y);
+        assert!(result.is_err(), "expected error, got Ok with {} outputs", result.unwrap());
+        assert!(result.unwrap_err().to_string().contains("output buffer full"));
+    }
 }

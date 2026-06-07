@@ -137,6 +137,20 @@ where
         self.q
     }
 
+    pub fn get_num_output(&self, num_input: usize) -> usize {
+        let input_block_size = self.q * self.block_len;
+        let output_block_size = self.p * self.block_len;
+        let num_blocks = num_input / input_block_size;
+        num_blocks * output_block_size
+    }
+
+    pub fn get_max_input(&self, max_output: usize) -> usize {
+        let input_block_size = self.q * self.block_len;
+        let output_block_size = self.p * self.block_len;
+        let max_blocks = max_output / output_block_size;
+        max_blocks * input_block_size
+    }
+
     pub fn write(&mut self, buf: &[T]) -> () {
         self.pfb.write(buf)
     }
@@ -383,4 +397,76 @@ mod tests {
     #[autotest_annotate(autotest_rresamp_crcf_rrcos_P5_Q3)]
     fn test_rresamp_crcf_rrcos_p5_q3() { test_rresamp_crcf("rrcos", 5, 3, 40, 0.2, 50.0); }
 
+    fn testbench_rresamp_crcf_num_output(interp: usize, decim: usize) {
+        let mut resamp = Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap();
+        let q = resamp.get_q();
+        let p = resamp.get_p();
+
+        // allocate buffers
+        let max_blocks = 20;
+        let buf_in = vec![Complex32::new(0.0, 0.0); max_blocks * q];
+        let mut buf_out = vec![Complex32::new(0.0, 0.0); max_blocks * p];
+
+        // test various block counts
+        for num_blocks in 1..=max_blocks {
+            let num_input = num_blocks * q;
+            let expected_output = num_blocks * p;
+
+            assert_eq!(resamp.get_num_output(num_input), expected_output);
+
+            // actually run the resampler to verify
+            resamp.execute_block(&buf_in[..num_input], num_blocks, &mut buf_out[..expected_output]).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_rresamp_crcf_num_output_0() { testbench_rresamp_crcf_num_output(1, 5); }
+
+    #[test]
+    fn test_rresamp_crcf_num_output_1() { testbench_rresamp_crcf_num_output(3, 5); }
+
+    #[test]
+    fn test_rresamp_crcf_num_output_2() { testbench_rresamp_crcf_num_output(5, 3); }
+
+    #[test]
+    fn test_rresamp_crcf_num_output_3() { testbench_rresamp_crcf_num_output(8, 5); }
+
+    fn testbench_rresamp_crcf_max_input(interp: usize, decim: usize) {
+        let resamp = Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap();
+        let q = resamp.get_q();
+
+        // test various output limits
+        for output_limit in [1, 2, 5, 10, 20, 50, 100] {
+            let max_input = resamp.get_max_input(output_limit);
+            let num_output = resamp.get_num_output(max_input);
+
+            // get_max_input returns the max inputs that produce at most output_limit outputs
+            assert!(
+                num_output <= output_limit,
+                "interp={}, decim={}, limit={}, max_input={}, num_output={}",
+                interp, decim, output_limit, max_input, num_output
+            );
+
+            // verify that one more block would exceed the limit
+            let next_input = max_input + q;
+            let next_output = resamp.get_num_output(next_input);
+            assert!(
+                next_output > output_limit,
+                "interp={}, decim={}, limit={}, next_input={}, next_output={}",
+                interp, decim, output_limit, next_input, next_output
+            );
+        }
+    }
+
+    #[test]
+    fn test_rresamp_crcf_max_input_0() { testbench_rresamp_crcf_max_input(1, 5); }
+
+    #[test]
+    fn test_rresamp_crcf_max_input_1() { testbench_rresamp_crcf_max_input(3, 5); }
+
+    #[test]
+    fn test_rresamp_crcf_max_input_2() { testbench_rresamp_crcf_max_input(5, 3); }
+
+    #[test]
+    fn test_rresamp_crcf_max_input_3() { testbench_rresamp_crcf_max_input(8, 5); }
 }

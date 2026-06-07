@@ -138,6 +138,23 @@ where
         num_output
     }
 
+    pub fn get_max_input(&self, max_output: usize) -> usize {
+        let mut phase = self.phase;
+        let mut output_count = 0;
+        let mut num_input = 0;
+        loop {
+            while phase <= 0x00ffffff {
+                output_count += 1;
+                if output_count > max_output {
+                    return num_input;
+                }
+                phase += self.step;
+            }
+            phase -= 1 << 24;
+            num_input += 1;
+        }
+    }
+
     pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<usize> {
         self.pfb.push(x);
 
@@ -379,4 +396,61 @@ mod tests {
             }
         }
     }
+
+    fn testbench_resamp_crcf_max_input(rate: f32, npfb: usize) {
+        // create object
+        let fc = 0.4f32;
+        let as_db = 60.0f32;
+        let m = 20;
+        let mut resamp = Resamp::<Complex32>::new(rate, m, fc, as_db, npfb).unwrap();
+
+        // allocate buffers
+        let max_input = 1024;
+        let max_output = 16 + (4.0 * max_input as f32 * rate.max(1.0)) as usize;
+        let buf_0 = vec![Complex32::new(0.0, 0.0); max_input];
+        let mut buf_1 = vec![Complex32::new(0.0, 0.0); max_output];
+
+        // run blocks and verify get_max_input is consistent with get_num_output
+        for output_limit in [1, 2, 3, 5, 10, 20, 50, 100] {
+            let num_input = resamp.get_max_input(output_limit);
+            let num_output = resamp.get_num_output(num_input);
+
+            // get_max_input returns the max inputs that produce at most output_limit outputs
+            assert!(
+                num_output <= output_limit,
+                "rate={}, limit={}, num_input={}, num_output={}",
+                rate, output_limit, num_input, num_output
+            );
+
+            // verify that one more input would exceed the limit
+            let num_output_more = resamp.get_num_output(num_input + 1);
+            assert!(
+                num_output_more > output_limit,
+                "rate={}, limit={}, num_input+1={}, num_output_more={}",
+                rate, output_limit, num_input + 1, num_output_more
+            );
+
+            // actually run the resampler to verify
+            let num_written = resamp.execute_block(&buf_0[..num_input], &mut buf_1).unwrap();
+            assert_eq!(num_output, num_written);
+        }
+    }
+
+    #[test]
+    fn test_resamp_crcf_max_input_0() { testbench_resamp_crcf_max_input(1.00, 64); }
+
+    #[test]
+    fn test_resamp_crcf_max_input_1() { testbench_resamp_crcf_max_input(0.50, 256); }
+
+    #[test]
+    fn test_resamp_crcf_max_input_2() { testbench_resamp_crcf_max_input(2.0, 256); }
+
+    #[test]
+    fn test_resamp_crcf_max_input_3() { testbench_resamp_crcf_max_input(0.127115323, 64); }
+
+    #[test]
+    fn test_resamp_crcf_max_input_4() { testbench_resamp_crcf_max_input(std::f32::consts::PI, 64); }
+
+    #[test]
+    fn test_resamp_crcf_max_input_5() { testbench_resamp_crcf_max_input(1.0 / std::f32::consts::PI, 64); }
 }
