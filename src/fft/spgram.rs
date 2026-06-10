@@ -669,4 +669,57 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
         let nfft_2 = nfft / 2;
         assert!(psd[nfft_2] > mask_lo);
     }
+
+    #[test]
+    #[autotest_annotate(autotest_spgramcf_copy)]
+    fn test_spgramcf_copy() {
+        let nfft = 1200;
+        let num_samples = 9600;
+        let nstd = 0.1f32;
+
+        // create object with some odd properties
+        let mut q0 = Spgram::<Complex32>::new(nfft, WindowType::Kaiser, 960, 373).unwrap();
+
+        // generate a bunch of random noise samples
+        for _ in 0..num_samples {
+            let v = Complex32::new(0.1 + nstd * randnf(), nstd * randnf());
+            q0.push(v);
+        }
+
+        // copy object and push same samples through both
+        let mut q1 = q0.clone();
+        for _ in 0..num_samples {
+            let v = Complex32::new(0.1 + nstd * randnf(), nstd * randnf());
+            q0.push(v);
+            q1.push(v);
+        }
+
+        // get spectrum and compare outputs
+        let psd_0 = q0.get_psd();
+        let psd_1 = q1.get_psd();
+        assert_eq!(psd_0, psd_1);
+
+        // check parameters
+        assert_eq!(q0.get_nfft(), q1.get_nfft());
+        assert_eq!(q0.get_window_len(), q1.get_window_len());
+        assert_eq!(q0.get_delay(), q1.get_delay());
+        assert_eq!(q0.get_wtype(), q1.get_wtype());
+        assert_eq!(q0.get_num_samples(), q1.get_num_samples());
+        assert_eq!(q0.get_num_samples_total(), q1.get_num_samples_total());
+        assert_eq!(q0.get_num_transforms(), q1.get_num_transforms());
+        assert_eq!(q0.get_num_transforms_total(), q1.get_num_transforms_total());
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_spgramcf_null)]
+    fn test_spgramcf_null() {
+        let nfft = 1200;
+        let psd = Spgram::<Complex32>::estimate_psd(nfft, &[]).unwrap();
+
+        // value should be exactly minimum
+        let psd_val = 10.0 * SPGRAM_PSD_MIN.log10();
+        for i in 0..nfft {
+            assert_eq!(psd[i], psd_val);
+        }
+    }
 }
