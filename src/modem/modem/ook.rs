@@ -2,7 +2,10 @@ use crate::modem::modem::*;
 
 impl Modem {
     pub(super) fn new_ook() -> Result<Self> {
-        Modem::_new(1, ModulationScheme::Ook)
+        let mut modem = Modem::_new(1, ModulationScheme::Ook)?;
+        modem.symbol_map = Some(vec![Complex32::new(0.0, 0.0); modem.constellation_size]);
+        modem.init_map()?;
+        Ok(modem)
     }
 
     pub(super) fn modulate_ook(&mut self, symbol_in: u32) -> Result<Complex32> {

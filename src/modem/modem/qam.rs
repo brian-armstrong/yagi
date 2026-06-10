@@ -61,7 +61,6 @@ impl Modem {
 
         modem.symbol_map = Some(vec![Complex32::new(0.0, 0.0); modem.constellation_size]);
         modem.init_map()?;
-        modem.modulate_using_map = true;
 
         if modem.bits_per_symbol == 3 {
             modem.init_demod_soft_tab(3)?;

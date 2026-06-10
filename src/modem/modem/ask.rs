@@ -33,6 +33,9 @@ impl Modem {
             modem.init_demod_soft_tab(2)?;
         }
 
+        modem.symbol_map = Some(vec![Complex32::new(0.0, 0.0); modem.constellation_size]);
+        modem.init_map()?;
+
         Ok(modem)
     }
 

@@ -94,7 +94,6 @@ pub struct Modem {
 
     // modulation
     symbol_map: Option<Vec<Complex32>>,     // complete symbol map
-    modulate_using_map: bool,         // modulate using map (look-up table) flag
 
     // demodulation
     r: Complex32,                // received state vector
@@ -240,13 +239,13 @@ impl Modem {
         // rand::random::<u32>() % self.constellation_size as u32
     }
 
+    #[inline]
     pub fn modulate(&mut self, symbol_in: u32) -> Result<Complex32> {
         if symbol_in >= self.constellation_size as u32 {
             return Err(Error::Config("input symbol exceeds constellation size".into()));
         }
-
-        if self.modulate_using_map {
-            self.modulate_map(symbol_in)
+        if let Some(ref symbol_map) = self.symbol_map {
+            Ok(symbol_map[symbol_in as usize])
         } else {
             (self.modulate_func)(self, symbol_in)
         }
@@ -282,6 +281,7 @@ impl Modem {
         (self.x_hat - self.r).norm()
     }
 
+    #[allow(dead_code)]
     fn modulate_map(&mut self, symbol_in: u32) -> Result<Complex32> {
         if symbol_in >= self.constellation_size as u32 {
             return Err(Error::Config("input symbol exceeds maximum".into()));
@@ -434,7 +434,6 @@ impl Modem {
             constellation_size: 1 << bits_per_symbol,
             reference: None,
             symbol_map: None,
-            modulate_using_map: false,
             modulate_func: mod_fn,
             demodulate_func: demod_fn,
             demodulate_soft_func: None,
