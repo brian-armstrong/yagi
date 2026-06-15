@@ -179,14 +179,16 @@ where
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
 
-        b0.copy_from_slice(x);
-
         for s in 0..self.num_stages {
             let k = 1 << (self.num_stages - s - 1);
             let g = self.num_stages - s - 1;
 
+            // first stage reads the input directly. later stages read the prior
+            // buffer. sourcing stage 0 from `x` avoids copying it into a scratch buffer.
+            let src: &[T] = if s == 0 { x } else { b0 };
+
             for i in 0..k {
-                b1[i] = self.resamp2[g].decim_execute(&b0[2 * i..2 * i + 2])?;
+                b1[i] = self.resamp2[g].decim_execute(&src[2 * i..2 * i + 2])?;
             }
 
             std::mem::swap(&mut b0, &mut b1);
