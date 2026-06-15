@@ -235,13 +235,17 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
 
     /// push a single sample into the spgram object
     pub fn push(&mut self, _x: T) {
-        // push sample into internal buffer
-        self.buffer.push(_x);
-
         // update counters
         self.num_samples += 1;
         self.num_samples_total += 1;
         self.sample_timer -= 1;
+
+        // push sample into internal buffer. When delay > window_len the spectrogram
+        // is gapped: samples more than window_len from the next transform fall out of
+        // the analysis window before step() reads them, so they need not be buffered.
+        if self.sample_timer < self.window_len {
+            self.buffer.push(_x);
+        }
 
         // check if buffer is full
         if self.sample_timer == 0 {
@@ -708,6 +712,48 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
         assert_eq!(q0.get_num_samples_total(), q1.get_num_samples_total());
         assert_eq!(q0.get_num_transforms(), q1.get_num_transforms());
         assert_eq!(q0.get_num_transforms_total(), q1.get_num_transforms_total());
+    }
+
+    #[test]
+    fn test_spgramcf_gapped_elision() {
+        // When delay > window_len the spectrogram is gapped: samples that are more
+        // than window_len away from the next transform fall outside every analysis
+        // window and must not affect the output. Verify that replacing those
+        // out-of-window samples with arbitrary garbage produces an identical PSD.
+        let nfft = 256;
+        let window_len = 64;
+        let delay = 200; // delay > window_len => gapped
+        let num_samples = 40 * delay;
+
+        let mut q_clean = Spgram::<Complex32>::new(nfft, WindowType::Kaiser, window_len, delay).unwrap();
+        let mut q_garbage = Spgram::<Complex32>::new(nfft, WindowType::Kaiser, window_len, delay).unwrap();
+
+        // sample_timer starts at `delay` and counts down; a sample is in-window for
+        // the next transform when the post-decrement timer is < window_len.
+        let mut timer = delay;
+        for i in 0..num_samples {
+            timer -= 1;
+            let in_window = timer < window_len;
+            if timer == 0 {
+                timer = delay;
+            }
+
+            let signal = Complex32::new(0.3, 0.0)
+                + Complex32::new(randnf(), randnf()) * 0.1;
+
+            q_clean.push(signal);
+            // Feed identical in-window samples; substitute garbage out-of-window.
+            if in_window {
+                q_garbage.push(signal);
+            } else {
+                q_garbage.push(Complex32::new(1000.0 * randnf(), 1000.0 * randnf()));
+            }
+            let _ = i;
+        }
+
+        // The out-of-window garbage must not have changed anything.
+        assert_eq!(q_clean.get_psd(), q_garbage.get_psd());
+        assert!(q_clean.get_num_transforms() > 0);
     }
 
     #[test]
