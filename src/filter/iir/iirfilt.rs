@@ -1,8 +1,7 @@
 use crate::error::{Error, Result};
 use num_complex::{Complex32, ComplexFloat};
 use core::f32;
-use std::collections::VecDeque;
-
+use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::filter::iir::design;
 use crate::filter::iir::iirfiltsos::IirFilterSos;
@@ -368,8 +367,10 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 #[derive(Debug, Clone)]
 pub struct IirFilter<T, Coeff = T> {
     b: Vec<Coeff>,             // numerator (feed-forward coefficients)
+    b_rev: Vec<Coeff>,         // reversed numerator (feed-forward coefficients)
     a: Vec<Coeff>,             // denominator (feed-back coefficients)
-    v: VecDeque<T>,        // internal filter state (buffer)
+    a_rev: Vec<Coeff>,         // reversed denominator (feed-back coefficients)
+    v: Window<T>,        // internal filter state (buffer)
     n: usize,               // filter length (order+1)
     nb: usize,              // numerator length
     na: usize,              // denominator length
@@ -385,7 +386,7 @@ impl<T, Coeff> IirFilter<T, Coeff>
 where
     T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T>,
     Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T> + Into<Complex32>,
-    VecDeque<T>: DotProd<Coeff, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
     f32: Into<Coeff>,
 {
     /// Create a new IIR filter from a numerator and denominator
@@ -420,8 +421,10 @@ where
 
         let mut filter = IirFilter {
             b: b.to_vec(),
+            b_rev: b.iter().rev().cloned().collect::<Vec<Coeff>>(),
             a: a.to_vec(),
-            v: VecDeque::from(vec![T::default(); n]),
+            a_rev: a.iter().rev().cloned().collect::<Vec<Coeff>>(),
+            v: Window::new(n)?,
             n,
             nb,
             na,
@@ -434,9 +437,11 @@ where
         let a0 = filter.a[0];
         for i in 0..filter.nb {
             filter.b[i] = filter.b[i] / a0;
+            filter.b_rev[i] = filter.b_rev[i] / a0;
         }
         for i in 0..filter.na {
             filter.a[i] = filter.a[i] / a0;
+            filter.a_rev[i] = filter.a_rev[i] / a0;
         }
 
         filter.reset();
@@ -459,8 +464,10 @@ where
 
         let mut filter = IirFilter::<T, Coeff> {
             b: b.to_vec(),
+            b_rev: b.iter().rev().cloned().collect::<Vec<Coeff>>(),
             a: a.to_vec(),
-            v: VecDeque::new(),
+            a_rev: a.iter().rev().cloned().collect::<Vec<Coeff>>(),
+            v: Window::new(1)?,
             n: nsos * 2,
             nb: 0,
             na: 0,
@@ -561,9 +568,7 @@ where
                 sos.reset();
             }
         } else {
-            for v in &mut self.v {
-                *v = T::default();
-            }
+            self.v.reset();
         }
     }
 
@@ -597,6 +602,8 @@ where
         for i in 0..self.na {
             self.a[i] = self.a[i] / a0;
         }
+        self.b_rev = self.b.iter().rev().cloned().collect::<Vec<Coeff>>();
+        self.a_rev = self.a.iter().rev().cloned().collect::<Vec<Coeff>>();
         Ok(())
     }
 
@@ -612,15 +619,13 @@ where
     fn execute_norm(&mut self, x: T) -> T {
         // advance buffer
 
-        // cheap vecdeque rotate
-        self.v.rotate_right(1);
-        self.v[0] = T::default();
+        self.v.push(T::default());
 
         // compute new v[0]
-        let v0 = self.v.dotprod(&self.a);
-        self.v[0] = x - v0;
+        let v0 = self.v.read().dotprod(&self.a_rev);
+        self.v.set(self.n - 1, x - v0);
 
-        let y = self.v.dotprod(&self.b);
+        let y = self.v.read().dotprod(&self.b_rev);
         y * self.scale
     }
 

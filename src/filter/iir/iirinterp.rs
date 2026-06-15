@@ -14,7 +14,7 @@ impl<T, Coeff> IirInterpolationFilter<T, Coeff>
 where
     T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + From<Coeff>,
     Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T> + Into<Complex32>,
-    std::collections::VecDeque<T>: DotProd<Coeff, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
     f32: Into<Coeff>,
 {
     /// create interpolator from external coefficients

@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Window<T> {
     v: Vec<T>,
     len: usize,
@@ -72,6 +72,10 @@ impl<T: Default + Clone + Copy> Window<T> {
             return Err(Error::Range("index value out of range".to_string()));
         }
         Ok(self.v[self.read_index + i].clone())
+    }
+
+    pub fn set(&mut self, i: usize, value: T) {
+        self.v[self.read_index + i] = value;
     }
 
     pub fn push(&mut self, value: T) {
