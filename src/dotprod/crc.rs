@@ -370,7 +370,6 @@ mod tests {
     }
 
     #[test]
-    #[autotest_annotate(autotest_dotprod_crcf_struct_vs_ordinal)]
     fn test_dotprod_crcf_struct_vs_ordinal() {
         let mut rng = rand::thread_rng();
         const TOL: f32 = 1e-4;

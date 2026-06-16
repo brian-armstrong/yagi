@@ -351,7 +351,6 @@ mod tests {
     }
 
     #[test]
-    #[autotest_annotate(autotest_dotprod_cccf_struct_lengths)]
     fn test_dotprod_cccf_struct_lengths() {
         const TOL: f32 = 4e-6;
 
@@ -415,7 +414,6 @@ mod tests {
     }
 
     #[test]
-    #[autotest_annotate(autotest_dotprod_cccf_struct_vs_ordinal)]
     fn test_dotprod_cccf_struct_vs_ordinal() {
         const TOL: f32 = 1e-3;
         let mut rng = rand::thread_rng();
