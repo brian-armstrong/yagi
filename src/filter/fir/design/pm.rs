@@ -663,7 +663,7 @@ pub fn fir_design_pm_lowpass(
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use crate::utility::test_helpers::{PsdRegion, validate_psd_signalf};
 
     #[test]
@@ -713,7 +713,7 @@ mod tests {
         let h = fir_design_pm(n, num_bands, &bands, &des, Some(&weights), None, btype).unwrap();
 
         for i in 0..n {
-            assert_relative_eq!(h[i], h0[i], epsilon = tol);
+            assert_abs_diff_eq!(h[i], h0[i], epsilon = tol);
         }
     }
 
@@ -772,7 +772,7 @@ mod tests {
         let h = fir_design_pm(n, num_bands, &bands, &des, Some(&weights), None, btype).unwrap();
 
         for i in 0..n {
-            assert_relative_eq!(h[i], h0[i], epsilon = tol);
+            assert_abs_diff_eq!(h[i], h0[i], epsilon = tol);
         }
     }
 
@@ -866,7 +866,7 @@ mod tests {
         let h0 = q0.execute().unwrap();
         let h1 = q1.execute().unwrap();
 
-        assert_relative_eq!(h0.as_slice(), h1.as_slice(), epsilon = f32::EPSILON);
+        assert_eq!(h0.as_slice(), h1.as_slice());
 
         // No need to manually destroy objects in Rust due to RAII
     }

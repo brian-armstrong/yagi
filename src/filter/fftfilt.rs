@@ -145,7 +145,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     #[test]
@@ -161,7 +161,7 @@ mod tests {
         let mut filt = FftFilt::<f32, f32>::create(&h_2, 64).unwrap();
 
         filt.set_scale(3.0);
-        assert_relative_eq!(filt.get_scale(), 3.0);
+        assert_eq!(filt.get_scale(), 3.0);
         assert_eq!(filt.get_length(), 9);
     }
 
@@ -232,7 +232,7 @@ mod tests {
 
         // compare results
         for i in 0..y.len() {
-            assert_relative_eq!(y_test[i], y[i], epsilon = tol);
+            assert_abs_diff_eq!(y_test[i], y[i], epsilon = tol);
         }
     }
 
@@ -260,8 +260,8 @@ mod tests {
 
         // compare results
         for i in 0..y.len() {
-            assert_relative_eq!(y_test[i].re, y[i].re, epsilon = tol);
-            assert_relative_eq!(y_test[i].im, y[i].im, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
     }
 
@@ -289,8 +289,8 @@ mod tests {
 
         // compare results
         for i in 0..y.len() {
-            assert_relative_eq!(y_test[i].re, y[i].re, epsilon = tol);
-            assert_relative_eq!(y_test[i].im, y[i].im, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
     }
 

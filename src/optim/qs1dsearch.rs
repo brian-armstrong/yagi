@@ -230,7 +230,7 @@ impl <'a> Qs1dSearch<'a> {
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     fn qs1dsearch_umin(v: f32, context: &mut Option<&mut dyn std::any::Any>) -> f32 {
         let v_opt = context.as_ref().unwrap().downcast_ref::<f32>().unwrap();
@@ -272,8 +272,8 @@ mod tests {
         }
 
         // check result
-        assert_relative_eq!(q_opt_v, v_opt, epsilon = 1e-3);
-        assert_relative_eq!(q_opt_u, utility(v_opt, &mut Some(&mut v_opt)), epsilon = 1e-3);
+        assert_abs_diff_eq!(q_opt_v, v_opt, epsilon = 1e-3);
+        assert_abs_diff_eq!(q_opt_u, utility(v_opt, &mut Some(&mut v_opt)), epsilon = 1e-3);
     }
 
     // unbounded:

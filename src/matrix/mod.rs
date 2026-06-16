@@ -33,7 +33,7 @@ mod tests {
         matrix_inv, matrix_linsolve, matrix_ludecomp_crout, matrix_ludecomp_doolittle, matrix_mul, matrix_mul_hermitian,
         matrix_mul_transpose, matrix_qrdecomp_gramschmidt_f32, matrix_qrdecomp_gramschmidt_c32, matrix_transpose_mul,
     };
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex;
     use test_macro::autotest_annotate;
     include!("test_data.rs");
@@ -50,7 +50,7 @@ mod tests {
         matrix_add(&MATRIXF_DATA_ADD_X, &MATRIXF_DATA_ADD_Y, &mut z, 5, 4);
 
         for i in 0..20 {
-            assert_relative_eq!(MATRIXF_DATA_ADD_Z[i], z[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_ADD_Z[i], z[i], epsilon = tol);
         }
     }
 
@@ -66,7 +66,7 @@ mod tests {
         matrix_aug(&MATRIXF_DATA_AUG_X, 5, 4, &MATRIXF_DATA_AUG_Y, 5, 3, &mut z, 5, 7).unwrap();
 
         for i in 0..35 {
-            assert_relative_eq!(MATRIXF_DATA_AUG_Z[i], z[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_AUG_Z[i], z[i], epsilon = tol);
         }
     }
 
@@ -82,7 +82,7 @@ mod tests {
         matrix_cgsolve(&MATRIXF_DATA_CGSOLVE_A, 8, &MATRIXF_DATA_CGSOLVE_B, &mut x, None).unwrap();
 
         for i in 0..8 {
-            assert_relative_eq!(MATRIXF_DATA_CGSOLVE_X[i], x[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_CGSOLVE_X[i], x[i], epsilon = tol);
         }
     }
 
@@ -99,7 +99,7 @@ mod tests {
         matrix_chol(&MATRIXF_DATA_CHOL_A, 4, &mut l).unwrap();
 
         for i in 0..16 {
-            assert_relative_eq!(MATRIXF_DATA_CHOL_L[i], l[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_CHOL_L[i], l[i], epsilon = tol);
         }
     }
 
@@ -114,7 +114,7 @@ mod tests {
         matrix_gramschmidt(&MATRIXF_DATA_GRAMSCHMIDT_A, 4, 3, &mut v).unwrap();
 
         for i in 0..12 {
-            assert_relative_eq!(MATRIXF_DATA_GRAMSCHMIDT_V[i], v[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_GRAMSCHMIDT_V[i], v[i], epsilon = tol);
         }
     }
 
@@ -129,7 +129,7 @@ mod tests {
         matrix_inv(&mut y, 5, 5).unwrap();
 
         for i in 0..25 {
-            assert_relative_eq!(MATRIXF_DATA_INV_Y[i], y[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_INV_Y[i], y[i], epsilon = tol);
         }
     }
 
@@ -147,7 +147,7 @@ mod tests {
         matrix_linsolve(&MATRIXF_DATA_LINSOLVE_A, 5, &MATRIXF_DATA_LINSOLVE_B, &mut x, None).unwrap();
 
         for i in 0..5 {
-            assert_relative_eq!(MATRIXF_DATA_LINSOLVE_X[i], x[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_LINSOLVE_X[i], x[i], epsilon = tol);
         }
     }
 
@@ -171,17 +171,17 @@ mod tests {
         for r in 0..8 {
             for c in 0..8 {
                 if r < c {
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c), 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c), 0.0, epsilon = tol);
                 } else if r == c {
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c), 1.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c), 1.0, epsilon = tol);
                 } else {
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c), 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c), 0.0, epsilon = tol);
                 }
             }
         }
 
         for i in 0..64 {
-            assert_relative_eq!(MATRIXF_DATA_LUDECOMP_A[i], lu_test[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_LUDECOMP_A[i], lu_test[i], epsilon = tol);
         }
     }
 
@@ -205,17 +205,17 @@ mod tests {
         for r in 0..8 {
             for c in 0..8 {
                 if r < c {
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c), 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c), 0.0, epsilon = tol);
                 } else if r == c {
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c), 1.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c), 1.0, epsilon = tol);
                 } else {
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c), 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c), 0.0, epsilon = tol);
                 }
             }
         }
 
         for i in 0..64 {
-            assert_relative_eq!(MATRIXF_DATA_LUDECOMP_A[i], lu_test[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_LUDECOMP_A[i], lu_test[i], epsilon = tol);
         }
     }
 
@@ -231,7 +231,7 @@ mod tests {
         matrix_mul(&MATRIXF_DATA_MUL_X, 5, 4, &MATRIXF_DATA_MUL_Y, 4, 3, &mut z, 5, 3).unwrap();
 
         for i in 0..15 {
-            assert_relative_eq!(MATRIXF_DATA_MUL_Z[i], z[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_MUL_Z[i], z[i], epsilon = tol);
         }
     }
 
@@ -257,20 +257,20 @@ mod tests {
 
         // ensure Q*R = A
         for i in 0..16 {
-            assert_relative_eq!(MATRIXF_DATA_QRDECOMP_A[i], qr_test[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_QRDECOMP_A[i], qr_test[i], epsilon = tol);
         }
 
         // ensure Q*Q = I(4)
         let mut i4 = [0.0f32; 16];
         matrix_eye(&mut i4, 4);
         for i in 0..16 {
-            assert_relative_eq!(qqt_test[i], i4[i], epsilon = tol);
+            assert_abs_diff_eq!(qqt_test[i], i4[i], epsilon = tol);
         }
 
         // ensure Q and R are correct
         for i in 0..16 {
-            assert_relative_eq!(MATRIXF_DATA_QRDECOMP_Q[i], q[i], epsilon = tol);
-            assert_relative_eq!(MATRIXF_DATA_QRDECOMP_R[i], r[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_QRDECOMP_Q[i], q[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_QRDECOMP_R[i], r[i], epsilon = tol);
         }
     }
 
@@ -292,19 +292,19 @@ mod tests {
 
         // run tests
         for i in 0..25 {
-            assert_relative_eq!(MATRIXF_DATA_TRANSMUL_XXT[i], xxt[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_TRANSMUL_XXT[i], xxt[i], epsilon = tol);
         }
 
         for i in 0..25 {
-            assert_relative_eq!(MATRIXF_DATA_TRANSMUL_XXH[i], xxh[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_TRANSMUL_XXH[i], xxh[i], epsilon = tol);
         }
 
         for i in 0..16 {
-            assert_relative_eq!(MATRIXF_DATA_TRANSMUL_XTX[i], xtx[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_TRANSMUL_XTX[i], xtx[i], epsilon = tol);
         }
 
         for i in 0..16 {
-            assert_relative_eq!(MATRIXF_DATA_TRANSMUL_XHX[i], xhx[i], epsilon = tol);
+            assert_abs_diff_eq!(MATRIXF_DATA_TRANSMUL_XHX[i], xhx[i], epsilon = tol);
         }
     }
 
@@ -317,8 +317,8 @@ mod tests {
         matrix_add(&MATRIXCF_DATA_ADD_X, &MATRIXCF_DATA_ADD_Y, &mut z, 5, 4);
 
         for i in 0..20 {
-            assert_relative_eq!(z[i].re, MATRIXCF_DATA_ADD_Z[i].re, epsilon = tol);
-            assert_relative_eq!(z[i].im, MATRIXCF_DATA_ADD_Z[i].im, epsilon = tol);
+            assert_abs_diff_eq!(z[i].re, MATRIXCF_DATA_ADD_Z[i].re, epsilon = tol);
+            assert_abs_diff_eq!(z[i].im, MATRIXCF_DATA_ADD_Z[i].im, epsilon = tol);
         }
     }
 
@@ -331,8 +331,8 @@ mod tests {
         matrix_aug(&MATRIXCF_DATA_AUG_X, 5, 4, &MATRIXCF_DATA_AUG_Y, 5, 3, &mut z, 5, 7).unwrap();
 
         for i in 0..35 {
-            assert_relative_eq!(z[i].re, MATRIXCF_DATA_AUG_Z[i].re, epsilon = tol);
-            assert_relative_eq!(z[i].im, MATRIXCF_DATA_AUG_Z[i].im, epsilon = tol);
+            assert_abs_diff_eq!(z[i].re, MATRIXCF_DATA_AUG_Z[i].re, epsilon = tol);
+            assert_abs_diff_eq!(z[i].im, MATRIXCF_DATA_AUG_Z[i].im, epsilon = tol);
         }
     }
 
@@ -345,8 +345,8 @@ mod tests {
         matrix_chol(&MATRIXCF_DATA_CHOL_A, 4, &mut l).unwrap();
 
         for i in 0..16 {
-            assert_relative_eq!(MATRIXCF_DATA_CHOL_L[i].re, l[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_CHOL_L[i].im, l[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_CHOL_L[i].re, l[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_CHOL_L[i].im, l[i].im, epsilon = tol);
         }
     }
 
@@ -359,8 +359,8 @@ mod tests {
         matrix_inv(&mut y, 5, 5).unwrap();
 
         for i in 0..25 {
-            assert_relative_eq!(MATRIXCF_DATA_INV_Y[i].re, y[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_INV_Y[i].im, y[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_INV_Y[i].re, y[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_INV_Y[i].im, y[i].im, epsilon = tol);
         }
     }
 
@@ -378,8 +378,8 @@ mod tests {
         matrix_linsolve(&MATRIXCF_DATA_LINSOLVE_A, 5, &MATRIXCF_DATA_LINSOLVE_B, &mut x, None).unwrap();
 
         for i in 0..5 {
-            assert_relative_eq!(MATRIXCF_DATA_LINSOLVE_X[i].re, x[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_LINSOLVE_X[i].im, x[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_LINSOLVE_X[i].re, x[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_LINSOLVE_X[i].im, x[i].im, epsilon = tol);
         }
     }
 
@@ -399,18 +399,18 @@ mod tests {
             for c in 0..8 {
                 let i = r * 8 + c;
                 if r < c {
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c).re, 0.0, epsilon = tol);
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c).im, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c).re, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c).im, 0.0, epsilon = tol);
                 } else if r == c {
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c).re, 1.0, epsilon = tol);
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c).im, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c).re, 1.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c).im, 0.0, epsilon = tol);
                 }
                 if r > c {
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c).re, 0.0, epsilon = tol);
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c).im, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c).re, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c).im, 0.0, epsilon = tol);
                 }
-                assert_relative_eq!(MATRIXCF_DATA_LUDECOMP_A[i].re, lu_test[i].re, epsilon = tol);
-                assert_relative_eq!(MATRIXCF_DATA_LUDECOMP_A[i].im, lu_test[i].im, epsilon = tol);
+                assert_abs_diff_eq!(MATRIXCF_DATA_LUDECOMP_A[i].re, lu_test[i].re, epsilon = tol);
+                assert_abs_diff_eq!(MATRIXCF_DATA_LUDECOMP_A[i].im, lu_test[i].im, epsilon = tol);
             }
         }
     }
@@ -435,22 +435,22 @@ mod tests {
         for r in 0..8 {
             for c in 0..8 {
                 if r < c {
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c).re, 0.0, epsilon = tol);
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c).im, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c).re, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c).im, 0.0, epsilon = tol);
                 } else if r == c {
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c).re, 1.0, epsilon = tol);
-                    assert_relative_eq!(matrix_access(&l, 8, 8, r, c).im, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c).re, 1.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&l, 8, 8, r, c).im, 0.0, epsilon = tol);
                 } else if r > c {
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c).re, 0.0, epsilon = tol);
-                    assert_relative_eq!(matrix_access(&u, 8, 8, r, c).im, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c).re, 0.0, epsilon = tol);
+                    assert_abs_diff_eq!(matrix_access(&u, 8, 8, r, c).im, 0.0, epsilon = tol);
                 }
             }
         }
 
         // ensure L*U = A
         for i in 0..64 {
-            assert_relative_eq!(MATRIXCF_DATA_LUDECOMP_A[i].re, lu_test[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_LUDECOMP_A[i].im, lu_test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_LUDECOMP_A[i].re, lu_test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_LUDECOMP_A[i].im, lu_test[i].im, epsilon = tol);
         }
     }
 
@@ -463,8 +463,8 @@ mod tests {
         matrix_mul(&MATRIXCF_DATA_MUL_X, 5, 4, &MATRIXCF_DATA_MUL_Y, 4, 3, &mut z, 5, 3).unwrap();
 
         for i in 0..15 {
-            assert_relative_eq!(MATRIXCF_DATA_MUL_Z[i].re, z[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_MUL_Z[i].im, z[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_MUL_Z[i].re, z[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_MUL_Z[i].im, z[i].im, epsilon = tol);
         }
     }
 
@@ -490,25 +490,25 @@ mod tests {
 
         // ensure Q*R = A
         for i in 0..16 {
-            assert_relative_eq!(MATRIXCF_DATA_QRDECOMP_A[i].re, qr_test[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_QRDECOMP_A[i].im, qr_test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_QRDECOMP_A[i].re, qr_test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_QRDECOMP_A[i].im, qr_test[i].im, epsilon = tol);
         }
 
         // ensure Q*Q^T = I(4)
         let mut i4 = [Complex::new(0.0, 0.0); 16];
         matrix_eye(&mut i4, 4);
         for i in 0..16 {
-            assert_relative_eq!(qqt_test[i].re, i4[i].re, epsilon = tol);
-            assert_relative_eq!(qqt_test[i].im, i4[i].im, epsilon = tol);
+            assert_abs_diff_eq!(qqt_test[i].re, i4[i].re, epsilon = tol);
+            assert_abs_diff_eq!(qqt_test[i].im, i4[i].im, epsilon = tol);
         }
 
         // ensure Q and R are correct
         for i in 0..16 {
-            assert_relative_eq!(MATRIXCF_DATA_QRDECOMP_Q[i].re, q[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_QRDECOMP_Q[i].im, q[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_QRDECOMP_Q[i].re, q[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_QRDECOMP_Q[i].im, q[i].im, epsilon = tol);
 
-            assert_relative_eq!(MATRIXCF_DATA_QRDECOMP_R[i].re, r[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_QRDECOMP_R[i].im, r[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_QRDECOMP_R[i].re, r[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_QRDECOMP_R[i].im, r[i].im, epsilon = tol);
         }
     }
 
@@ -530,23 +530,23 @@ mod tests {
 
         // run tests
         for i in 0..25 {
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].re, xxt[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].im, xxt[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].re, xxt[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].im, xxt[i].im, epsilon = tol);
         }
 
         for i in 0..25 {
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].re, xxh[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].im, xxh[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].re, xxh[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].im, xxh[i].im, epsilon = tol);
         }
 
         for i in 0..16 {
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].re, xtx[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].im, xtx[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].re, xtx[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].im, xtx[i].im, epsilon = tol);
         }
 
         for i in 0..16 {
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].re, xhx[i].re, epsilon = tol);
-            assert_relative_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].im, xhx[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].re, xhx[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].im, xhx[i].im, epsilon = tol);
         }
     }
 }

@@ -820,7 +820,7 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use crate::filter::iir::iirfilt::IirFilter;
     use crate::utility::test_helpers::{PsdRegion, validate_psd_iirfilt};
 
@@ -854,8 +854,8 @@ mod tests {
     
         // run test
         for i in 0..6 {
-            assert_relative_eq!(p[i].re, ptest[i].re, epsilon = tol);
-            assert_relative_eq!(p[i].im, ptest[i].im, epsilon = tol);
+            assert_abs_diff_eq!(p[i].re, ptest[i].re, epsilon = tol);
+            assert_abs_diff_eq!(p[i].im, ptest[i].im, epsilon = tol);
         }
     }
     
@@ -917,8 +917,8 @@ mod tests {
     
         // run test
         for i in 0..20 {
-            assert_relative_eq!(p[i].re, ptest[i].re, epsilon = tol);
-            assert_relative_eq!(p[i].im, ptest[i].im, epsilon = tol);
+            assert_abs_diff_eq!(p[i].re, ptest[i].re, epsilon = tol);
+            assert_abs_diff_eq!(p[i].im, ptest[i].im, epsilon = tol);
         }
     }
     
@@ -1016,8 +1016,8 @@ mod tests {
         // Ensure data are equal to within tolerance
         let tol = 1e-6f32;  // error tolerance
         for i in 0..3 {
-            assert_relative_eq!(b[i], b_test[i], epsilon = tol);
-            assert_relative_eq!(a[i], a_test[i], epsilon = tol);
+            assert_abs_diff_eq!(b[i], b_test[i], epsilon = tol);
+            assert_abs_diff_eq!(a[i], a_test[i], epsilon = tol);
         }
     }
 

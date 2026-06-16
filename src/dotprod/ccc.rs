@@ -296,7 +296,7 @@ unsafe fn dotprod_ccc_avx512_f32x16(a: &[Complex<f32>], b: &[Complex<f32>]) -> C
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use rand::Rng;
     use test_macro::autotest_annotate;
 
@@ -342,12 +342,12 @@ mod tests {
         let test_rev = Cf32::new(3.412365881765360, 6.1885320363931480);
 
         let y = h.dotprod(&x);
-        assert_relative_eq!(y.re, test.re, epsilon = TOL);
-        assert_relative_eq!(y.im, test.im, epsilon = TOL);
+        assert_abs_diff_eq!(y.re, test.re, epsilon = TOL);
+        assert_abs_diff_eq!(y.im, test.im, epsilon = TOL);
 
         let y_rev = h.iter().rev().copied().collect::<Vec<Cf32>>().dotprod(&x);
-        assert_relative_eq!(y_rev.re, test_rev.re, epsilon = TOL);
-        assert_relative_eq!(y_rev.im, test_rev.im, epsilon = TOL);
+        assert_abs_diff_eq!(y_rev.re, test_rev.re, epsilon = TOL);
+        assert_abs_diff_eq!(y_rev.im, test_rev.im, epsilon = TOL);
     }
 
     #[test]
@@ -404,14 +404,14 @@ mod tests {
         let v34 = Cf32::new(-11.7423673921916, -15.6318827515320);
         let v35 = Cf32::new(-12.1430314741466, -13.8559085000689);
 
-        assert_relative_eq!(h[..32].dotprod(&x[..32]).re, v32.re, epsilon = TOL);
-        assert_relative_eq!(h[..32].dotprod(&x[..32]).im, v32.im, epsilon = TOL);
-        assert_relative_eq!(h[..33].dotprod(&x[..33]).re, v33.re, epsilon = TOL);
-        assert_relative_eq!(h[..33].dotprod(&x[..33]).im, v33.im, epsilon = TOL);
-        assert_relative_eq!(h[..34].dotprod(&x[..34]).re, v34.re, epsilon = TOL);
-        assert_relative_eq!(h[..34].dotprod(&x[..34]).im, v34.im, epsilon = TOL);
-        assert_relative_eq!(h[..35].dotprod(&x[..35]).re, v35.re, epsilon = TOL);
-        assert_relative_eq!(h[..35].dotprod(&x[..35]).im, v35.im, epsilon = TOL);
+        assert_abs_diff_eq!(h[..32].dotprod(&x[..32]).re, v32.re, epsilon = TOL);
+        assert_abs_diff_eq!(h[..32].dotprod(&x[..32]).im, v32.im, epsilon = TOL);
+        assert_abs_diff_eq!(h[..33].dotprod(&x[..33]).re, v33.re, epsilon = TOL);
+        assert_abs_diff_eq!(h[..33].dotprod(&x[..33]).im, v33.im, epsilon = TOL);
+        assert_abs_diff_eq!(h[..34].dotprod(&x[..34]).re, v34.re, epsilon = TOL);
+        assert_abs_diff_eq!(h[..34].dotprod(&x[..34]).im, v34.im, epsilon = TOL);
+        assert_abs_diff_eq!(h[..35].dotprod(&x[..35]).re, v35.re, epsilon = TOL);
+        assert_abs_diff_eq!(h[..35].dotprod(&x[..35]).im, v35.im, epsilon = TOL);
     }
 
     #[test]
@@ -427,8 +427,8 @@ mod tests {
             let y_test: Cf32 = h.iter().zip(x.iter()).map(|(&a, &b)| a * b).sum();
             let y_struct = h.dotprod(&x);
 
-            assert_relative_eq!(y_struct.re, y_test.re, epsilon = TOL);
-            assert_relative_eq!(y_struct.im, y_test.im, epsilon = TOL);
+            assert_abs_diff_eq!(y_struct.re, y_test.re, epsilon = TOL);
+            assert_abs_diff_eq!(y_struct.im, y_test.im, epsilon = TOL);
         }
     }
 
@@ -461,8 +461,8 @@ mod tests {
             let expected: Cf32 = a.iter().zip(b.iter()).map(|(&a, &b)| a * b).sum();
             let result = a.dotprod(&b);
 
-            assert_relative_eq!(result.re, expected.re, epsilon = TOL);
-            assert_relative_eq!(result.im, expected.im, epsilon = TOL);
+            assert_abs_diff_eq!(result.re, expected.re, epsilon = TOL);
+            assert_abs_diff_eq!(result.im, expected.im, epsilon = TOL);
         }
     }
 
@@ -483,8 +483,8 @@ mod tests {
             let y_test: Cf32 = a.iter().zip(b.iter()).map(|(&a, &b)| a * b).sum();
             let y_sse = unsafe { dotprod_ccc_sse(&a, &b) };
 
-            assert_relative_eq!(y_sse.re, y_test.re, epsilon = TOL);
-            assert_relative_eq!(y_sse.im, y_test.im, epsilon = TOL);
+            assert_abs_diff_eq!(y_sse.re, y_test.re, epsilon = TOL);
+            assert_abs_diff_eq!(y_sse.im, y_test.im, epsilon = TOL);
         }
     }
 
@@ -504,8 +504,8 @@ mod tests {
             let y_test: Cf32 = a.iter().zip(b.iter()).map(|(&a, &b)| a * b).sum();
             let y_avx2 = unsafe { dotprod_ccc_avx2(&a, &b) };
 
-            assert_relative_eq!(y_avx2.re, y_test.re, epsilon = TOL);
-            assert_relative_eq!(y_avx2.im, y_test.im, epsilon = TOL);
+            assert_abs_diff_eq!(y_avx2.re, y_test.re, epsilon = TOL);
+            assert_abs_diff_eq!(y_avx2.im, y_test.im, epsilon = TOL);
         }
     }
 }

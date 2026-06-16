@@ -68,7 +68,7 @@ impl Limiter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use approx::assert_relative_eq;
+    // use approx::assert_abs_diff_eq;
 
     #[test]
     fn test_no_limit() {
@@ -101,7 +101,7 @@ mod tests {
     //     let mut limiter = Limiter::new(limit, attack, hold, release);
 
     //     for (&x, &exp_y) in x.iter().zip(expected.iter()) {
-    //         assert_relative_eq!(limiter.execute(x), exp_y, epsilon = tol);
+    //         assert_abs_diff_eq!(limiter.execute(x), exp_y, epsilon = tol);
     //     }
     // }
 }

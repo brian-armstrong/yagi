@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
 
@@ -52,8 +52,8 @@ mod tests {
 
         for i in 0..32 {
             let t = z[i].exp();
-            assert_relative_eq!(t.re, test[i].re, epsilon = tol);
-            assert_relative_eq!(t.im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(t.re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(t.im, test[i].im, epsilon = tol);
         }
     }
 
@@ -102,8 +102,8 @@ mod tests {
 
         for i in 0..32 {
             let t = z[i].ln();
-            assert_relative_eq!(t.re, test[i].re, epsilon = tol);
-            assert_relative_eq!(t.im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(t.re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(t.im, test[i].im, epsilon = tol);
         }
     }
 
@@ -152,8 +152,8 @@ mod tests {
     
         for i in 0..32 {
             let t = z[i].sqrt();
-            assert_relative_eq!(t.re, test[i].re, epsilon = tol);
-            assert_relative_eq!(t.im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(t.re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(t.im, test[i].im, epsilon = tol);
         }
     }
         
@@ -202,8 +202,8 @@ mod tests {
     
         for i in 0..32 {
             let t = z[i].asin();
-            assert_relative_eq!(t.re, test[i].re, epsilon = tol);
-            assert_relative_eq!(t.im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(t.re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(t.im, test[i].im, epsilon = tol);
         }
     }
     
@@ -252,8 +252,8 @@ mod tests {
     
         for i in 0..32 {
             let t = z[i].acos();
-            assert_relative_eq!(t.re, test[i].re, epsilon = tol);
-            assert_relative_eq!(t.im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(t.re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(t.im, test[i].im, epsilon = tol);
         }
     }
 
@@ -302,8 +302,8 @@ mod tests {
     
         for i in 0..32 {
             let t = z[i].atan();
-            assert_relative_eq!(t.re, test[i].re, epsilon = tol);
-            assert_relative_eq!(t.im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(t.re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(t.im, test[i].im, epsilon = tol);
         }
     }
 }

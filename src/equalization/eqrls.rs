@@ -182,7 +182,7 @@ mod tests {
     use test_macro::autotest_annotate;
     use crate::filter::FirFilter;
     use crate::random::randnf;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     const EQRLS_RRRF_AUTOTEST_DATA_SEQUENCE: [f32; 64] = [
         -1.0, -1.0,  1.0, -1.0,  1.0, -1.0,  1.0, -1.0, 
@@ -232,9 +232,9 @@ mod tests {
         eq.train(&mut w, &y, d, n).unwrap();
 
         // compare filter taps
-        assert_relative_eq!(w[0], 1.0f32, epsilon = tol);
+        assert_abs_diff_eq!(w[0], 1.0f32, epsilon = tol);
         for i in 1..p {
-            assert_relative_eq!(w[i], 0.0f32, epsilon = tol);
+            assert_abs_diff_eq!(w[i], 0.0f32, epsilon = tol);
         }
     }
 

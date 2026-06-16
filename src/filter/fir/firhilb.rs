@@ -267,7 +267,7 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
     use crate::utility::test_helpers::{PsdRegion, validate_psd_signal, validate_psd_signalf};
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_firhilbf_decim)]
@@ -298,8 +298,8 @@ mod tests {
 
         // run validation
         for i in 0..16 {
-            assert_relative_eq!(y[i].re, test[i].re, epsilon = tol);
-            assert_relative_eq!(y[i].im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(y[i].re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y[i].im, test[i].im, epsilon = tol);
         }
     }
 
@@ -332,7 +332,7 @@ mod tests {
 
         // run validation
         for i in 0..32 {
-            assert_relative_eq!(y[i], test[i], epsilon = tol);
+            assert_abs_diff_eq!(y[i], test[i], epsilon = tol);
         }
     }
 
@@ -425,8 +425,8 @@ mod tests {
             let x = Complex32::new(crate::random::randnf(), crate::random::randnf());
             q0.interp_execute(x, &mut y0).unwrap();
             q1.interp_execute(x, &mut y1).unwrap();
-            assert_relative_eq!(y0[0], y1[0]);
-            assert_relative_eq!(y0[1], y1[1]);
+            assert_eq!(y0[0], y1[0]);
+            assert_eq!(y0[1], y1[1]);
         }
     }
 
@@ -453,8 +453,8 @@ mod tests {
             x[1] = crate::random::randnf();
             y0 = q0.decim_execute(&x).unwrap();
             y1 = q1.decim_execute(&x).unwrap();
-            assert_relative_eq!(y0.re, y1.re);
-            assert_relative_eq!(y0.im, y1.im);
+            assert_eq!(y0.re, y1.re);
+            assert_eq!(y0.im, y1.im);
         }
     }
 }

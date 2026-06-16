@@ -298,7 +298,7 @@ fn cpfskmod_firdes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     fn test_cpfskmod_create() {
@@ -340,7 +340,7 @@ mod tests {
         assert!(result.is_ok());
         let mod_ = result.unwrap();
         assert_eq!(mod_.get_bits_per_symbol(), 1);
-        assert_relative_eq!(mod_.get_modulation_index(), 0.5);
+        assert_abs_diff_eq!(mod_.get_modulation_index(), 0.5);
         assert_eq!(mod_.get_type(), CpfskFilterType::Square);
     }
 
@@ -350,7 +350,7 @@ mod tests {
         assert!(result.is_ok());
         let mod_ = result.unwrap();
         assert_eq!(mod_.get_bits_per_symbol(), 1);
-        assert_relative_eq!(mod_.get_modulation_index(), 0.5);
+        assert_abs_diff_eq!(mod_.get_modulation_index(), 0.5);
         assert_eq!(mod_.get_type(), CpfskFilterType::Gmsk);
     }
 
@@ -384,7 +384,7 @@ mod tests {
         for s in 0..2 {
             mod_.modulate(s, &mut y)?;
             for sample in &y {
-                assert_relative_eq!(sample.norm(), 1.0, epsilon = 1e-6);
+                assert_abs_diff_eq!(sample.norm(), 1.0, epsilon = 1e-6);
             }
         }
 
@@ -425,8 +425,8 @@ mod tests {
             mod_copy.modulate(s, &mut buf_copy)?;
 
             for j in 0..k {
-                assert_relative_eq!(buf_orig[j].re, buf_copy[j].re, epsilon = 1e-6);
-                assert_relative_eq!(buf_orig[j].im, buf_copy[j].im, epsilon = 1e-6);
+                assert_abs_diff_eq!(buf_orig[j].re, buf_copy[j].re, epsilon = 1e-6);
+                assert_abs_diff_eq!(buf_orig[j].im, buf_copy[j].im, epsilon = 1e-6);
             }
         }
 

@@ -178,7 +178,7 @@ where
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use crate::utility::test_helpers::{PsdRegion, validate_psd_signal};
     use crate::random::randnf;
 
@@ -221,11 +221,11 @@ mod tests {
 
         // validate output
         for i in m..(n-m) {
-            assert_relative_eq!(y0[i+m].re, (2.0 * f0 * (i as f32 + 0.5)).cos(), epsilon = tol);
-            assert_relative_eq!(y0[i+m].im, (2.0 * f0 * (i as f32 + 0.5)).sin(), epsilon = tol);
+            assert_abs_diff_eq!(y0[i+m].re, (2.0 * f0 * (i as f32 + 0.5)).cos(), epsilon = tol);
+            assert_abs_diff_eq!(y0[i+m].im, (2.0 * f0 * (i as f32 + 0.5)).sin(), epsilon = tol);
 
-            assert_relative_eq!(y1[i+m].re, (2.0 * f1 * (i as f32 + 0.5)).cos(), epsilon = tol);
-            assert_relative_eq!(y1[i+m].im, (2.0 * f1 * (i as f32 + 0.5)).sin(), epsilon = tol);
+            assert_abs_diff_eq!(y1[i+m].re, (2.0 * f1 * (i as f32 + 0.5)).cos(), epsilon = tol);
+            assert_abs_diff_eq!(y1[i+m].im, (2.0 * f1 * (i as f32 + 0.5)).sin(), epsilon = tol);
         }
     }
 
@@ -263,8 +263,8 @@ mod tests {
 
         // validate output
         for i in m..(n-2*m) {
-            assert_relative_eq!(y[i+2*m].re, (0.5 * f0 * i as f32).cos() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).cos(), epsilon = tol);
-            assert_relative_eq!(y[i+2*m].im, (0.5 * f0 * i as f32).sin() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).sin(), epsilon = tol);
+            assert_abs_diff_eq!(y[i+2*m].re, (0.5 * f0 * i as f32).cos() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).cos(), epsilon = tol);
+            assert_abs_diff_eq!(y[i+2*m].im, (0.5 * f0 * i as f32).sin() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).sin(), epsilon = tol);
         }
     }
 

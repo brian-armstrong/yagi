@@ -354,7 +354,7 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
  mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use crate::random::randnf;
     
     fn testbench_spgramcf_noise(nfft: usize, wlen: usize, delay: usize, wtype: WindowType, noise_floor: f32) {
@@ -383,7 +383,7 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
     
         // verify result
         for p in psd.iter() {
-            assert_relative_eq!(*p, noise_floor, epsilon = tol);
+            assert_abs_diff_eq!(*p, noise_floor, epsilon = tol);
         }
     }
     
@@ -552,17 +552,17 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
 
         // check setting bandwidth
         assert!(q.set_alpha(0.1).is_ok());
-        assert_relative_eq!(q.get_alpha(), 0.1, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.get_alpha(), 0.1, epsilon = 1e-6);
         assert!(q.set_alpha(-7.0).is_err());
-        assert_relative_eq!(q.get_alpha(), 0.1, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.get_alpha(), 0.1, epsilon = 1e-6);
         assert!(q.set_alpha(alpha).is_ok());
-        assert_relative_eq!(q.get_alpha(), alpha, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.get_alpha(), alpha, epsilon = 1e-6);
 
         // check parameters
         assert_eq!(q.get_nfft(), nfft);
         assert_eq!(q.get_window_len(), wlen);
         assert_eq!(q.get_delay(), delay);
-        assert_relative_eq!(q.get_alpha(), alpha, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.get_alpha(), alpha, epsilon = 1e-6);
 
         let block_len = 1117;
         let num_blocks = 1123;

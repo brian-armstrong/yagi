@@ -740,7 +740,7 @@ pub fn polyf_findroots(p: &[f32], k: usize, roots: &mut [Complex<f32>]) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     // TODO tests for poly_fit_lagrange_barycentric and poly_interp_lagrange_barycentric
@@ -758,9 +758,9 @@ mod tests {
 
         poly_fit(&x, &y, n, &mut p, k).unwrap();
 
-        assert_relative_eq!(p[0], p_test[0], epsilon = tol);
-        assert_relative_eq!(p[1], p_test[1], epsilon = tol);
-        assert_relative_eq!(p[2], p_test[2], epsilon = tol);
+        assert_abs_diff_eq!(p[0], p_test[0], epsilon = tol);
+        assert_abs_diff_eq!(p[1], p_test[1], epsilon = tol);
+        assert_abs_diff_eq!(p[2], p_test[2], epsilon = tol);
     }
 
     #[test]
@@ -777,14 +777,14 @@ mod tests {
         let mut y_out = vec![0.0; n];
         for j in 0..n {
             y_out[j] = poly_val(&p, n, x[j]);
-            assert_relative_eq!(y[j], y_out[j], epsilon = tol);
+            assert_abs_diff_eq!(y[j], y_out[j], epsilon = tol);
         }
 
         poly_fit(&x, &y, n, &mut p, n).unwrap();
 
         for j in 0..n {
             y_out[j] = poly_val(&p, n, x[j]);
-            assert_relative_eq!(y[j], y_out[j], epsilon = tol);
+            assert_abs_diff_eq!(y[j], y_out[j], epsilon = tol);
         }
     }
 
@@ -802,7 +802,7 @@ mod tests {
         let mut y_out = vec![0.0; n];
         for j in 0..n {
             y_out[j] = poly_val(&p, n, x[j]);
-            assert_relative_eq!(y[j], y_out[j], epsilon = tol);
+            assert_abs_diff_eq!(y[j], y_out[j], epsilon = tol);
         }
     }
 
@@ -816,12 +816,12 @@ mod tests {
         let tol = 1e-3;
 
         poly_expandroots(&roots, n, &mut p);
-        assert_relative_eq!(p[0], c_test[0], epsilon = tol);
-        assert_relative_eq!(p[1], c_test[1], epsilon = tol);
-        assert_relative_eq!(p[2], c_test[2], epsilon = tol);
-        assert_relative_eq!(p[3], c_test[3], epsilon = tol);
-        assert_relative_eq!(p[4], c_test[4], epsilon = tol);
-        assert_relative_eq!(p[5], c_test[5], epsilon = tol);
+        assert_abs_diff_eq!(p[0], c_test[0], epsilon = tol);
+        assert_abs_diff_eq!(p[1], c_test[1], epsilon = tol);
+        assert_abs_diff_eq!(p[2], c_test[2], epsilon = tol);
+        assert_abs_diff_eq!(p[3], c_test[3], epsilon = tol);
+        assert_abs_diff_eq!(p[4], c_test[4], epsilon = tol);
+        assert_abs_diff_eq!(p[5], c_test[5], epsilon = tol);
     }
 
     #[test]
@@ -834,18 +834,18 @@ mod tests {
         let tol = 1e-6f32;
 
         poly_expandroots(&roots, n, &mut p);
-        assert_relative_eq!(p[0], c_test[0], epsilon = (tol*c_test[0]).abs());
-        assert_relative_eq!(p[1], c_test[1], epsilon = (tol*c_test[1]).abs());
-        assert_relative_eq!(p[2], c_test[2], epsilon = (tol*c_test[2]).abs());
-        assert_relative_eq!(p[3], c_test[3], epsilon = (tol*c_test[3]).abs());
-        assert_relative_eq!(p[4], c_test[4], epsilon = (tol*c_test[4]).abs());
-        assert_relative_eq!(p[5], c_test[5], epsilon = (tol*c_test[5]).abs());
-        assert_relative_eq!(p[6], c_test[6], epsilon = (tol*c_test[6]).abs());
-        assert_relative_eq!(p[7], c_test[7], epsilon = (tol*c_test[7]).abs());
-        assert_relative_eq!(p[8], c_test[8], epsilon = (tol*c_test[8]).abs());
-        assert_relative_eq!(p[9], c_test[9], epsilon = (tol*c_test[9]).abs());
-        assert_relative_eq!(p[10], c_test[10], epsilon = (tol*c_test[10]).abs());
-        assert_relative_eq!(p[11], c_test[11], epsilon = (tol*c_test[11]).abs());
+        assert_abs_diff_eq!(p[0], c_test[0], epsilon = (tol*c_test[0]).abs());
+        assert_abs_diff_eq!(p[1], c_test[1], epsilon = (tol*c_test[1]).abs());
+        assert_abs_diff_eq!(p[2], c_test[2], epsilon = (tol*c_test[2]).abs());
+        assert_abs_diff_eq!(p[3], c_test[3], epsilon = (tol*c_test[3]).abs());
+        assert_abs_diff_eq!(p[4], c_test[4], epsilon = (tol*c_test[4]).abs());
+        assert_abs_diff_eq!(p[5], c_test[5], epsilon = (tol*c_test[5]).abs());
+        assert_abs_diff_eq!(p[6], c_test[6], epsilon = (tol*c_test[6]).abs());
+        assert_abs_diff_eq!(p[7], c_test[7], epsilon = (tol*c_test[7]).abs());
+        assert_abs_diff_eq!(p[8], c_test[8], epsilon = (tol*c_test[8]).abs());
+        assert_abs_diff_eq!(p[9], c_test[9], epsilon = (tol*c_test[9]).abs());
+        assert_abs_diff_eq!(p[10], c_test[10], epsilon = (tol*c_test[10]).abs());
+        assert_abs_diff_eq!(p[11], c_test[11], epsilon = (tol*c_test[11]).abs());
     }
 
     #[test]
@@ -868,14 +868,14 @@ mod tests {
 
         poly_expandroots(&a, 2, &mut c);
 
-        assert_relative_eq!(c[0].re, c_test[0].re, epsilon = tol);
-        assert_relative_eq!(c[0].im, c_test[0].im, epsilon = tol);
+        assert_abs_diff_eq!(c[0].re, c_test[0].re, epsilon = tol);
+        assert_abs_diff_eq!(c[0].im, c_test[0].im, epsilon = tol);
 
-        assert_relative_eq!(c[1].re, c_test[1].re, epsilon = tol);
-        assert_relative_eq!(c[1].im, c_test[1].im, epsilon = tol);
+        assert_abs_diff_eq!(c[1].re, c_test[1].re, epsilon = tol);
+        assert_abs_diff_eq!(c[1].im, c_test[1].im, epsilon = tol);
 
-        assert_relative_eq!(c[2].re, c_test[2].re, epsilon = tol);
-        assert_relative_eq!(c[2].im, c_test[2].im, epsilon = tol);
+        assert_abs_diff_eq!(c[2].re, c_test[2].re, epsilon = tol);
+        assert_abs_diff_eq!(c[2].im, c_test[2].im, epsilon = tol);
     }
 
     #[test]
@@ -890,10 +890,10 @@ mod tests {
 
         poly_expandroots2(&a, &b, n, &mut c);
 
-        assert_relative_eq!(c[0], c_test[0], epsilon = tol);
-        assert_relative_eq!(c[1], c_test[1], epsilon = tol);
-        assert_relative_eq!(c[2], c_test[2], epsilon = tol);
-        assert_relative_eq!(c[3], c_test[3], epsilon = tol);
+        assert_abs_diff_eq!(c[0], c_test[0], epsilon = tol);
+        assert_abs_diff_eq!(c[1], c_test[1], epsilon = tol);
+        assert_abs_diff_eq!(c[2], c_test[2], epsilon = tol);
+        assert_abs_diff_eq!(c[3], c_test[3], epsilon = tol);
     }
 
     #[test]
@@ -907,12 +907,12 @@ mod tests {
 
         poly_mul(&a, 2, &b, 3, &mut c);
 
-        assert_relative_eq!(c[0], c_test[0], epsilon = tol);
-        assert_relative_eq!(c[1], c_test[1], epsilon = tol);
-        assert_relative_eq!(c[2], c_test[2], epsilon = tol);
-        assert_relative_eq!(c[3], c_test[3], epsilon = tol);
-        assert_relative_eq!(c[4], c_test[4], epsilon = tol);
-        assert_relative_eq!(c[5], c_test[5], epsilon = tol);
+        assert_abs_diff_eq!(c[0], c_test[0], epsilon = tol);
+        assert_abs_diff_eq!(c[1], c_test[1], epsilon = tol);
+        assert_abs_diff_eq!(c[2], c_test[2], epsilon = tol);
+        assert_abs_diff_eq!(c[3], c_test[3], epsilon = tol);
+        assert_abs_diff_eq!(c[4], c_test[4], epsilon = tol);
+        assert_abs_diff_eq!(c[5], c_test[5], epsilon = tol);
     }
 
     #[test]
@@ -921,17 +921,10 @@ mod tests {
         let n = 6;
         let mut c = vec![0.0f32; n + 1];
         let c_test = [1.0, 6.0, 15.0, 20.0, 15.0, 6.0, 1.0];
-        let tol = 1e-3f32;
 
         poly_expandbinomial(n, &mut c);
 
-        assert_relative_eq!(c[0], c_test[0], epsilon = tol);
-        assert_relative_eq!(c[1], c_test[1], epsilon = tol);
-        assert_relative_eq!(c[2], c_test[2], epsilon = tol);
-        assert_relative_eq!(c[3], c_test[3], epsilon = tol);
-        assert_relative_eq!(c[4], c_test[4], epsilon = tol);
-        assert_relative_eq!(c[5], c_test[5], epsilon = tol);
-        assert_relative_eq!(c[6], c_test[6], epsilon = tol);
+        assert_eq!(c, c_test);
     }
 
     #[test]
@@ -946,13 +939,13 @@ mod tests {
 
         poly_expandbinomial_pm(m, k, &mut c);
 
-        assert_relative_eq!(c[0], c_test[0], epsilon = tol);
-        assert_relative_eq!(c[1], c_test[1], epsilon = tol);
-        assert_relative_eq!(c[2], c_test[2], epsilon = tol);
-        assert_relative_eq!(c[3], c_test[3], epsilon = tol);
-        assert_relative_eq!(c[4], c_test[4], epsilon = tol);
-        assert_relative_eq!(c[5], c_test[5], epsilon = tol);
-        assert_relative_eq!(c[6], c_test[6], epsilon = tol);
+        assert_abs_diff_eq!(c[0], c_test[0], epsilon = tol);
+        assert_abs_diff_eq!(c[1], c_test[1], epsilon = tol);
+        assert_abs_diff_eq!(c[2], c_test[2], epsilon = tol);
+        assert_abs_diff_eq!(c[3], c_test[3], epsilon = tol);
+        assert_abs_diff_eq!(c[4], c_test[4], epsilon = tol);
+        assert_abs_diff_eq!(c[5], c_test[5], epsilon = tol);
+        assert_abs_diff_eq!(c[6], c_test[6], epsilon = tol);
     }
 
     #[test]
@@ -967,14 +960,14 @@ mod tests {
 
         poly_expandbinomial_pm(m, k, &mut c);
 
-        assert_relative_eq!(c[0], c_test[0], epsilon = tol);
-        assert_relative_eq!(c[1], c_test[1], epsilon = tol);
-        assert_relative_eq!(c[2], c_test[2], epsilon = tol);
-        assert_relative_eq!(c[3], c_test[3], epsilon = tol);
-        assert_relative_eq!(c[4], c_test[4], epsilon = tol);
-        assert_relative_eq!(c[5], c_test[5], epsilon = tol);
-        assert_relative_eq!(c[6], c_test[6], epsilon = tol);
-        assert_relative_eq!(c[7], c_test[7], epsilon = tol);
+        assert_abs_diff_eq!(c[0], c_test[0], epsilon = tol);
+        assert_abs_diff_eq!(c[1], c_test[1], epsilon = tol);
+        assert_abs_diff_eq!(c[2], c_test[2], epsilon = tol);
+        assert_abs_diff_eq!(c[3], c_test[3], epsilon = tol);
+        assert_abs_diff_eq!(c[4], c_test[4], epsilon = tol);
+        assert_abs_diff_eq!(c[5], c_test[5], epsilon = tol);
+        assert_abs_diff_eq!(c[6], c_test[6], epsilon = tol);
+        assert_abs_diff_eq!(c[7], c_test[7], epsilon = tol);
     }
 
     /// Polynomial root-finding testbench
@@ -1079,7 +1072,7 @@ mod tests {
         let k = 4;
         let x = 3.0;
         let y = poly_val(&p, k, x);
-        assert_relative_eq!(y, 97.0, epsilon = 1e-6);
+        assert_abs_diff_eq!(y, 97.0, epsilon = 1e-6);
     }
 
 }

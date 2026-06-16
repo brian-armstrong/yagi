@@ -72,7 +72,7 @@ mod tests {
     use super::*;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_randnf)]
@@ -95,8 +95,8 @@ mod tests {
         println!("m1 = {:.6} (expected 0.0)", m1);
         println!("m2 = {:.6} (expected 1.0)", m2);
 
-        assert_relative_eq!(m1, 0.0, epsilon = TOL);
-        assert_relative_eq!(m2, 1.0, epsilon = TOL);
+        assert_abs_diff_eq!(m1, 0.0, epsilon = TOL);
+        assert_abs_diff_eq!(m2, 1.0, epsilon = TOL);
     }
 
     #[test]
@@ -121,8 +121,8 @@ mod tests {
         println!("m1 = {:.6} + j*{:.6} (expected 0+j*0)", m1.re, m1.im);
         println!("m2 = {:.6} (expected 1.0)", m2);
 
-        assert_relative_eq!(m1.re, 0.0, epsilon = TOL);
-        assert_relative_eq!(m1.im, 0.0, epsilon = TOL);
-        assert_relative_eq!(m2, 1.0, epsilon = TOL);
+        assert_abs_diff_eq!(m1.re, 0.0, epsilon = TOL);
+        assert_abs_diff_eq!(m1.im, 0.0, epsilon = TOL);
+        assert_abs_diff_eq!(m2, 1.0, epsilon = TOL);
     }
 }

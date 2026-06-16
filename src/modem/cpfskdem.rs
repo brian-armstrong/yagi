@@ -243,7 +243,7 @@ mod tests {
     use super::*;
     use super::super::cpfskmod::Cpfskmod;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_cpfskmodem_config)]
@@ -269,17 +269,17 @@ mod tests {
         // create modulator object and check configuration
         let mod_ = Cpfskmod::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
         assert_eq!(mod_.get_bits_per_symbol(), 1);
-        assert_relative_eq!(mod_.get_modulation_index(), 0.5);
+        assert_abs_diff_eq!(mod_.get_modulation_index(), 0.5);
         assert_eq!(mod_.get_samples_per_symbol(), 4);
-        assert_relative_eq!(mod_.get_beta(), 0.5);
+        assert_abs_diff_eq!(mod_.get_beta(), 0.5);
         assert_eq!(mod_.get_type(), CpfskFilterType::Square);
 
         // create demodulator object and check configuration
         let dem = Cpfskdem::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
         assert_eq!(dem.get_bits_per_symbol(), 1);
-        assert_relative_eq!(dem.get_modulation_index(), 0.5);
+        assert_abs_diff_eq!(dem.get_modulation_index(), 0.5);
         assert_eq!(dem.get_samples_per_symbol(), 4);
-        assert_relative_eq!(dem.get_beta(), 0.5);
+        assert_abs_diff_eq!(dem.get_beta(), 0.5);
         assert_eq!(dem.get_type(), CpfskFilterType::Square);
     }
 
@@ -323,7 +323,7 @@ mod tests {
         assert!(result.is_ok());
         let dem = result.unwrap();
         assert_eq!(dem.get_bits_per_symbol(), 1);
-        assert_relative_eq!(dem.get_modulation_index(), 0.5);
+        assert_abs_diff_eq!(dem.get_modulation_index(), 0.5);
         assert_eq!(dem.get_type(), CpfskFilterType::Square);
     }
 
@@ -333,7 +333,7 @@ mod tests {
         assert!(result.is_ok());
         let dem = result.unwrap();
         assert_eq!(dem.get_bits_per_symbol(), 1);
-        assert_relative_eq!(dem.get_modulation_index(), 0.5);
+        assert_abs_diff_eq!(dem.get_modulation_index(), 0.5);
         assert_eq!(dem.get_type(), CpfskFilterType::Gmsk);
     }
 

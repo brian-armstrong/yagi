@@ -58,7 +58,7 @@ mod tests {
     use super::*;
     use num_complex::Complex;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_wdelayf)]
@@ -67,7 +67,7 @@ mod tests {
         // wdelay: 0 0 0 0 0
         let mut w = WDelay::<f32>::create(4).unwrap();
 
-        assert_relative_eq!(w.read(), 0.0);
+        assert_abs_diff_eq!(w.read(), 0.0);
 
         let x0 = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
         let y0_test = [0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
@@ -142,7 +142,7 @@ mod tests {
 
             let y0 = q0.read().norm();
             let y1 = q1.read().norm();
-            assert_relative_eq!(y0, y1);
+            assert_abs_diff_eq!(y0, y1);
         }
     }
 }

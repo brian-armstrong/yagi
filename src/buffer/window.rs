@@ -101,7 +101,6 @@ mod tests {
     use super::*;
     use num_complex::Complex;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
 
     #[test]
     #[autotest_annotate(autotest_window_config_errors)]
@@ -151,16 +150,16 @@ mod tests {
         assert_eq!(w.read(), &test3);
 
         // test indexing operation
-        assert_relative_eq!(w.index(0).unwrap(), 1.0);
-        assert_relative_eq!(w.index(1).unwrap(), 1.0);
-        assert_relative_eq!(w.index(2).unwrap(), 9.0);
-        assert_relative_eq!(w.index(3).unwrap(), 8.0);
-        assert_relative_eq!(w.index(4).unwrap(), 7.0);
-        assert_relative_eq!(w.index(5).unwrap(), 6.0);
-        assert_relative_eq!(w.index(6).unwrap(), 3.0);
-        assert_relative_eq!(w.index(7).unwrap(), 3.0);
-        assert_relative_eq!(w.index(8).unwrap(), 3.0);
-        assert_relative_eq!(w.index(9).unwrap(), 3.0);
+        assert_eq!(w.index(0).unwrap(), 1.0);
+        assert_eq!(w.index(1).unwrap(), 1.0);
+        assert_eq!(w.index(2).unwrap(), 9.0);
+        assert_eq!(w.index(3).unwrap(), 8.0);
+        assert_eq!(w.index(4).unwrap(), 7.0);
+        assert_eq!(w.index(5).unwrap(), 6.0);
+        assert_eq!(w.index(6).unwrap(), 3.0);
+        assert_eq!(w.index(7).unwrap(), 3.0);
+        assert_eq!(w.index(8).unwrap(), 3.0);
+        assert_eq!(w.index(9).unwrap(), 3.0);
         assert!(w.index(999).is_err()); // out of range
 
         // push 4 more elements

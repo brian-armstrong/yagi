@@ -61,7 +61,7 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
     use crate::modem::freqmod::Freqmod;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     fn test_freqdem_create() {
@@ -128,7 +128,7 @@ mod tests {
 
         // compare demodulated signal to original, skipping first sample
         for i in 1..num_samples {
-            assert_relative_eq!(y[i], m[i], epsilon = tol);
+            assert_abs_diff_eq!(y[i], m[i], epsilon = tol);
         }
 
         Ok(())

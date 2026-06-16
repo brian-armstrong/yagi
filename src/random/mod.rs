@@ -27,7 +27,7 @@ pub use weib::*;
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use crate::error::Result;
 
     #[test]
@@ -38,8 +38,8 @@ mod tests {
         assert!(randexpf_pdf(0.0, -1.0).is_err());
         assert!(randexpf_cdf(0.0, -1.0).is_err());
         // Exponential: pdf, cdf with valid input, but negative variable
-        assert_relative_eq!(randexpf_pdf(-2.0, 2.3).unwrap(), 0.0);
-        assert_relative_eq!(randexpf_cdf(-2.0, 2.3).unwrap(), 0.0);
+        assert_eq!(randexpf_pdf(-2.0, 2.3).unwrap(), 0.0);
+        assert_eq!(randexpf_cdf(-2.0, 2.3).unwrap(), 0.0);
 
         // Gamma: parameters out of range (alpha)
         assert!(randgammaf(-1.0, 1.0).is_err());
@@ -53,8 +53,8 @@ mod tests {
         // TODO not a public function, maybe test
         //    assert!(randgammaf_delta(-1.0).is_err());
         // Gamma: pdf, cdf with valid input, but negative variable
-        assert_relative_eq!(randgammaf_pdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
-        assert_relative_eq!(randgammaf_cdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
+        assert_eq!(randgammaf_pdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
+        assert_eq!(randgammaf_cdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
 
         // Nakagami-m: parameters out of range (m)
         assert!(randnakmf(0.2, 1.0).is_err());
@@ -65,8 +65,8 @@ mod tests {
         assert!(randnakmf_pdf(0.0, 1.0, -1.0).is_err());
         assert!(randnakmf_cdf(0.0, 1.0, -1.0).is_err());
         // Nakagami-m: pdf, cdf with valid input, but negative variable
-        assert_relative_eq!(randnakmf_pdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
-        assert_relative_eq!(randnakmf_cdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
+        assert_eq!(randnakmf_pdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
+        assert_eq!(randnakmf_cdf(-2.0, 1.2, 2.3).unwrap(), 0.0);
     }
 
     // Helper functions for histogram operations
@@ -109,7 +109,7 @@ mod tests {
                 pdf_avg += pdf(x).unwrap() / NUM_PDF_STEPS as f32;
             }
             // println!("bin {:?}, range: {:?}, normalized: {:?}, pdf_avg: {:?}", i, (vmin + i as f32 * vstep, vmin + (i + 1) as f32 * vstep), bins_normalized[i], pdf_avg);
-            assert_relative_eq!(bins_normalized[i], pdf_avg, epsilon = tol * pdf_avg);
+            assert_abs_diff_eq!(bins_normalized[i], pdf_avg, epsilon = tol);
         }
     
         let mut accum = cdf(vmin).unwrap();
@@ -118,7 +118,7 @@ mod tests {
             accum += bins_normalized[i-1] * vstep;
             // println!("accum: {:?}, cdf(right): {:?}", accum, cdf(right).unwrap());
             let cdf_val = cdf(right).unwrap();
-            assert_relative_eq!(accum, cdf_val, epsilon = tol * cdf_val);
+            assert_abs_diff_eq!(accum, cdf_val, epsilon = tol);
         }
     }
     

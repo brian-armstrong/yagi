@@ -482,7 +482,7 @@ impl SMatrix<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     #[test]
@@ -509,7 +509,7 @@ mod tests {
 
         // Check values
         for i in 0..4 {
-            assert_relative_eq!(y[i], y_test[i], epsilon = tol);
+            assert_abs_diff_eq!(y[i], y_test[i], epsilon = tol);
         }
     }
 
@@ -549,7 +549,7 @@ mod tests {
         // Check values
         for i in 0..4 {
             for j in 0..3 {
-                assert_relative_eq!(c.get(i, j), c_test[i * 3 + j], epsilon = tol);
+                assert_abs_diff_eq!(c.get(i, j), c_test[i * 3 + j], epsilon = tol);
             }
         }
     }
@@ -703,7 +703,7 @@ mod tests {
         a.mul_f32(&x, 12, 3, &mut y, 8, 3).unwrap();
 
         for i in 0..24 {
-            assert_relative_eq!(y[i], y_test[i], epsilon = tol);
+            assert_abs_diff_eq!(y[i], y_test[i], epsilon = tol);
         }
     }
 
@@ -749,7 +749,7 @@ mod tests {
         a.vmul_f32(&x, &mut y);
 
         for i in 0..8 {
-            assert_relative_eq!(y[i], y_test[i], epsilon = tol);
+            assert_abs_diff_eq!(y[i], y_test[i], epsilon = tol);
         }
     }
 

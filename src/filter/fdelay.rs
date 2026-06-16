@@ -141,7 +141,7 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
     use num_complex::Complex32;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     fn testbench_fdelay_rrrf(nmax: usize, m: usize, npfb: usize, delay: f32) {
         let tol = 0.01f32;
@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(q.get_nmax(), nmax);
         assert_eq!(q.get_m(), m);
         assert_eq!(q.get_npfb(), npfb);
-        assert_relative_eq!(q.get_delay(), delay, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.get_delay(), delay, epsilon = 1e-6);
 
         // generate impulse and propagate through object
         let mut x = vec![0.0f32; num_samples];
@@ -177,7 +177,7 @@ mod tests {
         let delay_est = v.arg() / (2.0 * std::f32::consts::PI * fc) - m as f32;
 
         // verify delay
-        assert_relative_eq!(delay_est, delay, epsilon = tol);
+        assert_abs_diff_eq!(delay_est, delay, epsilon = tol);
     }
 
     // nominal delays

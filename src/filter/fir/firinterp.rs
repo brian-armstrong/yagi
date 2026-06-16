@@ -257,7 +257,7 @@ where
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
 
     #[test]
@@ -320,7 +320,7 @@ mod tests {
         }
 
         for i in 0..16 {
-            assert_relative_eq!(y[i], test[i], epsilon = tol);
+            assert_abs_diff_eq!(y[i], test[i], epsilon = tol);
         }
     }
 
@@ -381,8 +381,8 @@ mod tests {
         }
 
         for i in 0..16 {
-            assert_relative_eq!(y[i].re, test[i].re, epsilon = tol);
-            assert_relative_eq!(y[i].im, test[i].im, epsilon = tol);
+            assert_abs_diff_eq!(y[i].re, test[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y[i].im, test[i].im, epsilon = tol);
         }
     }
 
@@ -407,8 +407,8 @@ mod tests {
             // for a Nyquist filter, output should match input at
             // proper sampling time (compensating for delay)
             if i >= k {
-                assert_relative_eq!(x[i - k].re, y[0].re, epsilon = tol);
-                assert_relative_eq!(x[i - k].im, y[0].im, epsilon = tol);
+                assert_abs_diff_eq!(x[i - k].re, y[0].re, epsilon = tol);
+                assert_abs_diff_eq!(x[i - k].im, y[0].im, epsilon = tol);
             }
         }
     }
@@ -492,7 +492,7 @@ mod tests {
         }
 
         // ensure buffer contains only zeros
-        assert_relative_eq!(buf.iter().map(|x| x.norm_sqr()).sum::<f32>(), 0.0);
+        assert_abs_diff_eq!(buf.iter().map(|x| x.norm_sqr()).sum::<f32>(), 0.0);
 
         // objects are automatically destroyed when they go out of scope
     }

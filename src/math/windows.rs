@@ -255,7 +255,7 @@ mod tests {
     use crate::fft::{Fft, Direction};
     use num_complex::Complex;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     fn window_testbench(window_type: WindowType, n: usize, arg: f32) {
         let mut w = vec![0.0; n];
@@ -365,12 +365,12 @@ mod tests {
         // Ensure w[i]^2 + w[i+M]^2 == 1
         let m = n / 2;
         for i in 0..m {
-            assert_relative_eq!(w2[i] + w2[(i + m) % n], 1.0, epsilon = tol);
+            assert_abs_diff_eq!(w2[i] + w2[(i + m) % n], 1.0, epsilon = tol);
         }
 
         // Ensure sum(w[i]^2) == n/2
         let sum: f32 = w2.iter().sum();
-        assert_relative_eq!(sum, 0.5 * n as f32, epsilon = tol);
+        assert_abs_diff_eq!(sum, 0.5 * n as f32, epsilon = tol);
     }
 
     #[test]

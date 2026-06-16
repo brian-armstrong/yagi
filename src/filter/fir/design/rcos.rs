@@ -53,7 +53,7 @@ pub fn fir_design_rcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     #[test]
@@ -90,7 +90,7 @@ mod tests {
 
         // Ensure data are equal
         for i in 0..13 {
-            assert_relative_eq!(h[i], h0[i], epsilon = 0.00001);
+            assert_abs_diff_eq!(h[i], h0[i], epsilon = 0.00001);
         }
     }
 }

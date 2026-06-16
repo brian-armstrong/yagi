@@ -56,7 +56,7 @@ pub fn randweibf_cdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_randweibf)]
@@ -89,7 +89,7 @@ mod tests {
         println!("m1 = {:.6} (expected {:.6})", m1, m1_exp);
         println!("m2 = {:.6} (expected {:.6})", m2, m2_exp);
 
-        assert_relative_eq!(m1, m1_exp, epsilon = TOL);
-        assert_relative_eq!(m2, m2_exp, epsilon = TOL);
+        assert_abs_diff_eq!(m1, m1_exp, epsilon = TOL);
+        assert_abs_diff_eq!(m2, m2_exp, epsilon = TOL);
     }
 }

@@ -530,7 +530,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
     use crate::filter::fir::design::FirFilterShape;
     use crate::utility::test_helpers::{PsdRegion, validate_psd_firfilt, validate_psd_firfiltc};
@@ -674,7 +674,7 @@ mod tests {
         // assert the coefficients are original scaled by 7.1
         let h = q.get_coefficients();
         for i in 0..n {
-            assert_relative_eq!(h[i], h0[i] * 7.1, max_relative = 1e-6);
+            assert_abs_diff_eq!(h[i], h0[i] * 7.1, epsilon = 1e-6);
         }
 
         // re-create with longer coefficients array and test impulse response
@@ -688,8 +688,8 @@ mod tests {
             q.push(Complex32::new(if i == 0 { 1.0 } else { 0.0 }, 0.0));
             let v = q.execute();
             // output is same as input, subject to scaling factor
-            assert_relative_eq!(v.re, h2[i] * scale, max_relative = 1e-6);
-            assert_relative_eq!(v.im, 0.0, max_relative = 1e-6);
+            assert_abs_diff_eq!(v.re, h2[i] * scale, epsilon = 1e-6);
+            assert_abs_diff_eq!(v.im, 0.0, epsilon = 1e-6);
         }
     }
 
@@ -715,7 +715,7 @@ mod tests {
             // compute outputs and compare
             let v0 = q0.execute();
             let v1 = q1.execute();
-            assert_relative_eq!(v0, v1);
+            assert_eq!(v0, v1);
         }
 
         // No need to explicitly destroy objects in Rust
@@ -762,10 +762,8 @@ mod tests {
             assert_eq!(w_orig, w_copy);
             assert_eq!(h_len_orig, h_len_copy);
 
-            // TODO this is a weird one. even though the structs match,
-            //   the subsequent dotprod doesn't.
-            assert_relative_eq!(y_orig.re, y_copy.re, epsilon = 1e-6);
-            assert_relative_eq!(y_orig.im, y_copy.im, epsilon = 1e-6);
+            assert_eq!(y_orig.re, y_copy.re);
+            assert_eq!(y_orig.im, y_copy.im);
         }
 
         // No need to explicitly destroy filter objects in Rust
@@ -800,8 +798,8 @@ mod tests {
         x2 = (x2 / num_samples as f32).sqrt();
         y2 = (y2 / num_samples as f32).sqrt();
         let tol = 1e-3f32;
-        assert_relative_eq!(x2, 1.0f32, epsilon = tol);
-        assert_relative_eq!(y2, 0.0f32, epsilon = tol);
+        assert_abs_diff_eq!(x2, 1.0f32, epsilon = tol);
+        assert_abs_diff_eq!(y2, 0.0f32, epsilon = tol);
 
         // No need to explicitly destroy filter object in Rust
     }
@@ -911,7 +909,7 @@ mod tests {
         let nfft = 2048;
         let as_ = 20.0 * filter::filter_energy(&ht, 0.5 * (1.0 + beta) / k as f32, nfft).unwrap().log10();
 
-        assert_relative_eq!(rxx0, k as f32, max_relative = 0.01);
+        assert_abs_diff_eq!(rxx0, k as f32, epsilon = 0.01);
         assert!(isi_rms < -50.0);
         assert!(as_ < -50.0);
     }
@@ -1010,7 +1008,7 @@ mod tests {
         // run tests
         for i in 0..4 {
             let g = filter::fir_group_delay(&h, fc[i]).unwrap();
-            assert_relative_eq!(g, g0[i], max_relative = tol);
+            assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
 
         // create filter
@@ -1019,7 +1017,7 @@ mod tests {
         // run tests again
         for i in 0..4 {
             let g = filter.groupdelay(fc[i]).unwrap();
-            assert_relative_eq!(g, g0[i], max_relative = tol);
+            assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
     }
 
@@ -1046,7 +1044,7 @@ mod tests {
             q.push(x_i);
             y_test[i] = q.execute();
             
-            assert_relative_eq!(y_test[i], y[i], max_relative = tol);
+            assert_abs_diff_eq!(y_test[i], y[i], epsilon = tol);
         }
     }
 
@@ -1071,8 +1069,8 @@ mod tests {
             q.push(x_i);
             y_test[i] = q.execute();
             
-            assert_relative_eq!(y_test[i].re, y[i].re, max_relative = tol);
-            assert_relative_eq!(y_test[i].im, y[i].im, max_relative = tol);
+            assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
     }
 
@@ -1097,8 +1095,8 @@ mod tests {
             q.push(x_i);
             y_test[i] = q.execute();
             
-            assert_relative_eq!(y_test[i].re, y[i].re, max_relative = tol);
-            assert_relative_eq!(y_test[i].im, y[i].im, max_relative = tol);
+            assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
     }
 

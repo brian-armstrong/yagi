@@ -201,7 +201,7 @@ where
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use crate::math::{hamming, WindowType};
     use crate::modem::modem::ModulationScheme;
     use crate::framing::symstreamr::SymStreamR;
@@ -245,8 +245,8 @@ mod tests {
 
         // compare output buffers between normal and partitioned operation
         for i in 0..(2 * p * n) {
-            assert_relative_eq!(buf_out_0[i].re, buf_out_1[i].re, epsilon = tol);
-            assert_relative_eq!(buf_out_0[i].im, buf_out_1[i].im, epsilon = tol);
+            assert_abs_diff_eq!(buf_out_0[i].re, buf_out_1[i].re, epsilon = tol);
+            assert_abs_diff_eq!(buf_out_0[i].im, buf_out_1[i].im, epsilon = tol);
         }
     }
 

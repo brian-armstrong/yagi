@@ -126,29 +126,29 @@ pub fn nchoosek(n: u32, k: u32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_Q)]
     fn test_q() {
         let tol = 1e-6f32;
-        assert_relative_eq!(qf(-4.0), 0.999968329, epsilon = tol);
-        assert_relative_eq!(qf(-3.0), 0.998650102, epsilon = tol);
-        assert_relative_eq!(qf(-2.0), 0.977249868, epsilon = tol);
-        assert_relative_eq!(qf(-1.0), 0.841344746, epsilon = tol);
-        assert_relative_eq!(qf( 0.0), 0.5,         epsilon = tol);
-        assert_relative_eq!(qf( 1.0), 0.158655254, epsilon = tol);
-        assert_relative_eq!(qf( 2.0), 0.022750132, epsilon = tol);
-        assert_relative_eq!(qf( 3.0), 0.001349898, epsilon = tol);
-        assert_relative_eq!(qf( 4.0), 0.000031671, epsilon = tol);
+        assert_abs_diff_eq!(qf(-4.0), 0.999968329, epsilon = tol);
+        assert_abs_diff_eq!(qf(-3.0), 0.998650102, epsilon = tol);
+        assert_abs_diff_eq!(qf(-2.0), 0.977249868, epsilon = tol);
+        assert_abs_diff_eq!(qf(-1.0), 0.841344746, epsilon = tol);
+        assert_abs_diff_eq!(qf( 0.0), 0.5,         epsilon = tol);
+        assert_abs_diff_eq!(qf( 1.0), 0.158655254, epsilon = tol);
+        assert_abs_diff_eq!(qf( 2.0), 0.022750132, epsilon = tol);
+        assert_abs_diff_eq!(qf( 3.0), 0.001349898, epsilon = tol);
+        assert_abs_diff_eq!(qf( 4.0), 0.000031671, epsilon = tol);
     }
 
     #[test]
     #[autotest_annotate(autotest_sincf)]
     fn test_sincf() {
         let tol = 1e-3f32;
-        assert_relative_eq!(sincf(0.0), 1.0, epsilon = tol);
+        assert_abs_diff_eq!(sincf(0.0), 1.0, epsilon = tol);
     }
 
     #[test]
@@ -197,11 +197,11 @@ mod tests {
         ];
 
         for &(n, k, expected) in &test_vectors {
-            assert_relative_eq!(nchoosek(n, k).unwrap(), expected as f32, epsilon = EPSILON);
+            assert_abs_diff_eq!(nchoosek(n, k).unwrap(), expected as f32, epsilon = EPSILON);
         }
 
         // test very large numbers
-        assert_relative_eq!(nchoosek(124, 5).unwrap(), 225150024.0, epsilon = 5000.0);
+        assert_abs_diff_eq!(nchoosek(124, 5).unwrap(), 225150024.0, epsilon = 5000.0);
     }
 
     #[test]

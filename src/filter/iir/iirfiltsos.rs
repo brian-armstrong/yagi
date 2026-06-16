@@ -130,7 +130,7 @@ where
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     
     #[test]
@@ -181,11 +181,11 @@ mod tests {
     
             // run direct-form I
             let y = q0.execute_df1(v);
-            assert_relative_eq!(test[i], y, epsilon = tol);
+            assert_abs_diff_eq!(test[i], y, epsilon = tol);
     
             // run direct-form II
             let y = q1.execute_df2(v);
-            assert_relative_eq!(test[i], y, epsilon = tol);
+            assert_abs_diff_eq!(test[i], y, epsilon = tol);
         }
     }
     
@@ -233,11 +233,11 @@ mod tests {
         for i in 0..15 {
             // run direct-form I
             let y = q0.execute_df1(1.0);
-            assert_relative_eq!(test[i], y, epsilon = tol);
+            assert_abs_diff_eq!(test[i], y, epsilon = tol);
     
             // run direct-form II
             let y = q1.execute_df2(1.0);
-            assert_relative_eq!(test[i], y, epsilon = tol);
+            assert_abs_diff_eq!(test[i], y, epsilon = tol);
         }
     }
     

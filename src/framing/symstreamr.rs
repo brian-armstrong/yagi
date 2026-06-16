@@ -135,7 +135,7 @@ mod tests {
     use crate::fft::{fft_run, Direction};
     use crate::fft::spgram::Spgram;
     use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     fn testbench_symstreamrcf_delay(bw: f32, m: usize) {
         // create object and get expected delay
@@ -176,7 +176,7 @@ mod tests {
         }
 
         // verify delay is relatively close to expected
-        assert_relative_eq!(delay, delay_meas, epsilon = tol);
+        assert_abs_diff_eq!(delay, delay_meas, epsilon = tol);
     }
 
     #[test]

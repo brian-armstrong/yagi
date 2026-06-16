@@ -64,7 +64,7 @@ pub fn randuf_cdf(x: f32, a: f32, b: f32) -> Result<f32> {
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
 
 
@@ -89,7 +89,7 @@ mod tests {
         println!("m1 = {:.6} (expected 0.5)", m1);
         println!("m2 = {:.6} (expected 1/12 = 0.0833333)", m2);
 
-        assert_relative_eq!(m1, 0.5f32, epsilon = TOL);
-        assert_relative_eq!(m2, 1.0f32 / 12.0f32, epsilon = TOL);
+        assert_abs_diff_eq!(m1, 0.5f32, epsilon = TOL);
+        assert_abs_diff_eq!(m2, 1.0f32 / 12.0f32, epsilon = TOL);
     }
 }

@@ -706,7 +706,7 @@ pub fn fir_group_delay(h: &[f32], fc: f32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     use crate::math::windows::WindowType;
@@ -789,10 +789,10 @@ mod tests {
 
         // evaluate at several points
         let tol = 2.0 * 10f32.powf(-as_ / 20.0); // generous
-        assert_relative_eq!(buf_freq[0].norm(),            0.0, epsilon = tol);   // notch at DC
-        assert_relative_eq!(buf_freq[nfft / 4].norm(),     1.0, epsilon = tol);   // pass at  Fs/4
-        assert_relative_eq!(buf_freq[2 * nfft / 4].norm(), 1.0, epsilon = tol);   // pass at  Fs/2
-        assert_relative_eq!(buf_freq[3 * nfft / 4].norm(), 1.0, epsilon = tol);   // pass at -Fs/4
+        assert_abs_diff_eq!(buf_freq[0].norm(),            0.0, epsilon = tol);   // notch at DC
+        assert_abs_diff_eq!(buf_freq[nfft / 4].norm(),     1.0, epsilon = tol);   // pass at  Fs/4
+        assert_abs_diff_eq!(buf_freq[2 * nfft / 4].norm(), 1.0, epsilon = tol);   // pass at  Fs/2
+        assert_abs_diff_eq!(buf_freq[3 * nfft / 4].norm(), 1.0, epsilon = tol);   // pass at -Fs/4
     }
 
     #[test]
@@ -823,10 +823,10 @@ mod tests {
 
         // evaluate at several points
         let tol = 2.0 * 10f32.powf(-as_ / 20.0); // generous
-        assert_relative_eq!(buf_freq[i0].norm(), 0.0, epsilon = tol);   // notch at +f0
-        assert_relative_eq!(buf_freq[i1].norm(), 0.0, epsilon = tol);   // notch at -f0
-        assert_relative_eq!(buf_freq[0].norm(), 1.0, epsilon = tol);    // pass at  0
-        assert_relative_eq!(buf_freq[nfft/2].norm(), 1.0, epsilon = tol); // pass at  Fs/2
+        assert_abs_diff_eq!(buf_freq[i0].norm(), 0.0, epsilon = tol);   // notch at +f0
+        assert_abs_diff_eq!(buf_freq[i1].norm(), 0.0, epsilon = tol);   // notch at -f0
+        assert_abs_diff_eq!(buf_freq[0].norm(), 1.0, epsilon = tol);    // pass at  0
+        assert_abs_diff_eq!(buf_freq[nfft/2].norm(), 1.0, epsilon = tol); // pass at  Fs/2
     }
 
     #[test]
@@ -915,24 +915,24 @@ mod tests {
         let tol = 0.05; // dB
 
         // Kaiser's method
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.05, 60.0).unwrap(), 73.00140381, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.10, 60.0).unwrap(), 36.50070190, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.20, 60.0).unwrap(), 18.25035095, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.30, 60.0).unwrap(), 12.16689968, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.40, 60.0).unwrap(), 9.12517548, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.05, 80.0).unwrap(), 101.05189514, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.05, 100.0).unwrap(), 129.10238647, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_kaiser(0.05, 120.0).unwrap(), 157.15287781, max_relative = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.05, 60.0).unwrap(), 73.00140381, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.10, 60.0).unwrap(), 36.50070190, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.20, 60.0).unwrap(), 18.25035095, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.30, 60.0).unwrap(), 12.16689968, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.40, 60.0).unwrap(), 9.12517548, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.05, 80.0).unwrap(), 101.05189514, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.05, 100.0).unwrap(), 129.10238647, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_kaiser(0.05, 120.0).unwrap(), 157.15287781, epsilon = tol);
 
         // Herrmann's method
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.05, 60.0).unwrap(), 75.51549530, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.10, 60.0).unwrap(), 37.43184662, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.20, 60.0).unwrap(), 17.56412315, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.30, 60.0).unwrap(), 10.20741558, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.40, 60.0).unwrap(), 5.97846174, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.05, 80.0).unwrap(), 102.72290039, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.05, 100.0).unwrap(), 129.88548279, max_relative = tol);
-        assert_relative_eq!(estimate_req_filter_len_herrmann(0.05, 120.0).unwrap(), 157.15287781, max_relative = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.05, 60.0).unwrap(), 75.51549530, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.10, 60.0).unwrap(), 37.43184662, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.20, 60.0).unwrap(), 17.56412315, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.30, 60.0).unwrap(), 10.20741558, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.40, 60.0).unwrap(), 5.97846174, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.05, 80.0).unwrap(), 102.72290039, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.05, 100.0).unwrap(), 129.88548279, epsilon = tol);
+        assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.05, 120.0).unwrap(), 157.15287781, epsilon = tol);
     }
 
     fn testbench_firdes_prototype(filter_type: &str, k: usize, m: usize, beta: f32, as_: f32) {
@@ -1063,8 +1063,8 @@ mod tests {
             let fc = (i as f32) / (nfft as f32) + if i >= nfft / 2 { -1.0 } else { 0.0 };
             let h_freq = freqrespf(&h, fc).unwrap();
 
-            assert_relative_eq!(buf_freq[i].re, h_freq.re, epsilon = tol);
-            assert_relative_eq!(buf_freq[i].im, h_freq.im, epsilon = tol);
+            assert_abs_diff_eq!(buf_freq[i].re, h_freq.re, epsilon = tol);
+            assert_abs_diff_eq!(buf_freq[i].im, h_freq.im, epsilon = tol);
         }
     }
 
@@ -1096,8 +1096,8 @@ mod tests {
             let h_freq = freqrespcf(&h, fc).unwrap();
 
             println!("i: {}, buf_freq[i]: {:?} + {:?}j, H: {:?} + {:?}j", i, buf_freq[i].re, buf_freq[i].im, h_freq.re, h_freq.im);
-            assert_relative_eq!(buf_freq[i].re, h_freq.re, epsilon = tol);
-            assert_relative_eq!(buf_freq[i].im, h_freq.im, epsilon = tol);
+            assert_abs_diff_eq!(buf_freq[i].re, h_freq.re, epsilon = tol);
+            assert_abs_diff_eq!(buf_freq[i].im, h_freq.im, epsilon = tol);
         }
     }
 
@@ -1140,7 +1140,7 @@ mod tests {
             rxy[i] = filter_crosscorr(&x, &y, lag);
         }
         for i in 0..rxy_len {
-            assert_relative_eq!(rxy[i], rxy_test[i], epsilon = tol);
+            assert_abs_diff_eq!(rxy[i], rxy_test[i], epsilon = tol);
         }
 
         // derived values
@@ -1161,7 +1161,7 @@ mod tests {
             ryx[i] = filter_crosscorr(&y, &x, lag);
         }
         for i in 0..ryx_len {
-            assert_relative_eq!(ryx[i], ryx_test[i], epsilon = tol);
+            assert_abs_diff_eq!(ryx[i], ryx_test[i], epsilon = tol);
         }
     }
 

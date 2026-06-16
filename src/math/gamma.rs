@@ -105,7 +105,7 @@ pub fn factorialf(n: u32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     #[test]
@@ -185,14 +185,14 @@ mod tests {
         ];
 
         for &(input, expected) in &test_vectors {
-            assert_relative_eq!(lngammaf(input), expected, epsilon = EPSILON);
+            assert_abs_diff_eq!(lngammaf(input), expected, epsilon = EPSILON);
         }
 
         // test very large numbers
-        assert_relative_eq!(lngammaf(140.0), 550.278651724286, epsilon = EPSILON);
-        assert_relative_eq!(lngammaf(150.0), 600.009470555327, epsilon = EPSILON);
-        assert_relative_eq!(lngammaf(160.0), 650.409682895655, epsilon = EPSILON);
-        assert_relative_eq!(lngammaf(170.0), 701.437263808737, epsilon = EPSILON);
+        assert_abs_diff_eq!(lngammaf(140.0), 550.278651724286, epsilon = EPSILON);
+        assert_abs_diff_eq!(lngammaf(150.0), 600.009470555327, epsilon = EPSILON);
+        assert_abs_diff_eq!(lngammaf(160.0), 650.409682895655, epsilon = EPSILON);
+        assert_abs_diff_eq!(lngammaf(170.0), 701.437263808737, epsilon = EPSILON);
     }
 
     #[test]
@@ -224,7 +224,7 @@ mod tests {
         ];
 
         for &(a, x, expected) in &test_vectors {
-            assert_relative_eq!(uppergammaf(a, x), expected, epsilon = EPSILON);
+            assert_abs_diff_eq!(uppergammaf(a, x), expected, epsilon = EPSILON);
         }
     }
 
@@ -243,7 +243,7 @@ mod tests {
         ];
 
         for &(n, expected) in &test_vectors {
-            assert_relative_eq!(factorialf(n), expected, epsilon = EPSILON);
+            assert_abs_diff_eq!(factorialf(n), expected, epsilon = EPSILON);
         }
     }
 

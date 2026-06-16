@@ -260,7 +260,7 @@ mod tests {
     use super::*;
     use crate::random::randnf;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
 
     #[test]
@@ -282,9 +282,9 @@ mod tests {
         }
         
         // Check results
-        assert_relative_eq!(y.re, 1.0f32, epsilon = tol);
-        assert_relative_eq!(y.im, 0.0f32, epsilon = tol);
-        assert_relative_eq!(q.get_gain(), 1.0f32 / gamma, epsilon = tol);
+        assert_abs_diff_eq!(y.re, 1.0f32, epsilon = tol);
+        assert_abs_diff_eq!(y.im, 0.0f32, epsilon = tol);
+        assert_abs_diff_eq!(q.get_gain(), 1.0f32 / gamma, epsilon = tol);
 
         // explicitly set gain and check result
         q.set_gain(1.0f32).unwrap();
@@ -313,8 +313,8 @@ mod tests {
         }
         
         // Check results
-        assert_relative_eq!(y.re, scale, epsilon = tol);
-        assert_relative_eq!(y.im, 0.0f32, epsilon = tol);
+        assert_abs_diff_eq!(y.re, scale, epsilon = tol);
+        assert_abs_diff_eq!(y.im, 0.0f32, epsilon = tol);
     }
 
     // Test AC gain control
@@ -342,7 +342,7 @@ mod tests {
         }
 
         // Check results
-        assert_relative_eq!(q.get_gain(), 1.0f32 / gamma, epsilon = tol);
+        assert_abs_diff_eq!(q.get_gain(), 1.0f32 / gamma, epsilon = tol);
     }
 
     #[test]
@@ -376,7 +376,7 @@ mod tests {
         }
 
         // Check results
-        assert_relative_eq!(rssi, gamma, epsilon = tol);
+        assert_abs_diff_eq!(rssi, gamma, epsilon = tol);
     }
 
     // Test RSSI on noise input
@@ -413,7 +413,7 @@ mod tests {
         }
 
         // Check results
-        assert_relative_eq!(rssi, gamma, epsilon = tol);
+        assert_abs_diff_eq!(rssi, gamma, epsilon = tol);
     }
 
     #[test]
@@ -486,26 +486,26 @@ mod tests {
         let mut buf_1 = vec![Complex32::new(0.0, 0.0); 4];
 
         // basic tests
-        assert_relative_eq!(q.get_bandwidth(), 0.1f32);
+        assert_abs_diff_eq!(q.get_bandwidth(), 0.1f32);
         // assert!(q.print().is_ok());
         q.set_rssi(0.0).unwrap();
 
         // lock AGC and show it is not tracking
-        assert_relative_eq!(q.get_rssi(), 0.0, max_relative = tol);  // base signal level is 0 dB
+        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol);  // base signal level is 0 dB
         assert!(!q.is_locked());         // not locked
         q.lock();
         assert!(q.is_locked());          // locked
         for _ in 0..256 {
             q.execute_block(&buf_0, &mut buf_1).unwrap();
         }
-        assert_relative_eq!(q.get_rssi(), 0.0, max_relative = tol);  // signal level has not changed
+        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol);  // signal level has not changed
 
         // unlock AGC and show it is tracking
         q.unlock();
         assert!(!q.is_locked());         // unlocked
         q.init(&buf_0).unwrap();
         // agc tracks to signal level
-        assert_relative_eq!(q.get_rssi(), 20.0 * gamma.log10(), epsilon = tol);
+        assert_abs_diff_eq!(q.get_rssi(), 20.0 * gamma.log10(), epsilon = tol);
     }
 
     #[test]

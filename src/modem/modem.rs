@@ -577,7 +577,7 @@ pub fn unpack_soft_bits(sym_in: u32, bps: usize, soft_bits: &mut [u8]) -> Result
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     
     fn modemcf_test_mod_demod(ms: ModulationScheme) {
         // generate mod/demod
@@ -593,15 +593,15 @@ mod tests {
             // println!("i: {}, x: {}, s: {}", i, x, s);
             assert_eq!(s, i as u32);
 
-            assert_relative_eq!(demod.get_demodulator_phase_error(), 0.0f32, epsilon = 1e-3);
+            assert_abs_diff_eq!(demod.get_demodulator_phase_error(), 0.0f32, epsilon = 1e-3);
             
-            assert_relative_eq!(demod.get_demodulator_evm(), 0.0f32, epsilon = 1e-3);
+            assert_abs_diff_eq!(demod.get_demodulator_evm(), 0.0f32, epsilon = 1e-3);
 
             e += (x * x.conj()).re;
         }
         e = (e / m as f32).sqrt();
 
-        assert_relative_eq!(e, 1.0f32, epsilon = 1e-3);
+        assert_abs_diff_eq!(e, 1.0f32, epsilon = 1e-3);
     }
 
     // AUTOTESTS: generic PSK
@@ -844,8 +844,8 @@ mod tests {
             assert_eq!(sym_soft, i);
 
             // check phase error, evm, etc.
-            assert_relative_eq!(demodulator.get_demodulator_phase_error(), 0.0, epsilon = 1e-3);
-            assert_relative_eq!(demodulator.get_demodulator_evm(), 0.0, epsilon = 1e-3);
+            assert_abs_diff_eq!(demodulator.get_demodulator_phase_error(), 0.0, epsilon = 1e-3);
+            assert_abs_diff_eq!(demodulator.get_demodulator_evm(), 0.0, epsilon = 1e-3);
         }
     }
 

@@ -216,7 +216,7 @@ unsafe fn dotprod_rrr_avx512_f32x16(a: &[f32], b: &[f32]) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use rand::Rng;
     use test_macro::autotest_annotate;
 
@@ -237,7 +237,7 @@ mod tests {
             let y_test: f32 = h.iter().zip(x.iter()).map(|(&a, &b)| a * b).sum();
             let y_avx2 = unsafe { dotprod_rrr_avx2(&h, &x) };
 
-            assert_relative_eq!(y_avx2, y_test, epsilon = TOL);
+            assert_abs_diff_eq!(y_avx2, y_test, epsilon = TOL);
         }
     }
 
@@ -257,7 +257,7 @@ mod tests {
             let y_test: f32 = h.iter().zip(x.iter()).map(|(&a, &b)| a * b).sum();
             let y_sse = unsafe { dotprod_rrr_sse(&h, &x) };
 
-            assert_relative_eq!(y_sse, y_test, epsilon = TOL);
+            assert_abs_diff_eq!(y_sse, y_test, epsilon = TOL);
         }
     }
 
@@ -293,7 +293,7 @@ mod tests {
             let expected: f32 = h.iter().zip(x.iter()).map(|(&a, &b)| a * b).sum();
             let result = h.dotprod(&x);
 
-            assert_relative_eq!(result, expected, epsilon = TOL);
+            assert_abs_diff_eq!(result, expected, epsilon = TOL);
         }
     }
 
@@ -304,18 +304,18 @@ mod tests {
         let h: Vec<f32> = vec![1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0];
 
         let x0 = vec![0.0; 16];
-        assert_relative_eq!(h.dotprod(&x0), 0.0, epsilon = TOL);
+        assert_abs_diff_eq!(h.dotprod(&x0), 0.0, epsilon = TOL);
 
         let x1 = vec![1.0; 16];
-        assert_relative_eq!(h.dotprod(&x1), 0.0, epsilon = TOL);
+        assert_abs_diff_eq!(h.dotprod(&x1), 0.0, epsilon = TOL);
 
         let x2: Vec<f32> = (0..16).map(|i| (i % 2) as f32).collect();
-        assert_relative_eq!(h.dotprod(&x2), -8.0, epsilon = TOL);
+        assert_abs_diff_eq!(h.dotprod(&x2), -8.0, epsilon = TOL);
 
         let x3: Vec<f32> = (0..16).map(|i| 1.0 - (i % 2) as f32).collect();
-        assert_relative_eq!(h.dotprod(&x3), 8.0, epsilon = TOL);
+        assert_abs_diff_eq!(h.dotprod(&x3), 8.0, epsilon = TOL);
 
-        assert_relative_eq!(h.dotprod(&h), 16.0, epsilon = TOL);
+        assert_abs_diff_eq!(h.dotprod(&h), 16.0, epsilon = TOL);
     }
 
     #[test]
@@ -325,12 +325,12 @@ mod tests {
         let h: Vec<f32> = vec![1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0];
         let x = vec![1.0; 16];
 
-        assert_relative_eq!(h[..1].dotprod(&x[..1]), 1.0, epsilon = TOL);
-        assert_relative_eq!(h[..2].dotprod(&x[..2]), 0.0, epsilon = TOL);
-        assert_relative_eq!(h[..3].dotprod(&x[..3]), 1.0, epsilon = TOL);
-        assert_relative_eq!(h[..11].dotprod(&x[..11]), 1.0, epsilon = TOL);
-        assert_relative_eq!(h[..13].dotprod(&x[..13]), 1.0, epsilon = TOL);
-        assert_relative_eq!(h[..15].dotprod(&x[..15]), 1.0, epsilon = TOL);
+        assert_abs_diff_eq!(h[..1].dotprod(&x[..1]), 1.0, epsilon = TOL);
+        assert_abs_diff_eq!(h[..2].dotprod(&x[..2]), 0.0, epsilon = TOL);
+        assert_abs_diff_eq!(h[..3].dotprod(&x[..3]), 1.0, epsilon = TOL);
+        assert_abs_diff_eq!(h[..11].dotprod(&x[..11]), 1.0, epsilon = TOL);
+        assert_abs_diff_eq!(h[..13].dotprod(&x[..13]), 1.0, epsilon = TOL);
+        assert_abs_diff_eq!(h[..15].dotprod(&x[..15]), 1.0, epsilon = TOL);
     }
 
     #[test]
@@ -355,7 +355,7 @@ mod tests {
         ];
 
         let test = 3.66411513609863;
-        assert_relative_eq!(h.dotprod(&x), test, epsilon = TOL);
+        assert_abs_diff_eq!(h.dotprod(&x), test, epsilon = TOL);
     }
 
     #[test]
@@ -380,10 +380,10 @@ mod tests {
         ];
 
         let test = -8.17832326680587;
-        assert_relative_eq!(h.dotprod(&x), test, epsilon = TOL);
+        assert_abs_diff_eq!(h.dotprod(&x), test, epsilon = TOL);
 
         let test_rev = 4.56839328512000;
-        assert_relative_eq!(h.iter().rev().cloned().collect::<Vec<f32>>().dotprod(&x), test_rev, epsilon = TOL);
+        assert_abs_diff_eq!(h.iter().rev().cloned().collect::<Vec<f32>>().dotprod(&x), test_rev, epsilon = TOL);
     }
 
     #[test]
@@ -417,10 +417,10 @@ mod tests {
              1.01828299,   0.76014664,  -0.15605569,
         ];
 
-        assert_relative_eq!(h[..32].dotprod(&x[..32]), -7.99577847, epsilon = TOL);
-        assert_relative_eq!(h[..33].dotprod(&x[..33]), -6.00389114, epsilon = TOL);
-        assert_relative_eq!(h[..34].dotprod(&x[..34]), -6.36813751, epsilon = TOL);
-        assert_relative_eq!(h[..35].dotprod(&x[..35]), -6.44988725, epsilon = TOL);
+        assert_abs_diff_eq!(h[..32].dotprod(&x[..32]), -7.99577847, epsilon = TOL);
+        assert_abs_diff_eq!(h[..33].dotprod(&x[..33]), -6.00389114, epsilon = TOL);
+        assert_abs_diff_eq!(h[..34].dotprod(&x[..34]), -6.36813751, epsilon = TOL);
+        assert_abs_diff_eq!(h[..35].dotprod(&x[..35]), -6.44988725, epsilon = TOL);
     }
 
     #[test]
@@ -436,7 +436,7 @@ mod tests {
             let y_test: f32 = h.iter().zip(x.iter()).map(|(&a, &b)| a * b).sum();
             let y_struct = h.dotprod(&x);
 
-            assert_relative_eq!(y_struct, y_test, epsilon = TOL);
+            assert_abs_diff_eq!(y_struct, y_test, epsilon = TOL);
         }
     }
 }

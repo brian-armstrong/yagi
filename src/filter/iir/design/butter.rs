@@ -50,7 +50,7 @@ pub fn iir_design_butter_analog(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     fn test_butter_azpkf() {
@@ -66,13 +66,13 @@ mod tests {
             assert_eq!(pa.len(), n);
 
             // check gain
-            assert_relative_eq!(ka.re, 1.0);
-            assert_relative_eq!(ka.im, 0.0);
+            assert_abs_diff_eq!(ka.re, 1.0);
+            assert_abs_diff_eq!(ka.im, 0.0);
 
             // check poles
             for i in 0..n {
                 // poles should be on unit circle
-                assert_relative_eq!(pa[i].norm(), 1.0, epsilon = 1e-6);
+                assert_abs_diff_eq!(pa[i].norm(), 1.0, epsilon = 1e-6);
 
                 // poles should be in left half of s-plane
                 assert!(pa[i].re < 0.0);
@@ -81,18 +81,18 @@ mod tests {
                 if n % 2 == 0 {
                     // poles should be in conjugate pairs
                     if i % 2 == 0 {
-                        assert_relative_eq!(pa[i].re, pa[i+1].re, epsilon = 1e-6);
-                        assert_relative_eq!(pa[i].im, -pa[i+1].im, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].re, pa[i+1].re, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].im, -pa[i+1].im, epsilon = 1e-6);
                     }
                 } else {
                     // odd orders should have one real pole at -1
                     if i == n-1 {
-                        assert_relative_eq!(pa[i].re, -1.0, epsilon = 1e-6);
-                        assert_relative_eq!(pa[i].im, 0.0, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].re, -1.0, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].im, 0.0, epsilon = 1e-6);
                     } else if i % 2 == 0 {
                         // remaining poles should be in conjugate pairs
-                        assert_relative_eq!(pa[i].re, pa[i+1].re, epsilon = 1e-6);
-                        assert_relative_eq!(pa[i].im, -pa[i+1].im, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].re, pa[i+1].re, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].im, -pa[i+1].im, epsilon = 1e-6);
                     }
                 }
             }

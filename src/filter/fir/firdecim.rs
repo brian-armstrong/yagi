@@ -209,7 +209,7 @@ where
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     use crate::math::WindowType;
     use crate::filter::fir::design::FirFilterShape;
 
@@ -312,7 +312,7 @@ mod tests {
         for i in 0..y.len() {
             y_test[i] = q.execute(&x[m*i..m*(i+1)]).unwrap();
             
-            assert_relative_eq!(y_test[i], y[i], epsilon = tol);
+            assert_abs_diff_eq!(y_test[i], y[i], epsilon = tol);
         }
     }
 
@@ -369,8 +369,8 @@ mod tests {
         for i in 0..y.len() {
             y_test[i] = q.execute(&x[m*i..m*(i+1)]).unwrap();
             
-            assert_relative_eq!(y_test[i].re, y[i].re, epsilon = tol);
-            assert_relative_eq!(y_test[i].im, y[i].im, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
     }
 
@@ -430,8 +430,8 @@ mod tests {
         for i in 0..y.len() {
             y_test[i] = q.execute(&x[m*i..m*(i+1)]).unwrap();
             
-            assert_relative_eq!(y_test[i].re, y[i].re, epsilon = tol);
-            assert_relative_eq!(y_test[i].im, y[i].im, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
+            assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
     }
 

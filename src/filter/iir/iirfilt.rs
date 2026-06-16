@@ -715,7 +715,7 @@ mod tests {
     use crate::fft::spgram::Spgram;
     use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
     use crate::random::randnf;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
     
     #[test]
     #[autotest_annotate(autotest_iirfilt_integrator)]
@@ -738,7 +738,7 @@ mod tests {
         q.execute_block(&buf_0, &mut buf_1).unwrap();
     
         // check that last value matches expected
-        assert_relative_eq!(buf_1[num_samples - 1], num_ones as f32, epsilon = 0.01);
+        assert_abs_diff_eq!(buf_1[num_samples - 1], num_ones as f32, epsilon = 0.01);
     }
     
     #[test]
@@ -761,7 +761,7 @@ mod tests {
         q.execute_block(&buf_0, &mut buf_1).unwrap();
     
         // check that derivative is equal to 1
-        assert_relative_eq!(buf_1[num_samples - 1], 1.0f32, epsilon = 0.01);
+        assert_abs_diff_eq!(buf_1[num_samples - 1], 1.0f32, epsilon = 0.01);
     }
 
     #[test]
@@ -884,7 +884,7 @@ mod tests {
         // run tests
         for i in 0..4 {
             let g = design::iir_group_delay(&b, &a, fc[i]).unwrap();
-            assert_relative_eq!(g, g0[i], epsilon = tol);
+            assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
 
         // create filter
@@ -893,7 +893,7 @@ mod tests {
         // run tests again
         for i in 0..4 {
             let g = filter.groupdelay(fc[i]).unwrap();
-            assert_relative_eq!(g, g0[i], epsilon = tol);
+            assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
     }
 
@@ -949,7 +949,7 @@ mod tests {
         // run tests
         for i in 0..7 {
             let g = design::iir_group_delay(&b, &a, fc[i]).unwrap();
-            assert_relative_eq!(g, g0[i], epsilon = tol);
+            assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
 
         //
@@ -962,7 +962,7 @@ mod tests {
         // run tests again
         for i in 0..7 {
             let g = filter.groupdelay(fc[i]).unwrap();
-            assert_relative_eq!(g, g0[i], epsilon = tol);
+            assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
     }
 
@@ -1013,7 +1013,7 @@ mod tests {
         // run tests
         for i in 0..7 {
             let g = filter.groupdelay(fc[i]).unwrap();
-            assert_relative_eq!(g, g0[i], epsilon = tol);
+            assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
     }
 
@@ -1046,7 +1046,7 @@ mod tests {
     
         // Compare results
         for (y_i, y_test_i) in y.iter().zip(y_test.iter()) {
-            assert_relative_eq!(*y_i, *y_test_i, epsilon = tol);
+            assert_abs_diff_eq!(*y_i, *y_test_i, epsilon = tol);
         }
     }
     
@@ -1110,8 +1110,8 @@ mod tests {
     
         // Compare results
         for (y_i, y_test_i) in y.iter().zip(y_test.iter()) {
-            assert_relative_eq!(y_i.re, y_test_i.re, epsilon = tol);
-            assert_relative_eq!(y_i.im, y_test_i.im, epsilon = tol);
+            assert_abs_diff_eq!(y_i.re, y_test_i.re, epsilon = tol);
+            assert_abs_diff_eq!(y_i.im, y_test_i.im, epsilon = tol);
         }
     }
 
@@ -1175,8 +1175,8 @@ mod tests {
     
         // Compare results
         for (y_i, y_test_i) in y.iter().zip(y_test.iter()) {
-            assert_relative_eq!(y_i.re, y_test_i.re, epsilon = tol);
-            assert_relative_eq!(y_i.im, y_test_i.im, epsilon = tol);
+            assert_abs_diff_eq!(y_i.re, y_test_i.re, epsilon = tol);
+            assert_abs_diff_eq!(y_i.im, y_test_i.im, epsilon = tol);
         }
     }
 

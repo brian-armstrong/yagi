@@ -305,7 +305,7 @@ where
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_firpfb_impulse_response)]
@@ -354,7 +354,7 @@ mod tests {
 
         for (i, &expected) in test.iter().enumerate() {
             let y = f.execute(i).unwrap();
-            assert_relative_eq!(expected, y, epsilon = tol);
+            assert_abs_diff_eq!(expected, y, epsilon = tol);
         }
     }
 

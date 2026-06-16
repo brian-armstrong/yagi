@@ -72,7 +72,7 @@ pub fn fft_run<T: FftNum>(input: &[Complex<T>], output: &mut [Complex<T>], direc
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
-    use approx::assert_relative_eq;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_fft_shift_4)]
@@ -145,8 +145,8 @@ mod tests {
         for i in 0..n {
             let fft_error = (y[i] - test[i]).norm();
             let ifft_error = (x[i] - z[i]).norm();
-            assert_relative_eq!(fft_error, 0.0, epsilon = tol);
-            assert_relative_eq!(ifft_error, 0.0, epsilon = tol);
+            assert_abs_diff_eq!(fft_error, 0.0, epsilon = tol);
+            assert_abs_diff_eq!(ifft_error, 0.0, epsilon = tol);
         }
     }
 
