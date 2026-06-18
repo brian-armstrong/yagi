@@ -68,8 +68,8 @@
 | dotprod_rrrf_struct_align                | ✅ | ❓ |
 | dotprod_rrrf_rand01                      | ✅ | ✅ |
 | dotprod_rrrf_rand02                      | ✅ | ✅ |
-| dotprod_rrrf_struct_lengths              | ✅ | ✅ |
-| dotprod_rrrf_struct_vs_ordinal           | ✅ | ✅ |
+| dotprod_rrrf_struct_lengths              | ✅ | ❓ |
+| dotprod_rrrf_struct_vs_ordinal           | ✅ | ❓ |
 
 
 ## dotprod_crcf
@@ -77,15 +77,15 @@
 | ---- | ------ | ---- |
 | dotprod_crcf_rand01                      | ✅ | ✅ |
 | dotprod_crcf_rand02                      | ✅ | ✅ |
-| dotprod_crcf_struct_vs_ordinal           | ✅ | ✅ |
+| dotprod_crcf_struct_vs_ordinal           | ✅ | ❓ |
 
 
 ## dotprod_cccf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
 | dotprod_cccf_rand16                      | ✅ | ✅ |
-| dotprod_cccf_struct_lengths              | ✅ | ✅ |
-| dotprod_cccf_struct_vs_ordinal           | ✅ | ✅ |
+| dotprod_cccf_struct_lengths              | ✅ | ❓ |
+| dotprod_cccf_struct_vs_ordinal           | ✅ | ❓ |
 
 
 ## sumsqf
@@ -481,8 +481,8 @@
 | spgramcf_invalid_config                  | ✅ | ✅ |
 | spgramcf_standalone                      | ✅ | ✅ |
 | spgramcf_short                           | ✅ | ✅ |
-| spgramcf_copy                            | ✅ | ❓ |
-| spgramcf_null                            | ✅ | ❓ |
+| spgramcf_copy                            | ✅ | ✅ |
+| spgramcf_null                            | ✅ | ✅ |
 | spgram_gnuplot                           | ✅ | ❓ |
 
 
@@ -1095,11 +1095,11 @@
 ## msource
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| msourcecf_tone                           | ✅ | ❓ |
-| msourcecf_chirp                          | ✅ | ❓ |
-| msourcecf_aggregate                      | ✅ | ❓ |
-| msourcecf_config                         | ✅ | ❓ |
-| msourcecf_accessor                       | ✅ | ❓ |
+| msourcecf_tone                           | ✅ | ✅ |
+| msourcecf_chirp                          | ✅ | ✅ |
+| msourcecf_aggregate                      | ✅ | ✅ |
+| msourcecf_config                         | ✅ | ✅ |
+| msourcecf_accessor                       | ✅ | ✅ |
 | msourcecf_copy                           | ✅ | ❓ |
 
 
@@ -1123,32 +1123,32 @@
 ## qdetector_cccf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| qdetector_cccf_linear_n64                | ✅ | ❓ |
-| qdetector_cccf_linear_n83                | ✅ | ❓ |
-| qdetector_cccf_linear_n128               | ✅ | ❓ |
-| qdetector_cccf_linear_n167               | ✅ | ❓ |
-| qdetector_cccf_linear_n256               | ✅ | ❓ |
-| qdetector_cccf_linear_n335               | ✅ | ❓ |
-| qdetector_cccf_linear_n512               | ✅ | ❓ |
-| qdetector_cccf_linear_n671               | ✅ | ❓ |
-| qdetector_cccf_linear_n1024              | ✅ | ❓ |
-| qdetector_cccf_linear_n1341              | ✅ | ❓ |
-| qdetector_cccf_gmsk_n64                  | ✅ | ❓ |
-| qdetector_cccf_gmsk_n83                  | ✅ | ❓ |
-| qdetector_cccf_gmsk_n128                 | ✅ | ❓ |
-| qdetector_cccf_gmsk_n167                 | ✅ | ❓ |
-| qdetector_cccf_gmsk_n256                 | ✅ | ❓ |
-| qdetector_cccf_gmsk_n335                 | ✅ | ❓ |
-| qdetector_cccf_gmsk_n512                 | ✅ | ❓ |
-| qdetector_cccf_gmsk_n671                 | ✅ | ❓ |
-| qdetector_cccf_gmsk_n1024                | ✅ | ❓ |
-| qdetector_cccf_gmsk_n1341                | ✅ | ❓ |
+| qdetector_cccf_linear_n64                | ✅ | ✅ |
+| qdetector_cccf_linear_n83                | ✅ | ✅ |
+| qdetector_cccf_linear_n128               | ✅ | ✅ |
+| qdetector_cccf_linear_n167               | ✅ | ✅ |
+| qdetector_cccf_linear_n256               | ✅ | ✅ |
+| qdetector_cccf_linear_n335               | ✅ | ✅ |
+| qdetector_cccf_linear_n512               | ✅ | ✅ |
+| qdetector_cccf_linear_n671               | ✅ | ✅ |
+| qdetector_cccf_linear_n1024              | ✅ | ✅ |
+| qdetector_cccf_linear_n1341              | ✅ | ✅ |
+| qdetector_cccf_gmsk_n64                  | ✅ | ✅ |
+| qdetector_cccf_gmsk_n83                  | ✅ | ✅ |
+| qdetector_cccf_gmsk_n128                 | ✅ | ✅ |
+| qdetector_cccf_gmsk_n167                 | ✅ | ✅ |
+| qdetector_cccf_gmsk_n256                 | ✅ | ✅ |
+| qdetector_cccf_gmsk_n335                 | ✅ | ✅ |
+| qdetector_cccf_gmsk_n512                 | ✅ | ✅ |
+| qdetector_cccf_gmsk_n671                 | ✅ | ✅ |
+| qdetector_cccf_gmsk_n1024                | ✅ | ✅ |
+| qdetector_cccf_gmsk_n1341                | ✅ | ✅ |
 
 
 ## qdetector_cccf_copy
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| qdetector_cccf_copy                      | ✅ | ❓ |
+| qdetector_cccf_copy                      | ✅ | ✅ |
 
 
 ## qdsync_cccf
@@ -1200,7 +1200,7 @@
 ## qsource
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| qsourcecf_config                         | ✅ | ❓ |
+| qsourcecf_config                         | ✅ | ✅ |
 
 
 ## symstreamcf
@@ -1450,31 +1450,31 @@
 ## cpfskmodem
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| cpfskmodem_bps1_h0p5000_k4_m3_square     | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0250_k4_m3_square     | ✅ | ❓ |
-| cpfskmodem_bps1_h0p1250_k4_m3_square     | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0625_k4_m3_square     | ✅ | ❓ |
-| cpfskmodem_bps1_h0p5000_k4_m3_rcosfull   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0250_k4_m3_rcosfull   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p1250_k4_m3_rcosfull   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0625_k4_m3_rcosfull   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p5000_k4_m3_rcospart   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0250_k4_m3_rcospart   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p1250_k4_m3_rcospart   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0625_k4_m3_rcospart   | ✅ | ❓ |
-| cpfskmodem_bps1_h0p5000_k4_m3_gmsk       | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0250_k4_m3_gmsk       | ✅ | ❓ |
-| cpfskmodem_bps1_h0p1250_k4_m3_gmsk       | ✅ | ❓ |
-| cpfskmodem_bps1_h0p0625_k4_m3_gmsk       | ✅ | ❓ |
-| cpfskmodem_bps2_h0p0250_k4_m3_square     | ✅ | ❓ |
-| cpfskmodem_bps3_h0p1250_k4_m3_square     | ✅ | ❓ |
-| cpfskmodem_bps4_h0p0625_k4_m3_square     | ✅ | ❓ |
-| cpfskmodem_bps1_h0p5_k2_m7_gmsk          | ✅ | ❓ |
-| cpfskmodem_bps1_h0p5_k4_m7_gmsk          | ✅ | ❓ |
-| cpfskmodem_bps1_h0p5_k6_m7_gmsk          | ✅ | ❓ |
-| cpfskmodem_bps1_h0p5_k8_m7_gmsk          | ✅ | ❓ |
-| cpfskmodem_spectrum                      | ✅ | ❓ |
-| cpfskmodem_config                        | ✅ | ❓ |
+| cpfskmodem_bps1_h0p5000_k4_m3_square     | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0250_k4_m3_square     | ✅ | ✅ |
+| cpfskmodem_bps1_h0p1250_k4_m3_square     | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0625_k4_m3_square     | ✅ | ✅ |
+| cpfskmodem_bps1_h0p5000_k4_m3_rcosfull   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0250_k4_m3_rcosfull   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p1250_k4_m3_rcosfull   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0625_k4_m3_rcosfull   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p5000_k4_m3_rcospart   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0250_k4_m3_rcospart   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p1250_k4_m3_rcospart   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0625_k4_m3_rcospart   | ✅ | ✅ |
+| cpfskmodem_bps1_h0p5000_k4_m3_gmsk       | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0250_k4_m3_gmsk       | ✅ | ✅ |
+| cpfskmodem_bps1_h0p1250_k4_m3_gmsk       | ✅ | ✅ |
+| cpfskmodem_bps1_h0p0625_k4_m3_gmsk       | ✅ | ✅ |
+| cpfskmodem_bps2_h0p0250_k4_m3_square     | ✅ | ✅ |
+| cpfskmodem_bps3_h0p1250_k4_m3_square     | ✅ | ✅ |
+| cpfskmodem_bps4_h0p0625_k4_m3_square     | ✅ | ✅ |
+| cpfskmodem_bps1_h0p5_k2_m7_gmsk          | ✅ | ✅ |
+| cpfskmodem_bps1_h0p5_k4_m7_gmsk          | ✅ | ✅ |
+| cpfskmodem_bps1_h0p5_k6_m7_gmsk          | ✅ | ✅ |
+| cpfskmodem_bps1_h0p5_k8_m7_gmsk          | ✅ | ✅ |
+| cpfskmodem_spectrum                      | ✅ | ✅ |
+| cpfskmodem_config                        | ✅ | ✅ |
 
 
 ## freqmodem
@@ -1515,19 +1515,19 @@
 ## gmskmodem
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| gmskmodem_k4_m3_b025                     | ✅ | ❓ |
-| gmskmodem_k2_m3_b025                     | ✅ | ❓ |
-| gmskmodem_k3_m3_b025                     | ✅ | ❓ |
-| gmskmodem_k5_m3_b025                     | ✅ | ❓ |
-| gmskmodem_k8_m3_b033                     | ✅ | ❓ |
-| gmskmodem_k4_m1_b025                     | ✅ | ❓ |
-| gmskmodem_k4_m2_b025                     | ✅ | ❓ |
-| gmskmodem_k4_m8_b025                     | ✅ | ❓ |
-| gmskmodem_k4_m3_b020                     | ✅ | ❓ |
-| gmskmodem_k4_m3_b033                     | ✅ | ❓ |
-| gmskmodem_k4_m3_b050                     | ✅ | ❓ |
-| gmskmod_copy                             | ✅ | ❓ |
-| gmskdem_copy                             | ✅ | ❓ |
+| gmskmodem_k4_m3_b025                     | ✅ | ✅ |
+| gmskmodem_k2_m3_b025                     | ✅ | ✅ |
+| gmskmodem_k3_m3_b025                     | ✅ | ✅ |
+| gmskmodem_k5_m3_b025                     | ✅ | ✅ |
+| gmskmodem_k8_m3_b033                     | ✅ | ✅ |
+| gmskmodem_k4_m1_b025                     | ✅ | ✅ |
+| gmskmodem_k4_m2_b025                     | ✅ | ✅ |
+| gmskmodem_k4_m8_b025                     | ✅ | ✅ |
+| gmskmodem_k4_m3_b020                     | ✅ | ✅ |
+| gmskmodem_k4_m3_b033                     | ✅ | ✅ |
+| gmskmodem_k4_m3_b050                     | ✅ | ✅ |
+| gmskmod_copy                             | ✅ | ✅ |
+| gmskdem_copy                             | ✅ | ✅ |
 
 
 ## modem
@@ -1765,37 +1765,37 @@
 ## firpfbch_crcf_synthesizer
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| firpfbch_crcf_synthesis                  | ✅ | ❓ |
+| firpfbch_crcf_synthesis                  | ✅ | ✅ |
 
 
 ## firpfbch_crcf_analyzer
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| firpfbch_crcf_analysis                   | ✅ | ❓ |
+| firpfbch_crcf_analysis                   | ✅ | ✅ |
 
 
 ## firpfbch_crcf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| firpfbch_crcf_config                     | ✅ | ❓ |
+| firpfbch_crcf_config                     | ✅ | ✅ |
 
 
 ## firpfbch2_crcf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| firpfbch2_crcf_n8                        | ✅ | ❓ |
-| firpfbch2_crcf_n16                       | ✅ | ❓ |
-| firpfbch2_crcf_n32                       | ✅ | ❓ |
-| firpfbch2_crcf_n64                       | ✅ | ❓ |
-| firpfbch2_crcf_copy                      | ✅ | ❓ |
-| firpfbch2_crcf_config                    | ✅ | ❓ |
+| firpfbch2_crcf_n8                        | ✅ | ✅ |
+| firpfbch2_crcf_n16                       | ✅ | ✅ |
+| firpfbch2_crcf_n32                       | ✅ | ✅ |
+| firpfbch2_crcf_n64                       | ✅ | ✅ |
+| firpfbch2_crcf_copy                      | ✅ | ✅ |
+| firpfbch2_crcf_config                    | ✅ | ✅ |
 
 
 ## firpfbchr_crcf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| firpfbchr_crcf                           | ✅ | ❓ |
-| firpfbchr_crcf_config                    | ✅ | ❓ |
+| firpfbchr_crcf                           | ✅ | ✅ |
+| firpfbchr_crcf_config                    | ✅ | ✅ |
 
 
 ## ofdmframe
