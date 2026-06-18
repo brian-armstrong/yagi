@@ -18,6 +18,7 @@ libm = "0.2.8"
 num-complex = "0.4.6"
 num-traits = "0.2.19"
 rand = "0.8.5"
+rustdct = "0.7.1"
 rustfft = "6.2.0"
 
 [dev-dependencies]

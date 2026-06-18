@@ -5,7 +5,10 @@
 
 extern crate rustfft;
 
+pub mod r2r;
 pub mod spgram;
+
+pub use r2r::{fft_r2r_run, FftR2r, FftR2rKind};
 
 use std::sync::Arc;
 use num_complex::Complex;
@@ -151,7 +154,7 @@ mod tests {
     }
 
     #[rustfmt::skip]
-    include!("test_data.rs");
+    include!("test_data_fft.rs");
 
     #[test]
     #[autotest_annotate(autotest_fft_2)]
