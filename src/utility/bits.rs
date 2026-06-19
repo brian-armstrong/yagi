@@ -1,3 +1,262 @@
+use crate::error::{Error, Result};
+
+/// Pack binary array with symbol(s)
+///   src     : source array
+///   k       : bit index to write in src
+///   b       : number of bits in input symbol
+///   sym_in  : input symbol
+pub fn pack_array(src: &mut [u8], k: usize, b: usize, sym_in: u8) -> Result<()> {
+    let n = src.len();
+
+    // validate input
+    if k >= 8 * n {
+        return Err(Error::Range(format!(
+            "pack_array(), bit index {} exceeds array length {}",
+            k,
+            8 * n
+        )));
+    }
+    if b > 8 {
+        return Err(Error::Range(
+            "pack_array(), symbol size cannot exceed 8 bits".into(),
+        ));
+    }
+
+    // find base index
+    let i0 = k / 8; // byte index
+    let b0 = k - 8 * i0; // bit index
+
+    // determine if index spans multiple bytes
+    if b0 + b > 8 {
+        // compute number of bits in each symbol
+        let n0 = 8 - b0;
+        let n1 = b - n0;
+
+        // generate mask for each symbol
+        let mask_0: u8 = 0xff >> (8 - n0);
+        let mask_1: u8 = (0xff >> (8 - n1)) << (8 - n1);
+
+        // shift then mask
+        let sym_0 = (sym_in >> n1) & mask_0;
+        let sym_1 = (sym_in << (8 - n1)) & mask_1;
+
+        // mask and pack first byte
+        src[i0] &= !mask_0; // clear relevant bits
+        src[i0] |= sym_0; // set relevant bits
+
+        // mask and pack second byte (if not exceeding array size)
+        if i0 < n - 1 {
+            src[i0 + 1] &= !mask_1; // clear relevant bits
+            src[i0 + 1] |= sym_1; // set relevant bits
+        }
+    } else {
+        // compute mask
+        let mask_0: u8 = (0xff >> (8 - b)) << (8 - b - b0);
+        let sym_0 = (sym_in << (8 - b - b0)) & mask_0;
+
+        // shift then mask
+        src[i0] &= !mask_0; // clear relevant bits
+        src[i0] |= sym_0; // set relevant bits
+    }
+    Ok(())
+}
+
+/// Unpack symbols from binary array
+///   src     : source array
+///   k       : bit index to read from src
+///   b       : number of bits in output symbol
+/// Returns the unpacked symbol
+pub fn unpack_array(src: &[u8], k: usize, b: usize) -> Result<u8> {
+    let n = src.len();
+
+    // validate input
+    if k >= 8 * n {
+        return Err(Error::Range(format!(
+            "unpack_array(), bit index {} exceeds array length {}",
+            k,
+            8 * n
+        )));
+    }
+    if b > 8 {
+        return Err(Error::Range(
+            "unpack_array(), symbol size cannot exceed 8 bits".into(),
+        ));
+    }
+
+    // find base index
+    let i0 = k / 8; // byte index
+    let b0 = k - 8 * i0; // bit index
+
+    // determine if index spans multiple bytes
+    let sym_out = if b0 + b > 8 {
+        // compute number of bits in each symbol
+        let n0 = 8 - b0;
+        let n1 = b - n0;
+
+        // generate mask for each symbol
+        let mask_0: u8 = 0xff >> (8 - n0);
+        let mask_1: u8 = 0xff >> (8 - n1);
+
+        // shift then mask
+        let sym_0 = src[i0] & mask_0;
+        let sym_1 = if i0 == n - 1 {
+            0x00
+        } else {
+            (src[i0 + 1] >> (8 - n1)) & mask_1
+        };
+
+        // concatenate output symbols
+        (sym_0 << n1) | sym_1
+    } else {
+        // compute mask (use u16 to avoid overflow when b=8)
+        let mask_0: u8 = ((1u16 << b) - 1) as u8;
+
+        // shift then mask
+        (src[i0] >> (8 - b - b0)) & mask_0
+    };
+
+    Ok(sym_out)
+}
+
+/// Pack one-bit symbols into bytes (8-bit symbols)
+///   sym_in      : input symbols array (one bit per element)
+///   sym_out     : output symbols (packed bytes)
+/// Returns the number of bytes written
+pub fn pack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
+    let sym_in_len = sym_in.len();
+    let sym_out_len = sym_out.len();
+
+    let req_sym_out_len = (sym_in_len + 7) / 8;
+    if sym_out_len < req_sym_out_len {
+        return Err(Error::Config("pack_bytes(), output too short".into()));
+    }
+
+    let mut n = 0usize; // number of bytes written to output
+    let mut byte: u8 = 0;
+
+    for (i, &bit) in sym_in.iter().enumerate() {
+        byte |= bit & 0x01;
+
+        if (i + 1) % 8 == 0 {
+            sym_out[n] = byte;
+            n += 1;
+            byte = 0;
+        } else {
+            byte <<= 1;
+        }
+    }
+
+    if sym_in_len % 8 != 0 {
+        sym_out[n] = byte >> 1;
+        n += 1;
+    }
+
+    Ok(n)
+}
+
+/// Unpack 8-bit symbols (full bytes) into one-bit symbols
+///   sym_in      : input symbols array (packed bytes)
+///   sym_out     : output symbols array (one bit per element)
+/// Returns the number of bits written
+pub fn unpack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
+    let sym_in_len = sym_in.len();
+    let sym_out_len = sym_out.len();
+
+    if sym_out_len < 8 * sym_in_len {
+        return Err(Error::Config("unpack_bytes(), output too short".into()));
+    }
+
+    let mut n = 0usize;
+
+    for &byte in sym_in {
+        // unpack byte into 8 one-bit symbols
+        sym_out[n] = (byte >> 7) & 0x01;
+        sym_out[n + 1] = (byte >> 6) & 0x01;
+        sym_out[n + 2] = (byte >> 5) & 0x01;
+        sym_out[n + 3] = (byte >> 4) & 0x01;
+        sym_out[n + 4] = (byte >> 3) & 0x01;
+        sym_out[n + 5] = (byte >> 2) & 0x01;
+        sym_out[n + 6] = (byte >> 1) & 0x01;
+        sym_out[n + 7] = byte & 0x01;
+        n += 8;
+    }
+
+    Ok(n)
+}
+
+/// Repack bytes with arbitrary symbol sizes
+///   sym_in      : input symbols array
+///   sym_in_bps  : number of bits per input symbol
+///   sym_out     : output symbols array
+///   sym_out_bps : number of bits per output symbol
+/// Returns the number of output symbols written
+pub fn repack_bytes(
+    sym_in: &[u8],
+    sym_in_bps: usize,
+    sym_out: &mut [u8],
+    sym_out_bps: usize,
+) -> Result<usize> {
+    let sym_in_len = sym_in.len();
+    let sym_out_len = sym_out.len();
+
+    // compute number of output symbols and determine if output array
+    // is sufficiently sized
+    let total_bits = sym_in_len * sym_in_bps;
+    let req_sym_out_len = (total_bits + (sym_out_bps - 1)) / sym_out_bps;
+    if sym_out_len < req_sym_out_len {
+        return Err(Error::Config(format!(
+            "repack_bytes(), output too short; {} {}-bit symbols cannot be packed into {} {}-bit elements",
+            sym_in_len, sym_in_bps, sym_out_len, sym_out_bps
+        )));
+    }
+
+    let mut s_in: u8 = 0; // input symbol
+    let mut s_out: u8 = 0; // output symbol
+
+    let mut i_in = 0usize; // input index counter
+    let mut i_out = 0usize; // output index counter
+    let mut k = 0usize; // input symbol enable
+    let mut n = 0usize; // output symbol enable
+
+    for _ in 0..total_bits {
+        // shift output symbol by one bit
+        s_out <<= 1;
+
+        // pop input if necessary
+        if k == 0 {
+            s_in = sym_in[i_in];
+            i_in += 1;
+        }
+
+        // compute shift amount and append input bit at index to output symbol
+        let v = sym_in_bps - k - 1;
+        s_out |= (s_in >> v) & 0x01;
+
+        // push output if available
+        if n == sym_out_bps - 1 {
+            sym_out[i_out] = s_out;
+            i_out += 1;
+            s_out = 0;
+        }
+
+        // update input/output symbol pop/push flags
+        k = (k + 1) % sym_in_bps;
+        n = (n + 1) % sym_out_bps;
+    }
+
+    // if uneven, push zeros into remaining output symbol
+    if i_out != req_sym_out_len {
+        for _ in n..sym_out_bps {
+            s_out <<= 1;
+        }
+        sym_out[i_out] = s_out;
+        i_out += 1;
+    }
+
+    Ok(i_out)
+}
+
+
 // Constants for lookup tables
 
 // Format the following array with 8 columns, lowercase hex
@@ -266,5 +525,264 @@ mod tests {
         assert_eq!(msb_index(0x20000000), 30);
         assert_eq!(msb_index(0x40000000), 31);
         assert_eq!(msb_index(0x80000000), 32);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_pack_array)]
+    fn test_pack_array() {
+        // input symbols
+        let sym_size: [usize; 9] = [8, 2, 3, 6, 1, 3, 3, 4, 3];
+        let input: [u8; 9] = [
+            0x81, // 1000 0001
+            0x03, //        11
+            0x05, //       101
+            0x3a, //   11 1010
+            0x01, //         1
+            0x07, //       111
+            0x06, //       110
+            0x0a, //      1010
+            0x04, //     10[0] <- last bit is stripped
+        ];
+
+        // output       : 1000 0001 1110 1111 0101 1111 1010 1010
+        // symbol       : 0000 0000 1122 2333 3334 5556 6677 7788
+        let output_test: [u8; 4] = [0x81, 0xEF, 0x5F, 0xAA];
+        let mut output: [u8; 4] = [0xff, 0xff, 0xff, 0xff];
+
+        let mut k = 0usize;
+        for i in 0..9 {
+            pack_array(&mut output, k, sym_size[i], input[i]).unwrap();
+            k += sym_size[i];
+        }
+
+        assert_eq!(&output[..4], &output_test[..4]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_unpack_array)]
+    fn test_unpack_array() {
+        // input        : 1000 0001 1110 1111 0101 1111 1010 1010
+        // symbol       : 0000 0000 1122 2333 3334 5556 6677 7788
+        let input: [u8; 4] = [0x81, 0xEF, 0x5F, 0xAA];
+        let sym_size: [usize; 9] = [8, 2, 3, 6, 1, 3, 3, 4, 3];
+
+        // output syms
+        let output_test: [u8; 9] = [
+            0x81, // 1000 0001
+            0x03, //        11
+            0x05, //       101
+            0x3a, //   11 1010
+            0x01, //         1
+            0x07, //       111
+            0x06, //       110
+            0x0a, //      1010
+            0x04, //     10[0] <- last bit is implied
+        ];
+
+        let mut output: [u8; 9] = [0; 9];
+
+        let mut k = 0usize;
+        for i in 0..9 {
+            output[i] = unpack_array(&input, k, sym_size[i]).unwrap();
+            k += sym_size[i];
+        }
+
+        assert_eq!(&output[..9], &output_test[..9]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_repack_array)]
+    fn test_repack_array() {
+        use rand::Rng;
+
+        let n = 512usize; // input/output array size
+        let mut src = vec![0u8; n]; // original data array
+        let mut dst = vec![0u8; n]; // repacked data array
+
+        let mut rng = rand::thread_rng();
+
+        // initialize input array with random data
+        for i in 0..n {
+            src[i] = rng.gen::<u8>();
+        }
+
+        let mut k = 0usize;
+        while k < 8 * n {
+            // random symbol size
+            let sym_size = (rng.gen::<usize>() % 8) + 1;
+
+            // unpack symbol from input array
+            let sym = unpack_array(&src, k, sym_size).unwrap();
+
+            // pack symbol into output array
+            pack_array(&mut dst, k, sym_size, sym).unwrap();
+
+            // update bit index counter
+            k += sym_size;
+        }
+
+        assert_eq!(&src[..n], &dst[..n]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_pack_bytes_01)]
+    fn test_pack_bytes_01() {
+        let mut output = [0u8; 8];
+
+        #[rustfmt::skip]
+        let input: [u8; 32] = [
+            0, 0, 0, 0, 0, 0, 0, 0, // 0:   0000 0000
+            1, 1, 1, 1, 1, 1, 1, 1, // 255: 1111 1111
+            0, 0, 0, 0, 1, 1, 1, 1, // 15:  0000 1111
+            1, 0, 1, 0, 1, 0, 1, 0, // 170: 1010 1010
+        ];
+
+        // Test packing entire array (32 elements)
+        let output_test_01: [u8; 4] = [0x00, 0xFF, 0x0F, 0xAA];
+        let n = pack_bytes(&input[..32], &mut output).unwrap();
+        assert_eq!(n, 4);
+        assert_eq!(&output[..4], &output_test_01[..4]);
+
+        // Test packing only 28 elements
+        let output_test_02: [u8; 4] = [0x00, 0xFF, 0x0F, 0x0A];
+        let n = pack_bytes(&input[..28], &mut output).unwrap();
+        assert_eq!(n, 4);
+        assert_eq!(&output[..4], &output_test_02[..4]);
+
+        // Test packing only 25 elements
+        let output_test_03: [u8; 4] = [0x00, 0xFF, 0x0F, 0x01];
+        let n = pack_bytes(&input[..25], &mut output).unwrap();
+        assert_eq!(n, 4);
+        assert_eq!(&output[..4], &output_test_03[..4]);
+
+        // Test packing only 24 elements (3 bytes)
+        let output_test_04: [u8; 3] = [0x00, 0xFF, 0x0F];
+        let n = pack_bytes(&input[..24], &mut output).unwrap();
+        assert_eq!(n, 3);
+        assert_eq!(&output[..3], &output_test_04[..3]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_unpack_bytes_01)]
+    fn test_unpack_bytes_01() {
+        let input: [u8; 5] = [0x00, 0x01, 0xFF, 0x0F, 0xAA];
+
+        let mut output = [0u8; 64];
+
+        #[rustfmt::skip]
+        let output_test: [u8; 40] = [
+            0, 0, 0, 0, 0, 0, 0, 0, // 0:   0000 0000
+            0, 0, 0, 0, 0, 0, 0, 1, // 1:   0000 0001
+            1, 1, 1, 1, 1, 1, 1, 1, // 255: 1111 1111
+            0, 0, 0, 0, 1, 1, 1, 1, // 15:  0000 1111
+            1, 0, 1, 0, 1, 0, 1, 0, // 170: 1010 1010
+        ];
+
+        // Test unpacking first 4 bytes
+        let n = unpack_bytes(&input[..4], &mut output).unwrap();
+        assert_eq!(n, 32);
+        assert_eq!(&output[..32], &output_test[..32]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_repack_bytes_01)]
+    fn test_repack_bytes_01() {
+        let input: [u8; 4] = [
+            0x07, // 111
+            0x00, // 000
+            0x06, // 110
+            0x07, // 111
+        ];
+
+        let output_test: [u8; 6] = [
+            0x03, // 11
+            0x02, // 10
+            0x00, // 00
+            0x03, // 11
+            0x01, // 01
+            0x03, // 11
+        ];
+
+        let mut output = [0u8; 6];
+
+        let n = repack_bytes(&input, 3, &mut output, 2).unwrap();
+
+        assert_eq!(n, 6);
+        assert_eq!(&output[..6], &output_test[..6]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_repack_bytes_02)]
+    fn test_repack_bytes_02() {
+        let input: [u8; 3] = [
+            0x01, // 00001
+            0x02, // 00010
+            0x04, // 00100
+        ];
+
+        let output_test: [u8; 5] = [
+            0x00, // 000
+            0x02, // 010
+            0x01, // 001
+            0x00, // 000
+            0x04, // 100
+        ];
+
+        let mut output = [0u8; 5];
+
+        let n = repack_bytes(&input, 5, &mut output, 3).unwrap();
+
+        assert_eq!(n, 5);
+        assert_eq!(&output[..5], &output_test[..5]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_repack_bytes_03)]
+    fn test_repack_bytes_03() {
+        let input: [u8; 5] = [
+            0x00, // 000
+            0x02, // 010
+            0x01, // 001
+            0x00, // 000
+            0x04, // 100
+        ];
+
+        let output_test: [u8; 3] = [
+            0x01, // 00001
+            0x02, // 00010
+            0x04, // 00100
+        ];
+
+        let mut output = [0u8; 3];
+
+        let n = repack_bytes(&input, 3, &mut output, 5).unwrap();
+
+        assert_eq!(n, 3);
+        assert_eq!(&output[..3], &output_test[..3]);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_repack_bytes_04_uneven)]
+    fn test_repack_bytes_04_uneven() {
+        let input: [u8; 3] = [
+            0x07, // 111
+            0x07, // 111
+            0x07, // 111(0)
+        ];
+
+        let output_test: [u8; 5] = [
+            0x03, // 11
+            0x03, // 11
+            0x03, // 11
+            0x03, // 11
+            0x02, // 10
+        ];
+
+        let mut output = [0u8; 5];
+
+        let n = repack_bytes(&input, 3, &mut output, 2).unwrap();
+
+        assert_eq!(n, 5);
+        assert_eq!(&output[..5], &output_test[..5]);
     }
 }
