@@ -12,6 +12,8 @@ pub mod channel;
 pub mod dotprod;
 /// Equalization
 pub mod equalization;
+/// FEC (Forward Error Correction)
+pub mod fec;
 /// FFT (Fast Fourier Transform)
 pub mod fft;
 /// Filter
