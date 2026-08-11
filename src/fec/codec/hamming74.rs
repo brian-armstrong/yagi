@@ -1,0 +1,200 @@
+//
+// 1/2-rate (7,4) Hamming code
+//
+
+use crate::fec::scheme::block_enc_msg_len;
+use crate::utility::bits::{pack_array, unpack_array};
+
+// encoder look-up table
+const ENC_GENTAB: [u8; 16] = [
+    0x00, 0x69, 0x2a, 0x43, 0x4c, 0x25, 0x66, 0x0f,
+    0x70, 0x19, 0x5a, 0x33, 0x3c, 0x55, 0x16, 0x7f,
+];
+
+// decoder look-up table
+const DEC_GENTAB: [u8; 128] = [
+    0x00, 0x00, 0x00, 0x03, 0x00, 0x05, 0x0e, 0x07,
+    0x00, 0x09, 0x02, 0x07, 0x04, 0x07, 0x07, 0x07,
+    0x00, 0x09, 0x0e, 0x0b, 0x0e, 0x0d, 0x0e, 0x0e,
+    0x09, 0x09, 0x0a, 0x09, 0x0c, 0x09, 0x0e, 0x07,
+    0x00, 0x05, 0x02, 0x0b, 0x05, 0x05, 0x06, 0x05,
+    0x02, 0x01, 0x02, 0x02, 0x0c, 0x05, 0x02, 0x07,
+    0x08, 0x0b, 0x0b, 0x0b, 0x0c, 0x05, 0x0e, 0x0b,
+    0x0c, 0x09, 0x02, 0x0b, 0x0c, 0x0c, 0x0c, 0x0f,
+    0x00, 0x03, 0x03, 0x03, 0x04, 0x0d, 0x06, 0x03,
+    0x04, 0x01, 0x0a, 0x03, 0x04, 0x04, 0x04, 0x07,
+    0x08, 0x0d, 0x0a, 0x03, 0x0d, 0x0d, 0x0e, 0x0d,
+    0x0a, 0x09, 0x0a, 0x0a, 0x04, 0x0d, 0x0a, 0x0f,
+    0x08, 0x01, 0x06, 0x03, 0x06, 0x05, 0x06, 0x06,
+    0x01, 0x01, 0x02, 0x01, 0x04, 0x01, 0x06, 0x0f,
+    0x08, 0x08, 0x08, 0x0b, 0x08, 0x0d, 0x06, 0x0f,
+    0x08, 0x01, 0x0a, 0x0f, 0x0c, 0x0f, 0x0f, 0x0f,
+];
+
+/// encode block of data using Hamming(7,4) encoder
+///
+///  msg_dec        :   decoded message [size: dec_msg_len x 1]
+///  msg_enc        :   encoded message [size: ...]
+pub fn hamming74_encode(msg_dec: &[u8], msg_enc: &mut [u8]) {
+    let dec_msg_len = msg_dec.len();
+
+    // compute encoded message length
+    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7);
+
+    // pack_array writes only the bits it is given, so clear first
+    msg_enc[..enc_msg_len].fill(0);
+
+    let mut k = 0usize; // array bit index
+
+    for i in 0..dec_msg_len {
+        // strip two 4-bit symbols from input byte
+        let s0 = (msg_dec[i] >> 4) & 0x0f;
+        let s1 = msg_dec[i] & 0x0f;
+
+        // encode two 7-bit symbols
+        let m0 = ENC_GENTAB[s0 as usize];
+        let m1 = ENC_GENTAB[s1 as usize];
+
+        // pack encoded symbols into output array
+        pack_array(msg_enc, k, 7, m0).unwrap();
+        k += 7;
+        pack_array(msg_enc, k, 7, m1).unwrap();
+        k += 7;
+    }
+}
+
+/// decode block of data using Hamming(7,4) decoder
+///
+///  dec_msg_len    :   decoded message length (number of bytes)
+///  msg_enc        :   encoded message [size: ...]
+///  msg_dec        :   decoded message [size: dec_msg_len x 1]
+pub fn hamming74_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) {
+    // compute encoded message length
+    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7);
+
+    let mut k = 0usize; // array bit index
+
+    for i in 0..dec_msg_len {
+        // strip two 7-bit symbols
+        let r0 = unpack_array(msg_enc, k, 7).unwrap();
+        k += 7;
+        let r1 = unpack_array(msg_enc, k, 7).unwrap();
+        k += 7;
+
+        let s0 = DEC_GENTAB[r0 as usize];
+        let s1 = DEC_GENTAB[r1 as usize];
+
+        msg_dec[i] = (s0 << 4) | s1;
+    }
+
+    debug_assert_eq!(k, enc_msg_len * 8);
+}
+
+// soft decoding of one symbol
+fn soft_decode_symbol(soft_bits: &[u8]) -> u8 {
+    // find symbol with minimum distance from all 2^4 possible
+    let mut dmin = u32::MAX;
+    let mut s_hat = 0u8;
+
+    for s in 0u8..16 {
+        // encode symbol
+        let c = ENC_GENTAB[s as usize];
+
+        // compute distance metric
+        let mut d = 0u32;
+        d += if c & 0x40 != 0 { 255 - soft_bits[0] as u32 } else { soft_bits[0] as u32 };
+        d += if c & 0x20 != 0 { 255 - soft_bits[1] as u32 } else { soft_bits[1] as u32 };
+        d += if c & 0x10 != 0 { 255 - soft_bits[2] as u32 } else { soft_bits[2] as u32 };
+        d += if c & 0x08 != 0 { 255 - soft_bits[3] as u32 } else { soft_bits[3] as u32 };
+        d += if c & 0x04 != 0 { 255 - soft_bits[4] as u32 } else { soft_bits[4] as u32 };
+        d += if c & 0x02 != 0 { 255 - soft_bits[5] as u32 } else { soft_bits[5] as u32 };
+        d += if c & 0x01 != 0 { 255 - soft_bits[6] as u32 } else { soft_bits[6] as u32 };
+
+        if d < dmin {
+            s_hat = s;
+            dmin = d;
+        }
+    }
+
+    s_hat
+}
+
+/// decode block of data using Hamming(7,4) soft decoder
+///
+///  dec_msg_len    :   decoded message length (number of bytes)
+///  msg_enc        :   encoded message [size: 8*enc_msg_len x 1]
+///  msg_dec        :   decoded message [size: dec_msg_len x 1]
+pub fn hamming74_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) {
+    // compute encoded message length
+    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7);
+
+    let mut k = 0usize; // array bit index
+
+    for i in 0..dec_msg_len {
+        let s0 = soft_decode_symbol(&msg_enc[k..]);
+        let s1 = soft_decode_symbol(&msg_enc[k + 7..]);
+        k += 14;
+
+        // pack two 4-bit symbols into one 8-bit byte
+        msg_dec[i] = (s0 << 4) | s1;
+    }
+
+    debug_assert_eq!(k, 8 * enc_msg_len);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fec::{Fec, FecScheme};
+    use test_macro::autotest_annotate;
+
+    #[test]
+    #[autotest_annotate(autotest_hamming74_codec)]
+    fn test_hamming74_codec() {
+        let n = 4;
+        let msg: [u8; 4] = [0x25, 0x62, 0x3F, 0x52];
+        let fs = FecScheme::Hamming74;
+
+        // create arrays
+        let n_enc = fs.enc_msg_len(n);
+        let mut msg_enc = vec![0u8; n_enc];
+        let mut msg_dec = [0u8; 4];
+
+        // create object
+        let mut q = Fec::new(fs).unwrap();
+
+        // encode message
+        q.encode(&msg, &mut msg_enc).unwrap();
+
+        // corrupt encoded message
+        msg_enc[0] ^= 0x04; // position 5
+
+        // decode message
+        q.decode(n, &msg_enc, &mut msg_dec).unwrap();
+
+        // validate data are the same
+        assert_eq!(msg, msg_dec);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_hamming74_codec_soft)]
+    fn test_hamming74_codec_soft() {
+        // generate each of the 2^4=16 symbols, encode, and decode
+        // using soft decoding algorithm
+        for s in 0u8..16 {
+            // encode using look-up table
+            let c = ENC_GENTAB[s as usize];
+
+            // expand soft bits
+            let mut c_soft = [0u8; 7];
+            for (i, bit) in c_soft.iter_mut().enumerate() {
+                *bit = if c & (0x40 >> i) != 0 { 255 } else { 0 };
+            }
+
+            // decode using internal soft decoding method
+            let s_hat = soft_decode_symbol(&c_soft);
+
+            assert_eq!(s, s_hat);
+        }
+    }
+}
