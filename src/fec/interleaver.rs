@@ -7,10 +7,10 @@
 /// structured interleaver object
 #[derive(Clone, Debug)]
 pub struct Interleaver {
-    n: usize,     // number of bytes
-    m: usize,     // row dimension
-    nn: usize,    // col dimension (called N in liquid, but n is taken)
-    depth: usize, // interleaving depth (number of permutations)
+    n: usize,      // number of bytes
+    rows: usize,   // row dimension
+    cols: usize,   // col dimension
+    depth: usize,  // interleaving depth (number of permutations)
 }
 
 impl Interleaver {
@@ -20,14 +20,14 @@ impl Interleaver {
         let depth = 4; // default depth to maximum
 
         // compute block dimensions
-        let m = 1 + (n as f32).sqrt().floor() as usize;
+        let rows = 1 + (n as f32).sqrt().floor() as usize;
 
-        let mut nn = n / m;
-        while n >= m * nn {
-            nn += 1;
-        } // ensures M*N >= n
+        let mut cols = n / rows;
+        while n >= rows * cols {
+            cols += 1;
+        } // ensures rows * cols >= n
 
-        Self { n, m, nn, depth }
+        Self { n, rows, cols, depth }
     }
 
     /// set depth (number of internal iterations)
@@ -54,16 +54,16 @@ impl Interleaver {
         msg_enc[..self.n].copy_from_slice(&msg_dec[..self.n]);
 
         if self.depth > 0 {
-            permute(msg_enc, self.n, self.m, self.nn);
+            permute(msg_enc, self.n, self.rows, self.cols);
         }
         if self.depth > 1 {
-            permute_mask(msg_enc, self.n, self.m, self.nn + 2, 0x0f);
+            permute_mask(msg_enc, self.n, self.rows, self.cols + 2, 0x0f);
         }
         if self.depth > 2 {
-            permute_mask(msg_enc, self.n, self.m, self.nn + 4, 0x55);
+            permute_mask(msg_enc, self.n, self.rows, self.cols + 4, 0x55);
         }
         if self.depth > 3 {
-            permute_mask(msg_enc, self.n, self.m, self.nn + 8, 0x33);
+            permute_mask(msg_enc, self.n, self.rows, self.cols + 8, 0x33);
         }
     }
 
@@ -76,16 +76,16 @@ impl Interleaver {
         msg_enc[..8 * self.n].copy_from_slice(&msg_dec[..8 * self.n]);
 
         if self.depth > 0 {
-            permute_soft(msg_enc, self.n, self.m, self.nn);
+            permute_soft(msg_enc, self.n, self.rows, self.cols);
         }
         if self.depth > 1 {
-            permute_mask_soft(msg_enc, self.n, self.m, self.nn + 2, 0x0f);
+            permute_mask_soft(msg_enc, self.n, self.rows, self.cols + 2, 0x0f);
         }
         if self.depth > 2 {
-            permute_mask_soft(msg_enc, self.n, self.m, self.nn + 4, 0x55);
+            permute_mask_soft(msg_enc, self.n, self.rows, self.cols + 4, 0x55);
         }
         if self.depth > 3 {
-            permute_mask_soft(msg_enc, self.n, self.m, self.nn + 8, 0x33);
+            permute_mask_soft(msg_enc, self.n, self.rows, self.cols + 8, 0x33);
         }
     }
 
@@ -98,16 +98,16 @@ impl Interleaver {
         msg_dec[..self.n].copy_from_slice(&msg_enc[..self.n]);
 
         if self.depth > 3 {
-            permute_mask(msg_dec, self.n, self.m, self.nn + 8, 0x33);
+            permute_mask(msg_dec, self.n, self.rows, self.cols + 8, 0x33);
         }
         if self.depth > 2 {
-            permute_mask(msg_dec, self.n, self.m, self.nn + 4, 0x55);
+            permute_mask(msg_dec, self.n, self.rows, self.cols + 4, 0x55);
         }
         if self.depth > 1 {
-            permute_mask(msg_dec, self.n, self.m, self.nn + 2, 0x0f);
+            permute_mask(msg_dec, self.n, self.rows, self.cols + 2, 0x0f);
         }
         if self.depth > 0 {
-            permute(msg_dec, self.n, self.m, self.nn);
+            permute(msg_dec, self.n, self.rows, self.cols);
         }
     }
 
@@ -120,16 +120,16 @@ impl Interleaver {
         msg_dec[..8 * self.n].copy_from_slice(&msg_enc[..8 * self.n]);
 
         if self.depth > 3 {
-            permute_mask_soft(msg_dec, self.n, self.m, self.nn + 8, 0x33);
+            permute_mask_soft(msg_dec, self.n, self.rows, self.cols + 8, 0x33);
         }
         if self.depth > 2 {
-            permute_mask_soft(msg_dec, self.n, self.m, self.nn + 4, 0x55);
+            permute_mask_soft(msg_dec, self.n, self.rows, self.cols + 4, 0x55);
         }
         if self.depth > 1 {
-            permute_mask_soft(msg_dec, self.n, self.m, self.nn + 2, 0x0f);
+            permute_mask_soft(msg_dec, self.n, self.rows, self.cols + 2, 0x0f);
         }
         if self.depth > 0 {
-            permute_soft(msg_dec, self.n, self.m, self.nn);
+            permute_soft(msg_dec, self.n, self.rows, self.cols);
         }
     }
 }
@@ -139,19 +139,19 @@ impl Interleaver {
 //
 
 // permute one iteration
-fn permute(x: &mut [u8], n: usize, m: usize, nn: usize) {
-    let mut mm = 0usize;
+fn permute(x: &mut [u8], n: usize, rows: usize, cols: usize) {
+    let mut row = 0usize;
     let mut col = n / 3;
     let n2 = n / 2;
 
     for i in 0..n2 {
         let j;
         loop {
-            let candidate = mm * nn + col;
-            mm += 1;
-            if mm == m {
-                col = (col + 1) % nn;
-                mm = 0;
+            let candidate = row * cols + col;
+            row += 1;
+            if row == rows {
+                col = (col + 1) % cols;
+                row = 0;
             }
             if candidate < n2 {
                 j = candidate;
@@ -165,19 +165,19 @@ fn permute(x: &mut [u8], n: usize, m: usize, nn: usize) {
 }
 
 // permute one iteration (soft bit input)
-fn permute_soft(x: &mut [u8], n: usize, m: usize, nn: usize) {
-    let mut mm = 0usize;
+fn permute_soft(x: &mut [u8], n: usize, rows: usize, cols: usize) {
+    let mut row = 0usize;
     let mut col = n / 3;
     let n2 = n / 2;
 
     for i in 0..n2 {
         let j;
         loop {
-            let candidate = mm * nn + col;
-            mm += 1;
-            if mm == m {
-                col = (col + 1) % nn;
-                mm = 0;
+            let candidate = row * cols + col;
+            row += 1;
+            if row == rows {
+                col = (col + 1) % cols;
+                row = 0;
             }
             if candidate < n2 {
                 j = candidate;
@@ -195,19 +195,19 @@ fn permute_soft(x: &mut [u8], n: usize, m: usize, nn: usize) {
 }
 
 /// Permute one iteration with mask
-fn permute_mask(x: &mut [u8], n: usize, m: usize, nn: usize, mask: u8) {
-    let mut mm = 0usize;
+fn permute_mask(x: &mut [u8], n: usize, rows: usize, cols: usize, mask: u8) {
+    let mut row = 0usize;
     let mut col = n / 3;
     let n2 = n / 2;
 
     for i in 0..n2 {
         let j;
         loop {
-            let candidate = mm * nn + col;
-            mm += 1;
-            if mm == m {
-                col = (col + 1) % nn;
-                mm = 0;
+            let candidate = row * cols + col;
+            row += 1;
+            if row == rows {
+                col = (col + 1) % cols;
+                row = 0;
             }
             if candidate < n2 {
                 j = candidate;
@@ -224,19 +224,19 @@ fn permute_mask(x: &mut [u8], n: usize, m: usize, nn: usize, mask: u8) {
 }
 
 // permute one iteration (soft bit input) with mask
-fn permute_mask_soft(x: &mut [u8], n: usize, m: usize, nn: usize, mask: u8) {
-    let mut mm = 0usize;
+fn permute_mask_soft(x: &mut [u8], n: usize, rows: usize, cols: usize, mask: u8) {
+    let mut row = 0usize;
     let mut col = n / 3;
     let n2 = n / 2;
 
     for i in 0..n2 {
         let j;
         loop {
-            let candidate = mm * nn + col;
-            mm += 1;
-            if mm == m {
-                col = (col + 1) % nn;
-                mm = 0;
+            let candidate = row * cols + col;
+            row += 1;
+            if row == rows {
+                col = (col + 1) % cols;
+                row = 0;
             }
             if candidate < n2 {
                 j = candidate;
@@ -345,5 +345,178 @@ mod tests {
     #[autotest_annotate(autotest_interleaver_soft_256)]
     fn test_interleaver_soft_256() {
         interleaver_test_soft(256);
+    }
+
+    #[test]
+    fn test_interleaver_passthrough() {
+        let mut rng = rand::thread_rng();
+        const N: usize = 64;
+
+        let mut x = vec![0u8; N];
+        let mut y = vec![0u8; N];
+        let mut z = vec![0u8; N];
+
+        for i in 0..N {
+            x[i] = rng.gen::<u8>();
+        }
+
+        // create interleaver object
+        let mut q = Interleaver::new(N);
+        q.set_depth(0);
+
+        q.encode(&x[..N], &mut y[..N]);
+        q.decode(&y[..N], &mut z[..N]);
+
+        assert_eq!(&x[..], &y[..]);
+        assert_eq!(&x[..], &z[..]);
+        assert_eq!(&y[..], &z[..]);
+    }
+
+    #[test]
+    fn test_interleaver_depths_hard() {
+        for depth in 0..=4 {
+            let mut rng = rand::thread_rng();
+            const N: usize = 64;
+
+            let mut x = vec![0u8; N];
+            let mut y = vec![0u8; N];
+            let mut z = vec![0u8; N];
+
+            for i in 0..N {
+                x[i] = rng.gen::<u8>();
+            }
+
+            // create interleaver object
+            let mut q = Interleaver::new(N);
+            q.set_depth(depth);
+
+            q.encode(&x[..N], &mut y[..N]);
+            q.decode(&y[..N], &mut z[..N]);
+
+            assert_eq!(&x[..], &z[..]);
+        }
+    }
+
+    #[test]
+    fn test_interleaver_depths_soft() {
+        for depth in 0..=4 {
+            let mut rng = rand::thread_rng();
+            const N: usize = 64;
+
+            let mut x = vec![0u8; 8 * N];
+            let mut y = vec![0u8; 8 * N];
+            let mut z = vec![0u8; 8 * N];
+
+            for i in 0..N {
+                x[i] = rng.gen::<u8>();
+            }
+
+            // create interleaver object
+            let mut q = Interleaver::new(N);
+            q.set_depth(depth);
+
+            q.encode_soft(&x[..8 * N], &mut y[..8 * N]);
+            q.decode_soft(&y[..8 * N], &mut z[..8 * N]);
+
+            assert_eq!(&x[..], &z[..]);
+        }
+    }
+
+    #[test]
+    fn test_interleaver_permutation_depth_1() {
+        // interleave 0,1,2,... at depth 1
+        let x: Vec<u8> = (0..8).collect();
+        let mut y = vec![0u8; 8];
+
+        let mut q = Interleaver::new(8);
+        q.set_depth(1);
+        q.encode(&x, &mut y);
+
+        //  i  | j | swap
+        // ----+---+-----------
+        //  0  | 2 | x[5] <-> x[0]
+        //  1  | 0 | x[1] <-> x[2]
+        //  2  | 3 | x[7] <-> x[4]
+        //  3  | 1 | x[3] <-> x[6]
+        assert_eq!(y, [5, 2, 1, 6, 7, 0, 3, 4]);
+
+        // demonstrate a longer run
+        let x: Vec<u8> = (0..64).collect();
+        let mut y = vec![0u8; 64];
+
+        let mut q = Interleaver::new(64);
+        q.set_depth(1);
+        q.encode(&x, &mut y);
+
+        assert_eq!(
+            y,
+            [
+                43, 20, 59, 28, 13, 36, 29, 44, 45, 52, 61, 60, 15, 4, 31, 12, 47, 22, 63, 30, 1,
+                38, 17, 46, 33, 54, 49, 62, 3, 6, 19, 14, 35, 24, 51, 32, 5, 40, 21, 48, 37, 56,
+                53, 0, 7, 8, 23, 16, 39, 26, 55, 34, 9, 42, 25, 50, 41, 58, 57, 2, 11, 10, 27, 18
+            ]
+        );
+    }
+
+    #[test]
+    fn test_interleaver_permutation_all_depths() {
+        // repeat the same 4 bits on top and on bottom so that the effect of depth 2 shows up in hex
+        let x: Vec<u8> = (0..16).map(|i| (i << 4) | i).collect();
+        let mut y = vec![0u8; 16];
+
+        let mut q = Interleaver::new(16);
+        q.set_depth(0);
+        q.encode(&x, &mut y);
+
+        // depth 0 (same as x)
+        assert_eq!(y, [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
+
+        q.set_depth(1);
+        q.encode(&x, &mut y);
+
+        // depth 1 interleaving
+        assert_eq!(y, [0xbb, 0xaa, 0x55, 0xee, 0xdd, 0x22, 0x77, 0x66, 0xff, 0xcc, 0x11, 0x00, 0x99, 0x44, 0x33, 0x88]);
+
+        q.set_depth(2);
+        q.encode(&x, &mut y);
+
+        // depth 2 interleaving. top bits are the same as before but the bottom 4 bits are scrambled.
+        assert_eq!(y, [0xb0, 0xa5, 0x5a, 0xe7, 0xd4, 0x21, 0x7e, 0x69, 0xf8, 0xc3, 0x12, 0x0b, 0x96, 0x4d, 0x3c, 0x8f]);
+
+        q.set_depth(3);
+        q.encode(&x, &mut y);
+
+        // depth 3 interleaves with mask 0x55, so the pattern is less obvious
+        assert_eq!(y, [0xa1, 0xf4, 0x4f, 0xf2, 0x85, 0x30, 0x2f, 0x3c, 0xed, 0x96, 0x03, 0x1a, 0xc3, 0x58, 0x69, 0xde]);
+
+        q.set_depth(4);
+        q.encode(&x, &mut y);
+
+        // full interleaving (depth 4). last stage uses mask 0x33
+        assert_eq!(y, [0x92, 0xe7, 0x5c, 0xe1, 0x96, 0x03, 0x3c, 0x0f, 0xfe, 0xa5, 0x30, 0x29, 0xf0, 0x4b, 0x5a, 0xcd]);
+    }
+
+
+    #[test]
+    fn test_interleaver_permutation_is_bijection() {
+        for n in [2usize, 8, 15, 16, 63, 64, 100, 256] {
+            let x: Vec<u8> = (0..n).map(|i| i as u8).collect();
+            let mut y = vec![0u8; n];
+
+            let mut q = Interleaver::new(n);
+            q.set_depth(1);
+            q.encode(&x, &mut y);
+
+            // all indices present exactly once (n <= 256 keeps these distinct)
+            let mut sorted = y.clone();
+            sorted.sort_unstable();
+            assert_eq!(sorted, x, "n = {}", n);
+
+            // index parity always flips, for each complete pair
+            for i in 0..n / 2 {
+                assert_eq!(y[2 * i] % 2, 1, "n = {}, even slot {}", n, 2 * i);
+                assert_eq!(y[2 * i + 1] % 2, 0, "n = {}, odd slot {}", n, 2 * i + 1);
+            }
+        }
     }
 }
