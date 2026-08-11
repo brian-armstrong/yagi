@@ -785,4 +785,34 @@ mod tests {
         assert_eq!(n, 5);
         assert_eq!(&output[..5], &output_test[..5]);
     }
+
+    #[test]
+    #[autotest_annotate(autotest_reverse_byte)]
+    fn test_reverse_byte() {
+        // 0110 0010
+        let b: u8 = 0x62;
+        // 0100 0110
+        let r: u8 = 0x46;
+        assert_eq!(reverse_byte(b), r);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_reverse_uint16)]
+    fn test_reverse_uint16() {
+        // 1111 0111 0101 1001
+        let b: u32 = 0xF759;
+        // 1001 1010 1110 1111
+        let r: u32 = 0x9AEF;
+        assert_eq!(reverse_16(b), r);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_reverse_uint32)]
+    fn test_reverse_uint32() {
+        // 0110 0010 1101 1001 0011 1011 1111 0000
+        let b: u32 = 0x62D93BF0;
+        // 0000 1111 1101 1100 1001 1011 0100 0110
+        let r: u32 = 0x0FDC9B46;
+        assert_eq!(reverse_32(b), r);
+    }
 }
