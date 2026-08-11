@@ -78,11 +78,11 @@ where
             return Ok(y);
         }
 
-        if self.y2_prime > 1e-6.into() {
+        if self.y2_prime > 1e-6_f32 {
             self.g *= (-0.5 * self.alpha * self.y2_prime.ln()).exp();
         }
 
-        self.g = self.g.min(1e6.into());
+        self.g = self.g.min(1e6_f32);
         self.squelch_update_mode()?;
 
         Ok(y * self.scale)
