@@ -4,6 +4,7 @@ mod codec;
 mod crc;
 mod fec;
 mod interleaver;
+mod packetizer;
 mod scheme;
 
 pub use crc::{
@@ -18,4 +19,7 @@ pub use codec::{
 };
 pub use fec::Fec;
 pub use interleaver::Interleaver;
+pub use packetizer::{
+    packetizer_compute_dec_msg_len, packetizer_compute_enc_msg_len, Packetizer,
+};
 pub use scheme::FecScheme;

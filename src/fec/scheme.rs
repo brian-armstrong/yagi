@@ -228,6 +228,15 @@ impl FecScheme {
         matches!(self, FecScheme::Rep3 | FecScheme::Rep5)
     }
 
+    /// symbol width in bits
+    pub fn symbol_bits(&self) -> usize {
+        if self.is_reedsolomon() {
+            8
+        } else {
+            1
+        }
+    }
+
     /// get the theoretical rate of a particular forward error-
     /// correction scheme (object-independent method)
     pub fn rate(&self) -> f32 {

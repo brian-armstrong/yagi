@@ -31,3 +31,5 @@ test_macro = { path = "test_macro" }
 
 [features]
 simd = ["fec/simd"]
+# reproduce liquid-dsp behavior where yagi otherwise diverges from it
+liquid-quirks = []
