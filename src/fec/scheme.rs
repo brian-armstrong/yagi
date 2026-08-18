@@ -65,7 +65,43 @@ pub enum FecScheme {
 }
 
 
+/// Number of FEC schemes, `Unknown` included
+pub const NUM_FEC_SCHEMES: usize = FecScheme::RsM8 as usize + 1;
+
 impl FecScheme {
+    /// Every FEC scheme, in declaration order
+    ///
+    /// Excludes `Unknown`, which is not a scheme
+    pub const ALL: [FecScheme; NUM_FEC_SCHEMES - 1] = [
+        FecScheme::None,
+        FecScheme::Rep3,
+        FecScheme::Rep5,
+        FecScheme::Hamming74,
+        FecScheme::Hamming84,
+        FecScheme::Hamming128,
+        FecScheme::Golay2412,
+        FecScheme::Secded2216,
+        FecScheme::Secded3932,
+        FecScheme::Secded7264,
+        FecScheme::ConvV27,
+        FecScheme::ConvV29,
+        FecScheme::ConvV39,
+        FecScheme::ConvV615,
+        FecScheme::ConvV27P23,
+        FecScheme::ConvV27P34,
+        FecScheme::ConvV27P45,
+        FecScheme::ConvV27P56,
+        FecScheme::ConvV27P67,
+        FecScheme::ConvV27P78,
+        FecScheme::ConvV29P23,
+        FecScheme::ConvV29P34,
+        FecScheme::ConvV29P45,
+        FecScheme::ConvV29P56,
+        FecScheme::ConvV29P67,
+        FecScheme::ConvV29P78,
+        FecScheme::RsM8,
+    ];
+
     /// returns fec_scheme based on input string
     pub fn from_str(s: &str) -> Self {
         match s {
@@ -463,6 +499,24 @@ mod tests {
             assert_eq!(scheme.is_repeat(), repeat, "{:?}", scheme);
         }
         assert!(!FecScheme::Unknown.is_repeat());
+    }
+
+    #[test]
+    fn test_fec_all_covers_schemes() {
+        assert_eq!(FecScheme::ALL.len() + 1, NUM_FEC_SCHEMES);
+        assert!(!FecScheme::ALL.contains(&FecScheme::Unknown));
+
+        // no duplicates
+        let mut seen = std::collections::HashSet::new();
+        for fs in FecScheme::ALL {
+            assert!(seen.insert(fs.short_name()), "{:?} listed twice", fs);
+            assert_eq!(FecScheme::from_str(fs.short_name()), fs);
+            assert!(!fs.long_name().is_empty(), "{:?}", fs);
+        }
+
+        let tabled: std::collections::HashSet<_> =
+            SCHEMES.iter().map(|&(_, name, ..)| name).collect();
+        assert_eq!(seen, tabled, "SCHEMES and ALL disagree");
     }
 
     #[test]

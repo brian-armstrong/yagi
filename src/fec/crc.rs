@@ -20,7 +20,22 @@ pub enum CrcScheme {
     Crc32,
 }
 
+/// Number of CRC schemes, `Unknown` included
+pub const NUM_CRC_SCHEMES: usize = CrcScheme::Crc32 as usize + 1;
+
 impl CrcScheme {
+    /// Every CRC scheme, in declaration order
+    ///
+    /// Excludes `Unknown`, which is not a scheme.
+    pub const ALL: [CrcScheme; NUM_CRC_SCHEMES - 1] = [
+        CrcScheme::None,
+        CrcScheme::Checksum,
+        CrcScheme::Crc8,
+        CrcScheme::Crc16,
+        CrcScheme::Crc24,
+        CrcScheme::Crc32,
+    ];
+
     /// returns crc_scheme based on input string
     pub fn from_str(s: &str) -> Self {
         match s {
@@ -363,5 +378,18 @@ mod tests {
         assert_eq!(CrcScheme::Crc16.key_len(), 2);
         assert_eq!(CrcScheme::Crc24.key_len(), 3);
         assert_eq!(CrcScheme::Crc32.key_len(), 4);
+    }
+
+    #[test]
+    fn test_crc_all_covers_schemes() {
+        assert_eq!(CrcScheme::ALL.len() + 1, NUM_CRC_SCHEMES);
+        assert!(!CrcScheme::ALL.contains(&CrcScheme::Unknown));
+
+        let mut seen = std::collections::HashSet::new();
+        for cs in CrcScheme::ALL {
+            assert!(seen.insert(cs.short_name()), "{:?} listed twice", cs);
+            assert_eq!(CrcScheme::from_str(cs.short_name()), cs);
+            assert!(!cs.long_name().is_empty(), "{:?}", cs);
+        }
     }
 }

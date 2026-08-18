@@ -78,7 +78,69 @@ pub enum ModulationScheme {
     Arb        // arbitrary QAM
 }
 
+/// Number of modulation schemes, `Unknown` included
+pub const NUM_MODULATION_SCHEMES: usize = ModulationScheme::Arb as usize + 1;
+
 impl ModulationScheme {
+    /// Every modulation scheme, in declaration order
+    ///
+    /// Excludes `Unknown`, which is not a scheme, and `Arb`, which carries no
+    /// constellation of its own and so cannot be built by [`Modem::new`]
+    pub const ALL: [ModulationScheme; NUM_MODULATION_SCHEMES - 2] = [
+        ModulationScheme::Psk2,
+        ModulationScheme::Psk4,
+        ModulationScheme::Psk8,
+        ModulationScheme::Psk16,
+        ModulationScheme::Psk32,
+        ModulationScheme::Psk64,
+        ModulationScheme::Psk128,
+        ModulationScheme::Psk256,
+        ModulationScheme::Dpsk2,
+        ModulationScheme::Dpsk4,
+        ModulationScheme::Dpsk8,
+        ModulationScheme::Dpsk16,
+        ModulationScheme::Dpsk32,
+        ModulationScheme::Dpsk64,
+        ModulationScheme::Dpsk128,
+        ModulationScheme::Dpsk256,
+        ModulationScheme::Ask2,
+        ModulationScheme::Ask4,
+        ModulationScheme::Ask8,
+        ModulationScheme::Ask16,
+        ModulationScheme::Ask32,
+        ModulationScheme::Ask64,
+        ModulationScheme::Ask128,
+        ModulationScheme::Ask256,
+        ModulationScheme::Qam4,
+        ModulationScheme::Qam8,
+        ModulationScheme::Qam16,
+        ModulationScheme::Qam32,
+        ModulationScheme::Qam64,
+        ModulationScheme::Qam128,
+        ModulationScheme::Qam256,
+        ModulationScheme::Apsk4,
+        ModulationScheme::Apsk8,
+        ModulationScheme::Apsk16,
+        ModulationScheme::Apsk32,
+        ModulationScheme::Apsk64,
+        ModulationScheme::Apsk128,
+        ModulationScheme::Apsk256,
+        ModulationScheme::Bpsk,
+        ModulationScheme::Qpsk,
+        ModulationScheme::Ook,
+        ModulationScheme::Sqam32,
+        ModulationScheme::Sqam128,
+        ModulationScheme::V29,
+        ModulationScheme::Arb16Opt,
+        ModulationScheme::Arb32Opt,
+        ModulationScheme::Arb64Opt,
+        ModulationScheme::Arb128Opt,
+        ModulationScheme::Arb256Opt,
+        ModulationScheme::Arb64Vt,
+        ModulationScheme::Arb64Ui,
+        ModulationScheme::Pi4Dqpsk,
+    ];
+
     /// returns modulation scheme based on input string
     pub fn from_str(s: &str) -> Self {
         match s {
@@ -1914,8 +1976,7 @@ mod tests {
         (ModulationScheme::Arb64Vt, "arb64vt", 6, false, false, false, false, false),
         (ModulationScheme::Arb64Ui, "arb64ui", 6, false, false, false, false, false),
         (ModulationScheme::Pi4Dqpsk, "pi4dqpsk", 2, false, false, false, false, false),
-        // depth comes from the table, so 0 here
-        (ModulationScheme::Arb, "arb", 0, false, false, false, false, false),
+        // Arb left deliberately absent (cannot be created by new)
     ];
 
     #[test]
@@ -1971,13 +2032,37 @@ mod tests {
         for &(scheme, name, bps, ..) in SCHEMES {
             assert_eq!(scheme.bits_per_symbol(), bps, "bits_per_symbol({})", name);
 
-            if scheme == ModulationScheme::Arb {
-                continue;
-            }
-
             let modem = Modem::new(scheme).unwrap();
             assert_eq!(modem.get_bps(), bps, "{}: modem disagrees with scheme", name);
         }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_modemcf_print_schemes)]
+    fn test_modemcf_all_covers_schemes() {
+        // `ALL` omits exactly Unknown and Arb
+        assert_eq!(ModulationScheme::ALL.len() + 2, NUM_MODULATION_SCHEMES);
+        assert!(!ModulationScheme::ALL.contains(&ModulationScheme::Unknown));
+        assert!(!ModulationScheme::ALL.contains(&ModulationScheme::Arb));
+
+        // no duplicates
+        let mut seen = std::collections::HashSet::new();
+        for ms in ModulationScheme::ALL {
+            assert!(seen.insert(ms.short_name()), "{:?} listed twice", ms);
+            assert_eq!(ModulationScheme::from_str(ms.short_name()), ms);
+        }
+
+        let tabled: std::collections::HashSet<_> =
+            SCHEMES.iter().map(|&(_, name, ..)| name).collect();
+        assert_eq!(seen, tabled, "SCHEMES and ALL disagree");
+    }
+
+    #[test]
+    fn test_modemcf_arb_not_in_all() {
+        assert_eq!(ModulationScheme::Arb.short_name(), "arb");
+        assert_eq!(ModulationScheme::Arb.bits_per_symbol(), 0);
+        assert_eq!(ModulationScheme::from_str("arb"), ModulationScheme::Arb);
+        assert!(Modem::new(ModulationScheme::Arb).is_err());
     }
 
     #[test]
@@ -1988,6 +2073,7 @@ mod tests {
             assert!(!long.is_empty(), "{}: empty long name", name);
             assert!(seen.insert(long), "{}: duplicate long name {:?}", name, long);
         }
+        assert_eq!(ModulationScheme::Arb.long_name(), "arbitrary constellation");
         assert_eq!(ModulationScheme::Unknown.long_name(), "unknown");
     }
 

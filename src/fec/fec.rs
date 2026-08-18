@@ -1112,5 +1112,7 @@ mod tests {
         // liquid also checks hamming128_encode_symbol(1<<8), but ours takes a
         // u8 so the type already bounds it
         assert!(panics(|| { hamming128_decode_symbol(1 << 12); }));
+
+        // no liquid_print_fec_schemes (skip)
     }
 }
