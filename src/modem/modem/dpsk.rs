@@ -14,19 +14,8 @@ impl Dpsk {
 }
 
 impl Modem {
-    pub(super) fn new_dpsk(bits_per_symbol: usize) -> Result<Self> {
-        let scheme = match bits_per_symbol {
-            1 => ModulationScheme::Dpsk2,
-            2 => ModulationScheme::Dpsk4,
-            3 => ModulationScheme::Dpsk8,
-            4 => ModulationScheme::Dpsk16,
-            5 => ModulationScheme::Dpsk32,
-            6 => ModulationScheme::Dpsk64,
-            7 => ModulationScheme::Dpsk128,
-            8 => ModulationScheme::Dpsk256,
-            _ => return Err(Error::Config("cannot support DPSK with m > 8".to_string())),
-        };
-
+    pub(super) fn new_dpsk(scheme: ModulationScheme) -> Result<Self> {
+        let bits_per_symbol = scheme.bits_per_symbol();
         let mut modem = Self::_new(bits_per_symbol, scheme)?;
 
         let alpha = PI / modem.constellation_size as f32;

@@ -6,16 +6,17 @@ pub(super) struct Ask {
 }
 
 impl Modem {
-    pub(super) fn new_ask(bits_per_symbol: usize) -> Result<Self> {
-        let (alpha, scheme) = match 1 << bits_per_symbol {
-            2 => (1.0, ModulationScheme::Ask2),
-            4 => (1.0 / 5.0_f32.sqrt(), ModulationScheme::Ask4),
-            8 => (1.0 / 21.0_f32.sqrt(), ModulationScheme::Ask8),
-            16 => (1.0 / 85.0_f32.sqrt(), ModulationScheme::Ask16),
-            32 => (1.0 / 341.0_f32.sqrt(), ModulationScheme::Ask32),
-            64 => (1.0 / 1365.0_f32.sqrt(), ModulationScheme::Ask64),
-            128 => (1.0 / 5461.0_f32.sqrt(), ModulationScheme::Ask128),
-            256 => (1.0 / 21845.0_f32.sqrt(), ModulationScheme::Ask256),
+    pub(super) fn new_ask(scheme: ModulationScheme) -> Result<Self> {
+        let bits_per_symbol = scheme.bits_per_symbol();
+        let alpha = match 1 << bits_per_symbol {
+            2 => 1.0,
+            4 => 1.0 / 5.0_f32.sqrt(),
+            8 => 1.0 / 21.0_f32.sqrt(),
+            16 => 1.0 / 85.0_f32.sqrt(),
+            32 => 1.0 / 341.0_f32.sqrt(),
+            64 => 1.0 / 1365.0_f32.sqrt(),
+            128 => 1.0 / 5461.0_f32.sqrt(),
+            256 => 1.0 / 21845.0_f32.sqrt(),
             _ => unreachable!(),
         };
 

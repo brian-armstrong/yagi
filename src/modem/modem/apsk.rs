@@ -11,7 +11,8 @@ pub(super) struct Apsk {
 }
 
 impl Modem {
-    pub(super) fn new_apsk(bits_per_symbol: usize) -> Result<Self> {
+    pub(super) fn new_apsk(scheme: ModulationScheme) -> Result<Self> {
+        let bits_per_symbol = scheme.bits_per_symbol();
         let apsk_def = match bits_per_symbol {
             2 => &APSK4,
             3 => &APSK8,
@@ -20,8 +21,10 @@ impl Modem {
             6 => &APSK64,
             7 => &APSK128,
             8 => &APSK256,
-            _ => return Err(Error::Config(format!("Unsupported modulation scheme: {}", bits_per_symbol))),
+            _ => unreachable!(),
         };
+
+        debug_assert_eq!(apsk_def.modulation, scheme);
 
         let mut modem = Modem::_new(bits_per_symbol, apsk_def.modulation)?;
 

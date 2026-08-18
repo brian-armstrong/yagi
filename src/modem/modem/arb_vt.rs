@@ -1,13 +1,8 @@
 use crate::modem::modem::*;
 
-impl Modem {
-    pub(super) fn new_arb_vt() -> Result<Self> {
-        Modem::new_arb(ModulationScheme::Arb, &MODEM_ARB_VT64, 6)
-    }
-}
 
 // Virginia Tech logo
-const MODEM_ARB_VT64: [Complex32; 64] = [
+pub(super) const MODEM_ARB_VT64: [Complex32; 64] = [
     Complex32::new(-1.5633e+00,  5.5460e-01), Complex32::new(-1.3833e+00,  5.5460e-01),
     Complex32::new(-1.0234e+00,  5.5460e-01), Complex32::new(-1.2034e+00,  5.5460e-01),
     Complex32::new(-7.3553e-01,  5.0751e-02), Complex32::new(-8.0750e-01,  1.7671e-01),

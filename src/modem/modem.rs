@@ -78,6 +78,300 @@ pub enum ModulationScheme {
     Arb        // arbitrary QAM
 }
 
+impl ModulationScheme {
+    /// returns modulation scheme based on input string
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "psk2" => ModulationScheme::Psk2,
+            "psk4" => ModulationScheme::Psk4,
+            "psk8" => ModulationScheme::Psk8,
+            "psk16" => ModulationScheme::Psk16,
+            "psk32" => ModulationScheme::Psk32,
+            "psk64" => ModulationScheme::Psk64,
+            "psk128" => ModulationScheme::Psk128,
+            "psk256" => ModulationScheme::Psk256,
+            "dpsk2" => ModulationScheme::Dpsk2,
+            "dpsk4" => ModulationScheme::Dpsk4,
+            "dpsk8" => ModulationScheme::Dpsk8,
+            "dpsk16" => ModulationScheme::Dpsk16,
+            "dpsk32" => ModulationScheme::Dpsk32,
+            "dpsk64" => ModulationScheme::Dpsk64,
+            "dpsk128" => ModulationScheme::Dpsk128,
+            "dpsk256" => ModulationScheme::Dpsk256,
+            "ask2" => ModulationScheme::Ask2,
+            "ask4" => ModulationScheme::Ask4,
+            "ask8" => ModulationScheme::Ask8,
+            "ask16" => ModulationScheme::Ask16,
+            "ask32" => ModulationScheme::Ask32,
+            "ask64" => ModulationScheme::Ask64,
+            "ask128" => ModulationScheme::Ask128,
+            "ask256" => ModulationScheme::Ask256,
+            "qam4" => ModulationScheme::Qam4,
+            "qam8" => ModulationScheme::Qam8,
+            "qam16" => ModulationScheme::Qam16,
+            "qam32" => ModulationScheme::Qam32,
+            "qam64" => ModulationScheme::Qam64,
+            "qam128" => ModulationScheme::Qam128,
+            "qam256" => ModulationScheme::Qam256,
+            "apsk4" => ModulationScheme::Apsk4,
+            "apsk8" => ModulationScheme::Apsk8,
+            "apsk16" => ModulationScheme::Apsk16,
+            "apsk32" => ModulationScheme::Apsk32,
+            "apsk64" => ModulationScheme::Apsk64,
+            "apsk128" => ModulationScheme::Apsk128,
+            "apsk256" => ModulationScheme::Apsk256,
+            "bpsk" => ModulationScheme::Bpsk,
+            "qpsk" => ModulationScheme::Qpsk,
+            "ook" => ModulationScheme::Ook,
+            "sqam32" => ModulationScheme::Sqam32,
+            "sqam128" => ModulationScheme::Sqam128,
+            "V29" => ModulationScheme::V29,
+            "arb16opt" => ModulationScheme::Arb16Opt,
+            "arb32opt" => ModulationScheme::Arb32Opt,
+            "arb64opt" => ModulationScheme::Arb64Opt,
+            "arb128opt" => ModulationScheme::Arb128Opt,
+            "arb256opt" => ModulationScheme::Arb256Opt,
+            "arb64vt" => ModulationScheme::Arb64Vt,
+            "arb64ui" => ModulationScheme::Arb64Ui,
+            "pi4dqpsk" => ModulationScheme::Pi4Dqpsk,
+            "arb" => ModulationScheme::Arb,
+            _ => ModulationScheme::Unknown,
+        }
+    }
+
+    /// short name
+    pub fn short_name(&self) -> &'static str {
+        match self {
+            ModulationScheme::Unknown => "unknown",
+            ModulationScheme::Psk2 => "psk2",
+            ModulationScheme::Psk4 => "psk4",
+            ModulationScheme::Psk8 => "psk8",
+            ModulationScheme::Psk16 => "psk16",
+            ModulationScheme::Psk32 => "psk32",
+            ModulationScheme::Psk64 => "psk64",
+            ModulationScheme::Psk128 => "psk128",
+            ModulationScheme::Psk256 => "psk256",
+            ModulationScheme::Dpsk2 => "dpsk2",
+            ModulationScheme::Dpsk4 => "dpsk4",
+            ModulationScheme::Dpsk8 => "dpsk8",
+            ModulationScheme::Dpsk16 => "dpsk16",
+            ModulationScheme::Dpsk32 => "dpsk32",
+            ModulationScheme::Dpsk64 => "dpsk64",
+            ModulationScheme::Dpsk128 => "dpsk128",
+            ModulationScheme::Dpsk256 => "dpsk256",
+            ModulationScheme::Ask2 => "ask2",
+            ModulationScheme::Ask4 => "ask4",
+            ModulationScheme::Ask8 => "ask8",
+            ModulationScheme::Ask16 => "ask16",
+            ModulationScheme::Ask32 => "ask32",
+            ModulationScheme::Ask64 => "ask64",
+            ModulationScheme::Ask128 => "ask128",
+            ModulationScheme::Ask256 => "ask256",
+            ModulationScheme::Qam4 => "qam4",
+            ModulationScheme::Qam8 => "qam8",
+            ModulationScheme::Qam16 => "qam16",
+            ModulationScheme::Qam32 => "qam32",
+            ModulationScheme::Qam64 => "qam64",
+            ModulationScheme::Qam128 => "qam128",
+            ModulationScheme::Qam256 => "qam256",
+            ModulationScheme::Apsk4 => "apsk4",
+            ModulationScheme::Apsk8 => "apsk8",
+            ModulationScheme::Apsk16 => "apsk16",
+            ModulationScheme::Apsk32 => "apsk32",
+            ModulationScheme::Apsk64 => "apsk64",
+            ModulationScheme::Apsk128 => "apsk128",
+            ModulationScheme::Apsk256 => "apsk256",
+            ModulationScheme::Bpsk => "bpsk",
+            ModulationScheme::Qpsk => "qpsk",
+            ModulationScheme::Ook => "ook",
+            ModulationScheme::Sqam32 => "sqam32",
+            ModulationScheme::Sqam128 => "sqam128",
+            ModulationScheme::V29 => "V29",
+            ModulationScheme::Arb16Opt => "arb16opt",
+            ModulationScheme::Arb32Opt => "arb32opt",
+            ModulationScheme::Arb64Opt => "arb64opt",
+            ModulationScheme::Arb128Opt => "arb128opt",
+            ModulationScheme::Arb256Opt => "arb256opt",
+            ModulationScheme::Arb64Vt => "arb64vt",
+            ModulationScheme::Arb64Ui => "arb64ui",
+            ModulationScheme::Pi4Dqpsk => "pi4dqpsk",
+            ModulationScheme::Arb => "arb",
+        }
+    }
+
+    /// long name
+    pub fn long_name(&self) -> &'static str {
+        match self {
+            ModulationScheme::Unknown => "unknown",
+            ModulationScheme::Psk2 => "phase-shift keying (2)",
+            ModulationScheme::Psk4 => "phase-shift keying (4)",
+            ModulationScheme::Psk8 => "phase-shift keying (8)",
+            ModulationScheme::Psk16 => "phase-shift keying (16)",
+            ModulationScheme::Psk32 => "phase-shift keying (32)",
+            ModulationScheme::Psk64 => "phase-shift keying (64)",
+            ModulationScheme::Psk128 => "phase-shift keying (128)",
+            ModulationScheme::Psk256 => "phase-shift keying (256)",
+            ModulationScheme::Dpsk2 => "differential phase-shift keying (2)",
+            ModulationScheme::Dpsk4 => "differential phase-shift keying (4)",
+            ModulationScheme::Dpsk8 => "differential phase-shift keying (8)",
+            ModulationScheme::Dpsk16 => "differential phase-shift keying (16)",
+            ModulationScheme::Dpsk32 => "differential phase-shift keying (32)",
+            ModulationScheme::Dpsk64 => "differential phase-shift keying (64)",
+            ModulationScheme::Dpsk128 => "differential phase-shift keying (128)",
+            ModulationScheme::Dpsk256 => "differential phase-shift keying (256)",
+            ModulationScheme::Ask2 => "amplitude-shift keying (2)",
+            ModulationScheme::Ask4 => "amplitude-shift keying (4)",
+            ModulationScheme::Ask8 => "amplitude-shift keying (8)",
+            ModulationScheme::Ask16 => "amplitude-shift keying (16)",
+            ModulationScheme::Ask32 => "amplitude-shift keying (32)",
+            ModulationScheme::Ask64 => "amplitude-shift keying (64)",
+            ModulationScheme::Ask128 => "amplitude-shift keying (128)",
+            ModulationScheme::Ask256 => "amplitude-shift keying (256)",
+            ModulationScheme::Qam4 => "quadrature amplitude-shift keying (4)",
+            ModulationScheme::Qam8 => "quadrature amplitude-shift keying (8)",
+            ModulationScheme::Qam16 => "quadrature amplitude-shift keying (16)",
+            ModulationScheme::Qam32 => "quadrature amplitude-shift keying (32)",
+            ModulationScheme::Qam64 => "quadrature amplitude-shift keying (64)",
+            ModulationScheme::Qam128 => "quadrature amplitude-shift keying (128)",
+            ModulationScheme::Qam256 => "quadrature amplitude-shift keying (256)",
+            ModulationScheme::Apsk4 => "amplitude/phase-shift keying (4)",
+            ModulationScheme::Apsk8 => "amplitude/phase-shift keying (8)",
+            ModulationScheme::Apsk16 => "amplitude/phase-shift keying (16)",
+            ModulationScheme::Apsk32 => "amplitude/phase-shift keying (32)",
+            ModulationScheme::Apsk64 => "amplitude/phase-shift keying (64)",
+            ModulationScheme::Apsk128 => "amplitude/phase-shift keying (128)",
+            ModulationScheme::Apsk256 => "amplitude/phase-shift keying (256)",
+            ModulationScheme::Bpsk => "binary phase-shift keying",
+            ModulationScheme::Qpsk => "quaternary phase-shift keying",
+            ModulationScheme::Ook => "ook (on/off keying)",
+            ModulationScheme::Sqam32 => "'square' 32-QAM",
+            ModulationScheme::Sqam128 => "'square' 128-QAM",
+            ModulationScheme::V29 => "V.29",
+            ModulationScheme::Arb16Opt => "arb16opt (optimal 16-qam)",
+            ModulationScheme::Arb32Opt => "arb32opt (optimal 32-qam)",
+            ModulationScheme::Arb64Opt => "arb64opt (optimal 64-qam)",
+            ModulationScheme::Arb128Opt => "arb128opt (optimal 128-qam)",
+            ModulationScheme::Arb256Opt => "arb256opt (optimal 256-qam)",
+            ModulationScheme::Arb64Vt => "arb64vt (64-qam vt logo)",
+            ModulationScheme::Arb64Ui => "arb64ui (64-qam ui logo)",
+            ModulationScheme::Pi4Dqpsk => "pi/4 differential QPSK",
+            ModulationScheme::Arb => "arbitrary constellation",
+        }
+    }
+
+    /// is scheme phase-shift keying?
+    pub fn is_psk(&self) -> bool {
+        matches!(
+            self,
+            ModulationScheme::Psk2
+                | ModulationScheme::Psk4
+                | ModulationScheme::Psk8
+                | ModulationScheme::Psk16
+                | ModulationScheme::Psk32
+                | ModulationScheme::Psk64
+                | ModulationScheme::Psk128
+                | ModulationScheme::Psk256
+        )
+    }
+
+    /// is scheme differential phase-shift keying?
+    pub fn is_dpsk(&self) -> bool {
+        matches!(
+            self,
+            ModulationScheme::Dpsk2
+                | ModulationScheme::Dpsk4
+                | ModulationScheme::Dpsk8
+                | ModulationScheme::Dpsk16
+                | ModulationScheme::Dpsk32
+                | ModulationScheme::Dpsk64
+                | ModulationScheme::Dpsk128
+                | ModulationScheme::Dpsk256
+        )
+    }
+
+    /// is scheme amplitude-shift keying?
+    pub fn is_ask(&self) -> bool {
+        matches!(
+            self,
+            ModulationScheme::Ask2
+                | ModulationScheme::Ask4
+                | ModulationScheme::Ask8
+                | ModulationScheme::Ask16
+                | ModulationScheme::Ask32
+                | ModulationScheme::Ask64
+                | ModulationScheme::Ask128
+                | ModulationScheme::Ask256
+        )
+    }
+
+    /// is scheme rectangular quadrature amplitude-shift keying?
+    pub fn is_qam(&self) -> bool {
+        matches!(
+            self,
+            ModulationScheme::Qam4
+                | ModulationScheme::Qam8
+                | ModulationScheme::Qam16
+                | ModulationScheme::Qam32
+                | ModulationScheme::Qam64
+                | ModulationScheme::Qam128
+                | ModulationScheme::Qam256
+        )
+    }
+
+    /// is scheme amplitude phase-shift keying?
+    pub fn is_apsk(&self) -> bool {
+        matches!(
+            self,
+            ModulationScheme::Apsk4
+                | ModulationScheme::Apsk8
+                | ModulationScheme::Apsk16
+                | ModulationScheme::Apsk32
+                | ModulationScheme::Apsk64
+                | ModulationScheme::Apsk128
+                | ModulationScheme::Apsk256
+        )
+    }
+
+    /// bits per symbol (modulation depth)
+    ///
+    /// `Unknown` and `Arb` have no fixed depth
+    pub fn bits_per_symbol(&self) -> usize {
+        match self {
+            ModulationScheme::Unknown => 0,
+            ModulationScheme::Psk2 | ModulationScheme::Dpsk2 | ModulationScheme::Ask2 => 1,
+            ModulationScheme::Psk4 | ModulationScheme::Dpsk4 | ModulationScheme::Ask4 => 2,
+            ModulationScheme::Psk8 | ModulationScheme::Dpsk8 | ModulationScheme::Ask8 => 3,
+            ModulationScheme::Psk16 | ModulationScheme::Dpsk16 | ModulationScheme::Ask16 => 4,
+            ModulationScheme::Psk32 | ModulationScheme::Dpsk32 | ModulationScheme::Ask32 => 5,
+            ModulationScheme::Psk64 | ModulationScheme::Dpsk64 | ModulationScheme::Ask64 => 6,
+            ModulationScheme::Psk128 | ModulationScheme::Dpsk128 | ModulationScheme::Ask128 => 7,
+            ModulationScheme::Psk256 | ModulationScheme::Dpsk256 | ModulationScheme::Ask256 => 8,
+            ModulationScheme::Qam4 | ModulationScheme::Apsk4 => 2,
+            ModulationScheme::Qam8 | ModulationScheme::Apsk8 => 3,
+            ModulationScheme::Qam16 | ModulationScheme::Apsk16 => 4,
+            ModulationScheme::Qam32 | ModulationScheme::Apsk32 => 5,
+            ModulationScheme::Qam64 | ModulationScheme::Apsk64 => 6,
+            ModulationScheme::Qam128 | ModulationScheme::Apsk128 => 7,
+            ModulationScheme::Qam256 | ModulationScheme::Apsk256 => 8,
+            ModulationScheme::Bpsk => 1,
+            ModulationScheme::Qpsk => 2,
+            ModulationScheme::Ook => 1,
+            ModulationScheme::Sqam32 => 5,
+            ModulationScheme::Sqam128 => 7,
+            ModulationScheme::V29 => 4,
+            ModulationScheme::Arb16Opt => 4,
+            ModulationScheme::Arb32Opt => 5,
+            ModulationScheme::Arb64Opt => 6,
+            ModulationScheme::Arb128Opt => 7,
+            ModulationScheme::Arb256Opt => 8,
+            ModulationScheme::Arb64Vt => 6,
+            ModulationScheme::Arb64Ui => 6,
+            ModulationScheme::Pi4Dqpsk => 2,
+            ModulationScheme::Arb => 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Modem {
     // common data
@@ -149,58 +443,31 @@ impl ModemData {
 impl Modem {
     pub fn new(scheme: ModulationScheme) -> Result<Self> {
         match scheme {
-            ModulationScheme::Psk2 => Modem::new_psk(1),
-            ModulationScheme::Psk4 => Modem::new_psk(2),
-            ModulationScheme::Psk8 => Modem::new_psk(3),
-            ModulationScheme::Psk16 => Modem::new_psk(4),
-            ModulationScheme::Psk32 => Modem::new_psk(5),
-            ModulationScheme::Psk64 => Modem::new_psk(6),
-            ModulationScheme::Psk128 => Modem::new_psk(7),
-            ModulationScheme::Psk256 => Modem::new_psk(8),
-            ModulationScheme::Dpsk2 => Modem::new_dpsk(1),
-            ModulationScheme::Dpsk4 => Modem::new_dpsk(2),
-            ModulationScheme::Dpsk8 => Modem::new_dpsk(3),
-            ModulationScheme::Dpsk16 => Modem::new_dpsk(4),
-            ModulationScheme::Dpsk32 => Modem::new_dpsk(5),
-            ModulationScheme::Dpsk64 => Modem::new_dpsk(6),
-            ModulationScheme::Dpsk128 => Modem::new_dpsk(7),
-            ModulationScheme::Dpsk256 => Modem::new_dpsk(8),
-            ModulationScheme::Ask2 => Modem::new_ask(1),
-            ModulationScheme::Ask4 => Modem::new_ask(2),
-            ModulationScheme::Ask8 => Modem::new_ask(3),
-            ModulationScheme::Ask16 => Modem::new_ask(4),
-            ModulationScheme::Ask32 => Modem::new_ask(5),
-            ModulationScheme::Ask64 => Modem::new_ask(6),
-            ModulationScheme::Ask128 => Modem::new_ask(7),
-            ModulationScheme::Ask256 => Modem::new_ask(8),
-            ModulationScheme::Qam4 => Modem::new_qam(2),
-            ModulationScheme::Qam8 => Modem::new_qam(3),
-            ModulationScheme::Qam16 => Modem::new_qam(4),
-            ModulationScheme::Qam32 => Modem::new_qam(5),
-            ModulationScheme::Qam64 => Modem::new_qam(6),
-            ModulationScheme::Qam128 => Modem::new_qam(7),
-            ModulationScheme::Qam256 => Modem::new_qam(8),
-            ModulationScheme::Apsk4 => Modem::new_apsk(2),
-            ModulationScheme::Apsk8 => Modem::new_apsk(3),
-            ModulationScheme::Apsk16 => Modem::new_apsk(4),
-            ModulationScheme::Apsk32 => Modem::new_apsk(5),
-            ModulationScheme::Apsk64 => Modem::new_apsk(6),
-            ModulationScheme::Apsk128 => Modem::new_apsk(7),
-            ModulationScheme::Apsk256 => Modem::new_apsk(8),
+            // linear schemes
+            s if s.is_psk() => Modem::new_psk(s),
+            s if s.is_dpsk() => Modem::new_dpsk(s),
+            s if s.is_ask() => Modem::new_ask(s),
+            s if s.is_qam() => Modem::new_qam(s),
+            s if s.is_apsk() => Modem::new_apsk(s),
+
+            // specific modem types
             ModulationScheme::Bpsk => Modem::new_bpsk(),
             ModulationScheme::Qpsk => Modem::new_qpsk(),
             ModulationScheme::Ook => Modem::new_ook(),
             ModulationScheme::Sqam32 => Modem::new_sqam32(),
             ModulationScheme::Sqam128 => Modem::new_sqam128(),
-            ModulationScheme::V29 => Modem::new_arb_v29(),
-            ModulationScheme::Arb16Opt => Modem::new_arb_opt16(),
-            ModulationScheme::Arb32Opt => Modem::new_arb_opt32(),
-            ModulationScheme::Arb64Opt => Modem::new_arb_opt64(),
-            ModulationScheme::Arb128Opt => Modem::new_arb_opt128(),
-            ModulationScheme::Arb256Opt => Modem::new_arb_opt256(),
-            ModulationScheme::Arb64Vt => Modem::new_arb_vt(),
-            ModulationScheme::Arb64Ui => Modem::new_arb_ui(),
             ModulationScheme::Pi4Dqpsk => Modem::new_pi4dqpsk(),
+
+            // preset arbitrary constellations
+            ModulationScheme::V29 => Modem::new_arb_preset(&arb_v29::MODEM_ARB_V29),
+            ModulationScheme::Arb16Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB16OPT),
+            ModulationScheme::Arb32Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB32OPT),
+            ModulationScheme::Arb64Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB64OPT),
+            ModulationScheme::Arb128Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB128OPT),
+            ModulationScheme::Arb256Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB256OPT),
+            ModulationScheme::Arb64Vt => Modem::new_arb_preset(&arb_vt::MODEM_ARB_VT64),
+            ModulationScheme::Arb64Ui => Modem::new_arb_preset(&arb_ui::MODEM_ARB_UI64),
+
             _ => Err(Error::Config("modulation scheme not supported".into())),
         }
     }
@@ -1592,4 +1859,135 @@ mod tests {
     #[autotest_annotate(autotest_modem_copy_pi4dqpsk)]
     fn test_modem_copy_pi4dqpsk() { modemcf_test_copy(ModulationScheme::Pi4Dqpsk); }
 
+    // (scheme, name, bps, psk, dpsk, ask, qam, apsk)
+    const SCHEMES: &[(ModulationScheme, &str, usize, bool, bool, bool, bool, bool)] = &[
+        (ModulationScheme::Psk2, "psk2", 1, true, false, false, false, false),
+        (ModulationScheme::Psk4, "psk4", 2, true, false, false, false, false),
+        (ModulationScheme::Psk8, "psk8", 3, true, false, false, false, false),
+        (ModulationScheme::Psk16, "psk16", 4, true, false, false, false, false),
+        (ModulationScheme::Psk32, "psk32", 5, true, false, false, false, false),
+        (ModulationScheme::Psk64, "psk64", 6, true, false, false, false, false),
+        (ModulationScheme::Psk128, "psk128", 7, true, false, false, false, false),
+        (ModulationScheme::Psk256, "psk256", 8, true, false, false, false, false),
+        (ModulationScheme::Dpsk2, "dpsk2", 1, false, true, false, false, false),
+        (ModulationScheme::Dpsk4, "dpsk4", 2, false, true, false, false, false),
+        (ModulationScheme::Dpsk8, "dpsk8", 3, false, true, false, false, false),
+        (ModulationScheme::Dpsk16, "dpsk16", 4, false, true, false, false, false),
+        (ModulationScheme::Dpsk32, "dpsk32", 5, false, true, false, false, false),
+        (ModulationScheme::Dpsk64, "dpsk64", 6, false, true, false, false, false),
+        (ModulationScheme::Dpsk128, "dpsk128", 7, false, true, false, false, false),
+        (ModulationScheme::Dpsk256, "dpsk256", 8, false, true, false, false, false),
+        (ModulationScheme::Ask2, "ask2", 1, false, false, true, false, false),
+        (ModulationScheme::Ask4, "ask4", 2, false, false, true, false, false),
+        (ModulationScheme::Ask8, "ask8", 3, false, false, true, false, false),
+        (ModulationScheme::Ask16, "ask16", 4, false, false, true, false, false),
+        (ModulationScheme::Ask32, "ask32", 5, false, false, true, false, false),
+        (ModulationScheme::Ask64, "ask64", 6, false, false, true, false, false),
+        (ModulationScheme::Ask128, "ask128", 7, false, false, true, false, false),
+        (ModulationScheme::Ask256, "ask256", 8, false, false, true, false, false),
+        (ModulationScheme::Qam4, "qam4", 2, false, false, false, true, false),
+        (ModulationScheme::Qam8, "qam8", 3, false, false, false, true, false),
+        (ModulationScheme::Qam16, "qam16", 4, false, false, false, true, false),
+        (ModulationScheme::Qam32, "qam32", 5, false, false, false, true, false),
+        (ModulationScheme::Qam64, "qam64", 6, false, false, false, true, false),
+        (ModulationScheme::Qam128, "qam128", 7, false, false, false, true, false),
+        (ModulationScheme::Qam256, "qam256", 8, false, false, false, true, false),
+        (ModulationScheme::Apsk4, "apsk4", 2, false, false, false, false, true),
+        (ModulationScheme::Apsk8, "apsk8", 3, false, false, false, false, true),
+        (ModulationScheme::Apsk16, "apsk16", 4, false, false, false, false, true),
+        (ModulationScheme::Apsk32, "apsk32", 5, false, false, false, false, true),
+        (ModulationScheme::Apsk64, "apsk64", 6, false, false, false, false, true),
+        (ModulationScheme::Apsk128, "apsk128", 7, false, false, false, false, true),
+        (ModulationScheme::Apsk256, "apsk256", 8, false, false, false, false, true),
+        // specific modem types belong to no family
+        (ModulationScheme::Bpsk, "bpsk", 1, false, false, false, false, false),
+        (ModulationScheme::Qpsk, "qpsk", 2, false, false, false, false, false),
+        (ModulationScheme::Ook, "ook", 1, false, false, false, false, false),
+        (ModulationScheme::Sqam32, "sqam32", 5, false, false, false, false, false),
+        (ModulationScheme::Sqam128, "sqam128", 7, false, false, false, false, false),
+        (ModulationScheme::V29, "V29", 4, false, false, false, false, false),
+        (ModulationScheme::Arb16Opt, "arb16opt", 4, false, false, false, false, false),
+        (ModulationScheme::Arb32Opt, "arb32opt", 5, false, false, false, false, false),
+        (ModulationScheme::Arb64Opt, "arb64opt", 6, false, false, false, false, false),
+        (ModulationScheme::Arb128Opt, "arb128opt", 7, false, false, false, false, false),
+        (ModulationScheme::Arb256Opt, "arb256opt", 8, false, false, false, false, false),
+        (ModulationScheme::Arb64Vt, "arb64vt", 6, false, false, false, false, false),
+        (ModulationScheme::Arb64Ui, "arb64ui", 6, false, false, false, false, false),
+        (ModulationScheme::Pi4Dqpsk, "pi4dqpsk", 2, false, false, false, false, false),
+        // depth comes from the table, so 0 here
+        (ModulationScheme::Arb, "arb", 0, false, false, false, false, false),
+    ];
+
+    #[test]
+    #[autotest_annotate(autotest_modemcf_str2mod)]
+    fn test_modemcf_str2mod() {
+        // invalid case
+        assert_eq!(ModulationScheme::from_str("invalid scheme"), ModulationScheme::Unknown);
+
+        for &(scheme, name, ..) in SCHEMES {
+            assert_eq!(ModulationScheme::from_str(name), scheme, "from_str({})", name);
+            assert_eq!(scheme.short_name(), name, "short_name({:?})", scheme);
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_modemcf_types)]
+    fn test_modemcf_types() {
+        for &(scheme, _, _, psk, dpsk, ask, qam, apsk) in SCHEMES {
+            assert_eq!(scheme.is_psk(), psk, "is_psk({:?})", scheme);
+            assert_eq!(scheme.is_dpsk(), dpsk, "is_dpsk({:?})", scheme);
+            assert_eq!(scheme.is_ask(), ask, "is_ask({:?})", scheme);
+            assert_eq!(scheme.is_qam(), qam, "is_qam({:?})", scheme);
+            assert_eq!(scheme.is_apsk(), apsk, "is_apsk({:?})", scheme);
+        }
+
+        assert!(!ModulationScheme::Unknown.is_psk());
+        assert!(!ModulationScheme::Unknown.is_dpsk());
+        assert!(!ModulationScheme::Unknown.is_ask());
+        assert!(!ModulationScheme::Unknown.is_qam());
+        assert!(!ModulationScheme::Unknown.is_apsk());
+    }
+
+    #[test]
+    fn test_modemcf_families_disjoint() {
+        for &(scheme, ..) in SCHEMES {
+            let families = [
+                scheme.is_psk(),
+                scheme.is_dpsk(),
+                scheme.is_ask(),
+                scheme.is_qam(),
+                scheme.is_apsk(),
+            ];
+            assert!(
+                families.iter().filter(|&&b| b).count() <= 1,
+                "{:?} belongs to more than one family",
+                scheme
+            );
+        }
+    }
+
+    #[test]
+    fn test_modemcf_bits_per_symbol_matches_modem() {
+        for &(scheme, name, bps, ..) in SCHEMES {
+            assert_eq!(scheme.bits_per_symbol(), bps, "bits_per_symbol({})", name);
+
+            if scheme == ModulationScheme::Arb {
+                continue;
+            }
+
+            let modem = Modem::new(scheme).unwrap();
+            assert_eq!(modem.get_bps(), bps, "{}: modem disagrees with scheme", name);
+        }
+    }
+
+    #[test]
+    fn test_modemcf_long_name() {
+        let mut seen = std::collections::HashSet::new();
+        for &(scheme, name, ..) in SCHEMES {
+            let long = scheme.long_name();
+            assert!(!long.is_empty(), "{}: empty long name", name);
+            assert!(seen.insert(long), "{}: duplicate long name {:?}", name, long);
+        }
+        assert_eq!(ModulationScheme::Unknown.long_name(), "unknown");
+    }
 }

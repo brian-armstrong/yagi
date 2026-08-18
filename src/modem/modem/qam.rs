@@ -10,20 +10,17 @@ pub(super) struct Qam {
 }
 
 impl Modem {
-    pub(super) fn new_qam(bits_per_symbol: usize) -> Result<Self> {
-        if bits_per_symbol < 1 {
-            return Err(Error::Config("modem must have at least 2 bits/symbol".into()));
-        }
-
-        let (alpha, scheme) = match bits_per_symbol {
-            2 => (1.0 / 2.0_f32.sqrt(), ModulationScheme::Qam4),
-            3 => (1.0 / 6.0_f32.sqrt(), ModulationScheme::Qam8),
-            4 => (1.0 / 10.0_f32.sqrt(), ModulationScheme::Qam16),
-            5 => (1.0 / 26.0_f32.sqrt(), ModulationScheme::Qam32),
-            6 => (1.0 / 42.0_f32.sqrt(), ModulationScheme::Qam64),
-            7 => (1.0 / 106.0_f32.sqrt(), ModulationScheme::Qam128),
-            8 => (1.0 / 170.0_f32.sqrt(), ModulationScheme::Qam256),
-            _ => return Err(Error::Config("cannot support QAM with m > 8".into())),
+    pub(super) fn new_qam(scheme: ModulationScheme) -> Result<Self> {
+        let bits_per_symbol = scheme.bits_per_symbol();
+        let alpha = match bits_per_symbol {
+            2 => 1.0 / 2.0_f32.sqrt(),
+            3 => 1.0 / 6.0_f32.sqrt(),
+            4 => 1.0 / 10.0_f32.sqrt(),
+            5 => 1.0 / 26.0_f32.sqrt(),
+            6 => 1.0 / 42.0_f32.sqrt(),
+            7 => 1.0 / 106.0_f32.sqrt(),
+            8 => 1.0 / 170.0_f32.sqrt(),
+            _ => unreachable!(),
         };
 
         let mut modem = Modem::_new(bits_per_symbol, scheme)?;

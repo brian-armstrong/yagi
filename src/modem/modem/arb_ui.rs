@@ -1,13 +1,8 @@
 use crate::modem::modem::*;
 
-impl Modem {
-    pub(super) fn new_arb_ui() -> Result<Self> {
-        Modem::new_arb(ModulationScheme::Arb, &MODEM_ARB_UI64, 6)
-    }
-}
 
 // UIllinois logo
-const MODEM_ARB_UI64: [Complex32; 64] = [
+pub(super) const MODEM_ARB_UI64: [Complex32; 64] = [
     Complex32::new( 9.9563e-01,  1.4970e+00), Complex32::new( 7.9767e-01,  1.4970e+00),
     Complex32::new( 5.9971e-01,  1.4970e+00), Complex32::new( 3.9884e-01,  1.4970e+00),
     Complex32::new( 2.0087e-01,  1.4970e+00), Complex32::new( 0.0000e+00,  1.4970e+00),

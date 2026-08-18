@@ -1,6 +1,13 @@
 use crate::modem::modem::*;
 
 impl Modem {
+    pub(super) fn new_arb_preset(table: &[Complex32]) -> Result<Self> {
+        if !table.len().is_power_of_two() {
+            return Err(Error::Config("constellation table size must be power of 2".into()));
+        }
+        Modem::new_arb(ModulationScheme::Arb, table, table.len().ilog2() as usize)
+    }
+
     pub(super) fn new_arb(scheme: ModulationScheme, table: &[Complex32], m: usize) -> Result<Self> {
         let mut modem = Modem::_new(m, scheme)?;
         modem.symbol_map = Some(table.to_vec());

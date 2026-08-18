@@ -7,19 +7,8 @@ pub(super) struct Psk {
 }
 
 impl Modem {
-    pub(super) fn new_psk(bits_per_symbol: usize) -> Result<Self> {
-        let scheme = match bits_per_symbol {
-            1 => ModulationScheme::Psk2,
-            2 => ModulationScheme::Psk4,
-            3 => ModulationScheme::Psk8,
-            4 => ModulationScheme::Psk16,
-            5 => ModulationScheme::Psk32,
-            6 => ModulationScheme::Psk64,
-            7 => ModulationScheme::Psk128,
-            8 => ModulationScheme::Psk256,
-            _ => return Err(Error::Config("maximum number of bits per symbol exceeded".into())),
-        };
-
+    pub(super) fn new_psk(scheme: ModulationScheme) -> Result<Self> {
+        let bits_per_symbol = scheme.bits_per_symbol();
         let mut modem = Modem::_new(bits_per_symbol, scheme)?;
 
         let data = Psk {
