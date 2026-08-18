@@ -1990,4 +1990,28 @@ mod tests {
         }
         assert_eq!(ModulationScheme::Unknown.long_name(), "unknown");
     }
+
+    #[test]
+    #[autotest_annotate(autotest_modem_config)]
+    fn test_modem_config() {
+        // Arb carries no constellation of its own (it needs a table)
+        assert!(Modem::new(ModulationScheme::Arb).is_err());
+        // not a scheme
+        assert!(Modem::new(ModulationScheme::Unknown).is_err());
+
+        // an arbitrary table must be a power of two long
+        assert!(Modem::from_table(&[Complex32::new(0.0, 0.0); 3]).is_err());
+
+        let mut q = Modem::new(ModulationScheme::Qam64).unwrap();
+        let m = 1 << q.get_bps();
+        assert_eq!(m, 64);
+
+        // modulating a symbol outside the constellation
+        assert!(q.modulate(8193).is_err());
+        assert!(q.modulate(m).is_err());
+        assert!(q.modulate(m - 1).is_ok());
+
+        // more soft-demodulation neighbors than there are other symbols
+        assert!(q.init_demod_soft_tab(227).is_err());
+    }
 }
