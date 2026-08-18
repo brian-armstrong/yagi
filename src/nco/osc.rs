@@ -232,19 +232,11 @@ impl Osc {
 
     // Helper functions
     fn constrain(theta: f32) -> u32 {
-        // let mut theta = theta;
-        // while theta >= 2.0 * PI {
-        //     theta -= 2.0 * PI;
-        // }
-        // while theta < 0.0 {
-        //     theta += 2.0 * PI;
-        // }
-        let theta = theta.rem_euclid(2.0 * PI);
-        ((theta / (2.0 * PI)) * (u32::MAX as f32)) as u32
+        // using f64 here is necessary to get full precision and avoid error accumulation
+        let theta = (theta as f64).rem_euclid(2.0 * std::f64::consts::PI);
+        ((theta / (2.0 * std::f64::consts::PI)) * (u32::MAX as f64)) as u32
     }
 }
-
-// Additional implementations...
 
 #[cfg(test)]
 mod tests {
@@ -256,6 +248,100 @@ mod tests {
     use crate::utility::test_helpers::{PsdRegion, validate_psd_spgramcf};
     use crate::fft::spgram::Spgram;
     use crate::math::windows::{hann, WindowType};
+
+    // compute the error between a constrained phase and its expected fixed-point
+    // value, taking the shorter way around the accumulator word so that values
+    // straddling the wrap (0x00000000 vs 0xffffffff) compare as adjacent.
+    fn constrain_error(theta: f32, expected: u32) -> u32 {
+        let phase = Osc::constrain(theta);
+        let error = if phase > expected { phase - expected } else { expected - phase };
+        if error < 0x80000000 { error } else { 0xffffffff - error }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_constrain)]
+    fn test_nco_crcf_constrain() {
+        let tol = 0x00001fff;
+
+        // phase: 0 mod 2 pi
+        assert!(constrain_error(0.0, 0) < tol);
+        assert!(constrain_error(2.0 * PI, 0) < tol);
+        assert!(constrain_error(4.0 * PI, 0) < tol);
+        assert!(constrain_error(6.0 * PI, 0) < tol);
+        assert!(constrain_error(20.0 * PI, 0) < tol);
+
+        // phase: 0 mod 2 pi (negative)
+        assert!(constrain_error(-0.0, 0) < tol);
+        assert!(constrain_error(-2.0 * PI, 0) < tol);
+        assert!(constrain_error(-4.0 * PI, 0) < tol);
+        assert!(constrain_error(-6.0 * PI, 0) < tol);
+        assert!(constrain_error(-20.0 * PI, 0) < tol);
+
+        // phase: pi mod 2 pi
+        assert!(constrain_error(PI, 0x80000000) < tol);
+        assert!(constrain_error(3.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(5.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(7.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(27.0 * PI, 0x80000000) < tol);
+
+        // phase: pi mod 2 pi (negative)
+        assert!(constrain_error(-PI, 0x80000000) < tol);
+        assert!(constrain_error(-3.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(-5.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(-7.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(-27.0 * PI, 0x80000000) < tol);
+
+        // check other values
+        assert!(constrain_error(0.500 * PI, 0x40000000) < tol);
+        assert!(constrain_error(0.250 * PI, 0x20000000) < tol);
+        assert!(constrain_error(0.125 * PI, 0x10000000) < tol);
+        assert!(constrain_error(0.750 * PI, 0x60000000) < tol);
+        assert!(constrain_error(-0.500 * PI, 0xc0000000) < tol);
+        assert!(constrain_error(-0.250 * PI, 0xe0000000) < tol);
+        assert!(constrain_error(-0.125 * PI, 0xf0000000) < tol);
+
+        // check phase near boundaries
+        assert!(constrain_error(0.000001, 0x00000000) < tol);
+        assert!(constrain_error(-0.000001, 0x00000000) < tol);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_copy)]
+    fn test_nco_crcf_copy() {
+        // create and initialize object
+        let mut nco_0 = Osc::new(OscScheme::Vco);
+        nco_0.set_phase(1.23456);
+        nco_0.set_frequency(5.67890);
+        nco_0.pll_set_bandwidth(0.011);
+
+        // copy object
+        let mut nco_1 = nco_0.clone();
+
+        for _ in 0..240 {
+            // received complex signal
+            let v0 = nco_0.cexp();
+            let v1 = nco_1.cexp();
+
+            // update pll
+            nco_0.pll_step(v0.arg());
+            nco_1.pll_step(v1.arg());
+
+            // update nco objects
+            nco_0.step();
+            nco_1.step();
+
+            // check output
+            assert_eq!(v0, v1);
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_config)]
+    fn test_nco_config() {
+        // this autotest is very simplistic, and most of its negative conditions
+        // are invalid in Rust
+        let _nco = Osc::new(OscScheme::Nco);
+    }
 
     // Helper function to calculate phase/frequency error
     fn pll_error(a: f32, b: f32) -> f32 {
