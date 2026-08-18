@@ -142,13 +142,47 @@ mod tests {
         // x [size: 5 x 1]
         // b [size: 5 x 1]
         let mut x = vec![0.0f32; 5];
+        let mut scratch = vec![0.0f32; 5 * 6];
 
-        // run solver
-        matrix_linsolve(&MATRIXF_DATA_LINSOLVE_A, 5, &MATRIXF_DATA_LINSOLVE_B, &mut x, None).unwrap();
+        // run solver with caller-provided augmented-matrix storage
+        matrix_linsolve(
+            &MATRIXF_DATA_LINSOLVE_A,
+            5,
+            &MATRIXF_DATA_LINSOLVE_B,
+            &mut x,
+            Some(&mut scratch),
+        )
+        .unwrap();
 
         for i in 0..5 {
             assert_abs_diff_eq!(MATRIXF_DATA_LINSOLVE_X[i], x[i], epsilon = tol);
         }
+
+        let mut x = vec![0.0f32; 5];
+
+        // run solver with its own allocated storage
+        matrix_linsolve(
+            &MATRIXF_DATA_LINSOLVE_A,
+            5,
+            &MATRIXF_DATA_LINSOLVE_B,
+            &mut x,
+            None,
+        )
+        .unwrap();
+
+        for i in 0..5 {
+            assert_abs_diff_eq!(MATRIXF_DATA_LINSOLVE_X[i], x[i], epsilon = tol);
+        }
+
+        // the scratch buffer must hold the complete n x (n+1) matrix
+        assert!(matrix_linsolve(
+            &MATRIXF_DATA_LINSOLVE_A,
+            5,
+            &MATRIXF_DATA_LINSOLVE_B,
+            &mut x,
+            Some(&mut scratch[..29]),
+        )
+        .is_err());
     }
 
     #[test]
