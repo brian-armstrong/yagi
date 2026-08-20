@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
-use crate::math::sincf;
-use std::f32::consts::PI;
+use crate::math::sincd;
+use std::f64::consts::PI;
 
 
 /// Design Nyquist raised-cosine filter
@@ -35,15 +35,20 @@ pub fn fir_design_rcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32
         let mf = m as f32;
 
         let z = (nf + dt) / kf - mf;
+
+        // promote to f64 for extra precision here (sinc and cos are sensitive)
+        let z = z as f64;
+        let beta = beta as f64;
+
         let t1 = (beta * PI * z).cos();
-        let t2 = sincf(z);
+        let t2 = sincd(z);
         let t3 = 1.0 - 4.0 * beta * beta * z * z;
 
         // check for special condition where 4*beta^2*z^2 equals 1
         h[n] = if t3.abs() < 1e-3 {
-            (PI / (2.0 * beta)).sin() * beta * 0.5
+            ((PI / (2.0 * beta)).sin() * beta * 0.5) as f32
         } else {
-            t1 * t2 / t3
+            (t1 * t2 / t3) as f32
         };
     }
 

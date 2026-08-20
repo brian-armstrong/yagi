@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use std::f32::consts::PI;
+use std::f64::consts::PI;
 
 /// Design root-Nyquist raised-cosine filter
 ///
@@ -34,9 +34,13 @@ pub fn fir_design_rrcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
 
         let z = (nf + dt) / kf - mf;
 
+        // promote to f64 for extra precision here (sin and cos are sensitive)
+        let z = z as f64;
+        let beta = beta as f64;
+
         // Check for special condition where z equals zero
         h[n] = if z.abs() < 1e-5 {
-            1.0 - beta + 4.0 * beta / PI
+            (1.0 - beta + 4.0 * beta / PI) as f32
         } else {
             let mut g = 1.0 - 16.0 * beta * beta * z * z;
             g *= g;
@@ -47,14 +51,14 @@ pub fn fir_design_rrcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
                 let g2 = (0.25 * PI / beta).sin();
                 let g3 = 1.0 - 2.0 / PI;
                 let g4 = (0.25 * PI / beta).cos();
-                beta / 2.0_f32.sqrt() * (g1 * g2 + g3 * g4)
+                (beta / 2.0_f64.sqrt() * (g1 * g2 + g3 * g4)) as f32
             } else {
                 // TODO find out why original uses sqrt(T) for T = 1.0
                 let t1 = ((1.0 + beta) * PI * z).cos();
                 let t2 = ((1.0 - beta) * PI * z).sin();
                 let t3 = 1.0 / (4.0 * beta * z);
                 let t4 = 4.0 * beta / (PI * (1.0 - (16.0 * beta * beta * z * z)));
-                t4 * (t1 + (t2 * t3))
+                (t4 * (t1 + (t2 * t3))) as f32
             }
         }
     }
