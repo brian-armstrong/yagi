@@ -33,11 +33,13 @@ impl DotProd<f32> for [Complex<f32>] {
 
     #[cfg(not(feature = "simd"))]
     fn dotprod(&self, other: &[f32]) -> Complex<f32> {
+        assert_eq!(self.len(), other.len(), "Slices must have equal length");
         self.iter().zip(other).map(|(a, b)| a * b).sum()
     }
 
     #[cfg(feature = "simd")]
     fn dotprod(&self, other: &[f32]) -> Complex<f32> {
+        assert_eq!(self.len(), other.len(), "Slices must have equal length");
         let f = DOTPROD_CRC.get_or_init(|| {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             {
@@ -84,7 +86,6 @@ impl DotProd<f32> for std::collections::VecDeque<Complex<f32>> {
 // Scalar fallback
 #[cfg(feature = "simd")]
 unsafe fn dotprod_crc_scalar(a: &[Complex<f32>], b: &[f32]) -> Complex<f32> {
-    assert_eq!(a.len(), b.len(), "Slices must have equal length");
     a.iter().zip(b).map(|(a, b)| a * b).sum()
 }
 
@@ -297,10 +298,14 @@ unsafe fn dotprod_crc_avx512_f32x16(a: &[Complex<f32>], b: &[f32]) -> Complex<f3
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
-    use rand::Rng;
     use test_macro::autotest_annotate;
+    #[cfg(feature = "simd")]
+    use crate::random::{crandnf, randnf};
 
     type Cf32 = Complex<f32>;
+
+    #[cfg(feature = "simd")]
+    type Cf64 = Complex<f64>;
 
     #[test]
     #[autotest_annotate(autotest_dotprod_crcf_rand01)]
@@ -370,23 +375,6 @@ mod tests {
     }
 
     #[test]
-    fn test_dotprod_crcf_struct_vs_ordinal() {
-        let mut rng = rand::thread_rng();
-        const TOL: f32 = 1e-4;
-
-        for n in 1..=512 {
-            let h: Vec<f32> = (0..n).map(|_| rng.gen()).collect();
-            let x: Vec<Cf32> = (0..n).map(|_| Cf32::new(rng.gen(), rng.gen())).collect();
-
-            let y_test: Cf32 = h.iter().zip(x.iter()).map(|(&a, &b)| a * b).sum();
-            let y_struct = h.dotprod(&x);
-
-            assert_abs_diff_eq!(y_struct.re, y_test.re, epsilon = TOL);
-            assert_abs_diff_eq!(y_struct.im, y_test.im, epsilon = TOL);
-        }
-    }
-
-    #[test]
     fn test_dotprod_crc_rand() {
         const TOL: f32 = 1e-3;
 
@@ -417,20 +405,9 @@ mod tests {
     }
 
     #[test]
-    fn test_dotprod_crc_struct_vs_ordinal() {
-        let mut rng = rand::thread_rng();
-        const TOL: f32 = 1e-3;
-
-        for n in 1..=512 {
-            let x: Vec<Cf32> = (0..n).map(|_| Cf32::new(rng.gen(), rng.gen())).collect();
-            let h: Vec<f32> = (0..n).map(|_| rng.gen()).collect();
-
-            let y_test: Cf32 = x.iter().zip(h.iter()).map(|(&a, &b)| a * b).sum();
-            let y_struct = x.dotprod(&h);
-
-            assert_abs_diff_eq!(y_struct.re, y_test.re, epsilon = TOL);
-            assert_abs_diff_eq!(y_struct.im, y_test.im, epsilon = TOL);
-        }
+    #[should_panic(expected = "Slices must have equal length")]
+    fn test_dotprod_crc_mismatched_lengths() {
+        [Cf32::new(1.0, 1.0); 32].dotprod(&[1.0f32; 31]);
     }
 
     #[test]
@@ -465,25 +442,22 @@ mod tests {
         }
     }
 
-    // Direct tests for each SIMD tier
     #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
     #[test]
-    fn test_dotprod_crc_sse_direct() {
-        if !is_x86_feature_detected!("sse") {
+    fn test_dotprod_crc_avx512_direct() {
+        if !is_x86_feature_detected!("avx512f") {
             return;
         }
-        let mut rng = rand::thread_rng();
-        const TOL: f32 = 1e-3;
 
-        for n in 1..=256 {
-            let x: Vec<Cf32> = (0..n).map(|_| Cf32::new(rng.gen(), rng.gen())).collect();
-            let h: Vec<f32> = (0..n).map(|_| rng.gen()).collect();
+        for n in 1..=512 {
+            let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
+            let x: Vec<f32> = (0..n).map(|_| randnf()).collect();
 
-            let y_test: Cf32 = x.iter().zip(h.iter()).map(|(&a, &b)| a * b).sum();
-            let y_sse = unsafe { dotprod_crc_sse(&x, &h) };
+            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * b as f64).sum();
+            let y_avx512 = unsafe { dotprod_crc_avx512(&h, &x) };
 
-            assert_abs_diff_eq!(y_sse.re, y_test.re, epsilon = TOL);
-            assert_abs_diff_eq!(y_sse.im, y_test.im, epsilon = TOL);
+            assert_abs_diff_eq!(y_avx512.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_avx512.im, y_test.im as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
         }
     }
 
@@ -493,18 +467,50 @@ mod tests {
         if !is_x86_feature_detected!("avx2") {
             return;
         }
-        let mut rng = rand::thread_rng();
-        const TOL: f32 = 1e-3;
 
-        for n in 1..=256 {
-            let x: Vec<Cf32> = (0..n).map(|_| Cf32::new(rng.gen(), rng.gen())).collect();
-            let h: Vec<f32> = (0..n).map(|_| rng.gen()).collect();
+        for n in 1..=512 {
+            let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
+            let x: Vec<f32> = (0..n).map(|_| randnf()).collect();
 
-            let y_test: Cf32 = x.iter().zip(h.iter()).map(|(&a, &b)| a * b).sum();
-            let y_avx2 = unsafe { dotprod_crc_avx2(&x, &h) };
+            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * b as f64).sum();
+            let y_avx2 = unsafe { dotprod_crc_avx2(&h, &x) };
 
-            assert_abs_diff_eq!(y_avx2.re, y_test.re, epsilon = TOL);
-            assert_abs_diff_eq!(y_avx2.im, y_test.im, epsilon = TOL);
+            assert_abs_diff_eq!(y_avx2.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_avx2.im, y_test.im as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+        }
+    }
+
+    #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+    #[test]
+    fn test_dotprod_crc_sse_direct() {
+        if !is_x86_feature_detected!("sse") {
+            return;
+        }
+
+        for n in 1..=512 {
+            let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
+            let x: Vec<f32> = (0..n).map(|_| randnf()).collect();
+
+            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * b as f64).sum();
+            let y_sse = unsafe { dotprod_crc_sse(&h, &x) };
+
+            assert_abs_diff_eq!(y_sse.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_sse.im, y_test.im as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+        }
+    }
+
+    #[cfg(feature = "simd")]
+    #[test]
+    fn test_dotprod_crc_scalar_direct() {
+        for n in 1..=512 {
+            let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
+            let x: Vec<f32> = (0..n).map(|_| randnf()).collect();
+
+            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * b as f64).sum();
+            let y_scalar = unsafe { dotprod_crc_scalar(&h, &x) };
+
+            assert_abs_diff_eq!(y_scalar.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_scalar.im, y_test.im as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
         }
     }
 }
