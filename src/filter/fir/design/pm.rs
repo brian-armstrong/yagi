@@ -479,15 +479,16 @@ impl FirDesignPm {
                 }
             }
 
+            num_extra -= 1;
+            num_found -= 1;
+
             // Delete value in 'found_iext' at 'index imin'.  This
             // is equivalent to shifing all values left one position
-            // starting at index imin+1
+            // starting at index imin+1. Do this after reducing
+            // num_extra (the only valid slots).
             for i in imin..num_found {
                 found_iext[i] = found_iext[i+1];
             }
-
-            num_extra -= 1;
-            num_found -= 1;
         }
 
         // count number of changes
