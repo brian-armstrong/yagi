@@ -1,6 +1,4 @@
 // Filter module
-// Current state:
-// - still missing autocorr, firfarrow
 
 mod autocorr;
 mod dds;
@@ -13,7 +11,7 @@ mod ordfilt;
 mod resampler;
 mod symsync;
 
-// pub use autocorr::*;
+pub use autocorr::*;
 pub use dds::*;
 pub use fdelay::*;
 pub use fftfilt::*;
