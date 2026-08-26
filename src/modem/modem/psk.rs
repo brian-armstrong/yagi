@@ -50,15 +50,39 @@ impl Modem {
             ModemData::Psk(Psk { d_phi, .. }) => d_phi,
             _ => return Err(Error::Internal("modem data is not of type Psk".into())),
         };
-        let mut theta = symbol_in.arg();
-        theta -= d_phi;
-        if theta < -PI {
-            theta += 2.0 * PI;
+        // f64 for stability
+        let mut theta = symbol_in.arg() - d_phi;
+        if (theta as f64) < -std::f64::consts::PI {
+            theta = (theta as f64 + 2.0 * std::f64::consts::PI) as f32;
         }
         let (s, _demod_phase_error) = self.demodulate_linear_array_ref(theta, self.bits_per_symbol)?;
         let symbol_out = gray_encode(s);
         self.x_hat = self.modulate_psk(symbol_out)?;
         self.r = symbol_in;
         Ok(symbol_out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_modem_psk_negative_pi_boundary() {
+        let cases: [(ModulationScheme, u32, u32); 4] = [
+            (ModulationScheme::Psk2, 2, 1),
+            (ModulationScheme::Psk4, 4, 2),
+            (ModulationScheme::Psk8, 8, 4),
+            (ModulationScheme::Psk16, 16, 8),
+        ];
+
+        for (scheme, m, want) in cases {
+            let d_phi = std::f32::consts::PI * (1.0 - 1.0 / m as f32);
+            let arg = -std::f32::consts::PI + d_phi;
+
+            let mut q = Modem::new(scheme).unwrap();
+            let sym = q.demodulate(Complex32::from_polar(1.0, arg)).unwrap();
+            assert_eq!(sym, want, "PSK{} at the -pi boundary", m);
+        }
     }
 }

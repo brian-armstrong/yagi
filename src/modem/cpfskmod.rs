@@ -98,9 +98,12 @@ impl Cpfskmod {
         };
 
         // create pulse-shaping filter and scale by modulation index
+        //
+        // f64 for stability
         let mut ht = cpfskmod_firdes(k, m, beta, filter_type, ht_len)?;
+        let scale = std::f64::consts::PI * h as f64;
         for coeff in ht.iter_mut() {
-            *coeff *= PI * h;
+            *coeff = (*coeff as f64 * scale) as f32;
         }
 
         let interp = FirInterpolationFilter::new(k, &ht, ht_len)?;
@@ -387,6 +390,38 @@ mod tests {
                 assert_abs_diff_eq!(sample.norm(), 1.0, epsilon = 1e-6);
             }
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cpfskmod_gmsk_matches_liquid_over_long_run() -> Result<()> {
+        let (k, m) = (4, 3);
+        let mut q = Cpfskmod::new_gmsk(k, m, 0.35)?;
+        let mut y = vec![Complex32::new(0.0, 0.0); k];
+
+        // (symbol index, sample index, re, im)
+        let expected = [
+            (50usize, 0usize, 0.468684524f32, 0.883365631f32),
+            (50, 2, 0.707106829, 0.707106769),
+            (200, 0, 0.468684524, 0.883365631),
+            (200, 3, 0.839165568, 0.543875992),
+            (399, 0, 0.883365631, 0.468684465),
+            (399, 2, 0.707106829, 0.707106769),
+        ];
+
+        let mut checked = 0;
+        for i in 0..400 {
+            q.modulate((i * 7 + 3) % 2, &mut y)?;
+            for &(si, sj, re, im) in expected.iter() {
+                if si == i {
+                    assert_abs_diff_eq!(y[sj].re, re, epsilon = 2e-6);
+                    assert_abs_diff_eq!(y[sj].im, im, epsilon = 2e-6);
+                    checked += 1;
+                }
+            }
+        }
+        assert_eq!(checked, expected.len(), "not every reference sample was checked");
 
         Ok(())
     }

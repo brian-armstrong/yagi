@@ -44,6 +44,9 @@ impl Modem {
             dpsk.phi += sym_in as f32 * 2.0 * dpsk.alpha;
 
             // limit phase
+            //
+            // this is safe for f32. the comparison and PI truncation
+            // make it numerically stable in this case.
             if dpsk.phi > 2.0 * PI {
                 dpsk.phi -= 2.0 * PI;
             }
@@ -68,11 +71,14 @@ impl Modem {
                 dpsk.phi = theta;
 
                 // subtract phase offset, ensuring phase is in [-pi,pi)
+                //
+                // this does need f64 to be stable
                 d_theta -= dpsk.d_phi;
-                if d_theta > PI {
-                    d_theta -= 2.0 * PI;
-                } else if d_theta < -PI {
-                    d_theta += 2.0 * PI;
+                let dt = d_theta as f64;
+                if dt > std::f64::consts::PI {
+                    d_theta = (dt - 2.0 * std::f64::consts::PI) as f32;
+                } else if dt < -std::f64::consts::PI {
+                    d_theta = (dt + 2.0 * std::f64::consts::PI) as f32;
                 }
                 d_theta
             } else {
@@ -91,5 +97,31 @@ impl Modem {
         self.x_hat = Complex32::from_polar(1.0, theta - demod_phase_error);
         self.r = x;
         Ok(sym_out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_modem_dpsk_pi_boundaries() {
+        let cases: [(ModulationScheme, u32, u32, u32); 3] = [
+            // (scheme, M, sym at -pi, sym at +pi)
+            (ModulationScheme::Dpsk2, 2, 1, 1),
+            (ModulationScheme::Dpsk4, 4, 2, 0),
+            (ModulationScheme::Dpsk8, 8, 4, 0),
+        ];
+
+        for (scheme, m, want_neg, want_pos) in cases {
+            let d_phi = std::f32::consts::PI * (1.0 - 1.0 / m as f32);
+            for (base, want) in [(-std::f32::consts::PI, want_neg), (std::f32::consts::PI, want_pos)] {
+                let mut q = Modem::new(scheme).unwrap();
+                // first symbol establishes the reference phase at 0
+                q.demodulate(Complex32::from_polar(1.0, 0.0)).unwrap();
+                let sym = q.demodulate(Complex32::from_polar(1.0, base + d_phi)).unwrap();
+                assert_eq!(sym, want, "DPSK{} at base {:+.6}", m, base);
+            }
+        }
     }
 }
