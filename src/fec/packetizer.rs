@@ -671,4 +671,44 @@ mod tests {
             assert_eq!(msg_tx, msg_rx);
         }
     }
+
+    #[test]
+    fn test_packetizer_uncorrectable_reports_crc_failure() {
+        let n = 64;
+        let crc = CrcScheme::Crc32;
+
+        for fec0 in [
+            FecScheme::RsM8,
+            FecScheme::Hamming74,
+            FecScheme::Golay2412,
+            FecScheme::None,
+        ] {
+            let pkt_len = packetizer_compute_enc_msg_len(n, crc, fec0, FecScheme::None);
+            let mut p = Packetizer::new(n, crc, fec0, FecScheme::None).unwrap();
+
+            let msg_tx: Vec<u8> = (0..n).map(|i| ((i * 7 + 3) % 256) as u8).collect();
+            let mut packet = vec![0u8; pkt_len];
+            p.encode(&msg_tx, &mut packet).unwrap();
+
+            // corrupt a third of the packet: far beyond any of these schemes
+            for (i, b) in packet.iter_mut().enumerate() {
+                if i % 3 == 0 {
+                    *b ^= 0xff;
+                }
+            }
+
+            let mut msg_rx = vec![0xAAu8; n];
+            let crc_pass = p
+                .decode(&packet, &mut msg_rx)
+                .unwrap_or_else(|e| panic!("{fec0:?}: decode returned Err({e})"));
+
+            assert!(!crc_pass, "{fec0:?}: crc should fail on a mangled packet");
+
+            // and the payload buffer was actually written, not left untouched
+            assert!(
+                msg_rx.iter().any(|&b| b != 0xAA),
+                "{fec0:?}: decode left the output buffer untouched"
+            );
+        }
+    }
 }

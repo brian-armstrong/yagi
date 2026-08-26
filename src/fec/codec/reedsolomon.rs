@@ -4,7 +4,7 @@
 // the codec itself comes from the `fec` crate; this adds liquid's
 // block-splitting layer on top
 
-use fec::reed_solomon::{Decoder, Encoder};
+use fec::reed_solomon::{DecodeError, Decoder, Encoder};
 
 use crate::error::{Error, Result};
 #[cfg(test)]
@@ -191,6 +191,12 @@ impl ReedSolomon {
     /// decode block of data using Reed-Solomon decoder, returning the total
     /// number of byte errors corrected across all blocks
     ///
+    /// `Err` is only returned when the request is structurally malformed 
+    /// (wrong arguments or bad block). If the decoder detects that there are
+    /// more errors than it can correct, this will actually return Ok(0) and
+    /// leave the block uncorrected. This enables the Packetizer or other
+    /// callers to return the block with errors when desired.
+    ///
     ///  dec_msg_len    :   decoded message length (number of bytes)
     ///  msg_enc        :   encoded message
     ///  msg_dec        :   decoded message [size: 1 x dec_msg_len]
@@ -226,18 +232,26 @@ impl ReedSolomon {
             self.tblock[block_size..block_size + self.nroots]
                 .copy_from_slice(&enc[layout.dec_block_len..layout.dec_block_len + self.nroots]);
 
-            let corrected = self
-                .decoder
-                .decode(
-                    &self.tblock[..block_size + self.nroots],
-                    &mut self.decoded[..block_size],
-                )
-                .map_err(|e| Error::Config(format!("Reed-Solomon decode failed: {:?}", e)))?;
-
-            total_corrected += corrected;
-
-            // copy result
-            msg_dec[n0..n0 + block_size].copy_from_slice(&self.decoded[..block_size]);
+            match self.decoder.decode(
+                &self.tblock[..block_size + self.nroots],
+                &mut self.decoded[..block_size],
+            ) {
+                Ok(corrected) => {
+                    total_corrected += corrected;
+                    msg_dec[n0..n0 + block_size].copy_from_slice(&self.decoded[..block_size]);
+                }
+                Err(DecodeError::TooManyErrors) => {
+                    // allow this case to propagate through uncorrected
+                    msg_dec[n0..n0 + block_size].copy_from_slice(&self.tblock[..block_size]);
+                }
+                Err(e) => {
+                    return Err(Error::Internal(format!(
+                        "Reed-Solomon decode failed: {e} \
+                         (block {i} of {}, block_size {block_size}, nroots {})",
+                        layout.num_blocks, self.nroots
+                    )))
+                }
+            }
 
             // increment counters
             n0 += block_size;
@@ -322,6 +336,40 @@ mod tests {
 
             assert_eq!(msg, decoded, "failed to correct 16 byte errors at n={}", n);
             assert_eq!(corrected, 16, "unexpected correction count at n={}", n);
+        }
+    }
+
+    #[test]
+    fn test_rs_uncorrectable_returns_data_not_error() {
+        let mut rs = ReedSolomon::new_m8();
+
+        for n in [64usize, 223, 300] {
+            let msg: Vec<u8> = (0..n).map(|i| ((i * 11 + 5) % 256) as u8).collect();
+            let layout = rs.layout(n);
+
+            let mut encoded = vec![0u8; layout.enc_msg_len()];
+            rs.encode(&msg, &mut encoded).unwrap();
+
+            // 17+ symbol errors per block is past the 16-symbol budget
+            for k in 0..40 {
+                encoded[k * 2] ^= 0xff;
+            }
+
+            let mut decoded = vec![0xAAu8; n];
+            let corrected = rs
+                .decode(n, &encoded, &mut decoded)
+                .unwrap_or_else(|e| panic!("n={n}: uncorrectable block returned Err({e})"));
+
+            // the buffer was written, not left at its fill value
+            assert!(
+                decoded.iter().any(|&b| b != 0xAA),
+                "n={n}: decode left the output untouched"
+            );
+            // and the failed block contributed nothing to the count
+            assert!(
+                corrected == 0,
+                "n={n}: reported {corrected} corrections on an uncorrectable block"
+            );
         }
     }
 
