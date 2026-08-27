@@ -8,7 +8,7 @@ mod firpfb;
 
 pub use design::*;
 pub use firdecim::*;
-// pub use firfarrow::*;
+pub use firfarrow::*;
 pub use firfilt::*;
 pub use firhilb::*;
 pub use firinterp::*;
