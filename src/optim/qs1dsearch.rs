@@ -1,7 +1,5 @@
 use crate::error::{Error, Result};
 
-pub type Qs1dUtility = fn(f32, &mut Option<&mut dyn std::any::Any>) -> f32;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OptimDirection {
     Minimize,
@@ -9,7 +7,7 @@ pub enum OptimDirection {
 }
 
 #[derive(Debug)]
-pub struct Qs1dSearch<'a> {
+pub struct Qs1dSearch<F> {
     // values
     vn: f32,
     va: f32,
@@ -27,15 +25,17 @@ pub struct Qs1dSearch<'a> {
     // values initialized?
     init: bool,
 
-    // External utility function
-    utility: Qs1dUtility,
-    context: Option<& 'a mut dyn std::any::Any>,
+    // utility closure
+    utility: F,
     direction: OptimDirection,
     num_steps: usize,
 }
 
-impl <'a> Qs1dSearch<'a> {
-    pub fn new(utility: Qs1dUtility, context: Option<&'a mut dyn std::any::Any>, direction: OptimDirection) -> Self {
+impl<F> Qs1dSearch<F>
+where
+    F: FnMut(f32) -> f32,
+{
+    pub fn new(utility: F, direction: OptimDirection) -> Self {
         Self {
             vn: 0.0,
             va: 0.0,
@@ -49,7 +49,6 @@ impl <'a> Qs1dSearch<'a> {
             up: 0.0,
             init: false,
             utility,
-            context,
             direction,
             num_steps: 0,
         }
@@ -86,11 +85,11 @@ impl <'a> Qs1dSearch<'a> {
 
         // check edge case where v is exactly the optimum
         self.vn = v - step;
-        self.un = (self.utility)(self.vn, &mut self.context);
+        self.un = (self.utility)(self.vn);
         self.v0 = v;
-        self.u0 = (self.utility)(self.v0, &mut self.context);
+        self.u0 = (self.utility)(self.v0);
         self.vp = v + step;
-        self.up = (self.utility)(self.vp, &mut self.context);
+        self.up = (self.utility)(self.vp);
         if (self.direction == OptimDirection::Minimize && self.u0 < self.un && self.u0 < self.up) ||
            (self.direction == OptimDirection::Maximize && self.u0 > self.un && self.u0 > self.up)
         {
@@ -106,8 +105,8 @@ impl <'a> Qs1dSearch<'a> {
         let mut v0 = v_init;
         let mut vp = v_init + step * 0.5;
         let mut un;
-        let mut u0 = (self.utility)(v0, &mut self.context);
-        let mut up = (self.utility)(vp, &mut self.context);
+        let mut u0 = (self.utility)(v0);
+        let mut up = (self.utility)(vp);
         let mut step = step;
 
         for _ in 0..180 {
@@ -118,7 +117,7 @@ impl <'a> Qs1dSearch<'a> {
             u0 = up;
 
             vp = v0 + step;
-            up = (self.utility)(vp, &mut self.context);
+            up = (self.utility)(vp);
 
             if (self.direction == OptimDirection::Minimize && u0 < un && u0 < up) ||
                (self.direction == OptimDirection::Maximize && u0 > un && u0 > up)
@@ -153,9 +152,9 @@ impl <'a> Qs1dSearch<'a> {
         self.v0 = 0.5 * (vn + vp);
 
         // evaluate utility
-        self.un = (self.utility)(self.vn, &mut self.context);
-        self.u0 = (self.utility)(self.v0, &mut self.context);
-        self.up = (self.utility)(self.vp, &mut self.context);
+        self.un = (self.utility)(self.vn);
+        self.u0 = (self.utility)(self.v0);
+        self.up = (self.utility)(self.vp);
 
         self.init = true;
 
@@ -172,8 +171,8 @@ impl <'a> Qs1dSearch<'a> {
         self.vb = 0.5 * (self.v0 + self.vp);
 
         // evaluate utility
-        self.ua = (self.utility)(self.va, &mut self.context);
-        self.ub = (self.utility)(self.vb, &mut self.context);
+        self.ua = (self.utility)(self.va);
+        self.ub = (self.utility)(self.vb);
 
         // [ (vn)  va  (v0)  vb  (vp) ]
         // optimum should be va, v0, or vb
@@ -232,19 +231,18 @@ mod tests {
     use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
 
-    fn qs1dsearch_umin(v: f32, context: &mut Option<&mut dyn std::any::Any>) -> f32 {
-        let v_opt = context.as_ref().unwrap().downcast_ref::<f32>().unwrap();
+    fn qs1dsearch_umin(v: f32, v_opt: f32) -> f32 {
         let v = v - v_opt;
         v.tanh().powi(2)
     }
 
-    fn qs1dsearch_umax(v: f32, context: &mut Option<&mut dyn std::any::Any>) -> f32 {
-        -qs1dsearch_umin(v, context)
+    fn qs1dsearch_umax(v: f32, v_opt: f32) -> f32 {
+        -qs1dsearch_umin(v, v_opt)
     }
 
     // test initialization on single value
     fn test_qs1dsearch(
-        utility: Qs1dUtility,
+        utility: fn(f32, f32) -> f32,
         v_opt: f32,
         v_lo: f32,
         v_hi: f32,
@@ -252,28 +250,21 @@ mod tests {
         direction: OptimDirection,
     ) {
         // create qs1dsearch object and initialize
-        let mut v_opt = v_opt;
-        let q_opt_v;
-        let q_opt_u;
-        {
-            let mut q = Qs1dSearch::new(utility, Some(&mut v_opt), direction);
-            if bounds {
-                q.init_bounds(v_lo, v_hi).unwrap();
-            } else {
-                q.init(v_lo).unwrap();
-            }
+        let mut q = Qs1dSearch::new(|v| utility(v, v_opt), direction);
+        if bounds {
+            q.init_bounds(v_lo, v_hi).unwrap();
+        } else {
+            q.init(v_lo).unwrap();
+        }
 
-            // run search
-            for _ in 0..32 {
-                q.step().unwrap();
-            }
-            q_opt_v = q.get_opt_v();
-            q_opt_u = q.get_opt_u();
+        // run search
+        for _ in 0..32 {
+            q.step().unwrap();
         }
 
         // check result
-        assert_abs_diff_eq!(q_opt_v, v_opt, epsilon = 1e-3);
-        assert_abs_diff_eq!(q_opt_u, utility(v_opt, &mut Some(&mut v_opt)), epsilon = 1e-3);
+        assert_abs_diff_eq!(q.get_opt_v(), v_opt, epsilon = 1e-3);
+        assert_abs_diff_eq!(q.get_opt_u(), utility(v_opt, v_opt), epsilon = 1e-3);
     }
 
     // unbounded:
@@ -418,13 +409,9 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_qs1dsearch_config)]
     fn test_qs1dsearch_config() {
-        // check invalid function calls
-        // assert!(Qs1dSearch::new(None, OptimDirection::Maximize).is_err()); // utility is NULL
-        // assert!(Qs1dSearch::<f32>::copy(None).is_err());
-
         // create proper object and test configurations
-        let mut v_opt = 0.0f32;
-        let mut q = Qs1dSearch::new(qs1dsearch_umax, Some(&mut v_opt), OptimDirection::Maximize);
+        let v_opt = 0.0f32;
+        let mut q = Qs1dSearch::new(|v| qs1dsearch_umax(v, v_opt), OptimDirection::Maximize);
         // assert!(q.print().is_ok());
 
         // test configurations

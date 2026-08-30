@@ -63,7 +63,11 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
         bands[1] = fp;
 
         // execute filter design
-        let h_pm = design::pm::fir_design_pm(n, num_bands, &bands, &des, Some(&weights), Some(&wtype), btype)?;
+        let h_pm = match design::pm::fir_design_pm(n, num_bands, &bands, &des, Some(&weights), Some(&wtype), btype) {
+            Ok(h) => h,
+            Err(Error::NoConvergence(_)) => break, // retain the best prior candidate
+            Err(error) => return Err(error),
+        };
 
         // compute inter-symbol interference (MSE, max)
         let (isi_rms, _isi_max) = design::filter_isi(&h_pm, k, m);

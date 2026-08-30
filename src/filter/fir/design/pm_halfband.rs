@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::filter::fir::design::estimate_req_filter_transition_bandwidth;
 use crate::filter::fir::design::pm::{fir_design_pm, FirPmBandType, FirPmWeightType};
 use crate::fft::{Fft, Direction};
@@ -20,6 +20,7 @@ struct FirdespmHalfband {
     buf_freq: Vec<Complex32>,   // frequency buffer
     fft: Fft<f32>,              // transform object
     n: usize,                   // number of points to evaluate
+    utility_error: Option<Error>, // unexpected error from optimizer callback
 }
 
 impl FirdespmHalfband {
@@ -40,21 +41,20 @@ impl FirdespmHalfband {
             buf_freq: vec![Complex32::new(0.0, 0.0); nfft],
             fft: Fft::new(nfft, Direction::Forward),
             n,
+            utility_error: None,
         })
     }
 }
 
-fn firdespm_halfband_utility(gamma: f32, userdata: &mut Option<&mut dyn std::any::Any>) -> f32 {
+fn firdespm_halfband_utility_result(gamma: f32, userdata: &mut FirdespmHalfband) -> Result<f32> {
     // design filter
-    let userdata = userdata.as_mut().unwrap().downcast_mut::<FirdespmHalfband>().unwrap();
     let f0 = 0.25 - 0.5 * userdata.ft * gamma;
     let f1 = 0.25 + 0.5 * userdata.ft;
     let bands = [0.00, f0, f1, 0.50];
     let des = [1.0, 0.0];
     let weights = [1.0, 1.0]; // best with {1, 1}
     let wtype = [FirPmWeightType::Flat, FirPmWeightType::Flat]; // best with {flat, flat}
-    let h = fir_design_pm(userdata.h_len, 2, &bands, &des, Some(&weights), Some(&wtype), FirPmBandType::Bandpass)
-        .expect("firdespm_run failed");
+    let h = fir_design_pm(userdata.h_len, 2, &bands, &des, Some(&weights), Some(&wtype), FirPmBandType::Bandpass)?;
     userdata.h = h;
 
     // compute utility; copy ideal non-zero coefficients and compute transform
@@ -84,7 +84,18 @@ fn firdespm_halfband_utility(gamma: f32, userdata: &mut Option<&mut dyn std::any
         .sum();
 
     // return utility in dB
-    10.0 * (u / userdata.n as f32).log10()
+    Ok(10.0 * (u / userdata.n as f32).log10())
+}
+
+fn firdespm_halfband_utility(gamma: f32, userdata: &mut FirdespmHalfband) -> f32 {
+    match firdespm_halfband_utility_result(gamma, userdata) {
+        Ok(utility) => utility,
+        Err(Error::NoConvergence(_)) => f32::INFINITY, // reject this candidate
+        Err(error) => {
+            userdata.utility_error = Some(error);
+            f32::INFINITY
+        }
+    }
 }
 
 /// Design halfband filter using Parks-McClellan algorithm given the
@@ -102,17 +113,23 @@ pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
     let mut q = FirdespmHalfband::new(m, 4 * m + 1, 1200, ft)?;
 
     // create and run search
-    {
+    let gamma = {
         let mut optim = Qs1dSearch::new(
-            |gamma, userdata| firdespm_halfband_utility(gamma, userdata),
-            Some(&mut q),
+            |gamma| firdespm_halfband_utility(gamma, &mut q),
             OptimDirection::Minimize,
         );
         optim.init_bounds(1.0, 0.9)?;
         for _ in 0..32 {
             optim.step()?;
         }
+        optim.get_opt_v()
+    };
+
+    if let Some(error) = q.utility_error.take() {
+        return Err(error);
     }
+
+    firdespm_halfband_utility_result(gamma, &mut q)?;
 
     Ok(q.h)
 }

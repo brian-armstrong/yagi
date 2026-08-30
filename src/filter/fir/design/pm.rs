@@ -54,8 +54,14 @@ pub enum FirPmWeightType {
     Lin,
 }
 
-/// A callback function for specifying desired response & weights
-pub type FirPmCallback = fn(frequency: f64, userdata: Option<&dyn std::any::Any>, desired: &mut f64, weight: &mut f64) -> Result<()>;
+/// Desired response and weight at a frequency grid point.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FirPmResponse {
+    /// Desired filter response.
+    pub desired: f64,
+    /// Error weight; larger values prioritize this frequency.
+    pub weight: f64,
+}
 
 // TODO consider not using a struct here. is this reusable? could we combine ctor and execute?
 
@@ -112,37 +118,36 @@ impl FirDesignPm {
         btype: FirPmBandType,
     ) -> Result<FirDesignPm> {
         let mut obj = FirDesignPm::_new(h_len, num_bands, bands, Some(des), weights, wtype, btype)?;
-        obj.create_grid(None, None)?;
+        obj.create_grid(None)?;
         // TODO : fix grid, weights according to filter type
         Ok(obj)
     }
 
-    // TODO consider using a FnMut instead of callback+userdata
-
-    /// create Parks-McClellan filter design object with user-defined callback
+    /// create Parks-McClellan filter design object with user-defined response
     /// 
     /// # Arguments
     /// 
     /// * `h_len` - filter length
     /// * `num_bands` - number of bands
-    /// * `bands` - band edges, f in [0,0.5], [size: num_bands]
+    /// * `bands` - band edges, f in [0,0.5], [size: 2*num_bands]
     /// * `btype` - band type (e.g. `FirPmBandType::Bandpass`)
-    /// * `callback` - user-defined callback for specifying desired response & weights
-    /// * `userdata` - user-defined data structure for callback function
+    /// * `response` - user-defined response and weight function
     /// 
     /// # Returns
     /// 
     /// A new Parks-McClellan filter design object
-    pub fn new_with_callback(
+    pub fn new_with_response<F>(
         h_len: usize,
         num_bands: usize,
         bands: &[f32],
         btype: FirPmBandType,
-        callback: FirPmCallback,
-        userdata: Option<&dyn std::any::Any>,
-    ) -> Result<FirDesignPm> {
+        mut response: F,
+    ) -> Result<FirDesignPm>
+    where
+        F: FnMut(f64) -> Result<FirPmResponse>,
+    {
         let mut obj = FirDesignPm::_new(h_len, num_bands, bands, None, None, None, btype)?;
-        obj.create_grid(Some(callback), userdata)?;
+        obj.create_grid(Some(&mut response))?;
         // TODO : fix grid, weights according to filter type
         Ok(obj)
     }
@@ -282,8 +287,7 @@ impl FirDesignPm {
 
     fn create_grid(
         &mut self,
-        callback: Option<FirPmCallback>,
-        userdata: Option<&dyn std::any::Any>,
+        mut response: Option<&mut dyn FnMut(f64) -> Result<FirPmResponse>>,
     ) -> Result<()> {
         // frequency step size
         let df = 0.5 / (self.grid_density * self.r) as f64;
@@ -307,9 +311,11 @@ impl FirDesignPm {
             for j in 0..num_points {
                 self.f[n] = f0 + j as f64 * df;
                 
-                // compute desired response using callback if provided
-                if callback.is_some() {
-                    callback.unwrap()(self.f[n], userdata, &mut self.d[n], &mut self.w[n])?;
+                // compute desired response using function if provided
+                if let Some(response) = response.as_mut() {
+                    let value = response(self.f[n])?;
+                    self.d[n] = value.desired;
+                    self.w[n] = value.weight;
                 } else {
                     self.d[n] = self.des[i];
 
@@ -429,10 +435,10 @@ impl FirDesignPm {
             // should never happen as the Chebyshev alternation theorem
             // guarantees at least r+1 extrema, however due to finite
             // machine precision, interpolation can be imprecise
-            self.num_exchanges = 0;
-            // TODO investigate if we should return error
-            // return Err(Error::Internal("Too few extremal frequencies found".to_string()));
-            return Ok(());
+            return Err(Error::NoConvergence(format!(
+                "Parks-McClellan exchange found {num_found} extrema; need {}",
+                self.r + 1,
+            )));
         }
 
         // search extrema and eliminate smallest
@@ -797,42 +803,38 @@ mod tests {
         assert!(validate_psd_signalf(&h, &regions).unwrap());
     }
 
-    fn callback_firdespm_helper(
-        frequency: f64,
-        userdata: Option<&dyn std::any::Any>,
-        desired: &mut f64,
-        weight: &mut f64
-    ) -> Result<()> {
-        assert!(userdata.is_some());
-        let userdata = userdata.unwrap();
-        assert!(userdata.downcast_ref::<i32>().is_some());
-        let userdata = userdata.downcast_ref::<i32>().unwrap();
-        assert_eq!(*userdata, 42);
-
-        *desired = if frequency < 0.39 {
-            (20.0 * frequency.abs()).exp()
-        } else {
-            0.0
-        };
-        *weight = if frequency < 0.39 {
-            (-10.0 * frequency).exp()
-        } else {
-            1.0
-        };
-        Ok(())
+    fn firdespm_response_helper(frequency: f64) -> Result<FirPmResponse> {
+        Ok(FirPmResponse {
+            desired: if frequency < 0.39 {
+                (20.0 * frequency.abs()).exp()
+            } else {
+                0.0
+            },
+            weight: if frequency < 0.39 {
+                (-10.0 * frequency).exp()
+            } else {
+                1.0
+            },
+        })
     }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_callback)]
-    fn test_firdespm_callback() {
+    fn test_firdespm_response() {
         // design filter
         let n = 81;
         let num_bands = 2;
         let bands = vec![0.0f32, 0.35f32, 0.4f32, 0.5f32];
         let btype = FirPmBandType::Bandpass;
 
-        let userdata = 42;
-        let mut q = FirDesignPm::new_with_callback(n, num_bands, &bands, btype, callback_firdespm_helper, Some(&userdata)).unwrap();
+        let captured_value = 42;
+        let mut num_calls = 0;
+        let mut q = FirDesignPm::new_with_response(n, num_bands, &bands, btype, |frequency| {
+            assert_eq!(captured_value, 42);
+            num_calls += 1;
+            firdespm_response_helper(frequency)
+        }).unwrap();
+        assert!(num_calls > 0);
         let h = q.execute().unwrap();
 
         // verify resulting spectrum
@@ -848,6 +850,21 @@ mod tests {
             PsdRegion { fmin:  0.40,  fmax:  0.50, pmin:  0.0, pmax: -20.0, test_lo: false, test_hi: true },
         ];
         assert!(validate_psd_signalf(&h, &regions).unwrap());
+    }
+
+    #[test]
+    fn test_firdespm_response_error() {
+        let bands = [0.0, 0.35, 0.4, 0.5];
+        let error = Error::Value("response failed".into());
+        let result = FirDesignPm::new_with_response(
+            81,
+            2,
+            &bands,
+            FirPmBandType::Bandpass,
+            |_| Err(error.clone()),
+        );
+
+        assert_eq!(result.unwrap_err(), error);
     }
 
     #[test]
@@ -909,11 +926,11 @@ mod tests {
         assert!(FirDesignPm::new(51, 2, &bands_1, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
         assert!(FirDesignPm::new(51, 2, &bands, &des, Some(&w_0), Some(&wtype), FirPmBandType::Bandpass).is_err());
 
-        // try to create callback object with invalid configuration
-        assert!(FirDesignPm::new_with_callback(0, 2, &bands, FirPmBandType::Bandpass, callback_firdespm_helper, None).is_err());
-        assert!(FirDesignPm::new_with_callback(51, 0, &bands, FirPmBandType::Bandpass, callback_firdespm_helper, None).is_err());
-        assert!(FirDesignPm::new_with_callback(51, 2, &bands_0, FirPmBandType::Bandpass, callback_firdespm_helper, None).is_err());
-        assert!(FirDesignPm::new_with_callback(51, 2, &bands_1, FirPmBandType::Bandpass, callback_firdespm_helper, None).is_err());
+        // try to create response object with invalid configuration
+        assert!(FirDesignPm::new_with_response(0, 2, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+        assert!(FirDesignPm::new_with_response(51, 0, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+        assert!(FirDesignPm::new_with_response(51, 2, &bands_0, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+        assert!(FirDesignPm::new_with_response(51, 2, &bands_1, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
     }
 
     #[test]
@@ -944,5 +961,28 @@ mod tests {
         let mut q = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype).unwrap();
         // unsupported configuration
         assert!(q.execute().is_err());
+    }
+
+    #[test]
+    fn test_firdespm_iext_search_reports_too_few_extrema() {
+        let bands = [0.0, 0.16, 0.34, 0.5];
+        let des = [1.0, 0.0];
+        let weights = [1.0, 1.0];
+        let mut q = FirDesignPm::new(
+            81,
+            2,
+            &bands,
+            &des,
+            Some(&weights),
+            None,
+            FirPmBandType::Bandpass,
+        ).unwrap();
+
+        // A monotonic error curve has only its two endpoints as extrema.
+        for i in 0..q.grid_size {
+            q.e[i] = i as f64;
+        }
+
+        assert!(matches!(q.iext_search(), Err(Error::NoConvergence(_))));
     }
 }
