@@ -148,7 +148,7 @@ mod tests {
         // test large values of nu
         assert_abs_diff_eq!(lnbesselif(20.0, 3.0), -34.1194307343208, epsilon = EPSILON);
         assert_abs_diff_eq!(lnbesselif(30.0, 3.0), -62.4217845317278, epsilon = EPSILON);
-        // Uncomment these if your implementation can handle these large values
+        // commented out (same as liquid)
         // assert_abs_diff_eq!(lnbesselif(35.0, 3.0), -77.8824494916507, epsilon = EPSILON);
         // assert_abs_diff_eq!(lnbesselif(38.0, 3.0), -87.5028737258841, epsilon = EPSILON);
         // assert_abs_diff_eq!(lnbesselif(39.0, 3.0), -90.7624095618186, epsilon = EPSILON);
