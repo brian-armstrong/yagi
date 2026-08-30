@@ -29,19 +29,19 @@
 ## cvsd
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| cvsd_rmse_sine                           | ✅ | ❓ |
-| cvsd_rmse_sine8                          | ✅ | ❓ |
-| cvsd_invalid_config                      | ✅ | ❓ |
+| cvsd_rmse_sine                           | ✅ | ✅ |
+| cvsd_rmse_sine8                          | ✅ | ✅ |
+| cvsd_invalid_config                      | ✅ | ✅ |
 
 
 ## cbuffer
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| cbufferf                                 | ✅ | ❓ |
-| cbuffercf                                | ✅ | ❓ |
-| cbufferf_flow                            | ✅ | ❓ |
-| cbufferf_config                          | ✅ | ❓ |
-| cbuffer_copy                             | ✅ | ❓ |
+| cbufferf                                 | ✅ | ✅ |
+| cbuffercf                                | ✅ | ✅ |
+| cbufferf_flow                            | ✅ | ✅ |
+| cbufferf_config                          | ✅ | ✅ |
+| cbuffer_copy                             | ✅ | ✅ |
 
 
 ## wdelay
@@ -64,12 +64,12 @@
 | ---- | ------ | ---- |
 | dotprod_rrrf_basic                       | ✅ | ✅ |
 | dotprod_rrrf_uneven                      | ✅ | ✅ |
-| dotprod_rrrf_struct                      | ✅ | ❓ |
-| dotprod_rrrf_struct_align                | ✅ | ❓ |
+| dotprod_rrrf_struct                      | ✅ | ✅ |
+| dotprod_rrrf_struct_align                | ✅ | ✅ |
 | dotprod_rrrf_rand01                      | ✅ | ✅ |
 | dotprod_rrrf_rand02                      | ✅ | ✅ |
-| dotprod_rrrf_struct_lengths              | ✅ | ❓ |
-| dotprod_rrrf_struct_vs_ordinal           | ✅ | ❓ |
+| dotprod_rrrf_struct_lengths              | ✅ | ✅ |
+| dotprod_rrrf_struct_vs_ordinal           | ✅ | ✅ |
 
 
 ## dotprod_crcf
@@ -77,37 +77,37 @@
 | ---- | ------ | ---- |
 | dotprod_crcf_rand01                      | ✅ | ✅ |
 | dotprod_crcf_rand02                      | ✅ | ✅ |
-| dotprod_crcf_struct_vs_ordinal           | ✅ | ❓ |
+| dotprod_crcf_struct_vs_ordinal           | ✅ | ✅ |
 
 
 ## dotprod_cccf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
 | dotprod_cccf_rand16                      | ✅ | ✅ |
-| dotprod_cccf_struct_lengths              | ✅ | ❓ |
-| dotprod_cccf_struct_vs_ordinal           | ✅ | ❓ |
+| dotprod_cccf_struct_lengths              | ✅ | ✅ |
+| dotprod_cccf_struct_vs_ordinal           | ✅ | ✅ |
 
 
 ## sumsqf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| sumsqf_3                                 | ✅ | ❓ |
-| sumsqf_4                                 | ✅ | ❓ |
-| sumsqf_7                                 | ✅ | ❓ |
-| sumsqf_8                                 | ✅ | ❓ |
-| sumsqf_15                                | ✅ | ❓ |
-| sumsqf_16                                | ✅ | ❓ |
+| sumsqf_3                                 | ✅ | ✅ |
+| sumsqf_4                                 | ✅ | ✅ |
+| sumsqf_7                                 | ✅ | ✅ |
+| sumsqf_8                                 | ✅ | ✅ |
+| sumsqf_15                                | ✅ | ✅ |
+| sumsqf_16                                | ✅ | ✅ |
 
 
 ## sumsqcf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| sumsqcf_3                                | ✅ | ❓ |
-| sumsqcf_4                                | ✅ | ❓ |
-| sumsqcf_7                                | ✅ | ❓ |
-| sumsqcf_8                                | ✅ | ❓ |
-| sumsqcf_15                               | ✅ | ❓ |
-| sumsqcf_16                               | ✅ | ❓ |
+| sumsqcf_3                                | ✅ | ✅ |
+| sumsqcf_4                                | ✅ | ✅ |
+| sumsqcf_7                                | ✅ | ✅ |
+| sumsqcf_8                                | ✅ | ✅ |
+| sumsqcf_15                               | ✅ | ✅ |
+| sumsqcf_16                               | ✅ | ✅ |
 
 
 ## eqlms_cccf
@@ -139,223 +139,223 @@
 ## crc
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| reverse_byte                             | ✅ | ❓ |
-| reverse_uint16                           | ✅ | ❓ |
-| reverse_uint32                           | ✅ | ❓ |
-| checksum                                 | ✅ | ❓ |
-| crc8                                     | ✅ | ❓ |
-| crc16                                    | ✅ | ❓ |
-| crc24                                    | ✅ | ❓ |
-| crc32                                    | ✅ | ❓ |
-| crc_config                               | ✅ | ❓ |
+| reverse_byte                             | ✅ | ✅ |
+| reverse_uint16                           | ✅ | ✅ |
+| reverse_uint32                           | ✅ | ✅ |
+| checksum                                 | ✅ | ✅ |
+| crc8                                     | ✅ | ✅ |
+| crc16                                    | ✅ | ✅ |
+| crc24                                    | ✅ | ✅ |
+| crc32                                    | ✅ | ✅ |
+| crc_config                               | ✅ | ✅ |
 
 
 ## fec
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| fec_r3                                   | ✅ | ❓ |
-| fec_r5                                   | ✅ | ❓ |
-| fec_h74                                  | ✅ | ❓ |
-| fec_h84                                  | ✅ | ❓ |
-| fec_h128                                 | ✅ | ❓ |
-| fec_g2412                                | ✅ | ❓ |
-| fec_secded2216                           | ✅ | ❓ |
-| fec_secded3932                           | ✅ | ❓ |
-| fec_secded7264                           | ✅ | ❓ |
-| fec_v27                                  | ✅ | ❓ |
-| fec_v29                                  | ✅ | ❓ |
-| fec_v39                                  | ✅ | ❓ |
-| fec_v615                                 | ✅ | ❓ |
-| fec_v27p23                               | ✅ | ❓ |
-| fec_v27p34                               | ✅ | ❓ |
-| fec_v27p45                               | ✅ | ❓ |
-| fec_v27p56                               | ✅ | ❓ |
-| fec_v27p67                               | ✅ | ❓ |
-| fec_v27p78                               | ✅ | ❓ |
-| fec_v29p23                               | ✅ | ❓ |
-| fec_v29p34                               | ✅ | ❓ |
-| fec_v29p45                               | ✅ | ❓ |
-| fec_v29p56                               | ✅ | ❓ |
-| fec_v29p67                               | ✅ | ❓ |
-| fec_v29p78                               | ✅ | ❓ |
-| fec_rs8                                  | ✅ | ❓ |
+| fec_r3                                   | ✅ | ✅ |
+| fec_r5                                   | ✅ | ✅ |
+| fec_h74                                  | ✅ | ✅ |
+| fec_h84                                  | ✅ | ✅ |
+| fec_h128                                 | ✅ | ✅ |
+| fec_g2412                                | ✅ | ✅ |
+| fec_secded2216                           | ✅ | ✅ |
+| fec_secded3932                           | ✅ | ✅ |
+| fec_secded7264                           | ✅ | ✅ |
+| fec_v27                                  | ✅ | ✅ |
+| fec_v29                                  | ✅ | ✅ |
+| fec_v39                                  | ✅ | ✅ |
+| fec_v615                                 | ✅ | ✅ |
+| fec_v27p23                               | ✅ | ✅ |
+| fec_v27p34                               | ✅ | ✅ |
+| fec_v27p45                               | ✅ | ✅ |
+| fec_v27p56                               | ✅ | ✅ |
+| fec_v27p67                               | ✅ | ✅ |
+| fec_v27p78                               | ✅ | ✅ |
+| fec_v29p23                               | ✅ | ✅ |
+| fec_v29p34                               | ✅ | ✅ |
+| fec_v29p45                               | ✅ | ✅ |
+| fec_v29p56                               | ✅ | ✅ |
+| fec_v29p67                               | ✅ | ✅ |
+| fec_v29p78                               | ✅ | ✅ |
+| fec_rs8                                  | ✅ | ✅ |
 
 
 ## fec_config
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| fec_config                               | ✅ | ❓ |
-| fec_str2fec                              | ✅ | ❓ |
-| fec_is_convolutional                     | ✅ | ❓ |
-| fec_is_punctured                         | ✅ | ❓ |
-| fec_is_reedsolomon                       | ✅ | ❓ |
-| fec_is_hamming                           | ✅ | ❓ |
+| fec_config                               | ✅ | ✅ |
+| fec_str2fec                              | ✅ | ✅ |
+| fec_is_convolutional                     | ✅ | ✅ |
+| fec_is_punctured                         | ✅ | ✅ |
+| fec_is_reedsolomon                       | ✅ | ✅ |
+| fec_is_hamming                           | ✅ | ✅ |
 
 
 ## fec_copy
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| fec_copy_r3                              | ✅ | ❓ |
-| fec_copy_r5                              | ✅ | ❓ |
-| fec_copy_h74                             | ✅ | ❓ |
-| fec_copy_h84                             | ✅ | ❓ |
-| fec_copy_h128                            | ✅ | ❓ |
-| fec_copy_g2412                           | ✅ | ❓ |
-| fec_copy_secded2216                      | ✅ | ❓ |
-| fec_copy_secded3932                      | ✅ | ❓ |
-| fec_copy_secded7264                      | ✅ | ❓ |
-| fec_copy_v27                             | ✅ | ❓ |
-| fec_copy_v29                             | ✅ | ❓ |
-| fec_copy_v39                             | ✅ | ❓ |
-| fec_copy_v615                            | ✅ | ❓ |
-| fec_copy_v27p23                          | ✅ | ❓ |
-| fec_copy_v27p34                          | ✅ | ❓ |
-| fec_copy_v27p45                          | ✅ | ❓ |
-| fec_copy_v27p56                          | ✅ | ❓ |
-| fec_copy_v27p67                          | ✅ | ❓ |
-| fec_copy_v27p78                          | ✅ | ❓ |
-| fec_copy_v29p23                          | ✅ | ❓ |
-| fec_copy_v29p34                          | ✅ | ❓ |
-| fec_copy_v29p45                          | ✅ | ❓ |
-| fec_copy_v29p56                          | ✅ | ❓ |
-| fec_copy_v29p67                          | ✅ | ❓ |
-| fec_copy_v29p78                          | ✅ | ❓ |
-| fec_copy_rs8                             | ✅ | ❓ |
+| fec_copy_r3                              | ✅ | ✅ |
+| fec_copy_r5                              | ✅ | ✅ |
+| fec_copy_h74                             | ✅ | ✅ |
+| fec_copy_h84                             | ✅ | ✅ |
+| fec_copy_h128                            | ✅ | ✅ |
+| fec_copy_g2412                           | ✅ | ✅ |
+| fec_copy_secded2216                      | ✅ | ✅ |
+| fec_copy_secded3932                      | ✅ | ✅ |
+| fec_copy_secded7264                      | ✅ | ✅ |
+| fec_copy_v27                             | ✅ | ✅ |
+| fec_copy_v29                             | ✅ | ✅ |
+| fec_copy_v39                             | ✅ | ✅ |
+| fec_copy_v615                            | ✅ | ✅ |
+| fec_copy_v27p23                          | ✅ | ✅ |
+| fec_copy_v27p34                          | ✅ | ✅ |
+| fec_copy_v27p45                          | ✅ | ✅ |
+| fec_copy_v27p56                          | ✅ | ✅ |
+| fec_copy_v27p67                          | ✅ | ✅ |
+| fec_copy_v27p78                          | ✅ | ✅ |
+| fec_copy_v29p23                          | ✅ | ✅ |
+| fec_copy_v29p34                          | ✅ | ✅ |
+| fec_copy_v29p45                          | ✅ | ✅ |
+| fec_copy_v29p56                          | ✅ | ✅ |
+| fec_copy_v29p67                          | ✅ | ✅ |
+| fec_copy_v29p78                          | ✅ | ✅ |
+| fec_copy_rs8                             | ✅ | ✅ |
 
 
 ## fec_soft
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| fecsoft_r3                               | ✅ | ❓ |
-| fecsoft_r5                               | ✅ | ❓ |
-| fecsoft_h74                              | ✅ | ❓ |
-| fecsoft_h84                              | ✅ | ❓ |
-| fecsoft_h128                             | ✅ | ❓ |
-| fecsoft_v27                              | ✅ | ❓ |
-| fecsoft_v29                              | ✅ | ❓ |
-| fecsoft_v39                              | ✅ | ❓ |
-| fecsoft_v615                             | ✅ | ❓ |
-| fecsoft_v27p23                           | ✅ | ❓ |
-| fecsoft_v27p34                           | ✅ | ❓ |
-| fecsoft_v27p45                           | ✅ | ❓ |
-| fecsoft_v27p56                           | ✅ | ❓ |
-| fecsoft_v27p67                           | ✅ | ❓ |
-| fecsoft_v27p78                           | ✅ | ❓ |
-| fecsoft_v29p23                           | ✅ | ❓ |
-| fecsoft_v29p34                           | ✅ | ❓ |
-| fecsoft_v29p45                           | ✅ | ❓ |
-| fecsoft_v29p56                           | ✅ | ❓ |
-| fecsoft_v29p67                           | ✅ | ❓ |
-| fecsoft_v29p78                           | ✅ | ❓ |
-| fecsoft_rs8                              | ✅ | ❓ |
+| fecsoft_r3                               | ✅ | ✅ |
+| fecsoft_r5                               | ✅ | ✅ |
+| fecsoft_h74                              | ✅ | ✅ |
+| fecsoft_h84                              | ✅ | ✅ |
+| fecsoft_h128                             | ✅ | ✅ |
+| fecsoft_v27                              | ✅ | ✅ |
+| fecsoft_v29                              | ✅ | ✅ |
+| fecsoft_v39                              | ✅ | ✅ |
+| fecsoft_v615                             | ✅ | ✅ |
+| fecsoft_v27p23                           | ✅ | ✅ |
+| fecsoft_v27p34                           | ✅ | ✅ |
+| fecsoft_v27p45                           | ✅ | ✅ |
+| fecsoft_v27p56                           | ✅ | ✅ |
+| fecsoft_v27p67                           | ✅ | ✅ |
+| fecsoft_v27p78                           | ✅ | ✅ |
+| fecsoft_v29p23                           | ✅ | ✅ |
+| fecsoft_v29p34                           | ✅ | ✅ |
+| fecsoft_v29p45                           | ✅ | ✅ |
+| fecsoft_v29p56                           | ✅ | ✅ |
+| fecsoft_v29p67                           | ✅ | ✅ |
+| fecsoft_v29p78                           | ✅ | ✅ |
+| fecsoft_rs8                              | ✅ | ✅ |
 
 
 ## fec_golay2412
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| golay2412_codec                          | ✅ | ❓ |
+| golay2412_codec                          | ✅ | ✅ |
 
 
 ## fec_hamming74
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| hamming74_codec                          | ✅ | ❓ |
-| hamming74_codec_soft                     | ✅ | ❓ |
+| hamming74_codec                          | ✅ | ✅ |
+| hamming74_codec_soft                     | ✅ | ✅ |
 
 
 ## fec_hamming84
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| hamming84_codec                          | ✅ | ❓ |
-| hamming84_codec_soft                     | ✅ | ❓ |
+| hamming84_codec                          | ✅ | ✅ |
+| hamming84_codec_soft                     | ✅ | ✅ |
 
 
 ## fec_hamming128
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| hamming128_codec                         | ✅ | ❓ |
-| hamming128_codec_soft                    | ✅ | ❓ |
+| hamming128_codec                         | ✅ | ✅ |
+| hamming128_codec_soft                    | ✅ | ✅ |
 
 
 ## fec_hamming1511
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| hamming1511_codec                        | ✅ | ❓ |
+| hamming1511_codec                        | ✅ | ✅ |
 
 
 ## fec_hamming3126
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| hamming3126_codec                        | ✅ | ❓ |
+| hamming3126_codec                        | ✅ | ✅ |
 
 
 ## fec_reedsolomon
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| reedsolomon_223_255                      | ✅ | ❓ |
+| reedsolomon_223_255                      | ✅ | ✅ |
 
 
 ## fec_rep3
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| rep3_codec                               | ✅ | ❓ |
+| rep3_codec                               | ✅ | ✅ |
 
 
 ## fec_rep5
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| rep5_codec                               | ✅ | ❓ |
+| rep5_codec                               | ✅ | ✅ |
 
 
 ## fec_secded2216
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| secded2216_codec_e0                      | ✅ | ❓ |
-| secded2216_codec_e1                      | ✅ | ❓ |
-| secded2216_codec_e2                      | ✅ | ❓ |
+| secded2216_codec_e0                      | ✅ | ✅ |
+| secded2216_codec_e1                      | ✅ | ✅ |
+| secded2216_codec_e2                      | ✅ | ✅ |
 
 
 ## fec_secded3932
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| secded3932_codec_e0                      | ✅ | ❓ |
-| secded3932_codec_e1                      | ✅ | ❓ |
-| secded3932_codec_e2                      | ✅ | ❓ |
+| secded3932_codec_e0                      | ✅ | ✅ |
+| secded3932_codec_e1                      | ✅ | ✅ |
+| secded3932_codec_e2                      | ✅ | ✅ |
 
 
 ## fec_secded7264
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| secded7264_codec_e0                      | ✅ | ❓ |
-| secded7264_codec_e1                      | ✅ | ❓ |
-| secded7264_codec_e2                      | ✅ | ❓ |
+| secded7264_codec_e0                      | ✅ | ✅ |
+| secded7264_codec_e1                      | ✅ | ✅ |
+| secded7264_codec_e2                      | ✅ | ✅ |
 
 
 ## interleaver
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| interleaver_hard_8                       | ✅ | ❓ |
-| interleaver_hard_16                      | ✅ | ❓ |
-| interleaver_hard_64                      | ✅ | ❓ |
-| interleaver_hard_256                     | ✅ | ❓ |
-| interleaver_soft_8                       | ✅ | ❓ |
-| interleaver_soft_16                      | ✅ | ❓ |
-| interleaver_soft_64                      | ✅ | ❓ |
-| interleaver_soft_256                     | ✅ | ❓ |
+| interleaver_hard_8                       | ✅ | ✅ |
+| interleaver_hard_16                      | ✅ | ✅ |
+| interleaver_hard_64                      | ✅ | ✅ |
+| interleaver_hard_256                     | ✅ | ✅ |
+| interleaver_soft_8                       | ✅ | ✅ |
+| interleaver_soft_16                      | ✅ | ✅ |
+| interleaver_soft_64                      | ✅ | ✅ |
+| interleaver_soft_256                     | ✅ | ✅ |
 
 
 ## packetizer_copy
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| packetizer_copy                          | ✅ | ❓ |
+| packetizer_copy                          | ✅ | ✅ |
 
 
 ## packetizer
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| packetizer_n16_0_0                       | ✅ | ❓ |
-| packetizer_n16_0_1                       | ✅ | ❓ |
-| packetizer_n16_0_2                       | ✅ | ❓ |
+| packetizer_n16_0_0                       | ✅ | ✅ |
+| packetizer_n16_0_1                       | ✅ | ✅ |
+| packetizer_n16_0_2                       | ✅ | ✅ |
 
 
 ## asgram
@@ -419,30 +419,30 @@
 ## fft_r2r
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| fft_r2r_REDFT00_n8                       | ✅ | ❓ |
-| fft_r2r_REDFT10_n8                       | ✅ | ❓ |
-| fft_r2r_REDFT01_n8                       | ✅ | ❓ |
-| fft_r2r_REDFT11_n8                       | ✅ | ❓ |
-| fft_r2r_RODFT00_n8                       | ✅ | ❓ |
-| fft_r2r_RODFT10_n8                       | ✅ | ❓ |
-| fft_r2r_RODFT01_n8                       | ✅ | ❓ |
-| fft_r2r_RODFT11_n8                       | ✅ | ❓ |
-| fft_r2r_REDFT00_n32                      | ✅ | ❓ |
-| fft_r2r_REDFT10_n32                      | ✅ | ❓ |
-| fft_r2r_REDFT01_n32                      | ✅ | ❓ |
-| fft_r2r_REDFT11_n32                      | ✅ | ❓ |
-| fft_r2r_RODFT00_n32                      | ✅ | ❓ |
-| fft_r2r_RODFT10_n32                      | ✅ | ❓ |
-| fft_r2r_RODFT01_n32                      | ✅ | ❓ |
-| fft_r2r_RODFT11_n32                      | ✅ | ❓ |
-| fft_r2r_REDFT00_n27                      | ✅ | ❓ |
-| fft_r2r_REDFT10_n27                      | ✅ | ❓ |
-| fft_r2r_REDFT01_n27                      | ✅ | ❓ |
-| fft_r2r_REDFT11_n27                      | ✅ | ❓ |
-| fft_r2r_RODFT00_n27                      | ✅ | ❓ |
-| fft_r2r_RODFT10_n27                      | ✅ | ❓ |
-| fft_r2r_RODFT01_n27                      | ✅ | ❓ |
-| fft_r2r_RODFT11_n27                      | ✅ | ❓ |
+| fft_r2r_REDFT00_n8                       | ✅ | ✅ |
+| fft_r2r_REDFT10_n8                       | ✅ | ✅ |
+| fft_r2r_REDFT01_n8                       | ✅ | ✅ |
+| fft_r2r_REDFT11_n8                       | ✅ | ✅ |
+| fft_r2r_RODFT00_n8                       | ✅ | ✅ |
+| fft_r2r_RODFT10_n8                       | ✅ | ✅ |
+| fft_r2r_RODFT01_n8                       | ✅ | ✅ |
+| fft_r2r_RODFT11_n8                       | ✅ | ✅ |
+| fft_r2r_REDFT00_n32                      | ✅ | ✅ |
+| fft_r2r_REDFT10_n32                      | ✅ | ✅ |
+| fft_r2r_REDFT01_n32                      | ✅ | ✅ |
+| fft_r2r_REDFT11_n32                      | ✅ | ✅ |
+| fft_r2r_RODFT00_n32                      | ✅ | ✅ |
+| fft_r2r_RODFT10_n32                      | ✅ | ✅ |
+| fft_r2r_RODFT01_n32                      | ✅ | ✅ |
+| fft_r2r_RODFT11_n32                      | ✅ | ✅ |
+| fft_r2r_REDFT00_n27                      | ✅ | ✅ |
+| fft_r2r_REDFT10_n27                      | ✅ | ✅ |
+| fft_r2r_REDFT01_n27                      | ✅ | ✅ |
+| fft_r2r_REDFT11_n27                      | ✅ | ✅ |
+| fft_r2r_RODFT00_n27                      | ✅ | ✅ |
+| fft_r2r_RODFT10_n27                      | ✅ | ✅ |
+| fft_r2r_RODFT01_n27                      | ✅ | ✅ |
+| fft_r2r_RODFT11_n27                      | ✅ | ✅ |
 
 
 ## fft_shift
@@ -501,11 +501,11 @@
 ## dds_cccf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| dds_cccf_0                               | ✅ | ❓ |
-| dds_cccf_1                               | ✅ | ❓ |
-| dds_cccf_2                               | ✅ | ❓ |
-| dds_config                               | ✅ | ❓ |
-| dds_copy                                 | ✅ | ❓ |
+| dds_cccf_0                               | ✅ | ✅ |
+| dds_cccf_1                               | ✅ | ✅ |
+| dds_cccf_2                               | ✅ | ✅ |
+| dds_config                               | ✅ | ✅ |
+| dds_copy                                 | ✅ | ✅ |
 
 
 ## fdelay_rrrf
@@ -1165,24 +1165,24 @@
 ## qpacketmodem
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| qpacketmodem_bpsk                        | ✅ | ❓ |
-| qpacketmodem_qpsk                        | ✅ | ❓ |
-| qpacketmodem_psk8                        | ✅ | ❓ |
-| qpacketmodem_qam16                       | ✅ | ❓ |
-| qpacketmodem_sqam32                      | ✅ | ❓ |
-| qpacketmodem_qam64                       | ✅ | ❓ |
-| qpacketmodem_sqam128                     | ✅ | ❓ |
-| qpacketmodem_qam256                      | ✅ | ❓ |
-| qpacketmodem_evm                         | ✅ | ❓ |
-| qpacketmodem_unmod_bpsk                  | ✅ | ❓ |
-| qpacketmodem_unmod_qpsk                  | ✅ | ❓ |
-| qpacketmodem_unmod_psk8                  | ✅ | ❓ |
-| qpacketmodem_unmod_qam16                 | ✅ | ❓ |
-| qpacketmodem_unmod_sqam32                | ✅ | ❓ |
-| qpacketmodem_unmod_qam64                 | ✅ | ❓ |
-| qpacketmodem_unmod_sqam128               | ✅ | ❓ |
-| qpacketmodem_unmod_qam256                | ✅ | ❓ |
-| qpacketmodem_copy                        | ✅ | ❓ |
+| qpacketmodem_bpsk                        | ✅ | ✅ |
+| qpacketmodem_qpsk                        | ✅ | ✅ |
+| qpacketmodem_psk8                        | ✅ | ✅ |
+| qpacketmodem_qam16                       | ✅ | ✅ |
+| qpacketmodem_sqam32                      | ✅ | ✅ |
+| qpacketmodem_qam64                       | ✅ | ✅ |
+| qpacketmodem_sqam128                     | ✅ | ✅ |
+| qpacketmodem_qam256                      | ✅ | ✅ |
+| qpacketmodem_evm                         | ✅ | ✅ |
+| qpacketmodem_unmod_bpsk                  | ✅ | ✅ |
+| qpacketmodem_unmod_qpsk                  | ✅ | ✅ |
+| qpacketmodem_unmod_psk8                  | ✅ | ✅ |
+| qpacketmodem_unmod_qam16                 | ✅ | ✅ |
+| qpacketmodem_unmod_sqam32                | ✅ | ✅ |
+| qpacketmodem_unmod_qam64                 | ✅ | ✅ |
+| qpacketmodem_unmod_sqam128               | ✅ | ✅ |
+| qpacketmodem_unmod_qam256                | ✅ | ✅ |
+| qpacketmodem_copy                        | ✅ | ✅ |
 
 
 ## qpilotsync
@@ -1640,7 +1640,7 @@
 | modem_copy_arb256opt                     | ✅ | ✅ |
 | modem_copy_arb64vt                       | ✅ | ✅ |
 | modem_copy_pi4dqpsk                      | ✅ | ✅ |
-| modem_config                             | ✅ | ❓ |
+| modem_config                             | ✅ | ✅ |
 
 
 ## modem_demodsoft
@@ -1757,9 +1757,9 @@
 ## modem_utilities
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| modemcf_print_schemes                    | ✅ | ❓ |
-| modemcf_str2mod                          | ✅ | ❓ |
-| modemcf_types                            | ✅ | ❓ |
+| modemcf_print_schemes                    | ✅ | ✅ |
+| modemcf_str2mod                          | ✅ | ✅ |
+| modemcf_types                            | ✅ | ✅ |
 
 
 ## firpfbch_crcf_synthesizer
@@ -1801,21 +1801,21 @@
 ## ofdmframe
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| ofdmframesync_acquire_n64                | ✅ | ❓ |
-| ofdmframesync_acquire_n128               | ✅ | ❓ |
-| ofdmframesync_acquire_n256               | ✅ | ❓ |
-| ofdmframesync_acquire_n512               | ✅ | ❓ |
-| ofdmframe_common_config                  | ✅ | ❓ |
-| ofdmframegen_config                      | ✅ | ❓ |
-| ofdmframesync_config                     | ✅ | ❓ |
+| ofdmframesync_acquire_n64                | ✅ | ✅ |
+| ofdmframesync_acquire_n128               | ✅ | ✅ |
+| ofdmframesync_acquire_n256               | ✅ | ✅ |
+| ofdmframesync_acquire_n512               | ✅ | ✅ |
+| ofdmframe_common_config                  | ✅ | ✅ |
+| ofdmframegen_config                      | ✅ | ✅ |
+| ofdmframesync_config                     | ✅ | ✅ |
 
 
 ## nco_crcf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| nco_crcf_constrain                       | ✅ | ❓ |
-| nco_crcf_copy                            | ✅ | ❓ |
-| nco_config                               | ✅ | ❓ |
+| nco_crcf_constrain                       | ✅ | ✅ |
+| nco_crcf_copy                            | ✅ | ✅ |
+| nco_config                               | ✅ | ✅ |
 
 
 ## nco_crcf_frequency
@@ -1883,7 +1883,7 @@
 ## unwrap_phase
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| nco_unwrap_phase                         | ✅ | ❓ |
+| nco_unwrap_phase                         | ✅ | ✅ |
 
 
 ## gasearch
@@ -1945,14 +1945,14 @@
 ## compand
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| compand_float                            | ✅ | ❓ |
-| compand_cfloat                           | ✅ | ❓ |
+| compand_float                            | ✅ | ✅ |
+| compand_cfloat                           | ✅ | ✅ |
 
 
 ## quantize
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| quantize_float_n8                        | ✅ | ❓ |
+| quantize_float_n8                        | ✅ | ✅ |
 
 
 ## scramble
@@ -2063,10 +2063,10 @@
 ## bshift_array
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| lbshift                                  | ✅ | ❓ |
-| rbshift                                  | ✅ | ❓ |
-| lbcircshift                              | ✅ | ❓ |
-| rbcircshift                              | ✅ | ❓ |
+| lbshift                                  | ✅ | ✅ |
+| rbshift                                  | ✅ | ✅ |
+| lbcircshift                              | ✅ | ✅ |
+| rbcircshift                              | ✅ | ✅ |
 
 
 ## count_bits
@@ -2082,21 +2082,21 @@
 ## pack_bytes
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| pack_array                               | ✅ | ❓ |
-| unpack_array                             | ✅ | ❓ |
-| repack_array                             | ✅ | ❓ |
-| pack_bytes_01                            | ✅ | ❓ |
-| unpack_bytes_01                          | ✅ | ❓ |
-| repack_bytes_01                          | ✅ | ❓ |
-| repack_bytes_02                          | ✅ | ❓ |
-| repack_bytes_03                          | ✅ | ❓ |
-| repack_bytes_04_uneven                   | ✅ | ❓ |
+| pack_array                               | ✅ | ✅ |
+| unpack_array                             | ✅ | ✅ |
+| repack_array                             | ✅ | ✅ |
+| pack_bytes_01                            | ✅ | ✅ |
+| unpack_bytes_01                          | ✅ | ✅ |
+| repack_bytes_01                          | ✅ | ✅ |
+| repack_bytes_02                          | ✅ | ✅ |
+| repack_bytes_03                          | ✅ | ✅ |
+| repack_bytes_04_uneven                   | ✅ | ✅ |
 
 
 ## shift_array
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| lshift                                   | ✅ | ❓ |
-| rshift                                   | ✅ | ❓ |
-| lcircshift                               | ✅ | ❓ |
-| rcircshift                               | ✅ | ❓ |
+| lshift                                   | ✅ | ✅ |
+| rshift                                   | ✅ | ✅ |
+| lcircshift                               | ✅ | ✅ |
+| rcircshift                               | ✅ | ✅ |
