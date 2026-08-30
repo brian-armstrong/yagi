@@ -1,4 +1,4 @@
-# yagi
+# Yagi DSP
 
 [![GitHub Actions Status](https://img.shields.io/github/actions/workflow/status/brian-armstrong/yagi/rust.yml)](https://github.com/brian-armstrong/yagi/actions/workflows/rust.yml) [![crates.io](https://img.shields.io/crates/v/yagi)](https://crates.io/crates/yagi) [![docs.rs](https://img.shields.io/docsrs/yagi)](https://docs.rs/yagi)
 
@@ -8,9 +8,18 @@ Batteries-included DSP library for Rust.
 
 At the heart of this library is a full Rust implementation of [liquid-dsp](https://liquidsdr.org/), a DSP library originally written in C by Joseph Gaeddert. This library provides filters, signal modulation, mixing, error correction, and more.
 
-liquid-dsp has more than 1000 tests, all of which are now being implemented in Yagi. The current status of the rewrite and testing efforts can be found at [LIQUID_COMPAT.md](LIQUID_COMPAT.md).
+liquid-dsp has more than 1300 tests, all of which are now being implemented in Yagi. The current status of the rewrite and testing efforts can be found at [LIQUID_COMPAT.md](LIQUID_COMPAT.md).
 
-**Currently, approximately 65% of liquid-dsp's tests are passing in yagi.**
+**Currently, approximately 90% of liquid-dsp's tests are passing in yagi.** This rewrite currently targets liquid-dsp 1.6.0.
+
+Missing Modules:
+
+- Most of `framing`, `optim`, and `vector` are still unimplemented.
+- ASGRAM and SPWATERFALL `fft` objects
+- `fec_sumproduct`
+- The `examples`, `sandbox`, and `benchmarks` are unimplemented.
+
+Otherwise, everything else from liquid-dsp 1.6.0 should be present. More recent versions of liquid-dsp will be applied once the initial porting work is completed.
 
 ## Roadmap
 
