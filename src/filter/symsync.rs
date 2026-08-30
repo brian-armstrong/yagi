@@ -32,7 +32,7 @@ pub struct Symsync<T> {
 impl<T> Symsync<T>
 where
     T: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + std::ops::Mul<f32, Output = T> + Default,
-    [f32]: DotProd<T, Output = T>,
+    [T]: DotProd<f32, Output = T>,
 {
     pub fn new(k: usize, m: usize, h: &[f32], h_len: usize) -> Result<Self> {
         if k < 2 {

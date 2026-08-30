@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::buffer::Window;
-use crate::dotprod::DotProd;
+use crate::dotprod::DotProduct;
 use crate::filter;
 use num_traits::Zero;
 use std::f32::consts::PI;
@@ -15,7 +15,7 @@ use num_complex::Complex32;
 #[derive(Clone, Debug)]
 pub struct FirHilbertFilter {
     m: usize,           // filter semi-length, h_len = 4*m+1
-    hq: Vec<f32>,       // quadrature filter coefficients
+    dpq: DotProduct<f32, f32>,  // quadrature filter dot product
     w0: Window<f32>,    // input buffer (even samples)
     w1: Window<f32>,    // input buffer (odd samples)
     w2: Window<f32>,    // additional buffers needed exclusively for real-to-complex filter operations
@@ -71,7 +71,7 @@ impl FirHilbertFilter {
 
         let mut q = Self {
             m,
-            hq,
+            dpq: DotProduct::new(&hq)?,
             w0,
             w1,
             w2,
@@ -116,7 +116,7 @@ impl FirHilbertFilter {
             let r = self.w1.read();
 
             // execute dot product
-            yq = self.hq.dotprod(r);
+            yq = self.dpq.execute(r);
         } else {
             // push sample into lower branch
             self.w1.push(x);
@@ -128,7 +128,7 @@ impl FirHilbertFilter {
             let r = self.w0.read();
 
             // execute dot product
-            yq = self.hq.dotprod(r);
+            yq = self.dpq.execute(r);
         }
 
         self.toggle = !self.toggle;
@@ -160,7 +160,7 @@ impl FirHilbertFilter {
 
             // filter branch
             let r = self.w3.read();
-            yq = self.hq.dotprod(r);
+            yq = self.dpq.execute(r);
         } else {
             // push samples into appropriate buffers
             self.w2.push(x.re);
@@ -171,7 +171,7 @@ impl FirHilbertFilter {
 
             // filter branch
             let r = self.w1.read();
-            yq = self.hq.dotprod(r);
+            yq = self.dpq.execute(r);
         }
 
         self.toggle = !self.toggle;
@@ -195,7 +195,7 @@ impl FirHilbertFilter {
         // compute quadrature component (filter branch)
         self.w1.push(x[0]);
         let r = self.w1.read();
-        yq = self.hq.dotprod(r);
+        yq = self.dpq.execute(r);
 
         // delay branch
         self.w0.push(x[1]);
@@ -241,7 +241,7 @@ impl FirHilbertFilter {
         // compute filter branch
         self.w1.push(vi.into());
         let r = self.w1.read();
-        y[1] = self.hq.dotprod(r);
+        y[1] = self.dpq.execute(r);
 
         self.toggle = !self.toggle;
         Ok(())

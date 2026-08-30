@@ -1,7 +1,7 @@
 // firpfbch : finite impulse response polyphase filterbank channelizer
 
 use crate::buffer::Window;
-use crate::dotprod::DotProd;
+use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::filter;
@@ -25,7 +25,7 @@ pub struct FirPfbChannelizer<T, Coeff = f32> {
     p: usize,
 
     // bank of dotprod objects and window buffers
-    dp: Vec<Vec<Coeff>>,
+    dp: Vec<DotProduct<T, Coeff>>,
     w: Vec<Window<T>>,
     filter_index: usize,
 
@@ -39,7 +39,7 @@ impl<T, Coeff> FirPfbChannelizer<T, Coeff>
 where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + Into<Complex32> + From<Complex32>,
     Coeff: Clone + Copy + From<f32>,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     /// Create FIR polyphase filterbank channelizer object
     ///
@@ -73,7 +73,7 @@ where
             for n in 0..h_sub_len {
                 h_sub[h_sub_len - n - 1] = h_copy[i + n * num_channels];
             }
-            dp.push(h_sub);
+            dp.push(DotProduct::new(&h_sub)?);
             w.push(Window::new(h_sub_len)?);
         }
 
@@ -232,7 +232,7 @@ where
         for i in 0..self.num_channels {
             self.w[i].push(<T as From<Complex32>>::from(self.x_out[i]));
             let r = self.w[i].read();
-            y[i] = self.dp[i].dotprod(r);
+            y[i] = self.dp[i].execute(r);
         }
 
         Ok(())
@@ -280,7 +280,7 @@ where
             let r = self.w[index].read();
 
             // compute dot product
-            let result: T = self.dp[i].dotprod(r);
+            let result: T = self.dp[i].execute(r);
             self.x[self.num_channels - i - 1] = result.into();
         }
 

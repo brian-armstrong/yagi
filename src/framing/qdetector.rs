@@ -3,6 +3,7 @@
 use num_complex::Complex32;
 use std::f32::consts::PI;
 
+use crate::dotprod::sumsqcf;
 use crate::error::{Error, Result};
 use crate::fft::{Fft, Direction};
 use crate::filter::{FirInterpolationFilter, FirFilterShape};
@@ -65,7 +66,7 @@ impl Qdetector {
         let s_len = s.len();
 
         // compute sum{ |s|^2 }
-        let s2_sum: f32 = s.iter().map(|x| x.norm_sqr()).sum();
+        let s2_sum: f32 = sumsqcf(s);
 
         // prepare transforms
         let nfft = 1 << nextpow2(2 * s_len as u32)?;
@@ -528,7 +529,7 @@ impl Qdetector {
             self.buf_time_0[i] = self.buf_time_1[half + i];
         }
         self.state = QdetectorState::Seek;
-        self.x2_sum_0 = self.buf_time_0[..half].iter().map(|x| x.norm_sqr()).sum();
+        self.x2_sum_0 = sumsqcf(&self.buf_time_0[..half]);
         self.x2_sum_1 = 0.0;
         self.counter = half;
     }

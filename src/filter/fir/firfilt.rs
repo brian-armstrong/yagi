@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::dotprod::DotProd;
+use crate::dotprod::{DotProd, DotProduct};
 use crate::filter;
 use crate::buffer::Window;
 use std::f32::consts::PI;
@@ -217,9 +217,12 @@ impl ComplexNotch for Complex32 {
 
 /// Finite impulse response (FIR) filter
 #[derive(Debug, Clone)]
-pub struct FirFilter<T, Coeff = T> {
+pub struct FirFilter<T, Coeff = T> 
+where
+    [T]: DotProd<Coeff>,
+{
     h: Vec<Coeff>,
-    h_rev: Vec<Coeff>,
+    dp: DotProduct<T, Coeff>,
     h_len: usize,
     w: Window<T>,
     scale: Coeff,
@@ -248,11 +251,9 @@ where
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
 
-        let h_rev = h.iter().rev().cloned().collect::<Vec<Coeff>>();
-
         let mut q = Self {
             h: h.to_vec(),
-            h_rev,
+            dp: DotProduct::new_rev(h)?,
             h_len,
             w: Window::new(h_len)?,
             scale: Coeff::one(),
@@ -370,12 +371,11 @@ where
         if n != self.h_len {
             self.h_len = n;
             self.h.resize(n, Coeff::default());
-            self.h_rev.resize(n, Coeff::default());
             self.w.resize(n)?;
         }
 
         self.h.copy_from_slice(h);
-        self.h_rev.copy_from_slice(&h.iter().rev().cloned().collect::<Vec<Coeff>>());
+        self.dp.set_coefficients_rev(h)?;
         self.reset();
 
         Ok(())
@@ -413,7 +413,7 @@ where
     /// The output sample
     pub fn execute(&self) -> T {
         let x = self.w.read();
-        let y = x.dotprod(&self.h_rev);
+        let y = self.dp.execute(x);
         y * self.scale
     }
 

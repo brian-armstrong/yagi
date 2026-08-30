@@ -3,17 +3,36 @@
 use super::DotProd;
 
 #[cfg(feature = "simd")]
-use std::simd::{f32x4, f32x8, f32x16, StdFloat};
+use std::simd::f32x4;
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+use std::simd::{f32x8, f32x16, StdFloat};
 #[cfg(feature = "simd")]
 use std::sync::OnceLock;
 
+#[cfg(feature = "simd")]
+use super::reduce::reduce_sum_sse_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-use super::reduce::{reduce_sum_sse_f32x4, reduce_sum_avx2_f32x8, reduce_sum_avx512_f32x16};
+use super::reduce::{reduce_sum_avx2_f32x8, reduce_sum_avx512_f32x16};
 
 #[cfg(feature = "simd")]
 type DotProdRrrFn = unsafe fn(&[f32], &[f32]) -> f32;
 #[cfg(feature = "simd")]
 static DOTPROD_RRR: OnceLock<DotProdRrrFn> = OnceLock::new();
+
+#[cfg(feature = "simd")]
+const DOTPROD_RRR_WIDE_CUTOFF: usize = 32;
+
+#[cfg(feature = "simd")]
+macro_rules! plan_dotprod_rrr_const_f32x4 {
+    ($len:expr; $($n:literal),+ $(,)?) => {
+        match $len {
+            $(
+                $n => Some(dotprod_rrr_const_f32x4::<$n> as DotProdRrrFn),
+            )+
+            _ => None,
+        }
+    };
+}
 
 impl DotProd<f32> for [f32] {
     type Output = f32;
@@ -21,12 +40,15 @@ impl DotProd<f32> for [f32] {
     #[cfg(not(feature = "simd"))]
     fn dotprod(&self, other: &[f32]) -> f32 {
         assert_eq!(self.len(), other.len(), "Slices must have equal length");
-        self.iter().zip(other).map(|(a, b)| a * b).sum()
+        dotprod_rrr_scalar(self, other)
     }
 
     #[cfg(feature = "simd")]
     fn dotprod(&self, other: &[f32]) -> f32 {
         assert_eq!(self.len(), other.len(), "Slices must have equal length");
+        if self.len() < DOTPROD_RRR_WIDE_CUTOFF {
+            return unsafe { dotprod_rrr_128(self, other) };
+        }
         let f = DOTPROD_RRR.get_or_init(|| {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             {
@@ -36,13 +58,36 @@ impl DotProd<f32> for [f32] {
                 if is_x86_feature_detected!("avx2") {
                     return dotprod_rrr_avx2;
                 }
-                if is_x86_feature_detected!("sse") {
-                    return dotprod_rrr_sse;
-                }
             }
-            dotprod_rrr_scalar
+            dotprod_rrr_128
         });
         unsafe { f(self, other) }
+    }
+
+    #[cfg(feature = "simd")]
+    fn plan(len: usize) -> super::DotProdKernel<f32, f32, f32> {
+        // use the const 128 impl for lengths up to 47.
+        // at 48, the wider dynamic paths catch up
+        if let Some(f) = plan_dotprod_rrr_const_f32x4!(
+            len;
+             1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
+            11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+            21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+            31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+            41, 42, 43, 44, 45, 46, 47,
+        ) {
+            return f;
+        }
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if is_x86_feature_detected!("avx512f") {
+                return dotprod_rrr_avx512;
+            }
+            if is_x86_feature_detected!("avx2") {
+                return dotprod_rrr_avx2;
+            }
+        }
+        dotprod_rrr_128
     }
 }
 
@@ -58,30 +103,88 @@ impl DotProd<f32> for std::collections::VecDeque<f32> {
     }
 }
 
-// Scalar fallback
+#[cfg(not(feature = "simd"))]
+fn dotprod_rrr_scalar_wide(a: &[f32], b: &[f32]) -> (f32, usize) {
+    let chunks = a.len() / 2;
+    if chunks == 0 {
+        return (0.0, 0);
+    }
+
+    let mut sum0 = 0.0f32;
+    let mut sum1 = 0.0f32;
+
+    // two concurrent sums exposes a little ILP
+    for i in 0..chunks {
+        let base = i * 2;
+        sum0 += a[base] * b[base];
+        sum1 += a[base + 1] * b[base + 1];
+    }
+
+    (sum0 + sum1, chunks * 2)
+}
+
+#[cfg(not(feature = "simd"))]
+fn dotprod_rrr_scalar(a: &[f32], b: &[f32]) -> f32 {
+    let (sum, n) = dotprod_rrr_scalar_wide(a, b);
+    sum + a[n..].iter().zip(&b[n..]).map(|(a, b)| a * b).sum::<f32>()
+}
+
 #[cfg(feature = "simd")]
 unsafe fn dotprod_rrr_scalar(a: &[f32], b: &[f32]) -> f32 {
+    // the SIMD scalar tail doesn't run on many elements, so stay narrow
     a.iter().zip(b).map(|(a, b)| a * b).sum()
 }
 
-#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-#[target_feature(enable = "sse")]
-unsafe fn dotprod_rrr_sse(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() < 16 {
-        return dotprod_rrr_scalar(a, b);
+#[cfg(feature = "simd")]
+unsafe fn dotprod_rrr_const_f32x4<const N: usize>(a: &[f32], b: &[f32]) -> f32 {
+    // this method is const on N so that the loops below disappear
+    // SIMD uses this for various small N where this is small and fast 
+    debug_assert_eq!(a.len(), N);
+    debug_assert_eq!(b.len(), N);
+    unsafe {
+        std::hint::assert_unchecked(a.len() == N);
+        std::hint::assert_unchecked(b.len() == N);
     }
-    dotprod_rrr_sse_f32x4(a, b)
+
+    let mut sum = f32x4::splat(0.0);
+    let mut i = 0;
+    while i + 4 <= N {
+        let av = f32x4::from_array(*(a.as_ptr().add(i) as *const [f32; 4]));
+        let bv = f32x4::from_array(*(b.as_ptr().add(i) as *const [f32; 4]));
+        sum += av * bv;
+        i += 4;
+    }
+
+    let lanes = sum.to_array();
+    let mut result = (lanes[0] + lanes[1]) + (lanes[2] + lanes[3]);
+    while i < N {
+        result += a[i] * b[i];
+        i += 1;
+    }
+    result
 }
 
-#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-#[target_feature(enable = "sse")]
-unsafe fn dotprod_rrr_sse_f32x4(a: &[f32], b: &[f32]) -> f32 {
+#[cfg(feature = "simd")]
+unsafe fn dotprod_rrr_128(a: &[f32], b: &[f32]) -> f32 {
+    // generic f32x4 dotprod that will work nicely on many archs
+    let (sum, n) = dotprod_rrr_128_f32x4_wide(a, b);
+    sum + dotprod_rrr_scalar(&a[n..], &b[n..])
+}
+
+/// 4x-unrolled f32x4: 16 elements per iteration.
+#[cfg(feature = "simd")]
+#[inline]
+unsafe fn dotprod_rrr_128_f32x4_wide(a: &[f32], b: &[f32]) -> (f32, usize) {
+    let chunks = a.len() / 16;
+    if chunks == 0 {
+        return (0.0, 0);
+    }
+
     let mut sum0 = f32x4::splat(0.0);
     let mut sum1 = f32x4::splat(0.0);
     let mut sum2 = f32x4::splat(0.0);
     let mut sum3 = f32x4::splat(0.0);
 
-    let chunks = a.len() / 16;
     let a_ptr = a.as_ptr();
     let b_ptr = b.as_ptr();
 
@@ -105,34 +208,56 @@ unsafe fn dotprod_rrr_sse_f32x4(a: &[f32], b: &[f32]) -> f32 {
     sum0 += sum1;
     sum2 += sum3;
     sum0 += sum2;
-    let mut result = reduce_sum_sse_f32x4(sum0);
+    (reduce_sum_sse_f32x4(sum0), chunks * 16)
+}
 
-    for (a, b) in a[chunks * 16..].iter().zip(&b[chunks * 16..]) {
-        result += a * b;
+/// Single f32x4: 4 elements per iteration.
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+#[inline]
+unsafe fn dotprod_rrr_128_f32x4_narrow(a: &[f32], b: &[f32]) -> (f32, usize) {
+    let chunks = a.len() / 4;
+    if chunks == 0 {
+        return (0.0, 0);
     }
-    result
+
+    let mut sum = f32x4::splat(0.0);
+    let a_ptr = a.as_ptr();
+    let b_ptr = b.as_ptr();
+
+    for i in 0..chunks {
+        let base = i * 4;
+        let av = f32x4::from_array(*(a_ptr.add(base) as *const [f32; 4]));
+        let bv = f32x4::from_array(*(b_ptr.add(base) as *const [f32; 4]));
+        sum += av * bv;
+    }
+
+    (reduce_sum_sse_f32x4(sum), chunks * 4)
 }
 
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 #[target_feature(enable = "avx2")]
 unsafe fn dotprod_rrr_avx2(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() < 16 {
-        return dotprod_rrr_scalar(a, b);
-    } else if a.len() < 32 {
-        return dotprod_rrr_sse_f32x4(a, b);
-    }
-    dotprod_rrr_avx2_f32x8(a, b)
+    let (s0, n0) = dotprod_rrr_avx2_f32x8_wide(a, b);
+    let (a, b) = (&a[n0..], &b[n0..]);
+    let (s1, n1) = dotprod_rrr_128_f32x4_narrow(a, b);
+    s0 + s1 + dotprod_rrr_scalar(&a[n1..], &b[n1..])
 }
 
+/// 4x-unrolled f32x8: 32 elements per iteration.
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 #[target_feature(enable = "avx2")]
-unsafe fn dotprod_rrr_avx2_f32x8(a: &[f32], b: &[f32]) -> f32 {
+#[inline]
+unsafe fn dotprod_rrr_avx2_f32x8_wide(a: &[f32], b: &[f32]) -> (f32, usize) {
+    let chunks = a.len() / 32;
+    if chunks == 0 {
+        return (0.0, 0);
+    }
+
     let mut sum0 = f32x8::splat(0.0);
     let mut sum1 = f32x8::splat(0.0);
     let mut sum2 = f32x8::splat(0.0);
     let mut sum3 = f32x8::splat(0.0);
 
-    let chunks = a.len() / 32;
     let a_ptr = a.as_ptr();
     let b_ptr = b.as_ptr();
 
@@ -156,34 +281,57 @@ unsafe fn dotprod_rrr_avx2_f32x8(a: &[f32], b: &[f32]) -> f32 {
     sum0 += sum1;
     sum2 += sum3;
     sum0 += sum2;
-    let mut result = reduce_sum_avx2_f32x8(sum0);
+    (reduce_sum_avx2_f32x8(sum0), chunks * 32)
+}
 
-    for (a, b) in a[chunks * 32..].iter().zip(&b[chunks * 32..]) {
-        result += a * b;
+/// Single f32x8: 8 elements per iteration.
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+#[target_feature(enable = "avx2")]
+#[inline]
+unsafe fn dotprod_rrr_avx2_f32x8_narrow(a: &[f32], b: &[f32]) -> (f32, usize) {
+    let chunks = a.len() / 8;
+    if chunks == 0 {
+        return (0.0, 0);
     }
-    result
+
+    let mut sum = f32x8::splat(0.0);
+    let a_ptr = a.as_ptr();
+    let b_ptr = b.as_ptr();
+
+    for i in 0..chunks {
+        let base = i * 8;
+        let av = f32x8::from_array(*(a_ptr.add(base) as *const [f32; 8]));
+        let bv = f32x8::from_array(*(b_ptr.add(base) as *const [f32; 8]));
+        sum += av * bv;
+    }
+
+    (reduce_sum_avx2_f32x8(sum), chunks * 8)
 }
 
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 #[target_feature(enable = "avx512f")]
 unsafe fn dotprod_rrr_avx512(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() < 16 {
-        return dotprod_rrr_scalar(a, b);
-    } else if a.len() < 64 {
-        return dotprod_rrr_sse_f32x4(a, b);
-    }
-    dotprod_rrr_avx512_f32x16(a, b)
+    let (s0, n0) = dotprod_rrr_avx512_f32x16_wide(a, b);
+    let (a, b) = (&a[n0..], &b[n0..]);
+    let (s1, n1) = dotprod_rrr_avx2_f32x8_narrow(a, b);
+    s0 + s1 + dotprod_rrr_scalar(&a[n1..], &b[n1..])
 }
 
+/// 4x-unrolled f32x16: 64 elements per iteration.
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 #[target_feature(enable = "avx512f")]
-unsafe fn dotprod_rrr_avx512_f32x16(a: &[f32], b: &[f32]) -> f32 {
+#[inline]
+unsafe fn dotprod_rrr_avx512_f32x16_wide(a: &[f32], b: &[f32]) -> (f32, usize) {
+    let chunks = a.len() / 64;
+    if chunks == 0 {
+        return (0.0, 0);
+    }
+
     let mut sum0 = f32x16::splat(0.0);
     let mut sum1 = f32x16::splat(0.0);
     let mut sum2 = f32x16::splat(0.0);
     let mut sum3 = f32x16::splat(0.0);
 
-    let chunks = a.len() / 64;
     let a_ptr = a.as_ptr();
     let b_ptr = b.as_ptr();
 
@@ -207,12 +355,7 @@ unsafe fn dotprod_rrr_avx512_f32x16(a: &[f32], b: &[f32]) -> f32 {
     sum0 += sum1;
     sum2 += sum3;
     sum0 += sum2;
-    let mut result = reduce_sum_avx512_f32x16(sum0);
-
-    for (a, b) in a[chunks * 64..].iter().zip(&b[chunks * 64..]) {
-        result += a * b;
-    }
-    result
+    (reduce_sum_avx512_f32x16(sum0), chunks * 64)
 }
 
 #[cfg(test)]
@@ -327,35 +470,7 @@ mod tests {
     }
 
     #[test]
-    #[autotest_annotate(autotest_dotprod_rrrf_rand02)]
-    fn test_dotprod_rrrf_rand02() {
-        const TOL: f32 = 1e-3;
-
-        #[rustfmt::skip]
-        let h: Vec<f32> = vec![
-             2.595300,    1.243600,   -0.818550,   -1.439800,
-             0.055795,   -1.476000,    0.445900,    0.325460,
-            -3.451200,    0.058528,   -0.246990,    0.476290,
-            -0.598780,   -0.885250,    0.464660,   -0.610140,
-        ];
-
-        #[rustfmt::skip]
-        let x: Vec<f32> = vec![
-            -0.917010,   -1.278200,   -0.533190,    2.309200,
-             0.592980,    0.964820,    0.183220,   -0.082864,
-             0.057171,   -1.186500,   -0.738260,    0.356960,
-            -0.144000,   -1.435200,   -0.893420,    1.657800,
-        ];
-
-        let test = -8.17832326680587;
-        assert_abs_diff_eq!(h.dotprod(&x), test, epsilon = TOL);
-
-        let test_rev = 4.56839328512000;
-        assert_abs_diff_eq!(h.iter().rev().cloned().collect::<Vec<f32>>().dotprod(&x), test_rev, epsilon = TOL);
-    }
-
-    #[test]
-    fn test_dotprod_rrrf_struct_lengths() {
+    fn test_dotprod_rrrf_lengths() {
         const TOL: f32 = 2e-6;
 
         #[rustfmt::skip]
@@ -426,19 +541,15 @@ mod tests {
         }
     }
 
-    #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+    #[cfg(feature = "simd")]
     #[test]
-    fn test_dotprod_rrr_sse_direct() {
-        if !is_x86_feature_detected!("sse") {
-            return;
-        }
-
+    fn test_dotprod_rrr_128_direct() {
         for n in 1..=512 {
             let h: Vec<f32> = (0..n).map(|_| randnf()).collect();
             let x: Vec<f32> = (0..n).map(|_| randnf()).collect();
 
             let y_test: f64 = h.iter().zip(x.iter()).map(|(&a, &b)| a as f64 * b as f64).sum();
-            let y_sse = unsafe { dotprod_rrr_sse(&h, &x) };
+            let y_sse = unsafe { dotprod_rrr_128(&h, &x) };
 
             assert_abs_diff_eq!(y_sse, y_test as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
         }

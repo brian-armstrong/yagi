@@ -1,11 +1,11 @@
 // Hierarchical SIMD reduction functions
 
 use num_complex::Complex;
-use std::simd::{f32x4, f32x8, f32x16, simd_swizzle};
-
-// SSE (128-bit)
+use std::simd::{f32x4, simd_swizzle};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[target_feature(enable = "sse")]
+use std::simd::{f32x8, f32x16};
+
+// 128-bit (SSE and others, not arch-specific)
 #[inline]
 pub unsafe fn reduce_sum_sse_f32x4(v: f32x4) -> f32 {
     let shuffled: f32x4 = simd_swizzle!(v, [2, 3, 0, 1]);
@@ -15,8 +15,6 @@ pub unsafe fn reduce_sum_sse_f32x4(v: f32x4) -> f32 {
     sum1[0]
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[target_feature(enable = "sse")]
 #[inline]
 pub unsafe fn reduce_sum_complex_sse_f32x4(v: f32x4) -> Complex<f32> {
     let hi: f32x4 = simd_swizzle!(v, [2, 3, 0, 1]);
@@ -65,4 +63,3 @@ pub unsafe fn reduce_sum_complex_avx512_f32x16(v: f32x16) -> Complex<f32> {
     let sum4: f32x8 = simd_swizzle!(sum4, [0, 1, 2, 3, 4, 5, 6, 7]);
     reduce_sum_complex_avx2_f32x8(sum4)
 }
-

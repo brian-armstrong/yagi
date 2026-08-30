@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::buffer::Window;
-use crate::dotprod::DotProd;
+use crate::dotprod::{DotProd, DotProduct};
 use crate::filter;
 
 use num_complex::ComplexFloat;
@@ -10,7 +10,7 @@ use num_complex::ComplexFloat;
 pub struct FirPfbFilter<T, Coeff = T> {
     num_filters: usize,
     w: Window<T>,
-    filters: Vec<Vec<Coeff>>,
+    filters: Vec<DotProduct<T, Coeff>>,
     scale: Coeff,
 }
 
@@ -18,7 +18,7 @@ impl<T, Coeff> FirPfbFilter<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new FIR PFB filter bank
     /// 
@@ -48,7 +48,7 @@ where
                 // load filter in reverse order
                 h_sub[h_sub_len - n - 1] = h[i + n * num_filters];
             }
-            filters.push(h_sub);
+            filters.push(DotProduct::new(&h_sub)?);
         }
 
         let w = Window::new(h_sub_len)?;
@@ -280,7 +280,7 @@ where
         }
 
         let r = self.w.read();
-        let mut y = self.filters[i].dotprod(r);
+        let mut y = self.filters[i].execute(r);
         y = y * self.scale;
         Ok(y)
     }

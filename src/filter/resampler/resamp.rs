@@ -19,7 +19,7 @@ impl<T, Coeff> Resamp<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(rate: f32, m: usize, fc: f32, as_: f32, npfb: usize) -> Result<Self> {
         if rate <= 0.0 {

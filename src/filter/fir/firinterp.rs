@@ -16,7 +16,7 @@ impl<T, Coeff> FirInterpolationFilter<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new interpolator from external coefficients
     /// 
@@ -483,8 +483,7 @@ mod tests {
         }
 
         // ensure buffer does not contain zeros
-        // TODO replace with sumsqcf
-        assert!(buf.iter().map(|x| x.norm_sqr()).sum::<f32>() > 0.0);
+        assert!(crate::dotprod::sumsqcf(&buf) > 0.0);
 
         // flush buffer
         for _ in 0..(2 * m) {
@@ -492,7 +491,7 @@ mod tests {
         }
 
         // ensure buffer contains only zeros
-        assert_abs_diff_eq!(buf.iter().map(|x| x.norm_sqr()).sum::<f32>(), 0.0);
+        assert_abs_diff_eq!(crate::dotprod::sumsqcf(&buf), 0.0);
 
         // objects are automatically destroyed when they go out of scope
     }

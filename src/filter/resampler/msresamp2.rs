@@ -33,7 +33,7 @@ impl<T, Coeff> MsResamp2<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Resamp2Coeff,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(type_: ResampType, num_stages: usize, fc: f32, f0: f32, as_: f32) -> Result<Self> {
         if num_stages > 16 {

@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::buffer::Window;
 use super::design;
-use crate::dotprod::DotProd;
+use crate::dotprod::{DotProd, DotProduct};
 use crate::matrix::FloatComplex;
 
 use num_complex::Complex32;
@@ -11,6 +11,7 @@ use num_complex::Complex32;
 #[derive(Clone, Debug)]
 pub struct FirDecimationFilter<T, Coeff = T> {
     h: Vec<Coeff>,
+    dp: DotProduct<T, Coeff>,
     decimation_factor: usize,
     w: Window<T>,
     scale: Coeff,
@@ -22,7 +23,7 @@ where
     Coeff: Clone + Copy + FloatComplex<Real = f32>,
     T: Clone + Copy + FloatComplex<Real = f32> + std::ops::Mul<Coeff, Output = T>,
     Complex32: From<Coeff>,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new decimation filter from external coefficients
     /// 
@@ -44,7 +45,8 @@ where
         }
 
         let mut q = Self {
-            h: h.iter().rev().cloned().collect(),
+            h: h[..h_len].to_vec(),
+            dp: DotProduct::new_rev(&h[..h_len])?,
             decimation_factor,
             w: Window::new(h_len)?,
             scale: Coeff::zero(),
@@ -183,7 +185,7 @@ where
 
             if i == 0 {
                 let r = self.w.read();
-                y = self.h.dotprod(r);
+                y = self.dp.execute(r);
                 y = y * self.scale;
             }
         }
@@ -212,6 +214,25 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use crate::math::WindowType;
     use crate::filter::fir::design::FirFilterShape;
+
+    #[test]
+    fn test_firdecim_freqresp_matches_firfilt() {
+        use crate::filter::FirFilter;
+
+        let h: Vec<f32> = (0..21).map(|i| (i as f32 * 0.31).sin() * (1.0 - i as f32 / 40.0)).collect();
+
+        let q = FirDecimationFilter::<Complex32, f32>::new(3, &h, h.len()).unwrap();
+        let r = FirFilter::<Complex32, f32>::new(&h).unwrap();
+
+        for k in -8..=8 {
+            let fc = k as f32 / 20.0;
+            let y = q.freqresp(fc).unwrap();
+            let y_test = r.freqresponse(fc);
+
+            assert_abs_diff_eq!(y.re, y_test.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(y.im, y_test.im, epsilon = 1e-5);
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_config)]

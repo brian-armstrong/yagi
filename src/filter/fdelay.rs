@@ -21,7 +21,7 @@ impl<T, Coeff> Fdelay<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(nmax: usize, m: usize, npfb: usize) -> Result<Self> {
         if nmax == 0 {

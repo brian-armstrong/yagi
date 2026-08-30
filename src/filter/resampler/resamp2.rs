@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::dotprod::DotProd;
+use crate::dotprod::{DotProd, DotProduct};
 use crate::filter;
 use crate::buffer::Window;
 use std::f32::consts::PI;
@@ -26,7 +26,7 @@ impl Resamp2Coeff for Complex32 {
 pub struct Resamp2<T, Coeff = T> {
     m: usize,
 
-    h1: Vec<Coeff>,
+    dp: DotProduct<T, Coeff>,
 
     w0: Window<T>,
     w1: Window<T>,
@@ -39,7 +39,7 @@ impl<T, Coeff> Resamp2<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Resamp2Coeff,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
-    [Coeff]: DotProd<T, Output = T>,
+    [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(m: usize, f0: f32, as_: f32) -> Result<Self> {
         if m < 2 {
@@ -72,7 +72,7 @@ where
 
         let mut q = Self {
             m,
-            h1,
+            dp: DotProduct::new(&h1)?,
             w0,
             w1,
             scale: Coeff::one(),
@@ -106,13 +106,13 @@ where
             self.w0.push(x);
             let yi = self.w0.index(self.m - 1)?;
             let r = self.w1.read();
-            let yq = self.h1.dotprod(r);
+            let yq = self.dp.execute(r);
             (yi, yq)
         } else {
             self.w1.push(x);
             let yi = self.w1.index(self.m - 1)?;
             let r = self.w0.read();
-            let yq = self.h1.dotprod(r);
+            let yq = self.dp.execute(r);
             (yi, yq)
         };
 
@@ -126,7 +126,7 @@ where
     pub fn analyzer_execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
         self.w1.push(Into::<T>::into(0.5) * x[0]);
         let r = self.w1.read();
-        let y1 = self.h1.dotprod(r);
+        let y1 = self.dp.execute(r);
 
         self.w0.push(Into::<T>::into(0.5) * x[1]);
         let y0 = self.w0.index(self.m - 1)?.into();
@@ -145,7 +145,7 @@ where
 
         self.w1.push(x1);
         let r = self.w1.read();
-        y[1] = self.h1.dotprod(r) * self.scale;
+        y[1] = self.dp.execute(r) * self.scale;
 
         Ok(())
     }
@@ -153,7 +153,7 @@ where
     pub fn decim_execute(&mut self, x: &[T]) -> Result<T> {
         self.w1.push(x[0]);
         let r = self.w1.read();
-        let y1 = self.h1.dotprod(r);
+        let y1 = self.dp.execute(r);
 
         self.w0.push(x[1]);
         let y0 = self.w0.index(self.m - 1)?;
@@ -168,7 +168,7 @@ where
 
         self.w1.push(x);
         let r = self.w1.read();
-        y[1] = self.h1.dotprod(r) * self.scale;
+        y[1] = self.dp.execute(r) * self.scale;
 
         Ok(())
     }
