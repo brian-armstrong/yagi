@@ -58,9 +58,9 @@ pub enum FirPmWeightType {
 /// Desired response and weight at a frequency grid point.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FirPmResponse {
-    /// Desired filter response.
+    /// Desired filter response. Must be finite.
     pub desired: f64,
-    /// Error weight. Larger values prioritize this frequency.
+    /// Positive, finite error weight. Larger values prioritize this frequency.
     pub weight: f64,
 }
 
@@ -207,31 +207,56 @@ impl FirDesignPm {
         if num_bands == 0 {
             return Err(Error::Config("Invalid number of bands".to_string()));
         }
-        
-        // validate filter specification
-        let mut bands_valid = true;
-        let mut weights_valid = true;
-        for i in 0..2*num_bands {
-            if bands[i] < 0.0 || bands[i] > 0.5 {
-                bands_valid = false;
+
+        let num_band_edges = num_bands
+            .checked_mul(2)
+            .ok_or_else(|| Error::Config("Invalid number of bands".to_string()))?;
+        if bands.len() != num_band_edges {
+            return Err(Error::Config(format!(
+                "Expected {num_band_edges} band edges, got {}",
+                bands.len(),
+            )));
+        }
+        if let Some(des) = des {
+            if des.len() != num_bands {
+                return Err(Error::Config(format!(
+                    "Expected {num_bands} desired responses, got {}",
+                    des.len(),
+                )));
             }
-            if i > 0 && bands[i] < bands[i-1] {
-                bands_valid = false;
+            if des.iter().any(|value| !value.is_finite()) {
+                return Err(Error::Config("Desired responses must be finite".to_string()));
             }
         }
-        if weights.is_some() {
-            for i in 0..num_bands {
-                if weights.unwrap()[i] <= 0.0 {
-                    weights_valid = false;
-                }
+        if let Some(weights) = weights {
+            if weights.len() != num_bands {
+                return Err(Error::Config(format!(
+                    "Expected {num_bands} weights, got {}",
+                    weights.len(),
+                )));
+            }
+            if weights.iter().any(|weight| !weight.is_finite() || *weight <= 0.0) {
+                return Err(Error::Config(
+                    "Weights must be finite and greater than zero".to_string(),
+                ));
+            }
+        }
+        if let Some(wtype) = wtype {
+            if wtype.len() != num_bands {
+                return Err(Error::Config(format!(
+                    "Expected {num_bands} weight types, got {}",
+                    wtype.len(),
+                )));
             }
         }
 
-        if !bands_valid {
-            return Err(Error::Config("Invalid bands".to_string()));
-        }
-        if !weights_valid {
-            return Err(Error::Config("Invalid weights".to_string()));
+        // validate filter specification
+        if bands.iter().any(|band| !band.is_finite() || *band < 0.0 || *band > 0.5)
+            || bands.windows(2).any(|pair| pair[1] < pair[0])
+        {
+            return Err(Error::Config(
+                "Bands must be finite, non-decreasing, and in [0, 0.5]".to_string(),
+            ));
         }
 
         // create object
@@ -257,7 +282,7 @@ impl FirDesignPm {
             grid_size: 0,
             grid_density: 20,
             btype,
-            bands: vec![0.0; 2*num_bands],
+            bands: vec![0.0; num_band_edges],
             des: vec![0.0; num_bands],
             weights: vec![1.0; num_bands],
             wtype: vec![FirPmWeightType::Flat; num_bands],
@@ -277,14 +302,14 @@ impl FirDesignPm {
         for i in 0..num_bands {
             obj.bands[2*i] = bands[2*i] as f64;
             obj.bands[2*i+1] = bands[2*i+1] as f64;
-            if des.is_some() {
-                obj.des[i] = des.unwrap()[i] as f64;
+            if let Some(des) = des {
+                obj.des[i] = des[i] as f64;
             }
-            if weights.is_some() {
-                obj.weights[i] = weights.unwrap()[i] as f64;
+            if let Some(weights) = weights {
+                obj.weights[i] = weights[i] as f64;
             }
-            if wtype.is_some() {
-                obj.wtype[i] = wtype.unwrap()[i];
+            if let Some(wtype) = wtype {
+                obj.wtype[i] = wtype[i];
             }
         }
 
@@ -320,6 +345,18 @@ impl FirDesignPm {
                 // compute desired response using function if provided
                 if let Some(response) = response.as_mut() {
                     let value = response(self.f[n])?;
+                    if !value.desired.is_finite() {
+                        return Err(Error::Value(format!(
+                            "Desired response at frequency {} must be finite",
+                            self.f[n],
+                        )));
+                    }
+                    if !value.weight.is_finite() || value.weight <= 0.0 {
+                        return Err(Error::Value(format!(
+                            "Response weight at frequency {} must be finite and greater than zero",
+                            self.f[n],
+                        )));
+                    }
                     self.d[n] = value.desired;
                     self.w[n] = value.weight;
                 } else {
@@ -894,6 +931,36 @@ mod tests {
     }
 
     #[test]
+    fn test_firdespm_rejects_invalid_response_values() {
+        let bands = [0.0, 0.35, 0.4, 0.5];
+        let invalid_desired = FirDesignPm::new_with_response(
+            81,
+            2,
+            &bands,
+            FirPmBandType::Bandpass,
+            |_| Ok(FirPmResponse { desired: f64::NAN, weight: 1.0 }),
+        );
+        let non_finite_weight = FirDesignPm::new_with_response(
+            81,
+            2,
+            &bands,
+            FirPmBandType::Bandpass,
+            |_| Ok(FirPmResponse { desired: 1.0, weight: f64::INFINITY }),
+        );
+        let non_positive_weight = FirDesignPm::new_with_response(
+            81,
+            2,
+            &bands,
+            FirPmBandType::Bandpass,
+            |_| Ok(FirPmResponse { desired: 1.0, weight: 0.0 }),
+        );
+
+        assert!(matches!(invalid_desired, Err(Error::Value(_))));
+        assert!(matches!(non_finite_weight, Err(Error::Value(_))));
+        assert!(matches!(non_positive_weight, Err(Error::Value(_))));
+    }
+
+    #[test]
     #[autotest_annotate(autotest_firdespm_copy)]
     fn test_firdespm_copy() {
         // create valid object
@@ -913,6 +980,71 @@ mod tests {
         assert_eq!(h0.as_slice(), h1.as_slice());
 
         // No need to manually destroy objects in Rust due to RAII
+    }
+
+    #[test]
+    fn test_firdespm_rejects_mismatched_specification_lengths() {
+        let bands = [0.0, 0.2, 0.3, 0.5];
+        let extra_bands = [0.0, 0.2, 0.3, 0.5, 0.5];
+        let des = [1.0, 0.0];
+        let weights = [1.0, 1.0];
+        let wtype = [FirPmWeightType::Flat, FirPmWeightType::Flat];
+        let btype = FirPmBandType::Bandpass;
+
+        let short_bands = FirDesignPm::new(
+            51, 2, &bands[..3], &des, Some(&weights), Some(&wtype), btype,
+        );
+        let long_bands = FirDesignPm::new(
+            51, 2, &extra_bands, &des, Some(&weights), Some(&wtype), btype,
+        );
+        let short_des = FirDesignPm::new(
+            51, 2, &bands, &des[..1], Some(&weights), Some(&wtype), btype,
+        );
+        let short_weights = FirDesignPm::new(
+            51, 2, &bands, &des, Some(&weights[..1]), Some(&wtype), btype,
+        );
+        let short_wtype = FirDesignPm::new(
+            51, 2, &bands, &des, Some(&weights), Some(&wtype[..1]), btype,
+        );
+        let response_short_bands = FirDesignPm::new_with_response(
+            51,
+            2,
+            &bands[..3],
+            btype,
+            |_| Ok(FirPmResponse { desired: 1.0, weight: 1.0 }),
+        );
+
+        assert!(matches!(short_bands, Err(Error::Config(_))));
+        assert!(matches!(long_bands, Err(Error::Config(_))));
+        assert!(matches!(short_des, Err(Error::Config(_))));
+        assert!(matches!(short_weights, Err(Error::Config(_))));
+        assert!(matches!(short_wtype, Err(Error::Config(_))));
+        assert!(matches!(response_short_bands, Err(Error::Config(_))));
+    }
+
+    #[test]
+    fn test_firdespm_rejects_non_finite_specification_values() {
+        let bands = [0.0, 0.2, 0.3, 0.5];
+        let invalid_bands = [0.0, f32::NAN, 0.3, 0.5];
+        let des = [1.0, 0.0];
+        let invalid_des = [f32::INFINITY, 0.0];
+        let weights = [1.0, 1.0];
+        let invalid_weights = [1.0, f32::NAN];
+        let btype = FirPmBandType::Bandpass;
+
+        let bands_result = FirDesignPm::new(
+            51, 2, &invalid_bands, &des, Some(&weights), None, btype,
+        );
+        let des_result = FirDesignPm::new(
+            51, 2, &bands, &invalid_des, Some(&weights), None, btype,
+        );
+        let weights_result = FirDesignPm::new(
+            51, 2, &bands, &des, Some(&invalid_weights), None, btype,
+        );
+
+        assert!(matches!(bands_result, Err(Error::Config(_))));
+        assert!(matches!(des_result, Err(Error::Config(_))));
+        assert!(matches!(weights_result, Err(Error::Config(_))));
     }
 
     #[test]
