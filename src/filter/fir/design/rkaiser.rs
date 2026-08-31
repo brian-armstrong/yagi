@@ -1,3 +1,5 @@
+// Root-Nyquist Kaiser filter design.
+
 use crate::error::{Error, Result};
 use crate::filter::fir::design::{estimate_req_filter_stopband_attenuation, filter_isi};
 use crate::filter::fir::design::kaiser::fir_design_kaiser;
@@ -143,6 +145,80 @@ fn rkaiser_approximate_rho(m: usize, beta: f32) -> f32 {
     rho_hat.clamp(0.0, 1.0)
 }
 
+#[cfg(not(feature = "liquid-quirks"))]
+fn fir_design_rkaiser_bounded(
+    k: usize,
+    m: usize,
+    beta: f32,
+    dt: f32,
+    rho_hat: f32,
+    h: &mut [f32],
+) -> Result<f32> {
+    // algorithm:
+    //  1. choose three initial points [x0, x1, x2] where x0 < x1 < x2
+    //  2. bisect [x0, x1] and [x1, x2] to obtain xa and xb
+    //  3. evaluate the three interior points [xa, x1, xb]
+    //  4. retain the interval surrounding the smallest interior point
+    //  5. go to step 2
+
+    // initial bandwidth adjustment bounds
+    let mut x0 = 0.5 * rho_hat; // lower bound
+    let mut x1 = rho_hat;       // midpoint: use initial estimate
+    let mut x2 = 1.0;           // upper bound
+
+    // evaluate performance (ISI) at each bandwidth adjustment
+    let y0 = fir_design_rkaiser_internal_isi(k, m, beta, dt, x0, h)?;
+    let mut y1 = fir_design_rkaiser_internal_isi(k, m, beta, dt, x1, h)?;
+    let y2 = fir_design_rkaiser_internal_isi(k, m, beta, dt, x2, h)?;
+
+    // keep the best sampled point so the fallback cannot regress from rho_hat
+    let mut rho_opt = x1;
+    let mut y_opt = y1;
+    if y0 < y_opt {
+        rho_opt = x0;
+        y_opt = y0;
+    }
+    if y2 < y_opt {
+        rho_opt = x2;
+        y_opt = y2;
+    }
+
+    // refine the bandwidth adjustment to minimize inter-symbol interference
+    for _ in 0..14 {
+        // choose midway points xa and xb, then compute their ISI
+        let xa = 0.5 * (x0 + x1);
+        let xb = 0.5 * (x1 + x2);
+        let ya = fir_design_rkaiser_internal_isi(k, m, beta, dt, xa, h)?;
+        let yb = fir_design_rkaiser_internal_isi(k, m, beta, dt, xb, h)?;
+
+        if ya < y_opt {
+            rho_opt = xa;
+            y_opt = ya;
+        }
+        if yb < y_opt {
+            rho_opt = xb;
+            y_opt = yb;
+        }
+
+        // find the minimum of [ya, y1, yb] and update the bounds
+        if y1 < ya && y1 < yb {
+            x0 = xa;
+            x2 = xb;
+        } else if ya < yb {
+            x2 = x1;
+            x1 = xa;
+            y1 = ya;
+        } else {
+            x0 = x1;
+            x1 = xb;
+            y1 = yb;
+        }
+    }
+
+    // return the optimal bandwidth adjustment
+    Ok(rho_opt)
+}
+
 /// Design frequency-shifted root-Nyquist filter based on
 /// the Kaiser-windowed sinc using the quadratic search method.
 ///
@@ -211,6 +287,11 @@ fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut 
 
         // ensure x_hat is within boundary (this will fail if y1 > y0 || y1 > y2)
         if x_hat < x0 || x_hat > x2 {
+            // when this fires at p == 0, rho_opt is still rho_hat and the search has
+            // contributed nothing 
+            if p == 0 {
+                rho_opt = fir_design_rkaiser_bounded(k, m, beta, dt, rho_hat, h)?;
+            }
             break;
         }
 
@@ -297,6 +378,36 @@ mod tests {
         assert!(fir_design_arkaiser(2, 12, 2.7, 0.0).is_err());  // beta too large
         assert!(fir_design_arkaiser(2, 12, 0.2, -2.0).is_err()); // dt too small
         assert!(fir_design_arkaiser(2, 12, 0.2, 3.0).is_err());  // dt too large
+    }
+
+    #[test]
+    fn test_rkaiser_bounded_fallback() {
+        let k = 2;
+        let m = 2;
+        let beta = 0.15;
+        let dt = 0.0;
+
+        let h = fir_design_rkaiser(k, m, beta, dt).unwrap();
+        let (isi, _) = filter_isi(&h, k, m);
+
+        let rho_hat = rkaiser_approximate_rho(m, beta);
+        let mut h_approx = vec![0.0; 2 * k * m + 1];
+        let isi_approx = fir_design_rkaiser_internal_isi(
+            k,
+            m,
+            beta,
+            dt,
+            rho_hat,
+            &mut h_approx,
+        ).unwrap();
+
+        assert!(isi_approx > 0.03);
+        if cfg!(feature = "liquid-quirks") {
+            assert!((isi - isi_approx).abs() < 1e-6);
+        } else {
+            assert!(isi < 0.02);
+            assert!(isi < 0.6 * isi_approx);
+        }
     }
 
 }
