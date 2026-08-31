@@ -80,6 +80,9 @@ pub fn kaiser(i: usize, wlen: usize, beta: f32) -> Result<f32> {
     if beta < 0.0 {
         return Err(Error::Value("Kaiser window: beta must be greater than or equal to zero".to_string()));
     }
+    if wlen == 1 {
+        return Ok(1.0);
+    }
 
     let t = i as f32 - (wlen - 1) as f32 / 2.0;
     let r = 2.0 * t / (wlen - 1) as f32;
@@ -327,6 +330,11 @@ mod tests {
     #[autotest_annotate(autotest_window_kaiser)]
     fn test_window_kaiser() {
         window_testbench(WindowType::Kaiser, 71, 10.0);
+    }
+
+    #[test]
+    fn test_window_kaiser_single_sample() {
+        assert_eq!(kaiser(0, 1, 10.0).unwrap(), 1.0);
     }
 
     #[test]

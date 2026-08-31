@@ -70,3 +70,14 @@ pub fn kaiser_beta_stopband_attenuation(as_: f32) -> f32 {
         0.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kaiser_single_tap_filter() {
+        let h = fir_design_kaiser(1, 0.2, 60.0, 0.0).unwrap();
+        assert_eq!(h, [1.0]);
+    }
+}
