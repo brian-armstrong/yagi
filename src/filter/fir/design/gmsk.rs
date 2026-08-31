@@ -6,31 +6,39 @@ use std::f32::consts::PI;
 
 use num_complex::Complex32;
 
+fn validate_gmsk_config(k: usize, m: usize, beta: f32, dt: f32) -> Result<usize> {
+    if k < 2 {
+        return Err(Error::Config("k must be at least 2".into()));
+    }
+    if m < 1 {
+        return Err(Error::Config("m must be greater than 0".into()));
+    }
+    if !(beta > 0.0 && beta <= 1.0) {
+        return Err(Error::Config("beta must be in (0,1]".into()));
+    }
+    if !(-1.0..=1.0).contains(&dt) {
+        return Err(Error::Config("dt must be in [-1,1]".into()));
+    }
+
+    k.checked_mul(2)
+        .and_then(|n| n.checked_mul(m))
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(|| Error::Config("filter length overflow".into()))
+}
+
 /// Design GMSK transmit filter
 ///
 /// # Arguments
-/// * `k`      : samples/symbol
+/// * `k`      : samples/symbol (k >= 2)
 /// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
+/// * `beta`   : bandwidth-time product (0 < beta <= 1)
+/// * `dt`     : fractional sample delay (-1 <= dt <= 1)
 ///
 /// # Returns
 /// 
 /// Vec of filter coefficients
 pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
-    // validate input
-    if k < 1 {
-        return Err(Error::Config("k must be greater than 0".into()));
-    }
-    if m < 1 {
-        return Err(Error::Config("m must be greater than 0".into()));
-    }
-    if beta < 0.0 || beta > 1.0 {
-        return Err(Error::Config("beta must be in [0,1]".into()));
-    }
-
-    // derived values
-    let h_len = 2 * k * m + 1;
+    let h_len = validate_gmsk_config(k, m, beta, dt)?;
 
     // compute filter coefficients
     let mut h = vec![0.0; h_len];
@@ -45,6 +53,9 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     // normalize filter coefficients such that the filter's
     // integral is pi/2
     let e: f32 = h.iter().sum();
+    if !e.is_finite() || e <= 0.0 {
+        return Err(Error::Value("could not normalize GMSK transmit filter".into()));
+    }
     for h_i in h.iter_mut() {
         *h_i *= PI / (2.0 * e) * k as f32;
     }
@@ -55,25 +66,16 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
 /// Design GMSK receive filter
 ///
 /// # Arguments
-/// * `k`      : samples/symbol
+/// * `k`      : samples/symbol (k >= 2)
 /// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
+/// * `beta`   : bandwidth-time product (0 < beta <= 1)
+/// * `dt`     : fractional sample delay (-1 <= dt <= 1)
 ///
 /// # Returns
 /// 
 /// Vec of filter coefficients
-pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32>> {
-    // validate input
-    if k < 1 {
-        return Err(Error::Config("k must be greater than 0".into()));
-    }
-    if m < 1 {
-        return Err(Error::Config("m must be greater than 0".into()));
-    }
-    if beta < 0.0 || beta > 1.0 {
-        return Err(Error::Config("beta must be in [0,1]".into()));
-    }
+pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
+    let h_len = validate_gmsk_config(k, m, beta, dt)?;
 
     let bt = beta;
 
@@ -81,9 +83,6 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<
     let beta = bt;                // prototype filter cut-off
     let delta = 1e-3;             // filter design correction factor
     let prototype = design::FirFilterShape::Kaiser;    // Nyquist prototype
-
-    // derived values
-    let h_len = 2 * k * m + 1;   // filter length
 
     // arrays
     let mut hr = vec![0.0; h_len];         // receive filter coefficients
@@ -161,4 +160,38 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<
     }
 
     Ok(h)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gmsk_filter_config() {
+        let designers: [fn(usize, usize, f32, f32) -> Result<Vec<f32>>; 2] =
+            [fir_design_gmsktx, fir_design_gmskrx];
+
+        for design in designers {
+            assert!(design(1, 3, 0.3, 0.0).is_err());
+            assert!(design(2, 0, 0.3, 0.0).is_err());
+            assert!(design(2, 3, 0.0, 0.0).is_err());
+            assert!(design(2, 3, -0.1, 0.0).is_err());
+            assert!(design(2, 3, 1.1, 0.0).is_err());
+            assert!(design(2, 3, f32::NAN, 0.0).is_err());
+            assert!(design(2, 3, f32::INFINITY, 0.0).is_err());
+            assert!(design(2, 3, 0.3, -1.1).is_err());
+            assert!(design(2, 3, 0.3, 1.1).is_err());
+            assert!(design(2, 3, 0.3, f32::NAN).is_err());
+            assert!(design(usize::MAX, 3, 0.3, 0.0).is_err());
+
+            assert!(design(2, 3, 1.0, -1.0).is_ok());
+            assert!(design(2, 3, 1.0, 1.0).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_gmsk_filter_rejects_unnormalizable_bandwidth() {
+        assert!(fir_design_gmsktx(2, 3, f32::MIN_POSITIVE, 0.0).is_err());
+        assert!(fir_design_gmskrx(2, 3, f32::MIN_POSITIVE, 0.0).is_err());
+    }
 }
