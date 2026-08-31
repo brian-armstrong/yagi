@@ -193,17 +193,19 @@ where
     }
 
     /// Execute the filter on a block of input samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - The input samples (size: `n * decimation_factor`)
     /// * `n` - The number of output samples
     /// * `y` - The output samples (destination) (size: `n`)
-    pub fn execute_block(&mut self, x: &[T], n: usize, y: &mut [T]) -> Result<()> {
+    ///
+    /// Returns the number of output samples written, `n`.
+    pub fn execute_block(&mut self, x: &[T], n: usize, y: &mut [T]) -> Result<usize> {
         for i in 0..n {
             y[i] = self.execute(&x[i * self.decimation_factor..(i + 1) * self.decimation_factor])?;
         }
-        Ok(())
+        Ok(n)
     }
 }
 

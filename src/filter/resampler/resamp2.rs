@@ -172,6 +172,86 @@ where
 
         Ok(())
     }
+
+    /// Run the half-band filter over a block, producing an output pair per input.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - input samples (size: `n`)
+    /// * `y` - output samples (size: `2 * n`)
+    ///
+    /// Returns the number of output samples written, `2 * x.len()`.
+    pub fn filter_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        for (i, &xi) in x.iter().enumerate() {
+            let (y0, y1) = self.filter_execute(xi)?;
+            y[2 * i] = y0;
+            y[2 * i + 1] = y1;
+        }
+        Ok(2 * x.len())
+    }
+
+    /// Run the analyzer over a block of input pairs.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - input samples (size: `2 * n`)
+    /// * `y` - output samples (size: `2 * n`)
+    ///
+    /// Returns the number of output samples written, `x.len()`.
+    pub fn analyzer_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        let n = x.len() / 2;
+        for i in 0..n {
+            self.analyzer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
+        }
+        Ok(2 * n)
+    }
+
+    /// Run the synthesizer over a block of input pairs.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - input samples (size: `2 * n`)
+    /// * `y` - output samples (size: `2 * n`)
+    ///
+    /// Returns the number of output samples written, `x.len()`.
+    pub fn synthesizer_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        let n = x.len() / 2;
+        for i in 0..n {
+            self.synthesizer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
+        }
+        Ok(2 * n)
+    }
+
+    /// Decimate a block of input samples by 2.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - input samples (size: `2 * n`)
+    /// * `y` - output samples (size: `n`)
+    ///
+    /// Returns the number of output samples written, `x.len() / 2`.
+    pub fn decim_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        let n = x.len() / 2;
+        for i in 0..n {
+            y[i] = self.decim_execute(&x[2 * i..2 * i + 2])?;
+        }
+        Ok(n)
+    }
+
+    /// Interpolate a block of input samples by 2.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - input samples (size: `n`)
+    /// * `y` - output samples (size: `2 * n`)
+    ///
+    /// Returns the number of output samples written, `2 * x.len()`.
+    pub fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        for (i, &xi) in x.iter().enumerate() {
+            self.interp_execute(xi, &mut y[2 * i..2 * i + 2])?;
+        }
+        Ok(2 * x.len())
+    }
 }
 
 #[cfg(test)]

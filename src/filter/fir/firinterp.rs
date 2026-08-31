@@ -231,16 +231,18 @@ where
     }
 
     /// Execute the interpolator on a block of input samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - input samples (size: `n` x 1)
     /// * `y` - output samples (size: `n * interp` x 1)
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    ///
+    /// Returns the number of output samples written, `n * interp`.
+    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         for (i, &xi) in x.iter().enumerate() {
             self.execute(xi, &mut y[i * self.interpolation_factor..(i + 1) * self.interpolation_factor])?;
         }
-        Ok(())
+        Ok(x.len() * self.interpolation_factor)
     }
 
     /// Execute the interpolator with zero-valued input (e.g. flush internal state)
