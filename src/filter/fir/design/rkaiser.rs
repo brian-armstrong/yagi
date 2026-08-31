@@ -410,4 +410,10 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_rkaiser_fractional_sample_offset_range() {
+        assert!(fir_design_arkaiser(2, 3, 0.2, 0.75).is_ok());
+        assert!(fir_design_rkaiser(2, 3, 0.2, -0.75).is_ok());
+    }
+
 }

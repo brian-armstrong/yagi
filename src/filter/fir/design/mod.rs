@@ -888,8 +888,9 @@ mod tests {
         assert!(kaiser::fir_design_kaiser(h_len, -0.1, 60.0, 0.0).is_err());
         assert!(kaiser::fir_design_kaiser(h_len, 0.0, 60.0, 0.0).is_err());
         assert!(kaiser::fir_design_kaiser(h_len, 0.6, 60.0, 0.0).is_err());
-        assert!(kaiser::fir_design_kaiser(h_len, 0.2, 60.0, -0.7).is_err());
-        assert!(kaiser::fir_design_kaiser(h_len, 0.2, 60.0, 0.7).is_err());
+        // Kaiser uses the same fractional sample offset range as the other prototypes.
+        assert!(kaiser::fir_design_kaiser(h_len, 0.2, 60.0, -1.1).is_err());
+        assert!(kaiser::fir_design_kaiser(h_len, 0.2, 60.0, 1.1).is_err());
 
         assert!(fir_design_notch(m, 0.2, 60.0).is_ok());
         assert!(fir_design_notch(0, 0.2, 60.0).is_err());

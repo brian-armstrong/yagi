@@ -8,15 +8,15 @@ use crate::math::windows;
 /// * `n`      : filter length, n > 0
 /// * `fc`     : cutoff frequency, 0 < fc < 0.5
 /// * `as_`    : stop-band attenuation \[dB\], as_ > 0
-/// * `mu`     : fractional sample offset, -0.5 < mu < 0.5
+/// * `mu`     : fractional sample offset, -1 <= mu <= 1
 ///
 /// # Returns
 /// 
 /// Vec of filter coefficients
 pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32>> {
     // validate input
-    if mu <= -0.5 || mu > 0.5 {
-        return Err(Error::Config(format!("fractional sample offset ({}) out of range (-0.5, 0.5)", mu)));
+    if !(-1.0..=1.0).contains(&mu) {
+        return Err(Error::Config(format!("fractional sample offset ({}) out of range [-1, 1]", mu)));
     }
     if fc <= 0.0 || fc > 0.5 {
         return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", fc)));
@@ -74,10 +74,30 @@ pub fn kaiser_beta_stopband_attenuation(as_: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     fn test_kaiser_single_tap_filter() {
         let h = fir_design_kaiser(1, 0.2, 60.0, 0.0).unwrap();
         assert_eq!(h, [1.0]);
+    }
+
+    #[test]
+    fn test_kaiser_fractional_sample_offset_range() {
+        assert!(fir_design_kaiser(41, 0.2, 60.0, -1.0).is_ok());
+        assert!(fir_design_kaiser(41, 0.2, 60.0, 1.0).is_ok());
+        assert!(fir_design_kaiser(41, 0.2, 60.0, -1.01).is_err());
+        assert!(fir_design_kaiser(41, 0.2, 60.0, 1.01).is_err());
+        assert!(fir_design_kaiser(41, 0.2, 60.0, f32::NAN).is_err());
+    }
+
+    #[test]
+    fn test_kaiser_fractional_sample_offset_symmetry() {
+        let hp = fir_design_kaiser(41, 0.2, 60.0, 0.75).unwrap();
+        let hn = fir_design_kaiser(41, 0.2, 60.0, -0.75).unwrap();
+
+        for (&a, &b) in hp.iter().zip(hn.iter().rev()) {
+            assert_abs_diff_eq!(a, b, epsilon = 1e-6);
+        }
     }
 }
