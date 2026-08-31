@@ -44,7 +44,7 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     let mut h = vec![0.0; h_len];
     let c0 = 1.0 / (2.0_f32.ln()).sqrt();
     for i in 0..h_len {
-        let t = i as f32 / k as f32 - m as f32 + dt;
+        let t = (i as f32 + dt) / k as f32 - m as f32;
 
         h[i] = qf(2.0 * PI * beta * (t - 0.5) * c0) -
                qf(2.0 * PI * beta * (t + 0.5) * c0);
@@ -147,6 +147,20 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
         h_freq_hat[i] *= (g_freq_prime[i].re - g_freq_prime_min) / g_freq_prime[0].re;
     }
 
+    // apply the fractional sample delay after constructing the real, even
+    // receive response so the design procedure above can remain zero-phase.
+    if dt != 0.0 {
+        for i in 0..h_len {
+            let bin = if i <= h_len / 2 {
+                i as f32
+            } else {
+                i as f32 - h_len as f32
+            };
+            let phase = 2.0 * PI * bin * dt / h_len as f32;
+            h_freq_hat[i] *= Complex32::from_polar(1.0, phase);
+        }
+    }
+
     // compute ifft and copy response
     fft_run(&h_freq_hat, &mut h_hat, Direction::Backward);
     for i in 0..h_len {
@@ -165,6 +179,7 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_abs_diff_eq;
 
     #[test]
     fn test_gmsk_filter_config() {
@@ -193,5 +208,62 @@ mod tests {
     fn test_gmsk_filter_rejects_unnormalizable_bandwidth() {
         assert!(fir_design_gmsktx(2, 3, f32::MIN_POSITIVE, 0.0).is_err());
         assert!(fir_design_gmskrx(2, 3, f32::MIN_POSITIVE, 0.0).is_err());
+    }
+
+    #[test]
+    fn test_gmsktx_bandwidth_normalization() {
+        let k = 4;
+        let m = 6;
+
+        for beta in [0.2, 0.33, 0.5, 1.0] {
+            let h = fir_design_gmsktx(k, m, beta, 0.0).unwrap();
+            assert!(h.iter().all(|v| v.is_finite()));
+            assert_abs_diff_eq!(h.iter().sum::<f32>(), 0.5 * PI * k as f32, epsilon = 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_gmsktx_fractional_sample_delay() {
+        let k = 4;
+        let m = 6;
+        let dt = 0.375;
+        let h = fir_design_gmsktx(k, m, 0.3, dt).unwrap();
+        let sum: f32 = h.iter().sum();
+        let centroid = h.iter().enumerate().map(|(i, &v)| i as f32 * v).sum::<f32>() / sum;
+
+        // positive dt advances the pulse by dt samples.
+        assert_abs_diff_eq!(centroid, (k * m) as f32 - dt, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_gmskrx_fractional_sample_delay() {
+        let k = 4;
+        let m = 6;
+        let dt = 0.375;
+        let h0 = fir_design_gmskrx(k, m, 0.3, 0.0).unwrap();
+        let h1 = fir_design_gmskrx(k, m, 0.3, dt).unwrap();
+        let x0: Vec<_> = h0.iter().map(|&v| Complex32::new(v, 0.0)).collect();
+        let x1: Vec<_> = h1.iter().map(|&v| Complex32::new(v, 0.0)).collect();
+        let mut y0 = vec![Complex32::new(0.0, 0.0); h0.len()];
+        let mut y1 = vec![Complex32::new(0.0, 0.0); h1.len()];
+
+        fft_run(&x0, &mut y0, Direction::Forward);
+        fft_run(&x1, &mut y1, Direction::Forward);
+
+        for i in 0..y0.len() {
+            if y0[i].norm() < 1e-3 {
+                continue;
+            }
+
+            let bin = if i <= y0.len() / 2 {
+                i as f32
+            } else {
+                i as f32 - y0.len() as f32
+            };
+            let phase = 2.0 * PI * bin * dt / y0.len() as f32;
+            let expected = y0[i] * Complex32::from_polar(1.0, phase);
+            assert_abs_diff_eq!(y1[i].re, expected.re, epsilon = 1e-4);
+            assert_abs_diff_eq!(y1[i].im, expected.im, epsilon = 1e-4);
+        }
     }
 }
