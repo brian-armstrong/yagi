@@ -102,7 +102,7 @@ impl FirDesignPm {
     /// * `num_bands` - number of bands
     /// * `bands` - band edges, f in [0,0.5], [size: 2*num_bands]
     /// * `des` - desired response, [size: num_bands]
-    /// * `weights` - response weighting, [size: num_bands]
+    /// * `weights` - response weighting, or unit weights if `None`, [size: num_bands]
     /// * `wtype` - weight types (e.g. `FirPmWeightType::Flat`) [size: num_bands]
     /// * `btype` - band type (e.g. `FirPmBandType::Bandpass`)
     /// 
@@ -259,7 +259,7 @@ impl FirDesignPm {
             btype,
             bands: vec![0.0; 2*num_bands],
             des: vec![0.0; num_bands],
-            weights: vec![0.0; num_bands],
+            weights: vec![1.0; num_bands],
             wtype: vec![FirPmWeightType::Flat; num_bands],
             f: vec![0.0; grid_size],
             d: vec![0.0; grid_size],
@@ -616,7 +616,7 @@ impl FirDesignPm {
 /// * `num_bands` : number of frequency bands
 /// * `bands` : band edges, f in [0,0.5], [size: num_bands x 2]
 /// * `des` : desired response [size: num_bands x 1]
-/// * `weights` : response weighting [size: num_bands x 1]
+/// * `weights` : response weighting, or unit weights if `None` [size: num_bands x 1]
 /// * `wtype` : weight types (e.g. `FirPmWeightType::Flat`) [size: num_bands x 1]
 /// * `btype` : band type (e.g. `FirPmBandType::Bandpass`)
 /// 
@@ -734,6 +734,20 @@ mod tests {
         for i in 0..n {
             assert_abs_diff_eq!(h[i], h0[i], epsilon = tol);
         }
+    }
+
+    #[test]
+    fn test_firdespm_default_weights_are_unit_weights() {
+        let n = 24;
+        let bands = [0.0, 0.08, 0.16, 0.5];
+        let des = [1.0, 0.0];
+        let weights = [1.0, 1.0];
+        let btype = FirPmBandType::Bandpass;
+
+        let h_default = fir_design_pm(n, 2, &bands, &des, None, None, btype).unwrap();
+        let h_unit = fir_design_pm(n, 2, &bands, &des, Some(&weights), None, btype).unwrap();
+
+        assert_eq!(h_default, h_unit);
     }
 
     #[test]
