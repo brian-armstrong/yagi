@@ -622,10 +622,12 @@ where
         self.v.push(T::default());
 
         // compute new v[0]
-        let v0 = self.v.read().dotprod(&self.a_rev);
+        // n - na accounts for unequal numerator/denominator sizes
+        // if they're the same, this starts at index 0, so no effect
+        let v0 = self.v.read()[self.n - self.na..].dotprod(&self.a_rev);
         self.v.set(self.n - 1, x - v0);
 
-        let y = self.v.read().dotprod(&self.b_rev);
+        let y = self.v.read()[self.n - self.nb..].dotprod(&self.b_rev);
         y * self.scale
     }
 
@@ -866,6 +868,22 @@ mod tests {
         assert_eq!(scale, 7.22);
         assert_eq!(filter.get_length(), 8); // 7+1
         // Rust automatically handles destruction of objects when they go out of scope
+    }
+
+    #[test]
+    fn test_iirfilt_numerator_longer_than_denominator() {
+        let mut filter = IirFilter::<f32, f32>::new(&[1.0, 2.0, 3.0], &[1.0]).unwrap();
+        let mut output = [0.0; 4];
+        filter.execute_block(&[1.0, 0.0, 0.0, 0.0], &mut output).unwrap();
+        assert_eq!(output, [1.0, 2.0, 3.0, 0.0]);
+    }
+
+    #[test]
+    fn test_iirfilt_denominator_longer_than_numerator() {
+        let mut filter = IirFilter::<f32, f32>::new(&[1.0], &[1.0, -0.5]).unwrap();
+        let mut output = [0.0; 4];
+        filter.execute_block(&[1.0, 0.0, 0.0, 0.0], &mut output).unwrap();
+        assert_eq!(output, [1.0, 0.5, 0.25, 0.125]);
     }
 
     #[test]
