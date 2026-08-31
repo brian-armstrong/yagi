@@ -38,9 +38,9 @@ const MAX_ITERATIONS: usize = 40;
 pub enum FirPmBandType {
     /// regular band-pass filter
     Bandpass,
-    /// differentiating filter
+    /// differentiating filter (currently unsupported)
     Differentiator,
-    /// Hilbert transform
+    /// Hilbert transform (currently unsupported)
     Hilbert,
 }
 
@@ -206,6 +206,11 @@ impl FirDesignPm {
         }
         if num_bands == 0 {
             return Err(Error::Config("Invalid number of bands".to_string()));
+        }
+        if btype != FirPmBandType::Bandpass {
+            return Err(Error::Config(format!(
+                "Parks-McClellan filter type {btype:?} is not supported",
+            )));
         }
 
         let num_band_edges = num_bands
@@ -916,6 +921,99 @@ mod tests {
     }
 
     #[test]
+    #[autotest_annotate(autotest_firdespm_copy)]
+    fn test_firdespm_copy() {
+        // create valid object
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
+        let des = vec![1.0f32, 0.0];              // desired values
+        let w = vec![1.0f32, 1.0];                // weights
+        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
+        let mut q0 = FirDesignPm::new(51, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).unwrap();
+
+        // copy object
+        let mut q1 = q0.clone();
+
+        // execute both
+        let h0 = q0.execute().unwrap();
+        let h1 = q1.execute().unwrap();
+
+        assert_eq!(h0.as_slice(), h1.as_slice());
+
+        // No need to manually destroy objects in Rust due to RAII
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_firdespm_config)]
+    fn test_firdespm_config() {
+        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, 0.0).is_ok()); // ok
+        assert!(fir_design_pm_lowpass(0, 0.2, 60.0, 0.0).is_err());
+        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, -1.0).is_err());
+        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, 1.0).is_err());
+        assert!(fir_design_pm_lowpass(51, 0.8, 60.0, 0.0).is_err());
+        assert!(fir_design_pm_lowpass(51, -0.2, 60.0, 0.0).is_err());
+
+        // try to create object with filter length 0
+        assert!(FirDesignPm::new(0, 3, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
+
+        // try to create object with 0 bands
+        assert!(FirDesignPm::new(71, 0, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
+
+        // create valid object
+        // skipping a print test
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
+        let des = vec![1.0f32, 0.0];              // desired values
+        let w = vec![1.0f32, 1.0];                // weights
+        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
+        // let q = FirdesPm::new(51, 2, &bands, &des, Some(&w), Some(&wtype), BandType::Bandpass).unwrap();
+        // assert!(q.print().is_ok());
+
+        // invalid bands & weights
+        let bands_0 = vec![0.0f32, 0.3, 0.2, 0.5]; // overlapping bands
+        let bands_1 = vec![-0.1f32, 0.0, 0.3, 0.6]; // bands out of range
+        let w_0 = vec![1.0f32, -1.0];           // weights out of range
+
+        // try to create regular object with invalid configuration
+        assert!(FirDesignPm::new(0, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
+        assert!(FirDesignPm::new(51, 0, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
+        assert!(FirDesignPm::new(51, 2, &bands_0, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
+        assert!(FirDesignPm::new(51, 2, &bands_1, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
+        assert!(FirDesignPm::new(51, 2, &bands, &des, Some(&w_0), Some(&wtype), FirPmBandType::Bandpass).is_err());
+
+        // try to create response object with invalid configuration
+        assert!(FirDesignPm::new_with_response(0, 2, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+        assert!(FirDesignPm::new_with_response(51, 0, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+        assert!(FirDesignPm::new_with_response(51, 2, &bands_0, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+        assert!(FirDesignPm::new_with_response(51, 2, &bands_1, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_firdespm_differentiator)]
+    fn test_firdespm_differentiator() {
+        let n = 51;
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
+        let des = vec![1.0f32, 0.0];              // desired values
+        let w = vec![1.0f32, 1.0];                // weights
+        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
+        let btype = FirPmBandType::Differentiator;
+        let result = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
+
+        assert!(matches!(result, Err(Error::Config(_))));
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_firdespm_hilbert)]
+    fn test_firdespm_hilbert() {
+        let n = 51;
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
+        let des = vec![1.0f32, 0.0];              // desired values
+        let w = vec![1.0f32, 1.0];                // weights
+        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
+        let btype = FirPmBandType::Hilbert;
+        let result = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
+
+        assert!(matches!(result, Err(Error::Config(_))));
+    }
+    #[test]
     fn test_firdespm_response_error() {
         let bands = [0.0, 0.35, 0.4, 0.5];
         let error = Error::Value("response failed".into());
@@ -958,28 +1056,6 @@ mod tests {
         assert!(matches!(invalid_desired, Err(Error::Value(_))));
         assert!(matches!(non_finite_weight, Err(Error::Value(_))));
         assert!(matches!(non_positive_weight, Err(Error::Value(_))));
-    }
-
-    #[test]
-    #[autotest_annotate(autotest_firdespm_copy)]
-    fn test_firdespm_copy() {
-        // create valid object
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
-        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
-        let mut q0 = FirDesignPm::new(51, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).unwrap();
-
-        // copy object
-        let mut q1 = q0.clone();
-
-        // execute both
-        let h0 = q0.execute().unwrap();
-        let h1 = q1.execute().unwrap();
-
-        assert_eq!(h0.as_slice(), h1.as_slice());
-
-        // No need to manually destroy objects in Rust due to RAII
     }
 
     #[test]
@@ -1047,78 +1123,24 @@ mod tests {
         assert!(matches!(weights_result, Err(Error::Config(_))));
     }
 
-    #[test]
-    #[autotest_annotate(autotest_firdespm_config)]
-    fn test_firdespm_config() {
-        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, 0.0).is_ok()); // ok
-        assert!(fir_design_pm_lowpass(0, 0.2, 60.0, 0.0).is_err());
-        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, -1.0).is_err());
-        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, 1.0).is_err());
-        assert!(fir_design_pm_lowpass(51, 0.8, 60.0, 0.0).is_err());
-        assert!(fir_design_pm_lowpass(51, -0.2, 60.0, 0.0).is_err());
-
-        // try to create object with filter length 0
-        assert!(FirDesignPm::new(0, 3, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
-
-        // try to create object with 0 bands
-        assert!(FirDesignPm::new(71, 0, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
-
-        // create valid object
-        // skipping a print test
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
-        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
-        // let q = FirdesPm::new(51, 2, &bands, &des, Some(&w), Some(&wtype), BandType::Bandpass).unwrap();
-        // assert!(q.print().is_ok());
-
-        // invalid bands & weights
-        let bands_0 = vec![0.0f32, 0.3, 0.2, 0.5]; // overlapping bands
-        let bands_1 = vec![-0.1f32, 0.0, 0.3, 0.6]; // bands out of range
-        let w_0 = vec![1.0f32, -1.0];           // weights out of range
-
-        // try to create regular object with invalid configuration
-        assert!(FirDesignPm::new(0, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 0, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 2, &bands_0, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 2, &bands_1, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 2, &bands, &des, Some(&w_0), Some(&wtype), FirPmBandType::Bandpass).is_err());
-
-        // try to create response object with invalid configuration
-        assert!(FirDesignPm::new_with_response(0, 2, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
-        assert!(FirDesignPm::new_with_response(51, 0, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
-        assert!(FirDesignPm::new_with_response(51, 2, &bands_0, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
-        assert!(FirDesignPm::new_with_response(51, 2, &bands_1, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
-    }
 
     #[test]
-    #[autotest_annotate(autotest_firdespm_differentiator)]
-    fn test_firdespm_differentiator() {
-        // create valid object
-        let n = 51;
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
-        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
-        let btype = FirPmBandType::Differentiator;
-        let mut q = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype).unwrap();
-        // unsupported configuration
-        assert!(q.execute().is_err());
-    }
+    fn test_firdespm_unsupported_response_does_not_invoke_callback() {
+        let bands = [0.0, 0.2, 0.3, 0.5];
+        let mut callback_invoked = false;
+        let result = FirDesignPm::new_with_response(
+            51,
+            2,
+            &bands,
+            FirPmBandType::Hilbert,
+            |_| {
+                callback_invoked = true;
+                Ok(FirPmResponse { desired: 1.0, weight: 1.0 })
+            },
+        );
 
-    #[test]
-    #[autotest_annotate(autotest_firdespm_hilbert)]
-    fn test_firdespm_hilbert() {
-        // create valid object
-        let n = 51;
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
-        let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
-        let btype = FirPmBandType::Hilbert;
-        let mut q = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype).unwrap();
-        // unsupported configuration
-        assert!(q.execute().is_err());
+        assert!(matches!(result, Err(Error::Config(_))));
+        assert!(!callback_invoked);
     }
 
     #[test]
