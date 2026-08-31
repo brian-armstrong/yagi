@@ -31,6 +31,7 @@ use crate::math::{poly_fit_lagrange_barycentric, poly_val_lagrange_barycentric};
 use super::estimate_req_filter_transition_bandwidth;
 
 const IEXT_SEARCH_TOL: f64 = 1e-15;
+const MAX_ITERATIONS: usize = 40;
 
 /// Parks-McClellan filter design band type
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -59,7 +60,7 @@ pub enum FirPmWeightType {
 pub struct FirPmResponse {
     /// Desired filter response.
     pub desired: f64,
-    /// Error weight; larger values prioritize this frequency.
+    /// Error weight. Larger values prioritize this frequency.
     pub weight: f64,
 }
 
@@ -158,6 +159,10 @@ impl FirDesignPm {
     /// 
     /// A vec of filter coefficients
     pub fn execute(&mut self) -> Result<Vec<f32>> {
+        self.execute_with_max_iterations(MAX_ITERATIONS)
+    }
+
+    fn execute_with_max_iterations(&mut self, max_iterations: usize) -> Result<Vec<f32>> {
         // initial guess of extremal frequencies evenly spaced on F 
         // TODO : guarantee at least one extremal frequency lies in each band
         for i in 0..self.r+1 {
@@ -165,7 +170,6 @@ impl FirDesignPm {
         }
 
         // iterate over the Remez exchange algorithm
-        let max_iterations = 40;
         for _ in 0..max_iterations {
             // compute interpolator
             self.compute_interp()?;
@@ -178,11 +182,13 @@ impl FirDesignPm {
 
             // check stopping criteria
             if self.is_search_complete()? {
-                break;
+                return self.compute_taps();
             }
         }
-        let h = self.compute_taps()?;
-        Ok(h)
+
+        Err(Error::NoConvergence(format!(
+            "Parks-McClellan exchange failed to converge after {max_iterations} iterations",
+        )))
     }
 
     fn _new(
@@ -532,6 +538,12 @@ impl FirDesignPm {
                 emax = e;
             }
         }
+
+        // an exact fit has no error variation and has converged.
+        if emax == 0.0 {
+            return Ok(true);
+        }
+
         Ok((emax - emin) / emax < tol)
     }
 
@@ -961,6 +973,47 @@ mod tests {
         let mut q = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype).unwrap();
         // unsupported configuration
         assert!(q.execute().is_err());
+    }
+
+    #[test]
+    fn test_firdespm_iteration_limit_reports_nonconvergence() {
+        let bands = [0.0, 0.08, 0.16, 0.5];
+        let des = [1.0, 0.0];
+        let weights = [1.0, 1.0];
+        let mut q = FirDesignPm::new(
+            24,
+            2,
+            &bands,
+            &des,
+            Some(&weights),
+            None,
+            FirPmBandType::Bandpass,
+        ).unwrap();
+
+        assert!(matches!(
+            q.execute_with_max_iterations(1),
+            Err(Error::NoConvergence(_)),
+        ));
+    }
+
+    #[test]
+    fn test_firdespm_zero_error_is_converged() {
+        let bands = [0.0, 0.2, 0.3, 0.5];
+        let des = [0.0, 0.0];
+        let weights = [1.0, 1.0];
+        let mut q = FirDesignPm::new(
+            51,
+            2,
+            &bands,
+            &des,
+            Some(&weights),
+            None,
+            FirPmBandType::Bandpass,
+        ).unwrap();
+
+        q.num_exchanges = 1;
+        q.e.fill(0.0);
+        assert!(q.is_search_complete().unwrap());
     }
 
     #[test]
