@@ -31,7 +31,7 @@ pub fn fir_design_fnyquist(
     k: usize,
     m: usize,
     beta: f32,
-    _dt: f32,
+    dt: f32,
 ) -> Result<Vec<f32>> {
     // validate input
     if k < 1 {
@@ -42,6 +42,9 @@ pub fn fir_design_fnyquist(
     }
     if beta < 0.0 || beta > 1.0 {
         return Err(Error::Config("beta must be in [0,1]".into()));
+    }
+    if !(-1.0..=1.0).contains(&dt) {
+        return Err(Error::Config("dt must be in [-1,1]".into()));
     }
 
     // derived values
@@ -59,10 +62,17 @@ pub fn fir_design_fnyquist(
         _ => return Err(Error::Config("unsupported filter type".into())),
     }
 
-    // copy result to fft input buffer, computing square root
-    // if required
+    // copy result to fft input buffer, computing square root and applying the
+    // fractional sample delay if required
     for i in 0..h_len {
-        h[i] = Complex32::new(if root { h_prime[i].sqrt() } else { h_prime[i] }, 0.0);
+        let magnitude = if root { h_prime[i].sqrt() } else { h_prime[i] };
+        let bin = if i <= h_len / 2 {
+            i as f32
+        } else {
+            i as f32 - h_len as f32
+        };
+        let phase = 2.0 * std::f32::consts::PI * bin * dt / h_len as f32;
+        h[i] = Complex32::from_polar(magnitude, phase);
     }
 
     // compute ifft
@@ -348,5 +358,50 @@ mod tests {
                 assert_abs_diff_eq!(h.iter().sum::<f32>(), k as f32, epsilon = 1e-4);
             }
         }
+    }
+
+    #[test]
+    fn test_fnyquist_fractional_sample_delay() {
+        let k = 4;
+        let m = 3;
+        let beta = 0.3;
+        let dt = 0.375;
+
+        for ftype in [FirFilterShape::Fexp, FirFilterShape::Fsech, FirFilterShape::Farcsech] {
+            for root in [false, true] {
+                let h0 = fir_design_fnyquist(ftype, root, k, m, beta, 0.0).unwrap();
+                let h1 = fir_design_fnyquist(ftype, root, k, m, beta, dt).unwrap();
+                let x0: Vec<_> = h0.iter().map(|&v| Complex32::new(v, 0.0)).collect();
+                let x1: Vec<_> = h1.iter().map(|&v| Complex32::new(v, 0.0)).collect();
+                let mut y0 = vec![Complex32::new(0.0, 0.0); h0.len()];
+                let mut y1 = vec![Complex32::new(0.0, 0.0); h1.len()];
+
+                fft_run(&x0, &mut y0, Direction::Forward);
+                fft_run(&x1, &mut y1, Direction::Forward);
+
+                for i in 0..y0.len() {
+                    if y0[i].norm() < 1e-3 {
+                        continue;
+                    }
+
+                    let bin = if i <= y0.len() / 2 {
+                        i as f32
+                    } else {
+                        i as f32 - y0.len() as f32
+                    };
+                    let phase = 2.0 * std::f32::consts::PI * bin * dt / y0.len() as f32;
+                    let expected = y0[i] * Complex32::from_polar(1.0, phase);
+                    assert_abs_diff_eq!(y1[i].re, expected.re, epsilon = 1e-4);
+                    assert_abs_diff_eq!(y1[i].im, expected.im, epsilon = 1e-4);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_fnyquist_fractional_sample_delay_config() {
+        assert!(fir_design_fexp(4, 3, 0.3, -1.01).is_err());
+        assert!(fir_design_fexp(4, 3, 0.3, 1.01).is_err());
+        assert!(fir_design_fexp(4, 3, 0.3, f32::NAN).is_err());
     }
 }
