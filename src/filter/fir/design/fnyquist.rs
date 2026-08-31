@@ -136,7 +136,7 @@ pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32
         // enforce even symmetry
         f = f.abs();
 
-        h[i] = if f < f0 {
+        h[i] = if f <= f0 {
             // pass band
             1.0
         } else if f > f0 && f < f2 {
@@ -214,7 +214,7 @@ pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f3
         // enforce even symmetry
         f = f.abs();
 
-        h[i] = if f < f0 {
+        h[i] = if f <= f0 {
             // pass band
             1.0
         } else if f > f0 && f < f2 {
@@ -311,7 +311,7 @@ pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut 
         // enforce even symmetry
         f = f.abs();
 
-        h[i] = if f < f0 {
+        h[i] = if f <= f0 {
             // pass band
             1.0
         } else if f > f0 && f < f2 {
@@ -328,4 +328,25 @@ pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut 
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_fnyquist_lower_transition_endpoint() {
+        let k = 4;
+        let m = 3;
+
+        // at beta=1, the lower transition endpoint f0 is DC. The response at
+        // this endpoint is unity, so every design must preserve a DC gain of k.
+        for ftype in [FirFilterShape::Fexp, FirFilterShape::Fsech, FirFilterShape::Farcsech] {
+            for root in [false, true] {
+                let h = fir_design_fnyquist(ftype, root, k, m, 1.0, 0.0).unwrap();
+                assert_abs_diff_eq!(h.iter().sum::<f32>(), k as f32, epsilon = 1e-4);
+            }
+        }
+    }
 }
