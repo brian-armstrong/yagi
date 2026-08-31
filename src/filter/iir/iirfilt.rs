@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use num_complex::{Complex32, ComplexFloat};
 use core::f32;
 use crate::buffer::Window;
-use crate::dotprod::DotProd;
+use crate::dotprod::{DotProd, DotProduct};
 use crate::filter::iir::design;
 use crate::filter::iir::iirfiltsos::IirFilterSos;
 
@@ -366,14 +366,14 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 /// Infinite impulse response (IIR) filter
 #[derive(Debug, Clone)]
 pub struct IirFilter<T, Coeff = T> {
-    b: Vec<Coeff>,             // numerator (feed-forward coefficients)
-    b_rev: Vec<Coeff>,         // reversed numerator (feed-forward coefficients)
-    a: Vec<Coeff>,             // denominator (feed-back coefficients)
-    a_rev: Vec<Coeff>,         // reversed denominator (feed-back coefficients)
-    v: Window<T>,        // internal filter state (buffer)
-    n: usize,               // filter length (order+1)
-    nb: usize,              // numerator length
-    na: usize,              // denominator length
+    b: Vec<Coeff>,              // numerator (feed-forward coefficients)
+    dpb: DotProduct<T, Coeff>,  // numerator dot product
+    a: Vec<Coeff>,              // denominator (feed-back coefficients)
+    dpa: DotProduct<T, Coeff>,  // denominator dot product
+    v: Window<T>,               // internal filter state (buffer)
+    n: usize,                   // filter length (order+1)
+    nb: usize,                  // numerator length
+    na: usize,                  // denominator length
 
     filter_type: IirFilterType,
 
@@ -421,9 +421,9 @@ where
 
         let mut filter = IirFilter {
             b: b.to_vec(),
-            b_rev: b.iter().rev().cloned().collect::<Vec<Coeff>>(),
+            dpb: DotProduct::new_rev(b)?,
             a: a.to_vec(),
-            a_rev: a.iter().rev().cloned().collect::<Vec<Coeff>>(),
+            dpa: DotProduct::new_rev(a)?,
             v: Window::new(n)?,
             n,
             nb,
@@ -437,12 +437,12 @@ where
         let a0 = filter.a[0];
         for i in 0..filter.nb {
             filter.b[i] = filter.b[i] / a0;
-            filter.b_rev[i] = filter.b_rev[i] / a0;
         }
         for i in 0..filter.na {
             filter.a[i] = filter.a[i] / a0;
-            filter.a_rev[i] = filter.a_rev[i] / a0;
         }
+        filter.dpb.set_coefficients_rev(&filter.b)?;
+        filter.dpa.set_coefficients_rev(&filter.a)?;
 
         filter.reset();
         Ok(filter)
@@ -464,9 +464,9 @@ where
 
         let mut filter = IirFilter::<T, Coeff> {
             b: b.to_vec(),
-            b_rev: b.iter().rev().cloned().collect::<Vec<Coeff>>(),
+            dpb: DotProduct::new_rev(b)?,
             a: a.to_vec(),
-            a_rev: a.iter().rev().cloned().collect::<Vec<Coeff>>(),
+            dpa: DotProduct::new_rev(a)?,
             v: Window::new(1)?,
             n: nsos * 2,
             nb: 0,
@@ -602,8 +602,8 @@ where
         for i in 0..self.na {
             self.a[i] = self.a[i] / a0;
         }
-        self.b_rev = self.b.iter().rev().cloned().collect::<Vec<Coeff>>();
-        self.a_rev = self.a.iter().rev().cloned().collect::<Vec<Coeff>>();
+        self.dpb.set_coefficients_rev(&self.b)?;
+        self.dpa.set_coefficients_rev(&self.a)?;
         Ok(())
     }
 
@@ -624,10 +624,10 @@ where
         // compute new v[0]
         // n - na accounts for unequal numerator/denominator sizes
         // if they're the same, this starts at index 0, so no effect
-        let v0 = self.v.read()[self.n - self.na..].dotprod(&self.a_rev);
+        let v0 = self.dpa.execute(&self.v.read()[self.n - self.na..]);
         self.v.set(self.n - 1, x - v0);
 
-        let y = self.v.read()[self.n - self.nb..].dotprod(&self.b_rev);
+        let y = self.dpb.execute(&self.v.read()[self.n - self.nb..]);
         y * self.scale
     }
 
@@ -884,6 +884,11 @@ mod tests {
         let mut output = [0.0; 4];
         filter.execute_block(&[1.0, 0.0, 0.0, 0.0], &mut output).unwrap();
         assert_eq!(output, [1.0, 0.5, 0.25, 0.125]);
+
+        filter.set_coefficients(&[2.0], &[2.0, -0.5]).unwrap();
+        filter.reset();
+        filter.execute_block(&[1.0, 0.0, 0.0, 0.0], &mut output).unwrap();
+        assert_eq!(output, [1.0, 0.25, 0.0625, 0.015625]);
     }
 
     #[test]
