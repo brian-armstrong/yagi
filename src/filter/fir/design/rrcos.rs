@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::math::sincd;
 use std::f64::consts::PI;
 
 /// Design root-Nyquist raised-cosine filter
@@ -6,7 +7,7 @@ use std::f64::consts::PI;
 /// # Arguments
 /// * `k`      : samples/symbol
 /// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
+/// * `beta`   : rolloff factor (0 <= beta <= 1)
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
@@ -39,7 +40,9 @@ pub fn fir_design_rrcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
         let beta = beta as f64;
 
         // Check for special condition where z equals zero
-        h[n] = if z.abs() < 1e-5 {
+        h[n] = if beta == 0.0 {
+            sincd(z) as f32
+        } else if z.abs() < 1e-5 {
             (1.0 - beta + 4.0 * beta / PI) as f32
         } else {
             let mut g = 1.0 - 16.0 * beta * beta * z * z;
@@ -104,6 +107,18 @@ mod tests {
         // Ensure data are equal
         for i in 0..13 {
             assert_abs_diff_eq!(h[i], h0[i], epsilon = 0.00001);
+        }
+    }
+
+    #[test]
+    fn test_fir_design_rrcos_zero_beta() {
+        let k = 4;
+        let m = 3;
+        let h = fir_design_rrcos(k, m, 0.0, 0.0).unwrap();
+
+        for (n, &h_n) in h.iter().enumerate() {
+            let z = n as f64 / k as f64 - m as f64;
+            assert_abs_diff_eq!(h_n, sincd(z) as f32, epsilon = f32::EPSILON);
         }
     }
 }

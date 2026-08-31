@@ -394,10 +394,10 @@ pub fn fir_design_prototype(ftype: FirFilterShape, k: usize, m: usize, beta: f32
     let h_len = 2 * k * m + 1;
     let fc = 0.5 / k as f32;
     let df = beta / k as f32;
-    let as_ = estimate_req_filter_stopband_attenuation(df, h_len)?;
 
     match ftype {
         FirFilterShape::Kaiser => {
+            let as_ = estimate_req_filter_stopband_attenuation(df, h_len)?;
             kaiser::fir_design_kaiser(h_len, fc, as_, dt)
         }
         FirFilterShape::Pm => {
@@ -994,6 +994,18 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_rrcos)]
     fn test_firdes_prototype_rrcos() { testbench_firdes_prototype("rrcos", 4, 12, 0.3, 45.0); }
+
+    #[test]
+    fn test_firdes_prototype_rrcos_zero_beta() {
+        let k = 4;
+        let m = 3;
+        let h = fir_design_prototype(FirFilterShape::Rrcos, k, m, 0.0, 0.0).unwrap();
+
+        for (n, &h_n) in h.iter().enumerate() {
+            let z = n as f64 / k as f64 - m as f64;
+            assert_abs_diff_eq!(h_n, crate::math::sincd(z) as f32, epsilon = f32::EPSILON);
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_hm3)]
