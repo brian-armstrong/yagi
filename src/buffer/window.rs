@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use std::ops::Range;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Window<T> {
@@ -67,6 +68,10 @@ impl<T: Default + Clone + Copy> Window<T> {
         &self.v[self.read_index..self.read_index + self.len]
     }
 
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
     pub fn index(&self, i: usize) -> Result<T> {
         if i >= self.len {
             return Err(Error::Range("index value out of range".to_string()));
@@ -93,6 +98,58 @@ impl<T: Default + Clone + Copy> Window<T> {
             self.push(value.clone());
         }
     }
+
+    /// Visits each history produced by pushing `input`.
+    ///
+    /// This is equivalent to calling `window.push(value)` and then calling
+    /// `visit(i, window.read())` for each `(i, element)` in `input`. For long
+    /// inputs, this method can bypass [`Window::push`] for samples in the middle
+    /// of the input slice, lending better efficiency for long block lengths. The
+    /// contents of the window will be the same after the call as they would have
+    /// if the window had been executed on each sample individually.
+    #[inline]
+    pub fn execute_block<F>(&mut self, input: &[T], mut visit: F)
+    where
+        F: FnMut(usize, &[T]),
+    {
+        let len = self.len;
+        self.execute_block_contiguous(input, |indices, samples| {
+            for (i, history) in indices.zip(samples.windows(len)) {
+                visit(i, history);
+            }
+        });
+    }
+
+    /// Visits the histories produced by pushing `input`, grouping histories
+    /// that can be read from one contiguous slice into a single call.
+    ///
+    /// This is a further optimization on [`Window::execute_block`]. Unlike
+    /// that method, the `visit` function here may be passed longer contiguous
+    /// spans on samples than would be returned by [`Window::read`]. This may
+    /// enable better efficiency for `visit` functions that can benefit from
+    /// batched execution. The `visit` function must be able to be called
+    /// multiple times and will be called with spans as short as [`Window::len`]
+    /// but never shorter.
+    #[inline]
+    pub fn execute_block_contiguous<F>(&mut self, input: &[T], mut visit: F)
+    where
+        F: FnMut(Range<usize>, &[T]),
+    {
+        let transition_len = input.len().min(self.len - 1);
+
+        for (i, &value) in input[..transition_len].iter().enumerate() {
+            self.push(value);
+            visit(i..i + 1, self.read());
+        }
+
+        if input.len() >= self.len {
+            visit(self.len - 1..input.len(), input);
+
+            // only the last `self.len` samples need to be retained
+            self.write(&input[input.len() - self.len..]);
+        }
+    }
+
 }
 
 
@@ -213,5 +270,86 @@ mod tests {
 
         // read buffers and compare
         assert_eq!(q0.read(), q1.read());
+    }
+
+    #[test]
+    fn test_window_execute_block_matches_push() {
+        let len = 5;
+        let initial = [10, 11, 12, 13, 14];
+        let input = [20, 21, 22, 23, 24, 25, 26, 27];
+        let mut expected = Window::new(len).unwrap();
+        let mut actual = Window::new(len).unwrap();
+        expected.write(&initial);
+        actual.write(&initial);
+
+        let mut expected_histories = Vec::new();
+        for &value in &input {
+            expected.push(value);
+            expected_histories.push(expected.read().to_vec());
+        }
+
+        let mut actual_histories = Vec::new();
+        actual.execute_block(&input, |i, history| {
+            assert_eq!(i, actual_histories.len());
+            actual_histories.push(history.to_vec());
+        });
+
+        assert_eq!(actual_histories, expected_histories);
+        assert_eq!(actual.read(), expected.read());
+    }
+
+    #[test]
+    fn test_window_execute_block_contiguous() {
+        let len = 4;
+        let initial = [10, 11, 12, 13];
+        let input = [20, 21, 22, 23, 24, 25, 26];
+        let mut window = Window::new(len).unwrap();
+        window.write(&initial);
+
+        let mut calls = Vec::new();
+        window.execute_block_contiguous(&input, |indices, samples| {
+            calls.push((indices, samples.to_vec()));
+        });
+
+        assert_eq!(calls.len(), 4);
+        assert_eq!(calls[0], (0..1, vec![11, 12, 13, 20]));
+        assert_eq!(calls[1], (1..2, vec![12, 13, 20, 21]));
+        assert_eq!(calls[2], (2..3, vec![13, 20, 21, 22]));
+        assert_eq!(calls[3], (3..7, input.to_vec()));
+        assert_eq!(window.read(), &[23, 24, 25, 26]);
+    }
+
+    #[test]
+    fn test_window_execute_block_contiguous_matches_push() {
+        for len in 1..=8 {
+            for input_len in 0..=2 * len + 2 {
+                let initial: Vec<_> = (0..len).map(|i| 100 + i).collect();
+                let input: Vec<_> = (0..input_len).map(|i| 200 + i).collect();
+                let mut expected = Window::new(len).unwrap();
+                let mut actual = Window::new(len).unwrap();
+                expected.write(&initial);
+                actual.write(&initial);
+
+                let mut expected_histories = Vec::new();
+                for &value in &input {
+                    expected.push(value);
+                    expected_histories.push(expected.read().to_vec());
+                }
+
+                let mut actual_histories = vec![None; input_len];
+                actual.execute_block_contiguous(&input, |indices, samples| {
+                    assert_eq!(samples.len(), indices.len() + len - 1);
+                    for (i, history) in indices.zip(samples.windows(len)) {
+                        assert!(actual_histories[i].replace(history.to_vec()).is_none());
+                    }
+                });
+
+                assert_eq!(
+                    actual_histories.into_iter().collect::<Option<Vec<_>>>().unwrap(),
+                    expected_histories
+                );
+                assert_eq!(actual.read(), expected.read());
+            }
+        }
     }
 }
