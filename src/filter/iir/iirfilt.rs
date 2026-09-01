@@ -631,14 +631,41 @@ where
         y * self.scale
     }
 
+    #[inline]
+    fn execute_sos_const<const NSOS: usize>(
+        qsos: &mut [IirFilterSos<T, Coeff>],
+        mut x: T,
+    ) -> T {
+        let qsos: &mut [IirFilterSos<T, Coeff>; NSOS] = qsos.try_into().unwrap();
+        for sos in qsos {
+            x = sos.execute(x);
+        }
+        x
+    }
+
+    #[inline]
+    fn execute_sos_dynamic(qsos: &mut [IirFilterSos<T, Coeff>], mut x: T) -> T {
+        for sos in qsos {
+            x = sos.execute(x);
+        }
+        x
+    }
+
     // execute filter using second-order sections form
     //  _x      :   input sample
     //  _y      :   output sample
     fn execute_sos(&mut self, x: T) -> T {
-        let mut y: T = x;
-        for sos in &mut self.qsos {
-            y = sos.execute(y);
-        }
+        let y = match self.qsos.len() {
+            1 => Self::execute_sos_const::<1>(&mut self.qsos, x),
+            2 => Self::execute_sos_const::<2>(&mut self.qsos, x),
+            3 => Self::execute_sos_const::<3>(&mut self.qsos, x),
+            4 => Self::execute_sos_const::<4>(&mut self.qsos, x),
+            5 => Self::execute_sos_const::<5>(&mut self.qsos, x),
+            6 => Self::execute_sos_const::<6>(&mut self.qsos, x),
+            7 => Self::execute_sos_const::<7>(&mut self.qsos, x),
+            8 => Self::execute_sos_const::<8>(&mut self.qsos, x),
+            _ => Self::execute_sos_dynamic(&mut self.qsos, x),
+        };
         y * self.scale
     }
 
@@ -649,6 +676,24 @@ where
         match self.filter_type {
             IirFilterType::Norm => self.execute_norm(x),
             IirFilterType::Sos => self.execute_sos(x),
+        }
+    }
+
+    fn execute_sos_block_const<const NSOS: usize>(&mut self, x: &[T], y: &mut [T]) {
+        let qsos: &mut [IirFilterSos<T, Coeff>; NSOS] =
+            self.qsos.as_mut_slice().try_into().unwrap();
+        for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
+            let mut value = *x_s;
+            for sos in qsos.iter_mut() {
+                value = sos.execute(value);
+            }
+            *y_s = value * self.scale;
+        }
+    }
+
+    fn execute_sos_block_dynamic(&mut self, x: &[T], y: &mut [T]) {
+        for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
+            *y_s = Self::execute_sos_dynamic(&mut self.qsos, *x_s) * self.scale;
         }
     }
 
@@ -665,8 +710,16 @@ where
                 }
             }
             IirFilterType::Sos => {
-                for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
-                    *y_s = self.execute_sos(*x_s);
+                match self.qsos.len() {
+                    1 => self.execute_sos_block_const::<1>(x, y),
+                    2 => self.execute_sos_block_const::<2>(x, y),
+                    3 => self.execute_sos_block_const::<3>(x, y),
+                    4 => self.execute_sos_block_const::<4>(x, y),
+                    5 => self.execute_sos_block_const::<5>(x, y),
+                    6 => self.execute_sos_block_const::<6>(x, y),
+                    7 => self.execute_sos_block_const::<7>(x, y),
+                    8 => self.execute_sos_block_const::<8>(x, y),
+                    _ => self.execute_sos_block_dynamic(x, y),
                 }
             }
         }
@@ -868,6 +921,38 @@ mod tests {
         assert_eq!(scale, 7.22);
         assert_eq!(filter.get_length(), 8); // 7+1
         // Rust automatically handles destruction of objects when they go out of scope
+    }
+
+    #[test]
+    fn test_iirfilt_sos_block_const_matches() {
+        let x = (0..32)
+            .map(|i| {
+                Complex32::new(i as f32 * 0.03125 - 0.4, 0.25 - i as f32 * 0.015625)
+            })
+            .collect::<Vec<_>>();
+
+        for nsos in 1..=9 {
+            let mut b = Vec::with_capacity(3 * nsos);
+            let mut a = Vec::with_capacity(3 * nsos);
+            for i in 0..nsos {
+                let offset = i as f32 * 0.001;
+                b.extend_from_slice(&[0.7 + offset, 0.2 - offset, 0.05]);
+                a.extend_from_slice(&[1.0, -0.15 + offset, 0.03]);
+            }
+
+            let mut sample_filter = IirFilter::<Complex32, f32>::new_sos(&b, &a, nsos).unwrap();
+            sample_filter.set_scale(0.875);
+            let mut block_filter = sample_filter.clone();
+
+            let expected = x
+                .iter()
+                .map(|&v| sample_filter.execute(v))
+                .collect::<Vec<_>>();
+            let mut actual = vec![Complex32::default(); x.len()];
+            block_filter.execute_block(&x, &mut actual).unwrap();
+
+            assert_eq!(actual, expected);
+        }
     }
 
     #[test]

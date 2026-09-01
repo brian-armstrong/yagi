@@ -71,6 +71,7 @@ where
     }
 
     /// compute filter output
+    #[inline]
     pub fn execute(&mut self, x: T) -> T {
         self.execute_df2(x)
     }
@@ -100,6 +101,7 @@ where
     }
 
     /// compute filter output, direct form II method
+    #[inline]
     pub fn execute_df2(&mut self, x: T) -> T {
         // advance buffer
         self.v[2] = self.v[1];
