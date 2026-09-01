@@ -38,6 +38,7 @@ impl PeakHold {
         max
     }
 
+    #[inline]
     fn swap(&mut self) {
         debug_assert!(self.previous.is_empty());
         let mut max = f32::MIN;

@@ -1,5 +1,5 @@
 use super::peak_hold::PeakHold;
-use crate::{buffer::WDelay, filter::FirFilter};
+use crate::buffer::{WDelay, Window};
 
 // inspired by the excellent post at https://signalsmith-audio.co.uk/writing/2022/limiter/ by Geraint Luff
 
@@ -9,17 +9,17 @@ pub struct Limiter {
     peak_hold: PeakHold,
     release_scale: f32,
     last_release: f32,
-    filter: FirFilter<f32, f32>,
+    release_sum: f32,
+    release_sum_age: usize,
+    smoothing_scale: f32,
+    smoothing_window: Window<f32>,
 }
 
 impl Limiter {
     pub fn new(limit: f32, attack: usize, hold: usize, release: usize) -> Self {
-        // TODO confirm this filter bandwidth
-        // let mut filter = FirFilter::new_kaiser(attack, 0.25, 60.0, 0.0).unwrap();
-        let mut filter = FirFilter::new_rect(attack).unwrap();
-        filter.set_scale(1.0 / attack as f32);
-        for _ in 0..attack {
-            filter.push(1.0);
+        let mut smoothing_window = Window::new(attack + 1).unwrap();
+        for _ in 0..smoothing_window.len() {
+            smoothing_window.push(1.0);
         }
         Self {
             limit,
@@ -27,14 +27,23 @@ impl Limiter {
             peak_hold: PeakHold::new(attack + hold),
             release_scale: 1.0 - (-1.0 / release as f32).exp(),
             last_release: 1.0,
-            filter,
+            release_sum: smoothing_window.len() as f32,
+            release_sum_age: 0,
+            smoothing_scale: 1.0 / smoothing_window.len() as f32,
+            smoothing_window,
         }
     }
 
     pub fn reset(&mut self) {
         self.peak_hold.reset();
-        self.filter.reset();
         self.delay.reset();
+        self.smoothing_window.reset();
+        self.last_release = 1.0;
+        self.release_sum = self.smoothing_window.len() as f32;
+        self.release_sum_age = 0;
+        for _ in 0..self.smoothing_window.len() {
+            self.smoothing_window.push(1.0);
+        }
     }
 
     pub fn execute(&mut self, x: f32) -> f32 {
@@ -42,10 +51,12 @@ impl Limiter {
 
         // hard limit the gain
         let magnitude = x.abs();
-        let gain = if x <= self.limit { 1.0 } else { self.limit / magnitude };
-
-        // peak/hold the inverse gain (we need a max-value)
-        let peak_min_gain = 1.0 / self.peak_hold.execute(1.0 / gain);
+        let hold_magnitude = self.peak_hold.execute(magnitude);
+        let peak_min_gain = if hold_magnitude <= self.limit {
+            1.0
+        } else {
+            self.limit / hold_magnitude
+        };
 
         // exponential release
         let decay = (peak_min_gain - self.last_release) * self.release_scale;
@@ -53,8 +64,17 @@ impl Limiter {
         self.last_release = self.last_release.min(peak_min_gain);
 
         // filter the last release value
-        self.filter.push(self.last_release);
-        let filtered_gain = self.filter.execute();
+        self.release_sum_age += 1;
+        if self.release_sum_age == self.smoothing_window.len() {
+            self.release_sum = self.smoothing_window.read().iter().sum();
+            self.release_sum_age = 0;
+        }
+
+        let oldest_last_release = self.smoothing_window.read()[0];
+        self.smoothing_window.push(self.last_release);
+        self.release_sum += self.last_release - oldest_last_release;
+
+        let filtered_gain = self.release_sum * self.smoothing_scale;
 
         // perform a delay
         let delayed_x = self.delay.read();
@@ -87,21 +107,45 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_single_limit() {
-    //     let limit = 1.0;
-    //     let attack = 3;
-    //     let hold = 2;
-    //     let release = 4;
-    //     let tol = 1e-6;
+    #[test]
+    fn test_positive_limit() {
+        let limit = 1.0;
+        let attack = 3;
+        let hold = 2;
+        let release = 4;
+        let x = [0.0, 0.1, 1.1, 0.9, 1.2, 0.4, 0.2, 2.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0];
 
-    //     let x = [0.0, 0.4, 0.8, 0.9, 1.1, 0.9, 0.8, 0.4, 0.0, 0.0, 0.0, 0.0];
-    //     let expected = [0.0, 0.0, 0.0, 0.0, 0.4 / 1.1, 0.8 / 1.1, 0.9 / 1.1, 1.1 / 1.1, 0.9 / 1.1, 0.8 / 1.1, 0.4 / 1.1, 0.0, 0.0];
+        let mut limiter = Limiter::new(limit, attack, hold, release);
+        for &x in x.iter() {
+            assert!(limiter.execute(x).abs() < limit + 1e-5);
+        }
+    }
 
-    //     let mut limiter = Limiter::new(limit, attack, hold, release);
+    #[test]
+    fn test_negative_limit() {
+        let limit = 1.0;
+        let attack = 3;
+        let hold = 2;
+        let release = 4;
+        let x = [0.0, -0.1, -1.1, -0.9, -1.2, -0.4, -0.2, -2.0, -0.4, 0.0, 0.0, 0.0, 0.0, 0.0];
 
-    //     for (&x, &exp_y) in x.iter().zip(expected.iter()) {
-    //         assert_abs_diff_eq!(limiter.execute(x), exp_y, epsilon = tol);
-    //     }
-    // }
+        let mut limiter = Limiter::new(limit, attack, hold, release);
+        for &x in x.iter() {
+            assert!(limiter.execute(x).abs() < limit + 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_mixed_limit() {
+        let limit = 1.0;
+        let attack = 3;
+        let hold = 2;
+        let release = 4;
+        let x = [0.0, -0.1, -1.1, 0.9, 1.2, 0.4, -0.2, -2.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0];
+
+        let mut limiter = Limiter::new(limit, attack, hold, release);
+        for &x in x.iter() {
+            assert!(limiter.execute(x).abs() < limit + 1e-5);
+        }
+    }
 }
