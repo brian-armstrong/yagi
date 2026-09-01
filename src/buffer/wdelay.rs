@@ -49,7 +49,10 @@ impl<T: Default + Clone + Copy> WDelay<T> {
 
     pub fn push(&mut self, value: T) {
         self.v[self.read_index] = value;
-        self.read_index = (self.read_index + 1) % (self.delay + 1);
+        self.read_index += 1;
+        if self.read_index == self.v.len() {
+            self.read_index = 0;
+        }
     }
 }
 
