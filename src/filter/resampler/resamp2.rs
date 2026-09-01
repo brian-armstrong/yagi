@@ -30,6 +30,7 @@ pub struct Resamp2<T, Coeff = T> {
 
     w0: Window<T>,
     w1: Window<T>,
+    decim_phase: Vec<T>,
     scale: Coeff,
 
     toggle: bool,
@@ -75,6 +76,7 @@ where
             dp: DotProduct::new(&h1)?,
             w0,
             w1,
+            decim_phase: Vec::new(),
             scale: Coeff::one(),
             toggle: false,
         };
@@ -99,6 +101,16 @@ where
 
     pub fn get_delay(&self) -> usize {
         2 * self.m - 1
+    }
+
+    /// Pre-size the scratch for decimating blocks of up to `n` input samples
+    /// so that the next [`decim_execute_block`](Self::decim_execute_block)
+    /// call does not allocate. Larger blocks still grow the scratch on demand.
+    pub fn reserve_decim_block(&mut self, n: usize) {
+        let phase_len = n / 2;
+        if self.decim_phase.len() < phase_len {
+            self.decim_phase.resize(phase_len, T::default());
+        }
     }
 
     pub fn filter_execute(&mut self, x: T) -> Result<(T, T)> {
@@ -182,12 +194,20 @@ where
     ///
     /// Returns the number of output samples written, `2 * x.len()`.
     pub fn filter_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        let n_out = x.len().checked_mul(2)
+            .ok_or_else(|| Error::Range("filter output length overflow".into()))?;
+        if y.len() < n_out {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), n_out,
+            )));
+        }
         for (i, &xi) in x.iter().enumerate() {
             let (y0, y1) = self.filter_execute(xi)?;
             y[2 * i] = y0;
             y[2 * i + 1] = y1;
         }
-        Ok(2 * x.len())
+        Ok(n_out)
     }
 
     /// Run the analyzer over a block of input pairs.
@@ -200,10 +220,17 @@ where
     /// Returns the number of output samples written, `x.len()`.
     pub fn analyzer_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         let n = x.len() / 2;
+        let n_out = 2 * n;
+        if y.len() < n_out {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), n_out,
+            )));
+        }
         for i in 0..n {
             self.analyzer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
         }
-        Ok(2 * n)
+        Ok(n_out)
     }
 
     /// Run the synthesizer over a block of input pairs.
@@ -216,10 +243,17 @@ where
     /// Returns the number of output samples written, `x.len()`.
     pub fn synthesizer_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         let n = x.len() / 2;
+        let n_out = 2 * n;
+        if y.len() < n_out {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), n_out,
+            )));
+        }
         for i in 0..n {
             self.synthesizer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
         }
-        Ok(2 * n)
+        Ok(n_out)
     }
 
     /// Decimate a block of input samples by 2.
@@ -232,9 +266,51 @@ where
     /// Returns the number of output samples written, `x.len() / 2`.
     pub fn decim_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         let n = x.len() / 2;
-        for i in 0..n {
-            y[i] = self.decim_execute(&x[2 * i..2 * i + 2])?;
+        if y.len() < n {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), n,
+            )));
         }
+
+        self.reserve_decim_block(x.len());
+
+        let m = self.m;
+        let scale = self.scale;
+        let phase = &mut self.decim_phase[..n];
+
+        // there are two branches to take care of. the even branch
+        // computes a dotprod while the odd branch is just delayed
+        // by `m` samples. both branches are `n` samples long.
+
+        // the first `m` samples of the odd branch are fetched from w0, not x
+        let prefix_len = n.min(m);
+        y[..prefix_len].copy_from_slice(&self.w0.read()[m..m + prefix_len]);
+
+        // now walk the full input stream x
+        // this bypasses w0.read for the odd samples
+        let direct_end = n.saturating_sub(m);
+        let retain_start = n.saturating_sub(self.w0.len());
+        for (i, pair) in x[..2 * n].chunks_exact(2).enumerate() {
+            // the even samples go into our intermediate buffer `phase`
+            phase[i] = pair[0];
+
+            // the odd samples will contribute to y and fill w0
+            if i < direct_end {
+                y[i + m] = pair[1];
+            }
+            if i >= retain_start {
+                self.w0.push(pair[1]);
+            }
+        }
+
+        // compute the dotprod of the even samples as a single block
+        // this makes use of the contiguous samples we packed in `phase`
+        self.w1.execute_block(phase, |i, history| {
+            let y1 = self.dp.execute(history);
+            y[i] = (y[i] + y1) * scale;
+        });
+
         Ok(n)
     }
 
@@ -247,10 +323,38 @@ where
     ///
     /// Returns the number of output samples written, `2 * x.len()`.
     pub fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        for (i, &xi) in x.iter().enumerate() {
-            self.interp_execute(xi, &mut y[2 * i..2 * i + 2])?;
+        let n_out = x.len().checked_mul(2)
+            .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
+        if y.len() < n_out {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), n_out,
+            )));
         }
-        Ok(2 * x.len())
+
+        let m = self.m;
+        let scale = self.scale;
+
+        // the even output branch is just an m-sample delay
+        let prefix_len = x.len().min(m);
+        // first m samples come from w0
+        for (i, &value) in self.w0.read()[m..m + prefix_len].iter().enumerate() {
+            y[2 * i] = value * scale;
+        }
+        // remaining samples come directly from x (elide w0)
+        for i in m..x.len() {
+            y[2 * i] = x[i - m] * scale;
+        }
+        // retain tailing w0.len() samples
+        let retain_from = x.len().saturating_sub(self.w0.len());
+        self.w0.write(&x[retain_from..]);
+
+        // finally, compute the dotprod for the odd branch
+        self.w1.execute_block(x, |i, history| {
+            y[2 * i + 1] = self.dp.execute(history) * scale;
+        });
+
+        Ok(n_out)
     }
 }
 
@@ -471,6 +575,101 @@ mod tests {
 
             assert_eq!(ya0, yb0);
             assert_eq!(ya1, yb1);
+        }
+    }
+
+    #[test]
+    fn test_resamp2_block_rejects_short_output_without_advancing() {
+        let x = vec![Complex32::new(1.0, -0.5); 4];
+
+        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        assert!(q.filter_execute_block(&x[..2], &mut [Complex32::default(); 3]).is_err());
+
+        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        assert!(q.analyzer_execute_block(&x, &mut [Complex32::default(); 3]).is_err());
+
+        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        assert!(q.synthesizer_execute_block(&x, &mut [Complex32::default(); 3]).is_err());
+
+        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        assert!(q.decim_execute_block(&x, &mut [Complex32::default(); 1]).is_err());
+
+        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let mut q_ref = q.clone();
+        assert!(q.interp_execute_block(&x[..2], &mut [Complex32::default(); 3]).is_err());
+
+        let mut y = [Complex32::default(); 8];
+        let mut y_ref = [Complex32::default(); 8];
+        q.interp_execute_block(&x, &mut y).unwrap();
+        q_ref.interp_execute_block(&x, &mut y_ref).unwrap();
+        assert_eq!(y, y_ref);
+    }
+
+    #[test]
+    fn test_resamp2_decim_block_matches() {
+        for &m in &[2usize, 3, 5, 8] {
+            let mut q_sample = Resamp2::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
+            q_sample.set_scale(0.73);
+            let mut q_block = q_sample.clone();
+            assert!(q_block.decim_phase.is_empty());
+
+            let mut offset = 0usize;
+            let mut max_n = 0usize;
+            for n in [0, 1, m - 1, m, 2 * m - 1, 2 * m, 2 * m + 1, 37, 3] {
+                let x: Vec<_> = (0..2 * n)
+                    .map(|i| {
+                        let t = (offset + i) as f32;
+                        Complex32::new((0.17 * t).sin(), (0.31 * t).cos())
+                    })
+                    .collect();
+                offset += x.len();
+                max_n = max_n.max(n);
+
+                let mut y_sample = vec![Complex32::default(); n];
+                for i in 0..n {
+                    y_sample[i] = q_sample.decim_execute(&x[2 * i..2 * i + 2]).unwrap();
+                }
+
+                let mut y_block = vec![Complex32::default(); n];
+                assert_eq!(q_block.decim_execute_block(&x, &mut y_block).unwrap(), n);
+
+                assert_eq!(y_block, y_sample, "m={m}, n={n}");
+                assert_eq!(q_block.w0.read(), q_sample.w0.read(), "m={m}, n={n}, w0");
+                assert_eq!(q_block.w1.read(), q_sample.w1.read(), "m={m}, n={n}, w1");
+                assert_eq!(q_block.decim_phase.len(), max_n);
+            }
+        }
+    }
+
+    #[test]
+    fn test_resamp2_interp_block_matches() {
+        for &m in &[2usize, 3, 5, 8] {
+            let mut q_sample = Resamp2::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
+            q_sample.set_scale(0.73);
+            let mut q_block = q_sample.clone();
+
+            let mut offset = 0usize;
+            for n in [0, 1, m - 1, m, 2 * m - 1, 2 * m, 2 * m + 1, 37, 3] {
+                let x: Vec<_> = (0..n)
+                    .map(|i| {
+                        let t = (offset + i) as f32;
+                        Complex32::new((0.17 * t).sin(), (0.31 * t).cos())
+                    })
+                    .collect();
+                offset += x.len();
+
+                let mut y_sample = vec![Complex32::default(); 2 * n];
+                for i in 0..n {
+                    q_sample.interp_execute(x[i], &mut y_sample[2 * i..2 * i + 2]).unwrap();
+                }
+
+                let mut y_block = vec![Complex32::default(); 2 * n];
+                assert_eq!(q_block.interp_execute_block(&x, &mut y_block).unwrap(), 2 * n);
+
+                assert_eq!(y_block, y_sample, "m={m}, n={n}");
+                assert_eq!(q_block.w0.read(), q_sample.w0.read(), "m={m}, n={n}, w0");
+                assert_eq!(q_block.w1.read(), q_sample.w1.read(), "m={m}, n={n}, w1");
+            }
         }
     }
 }
