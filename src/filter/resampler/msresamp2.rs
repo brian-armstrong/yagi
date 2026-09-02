@@ -21,6 +21,9 @@ pub struct MsResamp2<T, Coeff = T> {
     as_stage: Vec<f32>,
     m_stage: Vec<usize>,
     resamp2: Vec<Resamp2<T, Coeff>>,
+    // scratch for the execute_block path. initializes empty
+    block0: Vec<T>,
+    block1: Vec<T>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -62,6 +65,8 @@ where
             as_stage: vec![0.0; num_stages],
             m_stage: vec![0; num_stages],
             resamp2: Vec::with_capacity(num_stages),
+            block0: Vec::new(),
+            block1: Vec::new(),
         };
 
         // design stages
@@ -196,11 +201,190 @@ where
 
         Ok(b0[0] * self.zeta)
     }
+
+    fn interp_block_caps(&self, n_in: usize) -> (usize, usize) {
+        let n_out = n_in << self.num_stages;
+        // in the interest of minimizing the size, figure out which buffer goes last
+        // (later interp stages are larger)
+        // e.g. for 1 stage: x -> y (no scratch needed)
+        // for 2 stages: x -> b1 -> y
+        // for 3 stages: x -> b1 -> b0 -> y (b0 is largest)
+        // for 4 stages: x -> b1 -> b0 -> b1 -> y (b0 is largest)
+        let last_interior_writes_b1 = self.num_stages >= 2 && self.num_stages % 2 == 0;
+        if last_interior_writes_b1 {
+            (n_out / 4, n_out / 2)
+        } else {
+            (n_out / 2, n_out / 4)
+        }
+    }
+
+    fn decim_block_caps(&self, n_in: usize) -> (usize, usize) {
+        (n_in / 4, n_in / 2)
+    }
+
+    fn grow_block_scratch(&mut self, cap0: usize, cap1: usize) {
+        if cap0 > self.block0.len() {
+            self.block0.resize(cap0, T::default());
+        }
+        if cap1 > self.block1.len() {
+            self.block1.resize(cap1, T::default());
+        }
+    }
+
+    /// Pre-size the block scratch for interpolating blocks of up to `n` input
+    /// samples so that the first [`interp_execute_block`](Self::interp_execute_block) call does not
+    /// allocate. Larger blocks still grow the scratch on demand.
+    pub fn reserve_interp_block(&mut self, n: usize) {
+        let (cap0, cap1) = self.interp_block_caps(n);
+        self.grow_block_scratch(cap0, cap1);
+    }
+
+    /// Pre-size the block scratch for decimating blocks of up to `n` input
+    /// samples so that the first [`decim_execute_block`](Self::decim_execute_block) call does not
+    /// allocate. Larger blocks still grow the scratch on demand.
+    pub fn reserve_decim_block(&mut self, n: usize) {
+        let (cap0, cap1) = self.decim_block_caps(n);
+        self.grow_block_scratch(cap0, cap1);
+
+        let mut len = n;
+        for s in 0..self.num_stages {
+            let g = self.num_stages - s - 1;
+            self.resamp2[g].reserve_decim_block(len);
+            len /= 2;
+        }
+    }
+
+    /// Pre-size the block scratch for executing blocks of up to `n` input
+    /// samples so that the first [`execute_block`](Self::execute_block) call does not
+    /// allocate. Larger blocks still grow the scratch on demand.
+    pub fn reserve_block(&mut self, n: usize) {
+        match self.type_ {
+            ResampType::Interp => self.reserve_interp_block(n),
+            ResampType::Decim => self.reserve_decim_block(n),
+        }
+    }
+
+    /// Execute the cascade over a block of input samples.
+    ///
+    /// This function will generally be more efficient than running [`execute`](Self::execute)
+    /// on each sample in a slice. Dot product kernels called here may run in a different
+    /// order, so results can differ by floating-point rounding.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - input samples: `n` for interp, `rate * n` for decim
+    /// * `y` - output samples: `rate * n` for interp, `n` for decim
+    ///
+    /// Returns the number of output samples written.
+    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        if self.type_ == ResampType::Decim && x.len() % self.rate != 0 {
+            return Err(Error::Config(format!(
+                "decimation input length ({}) must be a multiple of the rate ({})",
+                x.len(), self.rate,
+            )));
+        }
+
+        let required_output = match self.type_ {
+            ResampType::Interp => x.len().checked_mul(self.rate).ok_or_else(|| {
+                Error::Range("interpolation output length overflow".into())
+            })?,
+            ResampType::Decim => x.len() / self.rate,
+        };
+        if y.len() < required_output {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), required_output,
+            )));
+        }
+
+        if self.num_stages == 0 {
+            let n = x.len();
+            y[..n].copy_from_slice(x);
+            return Ok(n);
+        }
+
+        match self.type_ {
+            ResampType::Interp => self.interp_execute_block(x, y),
+            ResampType::Decim => self.decim_execute_block(x, y),
+        }
+    }
+
+    pub fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        let n = x.len();
+        let n_out = n << self.num_stages;
+
+        let (cap0, cap1) = self.interp_block_caps(n);
+        self.grow_block_scratch(cap0, cap1);
+        let mut b0 = std::mem::take(&mut self.block0);
+        let mut b1 = std::mem::take(&mut self.block1);
+
+        // specializations: the first read reads directly from x, the last
+        // write writes directly into y. in all other cases, use the b0/b1 scratch
+        let mut len = n;
+        for s in 0..self.num_stages {
+            let last = s == self.num_stages - 1;
+            let src: &[T] = if s == 0 { x } else { &b0[..len] };
+            if last {
+                self.resamp2[s].interp_execute_block(&src[..len], &mut y[..2 * len])?;
+            } else {
+                self.resamp2[s].interp_execute_block(&src[..len], &mut b1[..2 * len])?;
+                std::mem::swap(&mut b0, &mut b1);
+            }
+            len *= 2;
+        }
+
+        // without this swap, we'd toggle which buffer is which on each run, causing
+        // both to be the same size
+        if self.num_stages % 2 == 0 {
+            std::mem::swap(&mut b0, &mut b1);
+        }
+        self.block0 = b0;
+        self.block1 = b1;
+        Ok(n_out)
+    }
+
+    pub fn decim_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        let n_in = x.len();
+        let n_out = n_in >> self.num_stages;
+
+        let (cap0, cap1) = self.decim_block_caps(n_in);
+        self.grow_block_scratch(cap0, cap1);
+        let mut b0 = std::mem::take(&mut self.block0);
+        let mut b1 = std::mem::take(&mut self.block1);
+
+        // same specializations as interp_execute_block (read x, write y)
+        let mut len = n_in;
+        for s in 0..self.num_stages {
+            let g = self.num_stages - s - 1;
+            let last = s == self.num_stages - 1;
+            let src: &[T] = if s == 0 { x } else { &b0[..len] };
+            if last {
+                self.resamp2[g].decim_execute_block(&src[..len], &mut y[..len / 2])?;
+            } else {
+                self.resamp2[g].decim_execute_block(&src[..len], &mut b1[..len / 2])?;
+                std::mem::swap(&mut b0, &mut b1);
+            }
+            len /= 2;
+        }
+
+        for yi in y[..n_out].iter_mut() {
+            *yi = *yi * self.zeta;
+        }
+
+        // don't swap shorter and longer buffers across the call
+        if self.num_stages % 2 == 0 {
+            std::mem::swap(&mut b0, &mut b1);
+        }
+        self.block0 = b0;
+        self.block1 = b1;
+        Ok(n_out)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
     use num_complex::Complex32;
     use crate::{random::randnf, utility::test_helpers::{validate_psd_signal, PsdRegion}};
@@ -329,5 +513,130 @@ mod tests {
         }
 
         // Rust's RAII will handle cleanup automatically
+    }
+
+    fn assert_complex_slices_approx_equal(actual: &[Complex32], expected: &[Complex32]) {
+        assert_eq!(actual.len(), expected.len());
+        for (&actual, &expected) in actual.iter().zip(expected) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
+        }
+    }
+
+    fn testbench_block_matches(type_: ResampType, num_stages: usize) {
+        let rate = 1usize << num_stages;
+        let n = 40; // output symbols for interp, output samples for decim
+
+        let mut q_sample = MsResamp2::<Complex32, f32>::new(type_, num_stages, 0.4, 0.0, 60.0).unwrap();
+        let mut q_block = q_sample.clone();
+
+        let (num_in, num_out) = match type_ {
+            ResampType::Interp => (n, n * rate),
+            ResampType::Decim => (n * rate, n),
+        };
+
+        let x: Vec<Complex32> = (0..num_in).map(|_| Complex32::new(randnf(), randnf())).collect();
+
+        let mut y_ref = vec![Complex32::new(0.0, 0.0); num_out];
+        match type_ {
+            ResampType::Interp => {
+                for i in 0..n {
+                    q_sample.execute(&x[i..i + 1], &mut y_ref[i * rate..(i + 1) * rate]).unwrap();
+                }
+            }
+            ResampType::Decim => {
+                for i in 0..n {
+                    q_sample.execute(&x[i * rate..(i + 1) * rate], &mut y_ref[i..i + 1]).unwrap();
+                }
+            }
+        }
+
+        let mut y_block = vec![Complex32::new(0.0, 0.0); num_out];
+        let written = q_block.execute_block(&x, &mut y_block).unwrap();
+
+        assert_eq!(written, num_out);
+        assert_complex_slices_approx_equal(&y_block, &y_ref);
+    }
+
+    #[test]
+    fn test_msresamp2_block_interp() {
+        for num_stages in 1..=4 {
+            testbench_block_matches(ResampType::Interp, num_stages);
+        }
+    }
+
+    #[test]
+    fn test_msresamp2_block_decim() {
+        for num_stages in 1..=4 {
+            testbench_block_matches(ResampType::Decim, num_stages);
+        }
+    }
+
+    #[test]
+    fn test_msresamp2_block_resizing() {
+        let num_stages = 3;
+        let rate = 1usize << num_stages;
+        let n = 30;
+
+        let mut q_sample = MsResamp2::<Complex32, f32>::new(ResampType::Decim, num_stages, 0.4, 0.0, 60.0).unwrap();
+        let mut q_block = q_sample.clone();
+
+        // split the block work unevenly so the second call is larger than the
+        // first, forcing the scratch buffers to regrow mid-stream.
+        let split = n; // first call: n outputs; second: 2n outputs
+        let total = 3 * n;
+        let x: Vec<Complex32> = (0..total * rate).map(|_| Complex32::new(randnf(), randnf())).collect();
+
+        let mut y_ref = vec![Complex32::new(0.0, 0.0); total];
+        for i in 0..total {
+            q_sample.execute(&x[i * rate..(i + 1) * rate], &mut y_ref[i..i + 1]).unwrap();
+        }
+
+        let mut y_block = vec![Complex32::new(0.0, 0.0); total];
+        q_block.execute_block(&x[..split * rate], &mut y_block[..split]).unwrap();
+        q_block.execute_block(&x[split * rate..], &mut y_block[split..]).unwrap();
+
+        assert_complex_slices_approx_equal(&y_block, &y_ref);
+    }
+
+    #[test]
+    fn test_msresamp2_block_decim_rejects_partial_input() {
+        let num_stages = 3;
+        let rate = 1usize << num_stages;
+        let mut q = MsResamp2::<Complex32, f32>::new(ResampType::Decim, num_stages, 0.4, 0.0, 60.0).unwrap();
+        let mut q_ref = q.clone();
+
+        let bad = vec![Complex32::new(1.0, -1.0); rate + 1];
+        let mut bad_output = vec![Complex32::default(); 2];
+        assert!(q.execute_block(&bad, &mut bad_output).is_err());
+
+        let x: Vec<Complex32> = (0..4 * rate).map(|_| Complex32::new(randnf(), randnf())).collect();
+        let mut y = vec![Complex32::default(); 4];
+        let mut y_ref = vec![Complex32::default(); 4];
+        q.execute_block(&x, &mut y).unwrap();
+        q_ref.execute_block(&x, &mut y_ref).unwrap();
+        assert_eq!(y, y_ref);
+    }
+
+    #[test]
+    fn test_msresamp2_block_rejects_short_output() {
+        for &type_ in &[ResampType::Interp, ResampType::Decim] {
+            let num_stages = 3;
+            let rate = 1usize << num_stages;
+            let n_in = match type_ { ResampType::Interp => 4, ResampType::Decim => 4 * rate };
+            let n_out = match type_ { ResampType::Interp => n_in * rate, ResampType::Decim => n_in / rate };
+            let mut q = MsResamp2::<Complex32, f32>::new(type_, num_stages, 0.4, 0.0, 60.0).unwrap();
+            let mut q_ref = q.clone();
+            let x: Vec<Complex32> = (0..n_in).map(|_| Complex32::new(randnf(), randnf())).collect();
+
+            let mut short = vec![Complex32::default(); n_out - 1];
+            assert!(q.execute_block(&x, &mut short).is_err());
+
+            let mut y = vec![Complex32::default(); n_out];
+            let mut y_ref = vec![Complex32::default(); n_out];
+            q.execute_block(&x, &mut y).unwrap();
+            q_ref.execute_block(&x, &mut y_ref).unwrap();
+            assert_eq!(y, y_ref);
+        }
     }
 }

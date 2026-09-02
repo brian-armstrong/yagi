@@ -17,6 +17,8 @@ pub struct MsResamp<T, Coeff = T> {
     buffer_index: usize,
     halfband_resamp: MsResamp2<T, Coeff>,
     arbitrary_resamp: Resamp<T, Coeff>,
+    // intermediate scratch for block execute
+    block_scratch: Vec<T>,
 }
 
 impl<T, Coeff> MsResamp<T, Coeff>
@@ -75,6 +77,7 @@ where
             buffer_index: 0,
             halfband_resamp,
             arbitrary_resamp,
+            block_scratch: Vec::new(),
         })
     }
 
@@ -182,11 +185,135 @@ where
 
         Ok(ny)
     }
+
+    /// Pre-size the block scratch for blocks of up to `n` input samples so that the first
+    /// [`execute_block`](Self::execute_block) call does not allocate. Larger
+    /// blocks still grow on demand.
+    pub fn reserve_block(&mut self, n: usize) {
+        match self.type_ {
+            ResampType::Interp => {
+                let n_arb = self.arbitrary_resamp.get_num_output(n);
+                if n_arb > self.block_scratch.len() {
+                    self.block_scratch.resize(n_arb, T::default());
+                }
+                self.halfband_resamp.reserve_interp_block(n_arb);
+            }
+            ResampType::Decim => {
+                let m = 1 << self.num_halfband_stages;
+                let n_hb = (self.buffer_index + n) / m;
+                let n_hb_in = n_hb * m; // half-band input length (whole groups)
+                if n_hb > self.block_scratch.len() {
+                    self.block_scratch.resize(n_hb, T::default());
+                }
+                self.halfband_resamp.reserve_decim_block(n_hb_in);
+            }
+        }
+    }
+
+    /// Execute the cascade over a block of input samples.
+    ///
+    /// This function will generally be more efficient than running [`execute`](Self::execute)
+    /// on each sample in a slice. Dot product kernels called here may run in a different
+    /// order, so results can differ by floating-point rounding.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - input samples
+    /// * `y` - output samples
+    ///
+    /// Returns the number of output samples written.
+    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        let required_output = self.get_num_output(x.len());
+        if y.len() < required_output {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), required_output,
+            )));
+        }
+
+        if self.num_halfband_stages == 0 {
+            // arbitrary-only mode
+            return self.arbitrary_resamp.execute_block(x, y);
+        }
+
+        match self.type_ {
+            ResampType::Interp => self.interp_execute_block(x, y),
+            ResampType::Decim => self.decim_execute_block(x, y),
+        }
+    }
+
+    fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        // interp does arb -> halfband
+        let n_arb = self.arbitrary_resamp.get_num_output(x.len());
+        if n_arb > self.block_scratch.len() {
+            self.block_scratch.resize(n_arb, T::default());
+        }
+        let mut scratch = std::mem::take(&mut self.block_scratch);
+        let nw = self.arbitrary_resamp.execute_block(x, &mut scratch[..])?;
+        debug_assert_eq!(nw, n_arb);
+
+        let ny = self.halfband_resamp.execute_block(&scratch[..nw], y)?;
+
+        self.block_scratch = scratch;
+        Ok(ny)
+    }
+
+    fn decim_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+        // decim does halfband -> arb
+
+        // input has to include leftover samples from prior run
+        let total = self.buffer_index + x.len();
+        let m = 1 << self.num_halfband_stages;
+        let n_hb = total / m; // number of completed half-band groups / outputs
+        if n_hb == 0 {
+            self.buffer[self.buffer_index..self.buffer_index + x.len()].copy_from_slice(x);
+            self.buffer_index += x.len();
+            return Ok(0);
+        }
+
+        if n_hb > self.block_scratch.len() {
+            self.block_scratch.resize(n_hb, T::default());
+        }
+
+        let mut scratch = std::mem::take(&mut self.block_scratch);
+
+        // like decim_execute, we have to handle the case where leftover prior input remains
+        let mut scratch_offset = 0;
+        let mut x_offset = 0;
+        if self.buffer_index != 0 {
+            // how many inputs from `x` are needed to finish the group
+            let need = m - self.buffer_index;
+            self.buffer[self.buffer_index..m].copy_from_slice(&x[..need]);
+            self.halfband_resamp.execute(&self.buffer[..m], std::slice::from_mut(&mut scratch[0]))?;
+            // buffer is now drained into 1 scratch buffer sample
+            scratch_offset = 1;
+            x_offset = need;
+            self.buffer_index = 0;
+        }
+
+        // now run the halfband resampler on contiguous x samples
+        let full_groups = n_hb - scratch_offset;
+        let consumed = x_offset + full_groups * m;
+        self.halfband_resamp
+            .execute_block(&x[x_offset..consumed], &mut scratch[scratch_offset..n_hb])?;
+
+        // run the arbitrary resampler on the halfband scratch buffer
+        let ny = self.arbitrary_resamp.execute_block(&scratch[..n_hb], y)?;
+
+        // carry leftover samples to the next buffer
+        let leftover = x.len() - consumed;
+        self.buffer[..leftover].copy_from_slice(&x[consumed..]);
+        self.buffer_index = leftover;
+
+        self.block_scratch = scratch;
+        Ok(ny)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
     use num_complex::Complex32;
     use crate::random::randnf;
@@ -399,5 +526,107 @@ mod tests {
 
         // check output sample values
         assert_eq!(&buf_0[..nw_0], &buf_1[..nw_1]);
+    }
+
+    fn assert_complex_slices_approx_equal(actual: &[Complex32], expected: &[Complex32]) {
+        assert_eq!(actual.len(), expected.len());
+        for (&actual, &expected) in actual.iter().zip(expected) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
+        }
+    }
+
+    fn testbench_block_matches(rate: f32) {
+        let as_ = 60.0f32;
+        let mut q_sample = MsResamp::<Complex32, f32>::new(rate, as_).unwrap();
+        let mut q_block = q_sample.clone();
+
+        let n_in = 600;
+        let x: Vec<Complex32> = (0..n_in).map(|_| Complex32::new(randnf(), randnf())).collect();
+
+        // generous output allocation
+        let cap = q_sample.get_num_output(n_in) + 64;
+        let mut y_ref = vec![Complex32::new(0.0, 0.0); cap];
+        let mut y_block = vec![Complex32::new(0.0, 0.0); cap];
+
+        let n_ref = q_sample.execute(&x, &mut y_ref).unwrap();
+        let n_block = q_block.execute_block(&x, &mut y_block).unwrap();
+
+        assert_eq!(n_block, n_ref, "rate={}", rate);
+        assert_complex_slices_approx_equal(&y_block[..n_block], &y_ref[..n_ref]);
+    }
+
+    #[test]
+    fn test_msresamp_block_interp() {
+        for &r in &[1.5f32, 2.0, 3.7, 8.0, 17.0] {
+            testbench_block_matches(r);
+        }
+    }
+
+    #[test]
+    fn test_msresamp_block_decim() {
+        for &r in &[0.7f32, 0.5, 0.27, 0.125, 0.06] {
+            testbench_block_matches(r);
+        }
+    }
+
+    fn testbench_block_streaming(rate: f32) {
+        let as_ = 60.0f32;
+        let mut q_sample = MsResamp::<Complex32, f32>::new(rate, as_).unwrap();
+        let mut q_block = q_sample.clone();
+
+        // uneven chunk sizes, deliberately not multiples of any halfband group
+        let chunks = [37usize, 5, 128, 3, 91, 200];
+        let total: usize = chunks.iter().sum();
+        let x: Vec<Complex32> = (0..total).map(|_| Complex32::new(randnf(), randnf())).collect();
+
+        let cap = q_sample.get_num_output(total) + 256;
+        let mut y_ref = vec![Complex32::new(0.0, 0.0); cap];
+        let mut y_block = vec![Complex32::new(0.0, 0.0); cap];
+
+        let n_ref = q_sample.execute(&x, &mut y_ref).unwrap();
+
+        let mut off_in = 0;
+        let mut n_block = 0;
+        for &c in &chunks {
+            n_block += q_block.execute_block(&x[off_in..off_in + c], &mut y_block[n_block..]).unwrap();
+            off_in += c;
+        }
+
+        assert_eq!(n_block, n_ref, "rate={}", rate);
+        assert_complex_slices_approx_equal(&y_block[..n_block], &y_ref[..n_ref]);
+    }
+
+    #[test]
+    fn test_msresamp_block_streaming_interp() {
+        for &r in &[2.0f32, 5.3, 8.0] {
+            testbench_block_streaming(r);
+        }
+    }
+
+    #[test]
+    fn test_msresamp_block_streaming_decim() {
+        for &r in &[0.5f32, 0.19, 0.125] {
+            testbench_block_streaming(r);
+        }
+    }
+
+    #[test]
+    fn test_msresamp_block_rejects_short_output() {
+        for &rate in &[5.3f32, 0.19] {
+            let mut q = MsResamp::<Complex32, f32>::new(rate, 60.0).unwrap();
+            let mut q_ref = q.clone();
+            let x: Vec<Complex32> = (0..100).map(|_| Complex32::new(randnf(), randnf())).collect();
+            let n_out = q.get_num_output(x.len());
+
+            let mut short = vec![Complex32::default(); n_out - 1];
+            assert!(q.execute_block(&x, &mut short).is_err());
+
+            let mut y = vec![Complex32::default(); n_out];
+            let mut y_ref = vec![Complex32::default(); n_out];
+            q.execute_block(&x, &mut y).unwrap();
+            q_ref.execute_block(&x, &mut y_ref).unwrap();
+            assert_eq!(y, y_ref);
+        }
     }
 }
