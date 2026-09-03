@@ -1,6 +1,7 @@
 use crate::error::{Error, Result};
+use crate::buffer::Window;
 use crate::dotprod::DotProd;
-use crate::filter::{self, FirPfbFilter};
+use crate::filter::{self, FirPfbBank};
 use crate::math::nextpow2;
 
 use num_complex::ComplexFloat;
@@ -12,7 +13,8 @@ pub struct Resamp<T, Coeff = T> {
     step: u32,
     phase: u32,
     bits_index: usize,
-    pfb: FirPfbFilter<T, Coeff>,
+    w: Window<T>,
+    bank: FirPfbBank<T, Coeff>,
 }
 
 impl<T, Coeff> Resamp<T, Coeff>
@@ -53,7 +55,8 @@ where
         // copy to type-specific array, applying gain
         let h: Vec<Coeff> = hf.iter().map(|&x| (x * gain).into()).collect();
 
-        let pfb = FirPfbFilter::new(npfb, &h, n - 1)?;
+        let bank = FirPfbBank::new(npfb, &h, n - 1)?;
+        let w = Window::new(bank.filter_len())?;
 
         let mut q = Self {
             m,
@@ -61,7 +64,8 @@ where
             step: 0,
             phase: 0,
             bits_index: bits,
-            pfb,
+            w,
+            bank,
         };
 
         q.set_rate(rate)?;
@@ -85,7 +89,7 @@ where
 
     pub fn reset(&mut self) -> () {
         self.phase = 0;
-        self.pfb.reset();
+        self.w.reset();
     }
 
     pub fn get_delay(&self) -> usize {
@@ -156,12 +160,12 @@ where
     }
 
     pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<usize> {
-        self.pfb.push(x);
+        self.w.push(x);
 
         let mut n = 0;
         while self.phase <= 0x00ffffff {
             let index = self.phase >> (24 - self.bits_index);
-            y[n] = self.pfb.execute(index as usize)?;
+            y[n] = self.bank.execute(index as usize, self.w.read())?;
             n += 1;
             self.phase += self.step;
         }
@@ -172,11 +176,24 @@ where
 
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         let mut ny = 0;
+        let step = self.step;
+        let bits_index = self.bits_index;
+        let phase = &mut self.phase;
+        let bank = &self.bank;
+        let filter_len = bank.filter_len();
+        debug_assert!((0x00ffffff >> (24 - bits_index)) < bank.num_filters());
 
-        for &xi in x {
-            let num_written = self.execute(xi, &mut y[ny..])?;
-            ny += num_written;
-        }
+        self.w.execute_block_contiguous(x, |_, samples| {
+            for history in samples.windows(filter_len) {
+                while *phase <= 0x00ffffff {
+                    let index = *phase >> (24 - bits_index);
+                    y[ny] = unsafe { bank.execute_unchecked(index as usize, history) };
+                    ny += 1;
+                    *phase += step;
+                }
+                *phase -= 1 << 24;
+            }
+        });
 
         Ok(ny)
     }
@@ -453,4 +470,62 @@ mod tests {
 
     #[test]
     fn test_resamp_crcf_max_input_5() { testbench_resamp_crcf_max_input(1.0 / std::f32::consts::PI, 64); }
+
+    #[test]
+    fn test_resamp_crcf_block_matches() {
+        for &rate in &[0.37f32, 0.73, 1.0, 1.37, 4.1] {
+            let mut q_sample = Resamp::<Complex32, f32>::new(rate, 7, 0.4, 60.0, 64).unwrap();
+            let mut q_block = q_sample.clone();
+
+            let chunks = [0usize, 1, 5, 13, 14, 15, 64, 3, 97];
+            let total: usize = chunks.iter().sum();
+            let input: Vec<_> = (0..total)
+                .map(|i| Complex32::new(
+                    ((i + 3) as f32 * 0.11).cos(),
+                    ((i + 5) as f32 * 0.07).sin(),
+                ))
+                .collect();
+
+            let mut offset = 0;
+            for &chunk_len in &chunks {
+                let x = &input[offset..offset + chunk_len];
+                offset += chunk_len;
+
+                let num_output = q_sample.get_num_output(x.len());
+                assert_eq!(q_block.get_num_output(x.len()), num_output);
+
+                let mut expected = vec![Complex32::default(); num_output];
+                let mut nw = 0;
+                for &xi in x {
+                    nw += q_sample.execute(xi, &mut expected[nw..]).unwrap();
+                }
+                assert_eq!(nw, num_output);
+
+                let mut actual = vec![Complex32::default(); num_output];
+                assert_eq!(q_block.execute_block(x, &mut actual).unwrap(), num_output);
+                assert_eq!(actual, expected, "rate={rate}, chunk_len={chunk_len}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_resamp_rrrf_block_matches() {
+        let rate = 1.37;
+        let mut q_sample = Resamp::<f32, f32>::new(rate, 7, 0.4, 60.0, 64).unwrap();
+        let mut q_block = q_sample.clone();
+        let input: Vec<_> = (0..257)
+            .map(|i| ((i + 3) as f32 * 0.11).cos())
+            .collect();
+
+        let num_output = q_sample.get_num_output(input.len());
+        let mut expected = vec![0.0; num_output];
+        let mut nw = 0;
+        for &xi in &input {
+            nw += q_sample.execute(xi, &mut expected[nw..]).unwrap();
+        }
+
+        let mut actual = vec![0.0; num_output];
+        assert_eq!(q_block.execute_block(&input, &mut actual).unwrap(), nw);
+        assert_eq!(actual, expected);
+    }
 }
