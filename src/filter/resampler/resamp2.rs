@@ -283,33 +283,40 @@ where
         // computes a dotprod while the odd branch is just delayed
         // by `m` samples. both branches are `n` samples long.
 
+        // pack the even samples into a contiguous phase
+        for (i, pair) in x[..2 * n].chunks_exact(2).enumerate() {
+            phase[i] = pair[0];
+        }
+
+        // compute the dotprod of the even samples as a single block
+        // we're storing these in y, but y will still need the contribution
+        // from the odd samples
+        let dp = &self.dp;
+        self.w1.execute_block_contiguous(phase, |indices, history| {
+            dp.execute_block(history, &mut y[indices]);
+        });
+
+        // for the odd samples, we'll fetch the sample and then add and apply scale
+
         // the first `m` samples of the odd branch are fetched from w0, not x
         let prefix_len = n.min(m);
-        y[..prefix_len].copy_from_slice(&self.w0.read()[m..m + prefix_len]);
+        for (yi, &odd) in y[..prefix_len]
+            .iter_mut()
+            .zip(&self.w0.read()[m..m + prefix_len])
+        {
+            *yi = (*yi + odd) * scale;
+        }
 
-        // now walk the full input stream x
-        // this bypasses w0.read for the odd samples
         let direct_end = n.saturating_sub(m);
         let retain_start = n.saturating_sub(self.w0.len());
         for (i, pair) in x[..2 * n].chunks_exact(2).enumerate() {
-            // the even samples go into our intermediate buffer `phase`
-            phase[i] = pair[0];
-
-            // the odd samples will contribute to y and fill w0
             if i < direct_end {
-                y[i + m] = pair[1];
+                y[i + m] = (y[i + m] + pair[1]) * scale;
             }
             if i >= retain_start {
                 self.w0.push(pair[1]);
             }
         }
-
-        // compute the dotprod of the even samples as a single block
-        // this makes use of the contiguous samples we packed in `phase`
-        self.w1.execute_block(phase, |i, history| {
-            let y1 = self.dp.execute(history);
-            y[i] = (y[i] + y1) * scale;
-        });
 
         Ok(n)
     }
@@ -335,24 +342,27 @@ where
         let m = self.m;
         let scale = self.scale;
 
-        // the even output branch is just an m-sample delay
-        let prefix_len = x.len().min(m);
-        // first m samples come from w0
-        for (i, &value) in self.w0.read()[m..m + prefix_len].iter().enumerate() {
-            y[2 * i] = value * scale;
+        // compute the odd branch contiguously into the first half of y
+        let dp = &self.dp;
+        self.w1.execute_block_contiguous(x, |indices, history| {
+            dp.execute_block(history, &mut y[indices]);
+        });
+
+        // expand the temporary results in place in reverse
+        // this prevents overwriting of the dotprod in the first half of y
+        let history = self.w0.read();
+        for i in (0..x.len()).rev() {
+            // the even output branch is an m-sample delay
+            let even = if i < m { history[m + i] } else { x[i - m] };
+            // the odd output branch is the dotprod we computed above
+            let odd = y[i];
+            y[2 * i] = even * scale;
+            y[2 * i + 1] = odd * scale;
         }
-        // remaining samples come directly from x (elide w0)
-        for i in m..x.len() {
-            y[2 * i] = x[i - m] * scale;
-        }
+
         // retain tailing w0.len() samples
         let retain_from = x.len().saturating_sub(self.w0.len());
         self.w0.write(&x[retain_from..]);
-
-        // finally, compute the dotprod for the odd branch
-        self.w1.execute_block(x, |i, history| {
-            y[2 * i + 1] = self.dp.execute(history) * scale;
-        });
 
         Ok(n_out)
     }
@@ -606,7 +616,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resamp2_decim_block_matches() {
+    fn test_resamp2_decim_block_matches_crc() {
         for &m in &[2usize, 3, 5, 8] {
             let mut q_sample = Resamp2::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
             q_sample.set_scale(0.73);
@@ -633,7 +643,10 @@ mod tests {
                 let mut y_block = vec![Complex32::default(); n];
                 assert_eq!(q_block.decim_execute_block(&x, &mut y_block).unwrap(), n);
 
-                assert_eq!(y_block, y_sample, "m={m}, n={n}");
+                for (&actual, &expected) in y_block.iter().zip(&y_sample) {
+                    assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+                    assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
+                }
                 assert_eq!(q_block.w0.read(), q_sample.w0.read(), "m={m}, n={n}, w0");
                 assert_eq!(q_block.w1.read(), q_sample.w1.read(), "m={m}, n={n}, w1");
                 assert_eq!(q_block.decim_phase.len(), max_n);
@@ -642,7 +655,38 @@ mod tests {
     }
 
     #[test]
-    fn test_resamp2_interp_block_matches() {
+    fn test_resamp2_decim_block_matches_rrr() {
+        for &m in &[2usize, 3, 5, 8, 16] {
+            let mut q_sample = Resamp2::<f32, f32>::new(m, 0.0, 60.0).unwrap();
+            q_sample.set_scale(0.73);
+            let mut q_block = q_sample.clone();
+
+            let mut offset = 0usize;
+            for n in [0, 1, m - 1, m, 2 * m - 1, 2 * m, 2 * m + 1, 73, 3] {
+                let x: Vec<_> = (0..2 * n)
+                    .map(|i| ((offset + i) as f32 * 0.17).sin())
+                    .collect();
+                offset += x.len();
+
+                let mut y_sample = vec![0.0; n];
+                for i in 0..n {
+                    y_sample[i] = q_sample.decim_execute(&x[2 * i..2 * i + 2]).unwrap();
+                }
+
+                let mut y_block = vec![0.0; n];
+                assert_eq!(q_block.decim_execute_block(&x, &mut y_block).unwrap(), n);
+
+                for (&actual, &expected) in y_block.iter().zip(&y_sample) {
+                    assert_abs_diff_eq!(actual, expected, epsilon = 1e-5);
+                }
+                assert_eq!(q_block.w0.read(), q_sample.w0.read(), "m={m}, n={n}, w0");
+                assert_eq!(q_block.w1.read(), q_sample.w1.read(), "m={m}, n={n}, w1");
+            }
+        }
+    }
+
+    #[test]
+    fn test_resamp2_interp_block_matches_crc() {
         for &m in &[2usize, 3, 5, 8] {
             let mut q_sample = Resamp2::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
             q_sample.set_scale(0.73);
@@ -666,7 +710,41 @@ mod tests {
                 let mut y_block = vec![Complex32::default(); 2 * n];
                 assert_eq!(q_block.interp_execute_block(&x, &mut y_block).unwrap(), 2 * n);
 
-                assert_eq!(y_block, y_sample, "m={m}, n={n}");
+                for (&actual, &expected) in y_block.iter().zip(&y_sample) {
+                    assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+                    assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
+                }
+                assert_eq!(q_block.w0.read(), q_sample.w0.read(), "m={m}, n={n}, w0");
+                assert_eq!(q_block.w1.read(), q_sample.w1.read(), "m={m}, n={n}, w1");
+            }
+        }
+    }
+
+    #[test]
+    fn test_resamp2_interp_block_matches_rrr() {
+        for &m in &[2usize, 3, 5, 8, 16] {
+            let mut q_sample = Resamp2::<f32, f32>::new(m, 0.0, 60.0).unwrap();
+            q_sample.set_scale(0.73);
+            let mut q_block = q_sample.clone();
+
+            let mut offset = 0usize;
+            for n in [0, 1, m - 1, m, 2 * m - 1, 2 * m, 2 * m + 1, 73, 3] {
+                let x: Vec<_> = (0..n)
+                    .map(|i| ((offset + i) as f32 * 0.17).sin())
+                    .collect();
+                offset += x.len();
+
+                let mut y_sample = vec![0.0; 2 * n];
+                for i in 0..n {
+                    q_sample.interp_execute(x[i], &mut y_sample[2 * i..2 * i + 2]).unwrap();
+                }
+
+                let mut y_block = vec![0.0; 2 * n];
+                assert_eq!(q_block.interp_execute_block(&x, &mut y_block).unwrap(), 2 * n);
+
+                for (&actual, &expected) in y_block.iter().zip(&y_sample) {
+                    assert_abs_diff_eq!(actual, expected, epsilon = 1e-5);
+                }
                 assert_eq!(q_block.w0.read(), q_sample.w0.read(), "m={m}, n={n}, w0");
                 assert_eq!(q_block.w1.read(), q_sample.w1.read(), "m={m}, n={n}, w1");
             }
