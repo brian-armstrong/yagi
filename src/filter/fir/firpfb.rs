@@ -1,26 +1,37 @@
 use crate::error::{Error, Result};
 use crate::buffer::Window;
-use crate::dotprod::{DotProd, DotProduct};
+use crate::dotprod::{DotProd, DotProdKernel};
 use crate::filter;
+use std::marker::PhantomData;
 
 use num_complex::ComplexFloat;
 
-/// Finite impulse response (FIR) polyphase filter bank (PFB)
+/// Coefficients and executors for an FIR polyphase filter bank (PFB)
+/// Unlike FirPfbFilter, this stores no sample history
 #[derive(Clone, Debug)]
-pub struct FirPfbFilter<T, Coeff = T> {
+pub struct FirPfbBank<T, Coeff = T> {
     num_filters: usize,
-    w: Window<T>,
-    filters: Vec<DotProduct<T, Coeff>>,
+    filter_len: usize,
+    coefficients: Vec<Coeff>,
+    executor: DotProdKernel<T, Coeff, T>,
     scale: Coeff,
+    _input: PhantomData<fn(&[T])>,
 }
 
-impl<T, Coeff> FirPfbFilter<T, Coeff>
+/// Finite impulse response (FIR) polyphase filter bank with internal history
+#[derive(Clone, Debug)]
+pub struct FirPfbFilter<T, Coeff = T> {
+    w: Window<T>,
+    bank: FirPfbBank<T, Coeff>,
+}
+
+impl<T, Coeff> FirPfbBank<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a new FIR PFB filter bank
+    /// Create a new FIR PFB coefficient bank
     /// 
     /// # Arguments
     /// 
@@ -39,34 +50,40 @@ where
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
 
-        let h_sub_len = h_len / num_filters;
-        let mut filters = Vec::with_capacity(num_filters);
-
-        for i in 0..num_filters {
-            let mut h_sub = vec![Coeff::zero(); h_sub_len];
-            for n in 0..h_sub_len {
-                // load filter in reverse order
-                h_sub[h_sub_len - n - 1] = h[i + n * num_filters];
-            }
-            filters.push(DotProduct::new(&h_sub)?);
+        let filter_len = h_len / num_filters;
+        if filter_len == 0 {
+            return Err(Error::Config("filter length must be at least the number of filters".into()));
         }
 
-        let w = Window::new(h_sub_len)?;
+        // store the coefficients in a flat array
+        let mut coefficients = Vec::with_capacity(num_filters * filter_len);
 
-        let mut q = Self {
+        for i in 0..num_filters {
+            let start = coefficients.len();
+            coefficients.resize(start + filter_len, Coeff::zero());
+            let h_sub = &mut coefficients[start..];
+            for n in 0..filter_len {
+                // load filter in reverse order
+                h_sub[filter_len - n - 1] = h[i + n * num_filters];
+            }
+        }
+
+        // create a single DotProd kernel to be reused for all phases
+        let executor = <[T] as DotProd<Coeff>>::plan(filter_len);
+
+        Ok(Self {
             num_filters,
-            w,
-            filters,
+            filter_len,
+            coefficients,
+            executor,
             scale: Coeff::one(),
-        };
-
-        q.reset();
-        Ok(q)
+            _input: PhantomData,
+        })
     }
 
     /// Create a new FIR PFB filter bank with default parameters
     /// 
-    /// This is equivalent to FirPfbFilter::new_kaiser(num_filters, m, 0.5, 60.0)
+    /// This is equivalent to FirPfbBank::new_kaiser(num_filters, m, 0.5, 60.0)
     /// 
     /// # Arguments
     /// 
@@ -195,38 +212,14 @@ where
         Self::new(num_filters, &hc, h_len)
     }
 
-    // pub fn set_coefficients(&mut self, num_filters: usize, h: &[Coeff], h_len: usize) -> Result<()> {
-    //     if num_filters == 0 {
-    //         return Err(Error::Config("number of filters must be greater than zero".into()));
-    //     }
-    //     if h_len == 0 {
-    //         return Err(Error::Config("filter length must be greater than zero".into()));
-    //     }
+    /// Returns the number of coefficient phases in the bank
+    pub fn num_filters(&self) -> usize {
+        self.num_filters
+    }
 
-    //     let h_sub_len = h_len / num_filters;
-    //     let mut filters = Vec::with_capacity(num_filters);
-
-    //     for i in 0..num_filters {
-    //         let mut h_sub = vec![Coeff::zero(); h_sub_len];
-    //         for n in 0..h_sub_len {
-    //             // load filter in reverse order
-    //             h_sub[h_sub_len - n - 1] = h[i + n * num_filters];
-    //         }
-    //         filters.push(h_sub);
-    //     }
-
-    //     let w = Window::new(h_sub_len)?;
-
-    //     self.num_filters = num_filters;
-    //     self.filters = filters;
-    //     self.w = w;
-    //     self.reset()?;
-    //     Ok(())
-    // }
-
-    /// Reset the filter bank
-    pub fn reset(&mut self) -> () {
-        self.w.reset();
+    /// Returns the number of input samples consumed by each phase
+    pub fn filter_len(&self) -> usize {
+        self.filter_len
     }
 
     /// Set the output scaling for the filter bank
@@ -245,6 +238,181 @@ where
     /// The scaling factor applied to each output sample
     pub fn get_scale(&self) -> Coeff {
         self.scale
+    }
+
+    /// Execute one phase against externally managed history
+    /// 
+    /// # Arguments
+    /// 
+    /// * `i` - index of filter to use
+    /// * `history` - input history, with length [`filter_len`](Self::filter_len)
+    pub fn execute(&self, i: usize, history: &[T]) -> Result<T> {
+        if i >= self.num_filters {
+            return Err(Error::Config(format!("filterbank index ({}) exceeds maximum ({})", i, self.num_filters)));
+        }
+        assert_eq!(history.len(), self.filter_len, "Invalid filterbank history length");
+
+        Ok(unsafe { self.execute_unchecked(i, history) })
+    }
+
+    /// Execute a phase after the caller has validated its index and history
+    ///
+    /// # Safety
+    ///
+    /// `i` must be less than [`num_filters`](Self::num_filters), and `history`
+    /// must contain exactly [`filter_len`](Self::filter_len) samples.
+    #[inline]
+    pub(crate) unsafe fn execute_unchecked(&self, i: usize, history: &[T]) -> T {
+        debug_assert!(i < self.num_filters);
+        debug_assert_eq!(history.len(), self.filter_len);
+        unsafe {
+            std::hint::assert_unchecked(i < self.num_filters);
+            std::hint::assert_unchecked(history.len() == self.filter_len);
+        }
+
+        // fetch this phase's coefficients from the flat array
+        let start = i * self.filter_len;
+        let h = unsafe { self.coefficients.get_unchecked(start..start + self.filter_len) };
+        // execute dotprod against our planned kernel
+        let y = unsafe { (self.executor)(history, h) };
+        y * self.scale
+    }
+}
+
+impl<T, Coeff> FirPfbFilter<T, Coeff>
+where
+    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
+    T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
+    [T]: DotProd<Coeff, Output = T>,
+{
+    /// Create a new FIR PFB filter bank
+    /// 
+    /// # Arguments
+    /// 
+    /// * `num_filters` - number of filters in the bank
+    /// * `h` - filter coefficients
+    /// * `h_len` - filter length
+    /// 
+    /// # Returns
+    /// 
+    /// A new FIR PFB filter bank
+    pub fn new(num_filters: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
+        Self::from_bank(FirPfbBank::new(num_filters, h, h_len)?)
+    }
+
+    /// Create a new FIR PFB filter bank with default parameters
+    /// 
+    /// This is equivalent to FirPfbFilter::new_kaiser(num_filters, m, 0.5, 60.0)
+    /// 
+    /// # Arguments
+    /// 
+    /// * `num_filters` - number of filters in the bank
+    /// * `m` - filter delay
+    /// 
+    /// # Returns
+    /// 
+    /// A new FIR PFB filter bank
+    pub fn default(num_filters: usize, m: usize) -> Result<Self> {
+        Self::from_bank(FirPfbBank::default(num_filters, m)?)
+    }
+
+    /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
+    /// 
+    /// # Arguments
+    /// 
+    /// * `num_filters` - number of filters in the bank
+    /// * `m` - filter delay
+    /// * `fc` - filter normalized cut-off frequency
+    /// * `as_` - filter stop-band suppression \[dB\]
+    /// 
+    /// # Returns
+    /// 
+    /// A new FIR PFB filter bank
+    pub fn new_kaiser(num_filters: usize, m: usize, fc: f32, as_: f32) -> Result<Self> {
+        Self::from_bank(FirPfbBank::new_kaiser(num_filters, m, fc, as_)?)
+    }
+
+    /// Create a new FIR PFB filter bank using square-root Nyquist prototype filter design
+    /// 
+    /// # Arguments
+    /// 
+    /// * `filter_type` - filter type
+    /// * `num_filters` - number of filters in the bank
+    /// * `k` - samples/symbol
+    /// * `m` - filter delay
+    /// * `beta` - excess bandwidth factor
+    /// 
+    /// # Returns
+    /// 
+    /// A new FIR PFB filter bank
+    pub fn new_rnyquist(filter_type: filter::FirFilterShape, num_filters: usize, k: usize, m: usize, beta: f32) -> Result<Self> {
+        Self::from_bank(FirPfbBank::new_rnyquist(filter_type, num_filters, k, m, beta)?)
+    }
+
+    /// Create a new FIR PFB filter bank using square-root derivative Nyquist prototype filter design
+    /// 
+    /// # Arguments
+    /// 
+    /// * `filter_type` - filter type
+    /// * `num_filters` - number of filters in the bank
+    /// * `k` - samples/symbol
+    /// * `m` - filter delay
+    /// * `beta` - excess bandwidth factor
+    /// 
+    /// # Returns
+    /// 
+    /// A new FIR PFB filter bank
+    pub fn new_drnyquist(filter_type: filter::FirFilterShape, num_filters: usize, k: usize, m: usize, beta: f32) -> Result<Self> {
+        Self::from_bank(FirPfbBank::new_drnyquist(filter_type, num_filters, k, m, beta)?)
+    }
+
+    /// Wrap a coefficient bank with newly reset internal history
+    pub fn from_bank(bank: FirPfbBank<T, Coeff>) -> Result<Self> {
+        let w = Window::new(bank.filter_len())?;
+        Ok(Self { w, bank })
+    }
+
+    /// Reset the internal history
+    pub fn reset(&mut self) -> () {
+        self.w.reset();
+    }
+
+    /// Returns the underlying coefficient bank
+    pub fn bank(&self) -> &FirPfbBank<T, Coeff> {
+        &self.bank
+    }
+
+    /// Returns the underlying coefficient bank mutably
+    pub fn bank_mut(&mut self) -> &mut FirPfbBank<T, Coeff> {
+        &mut self.bank
+    }
+
+    /// Returns the number of coefficient phases in the bank
+    pub fn num_filters(&self) -> usize {
+        self.bank.num_filters()
+    }
+
+    /// Returns the number of samples retained in the internal history
+    pub fn filter_len(&self) -> usize {
+        self.bank.filter_len()
+    }
+
+    /// Set the output scaling for the filter bank
+    /// 
+    /// # Arguments
+    /// 
+    /// * `scale` - scaling factor to apply to each output sample
+    pub fn set_scale(&mut self, scale: Coeff) {
+        self.bank.set_scale(scale);
+    }
+
+    /// Get the output scaling for the filter bank
+    /// 
+    /// # Returns
+    /// 
+    /// The scaling factor applied to each output sample
+    pub fn get_scale(&self) -> Coeff {
+        self.bank.get_scale()
     }
 
     /// Push a sample into the filter bank
@@ -275,14 +443,7 @@ where
     /// 
     /// The output sample
     pub fn execute(&mut self, i: usize) -> Result<T> {
-        if i >= self.num_filters {
-            return Err(Error::Config(format!("filterbank index ({}) exceeds maximum ({})", i, self.num_filters)));
-        }
-
-        let r = self.w.read();
-        let mut y = self.filters[i].execute(r);
-        y = y * self.scale;
-        Ok(y)
+        self.bank.execute(i, self.w.read())
     }
 
     /// Execute the filter bank on a block of input samples
@@ -393,5 +554,53 @@ mod tests {
             let y1 = q1.execute(idx).unwrap();
             assert_eq!(y0, y1);
         }
+    }
+
+    #[test]
+    fn test_firpfb_bank_matches_filter() {
+        use num_complex::Complex32;
+
+        let num_filters = 4;
+        let filter_len = 5;
+        let h: Vec<f32> = (0..num_filters * filter_len)
+            .map(|i| ((i + 1) as f32 * 0.17).sin())
+            .collect();
+        let mut bank = FirPfbBank::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
+        bank.set_scale(0.73);
+
+        assert_eq!(bank.num_filters(), num_filters);
+        assert_eq!(bank.filter_len(), filter_len);
+
+        let mut filter = FirPfbFilter::from_bank(bank.clone()).unwrap();
+        let mut history = Window::new(filter_len).unwrap();
+
+        for i in 0..37 {
+            let sample = Complex32::new(
+                ((i + 3) as f32 * 0.11).cos(),
+                ((i + 5) as f32 * 0.07).sin(),
+            );
+            history.push(sample);
+            filter.push(sample);
+
+            for phase in 0..num_filters {
+                let actual = bank.execute(phase, history.read()).unwrap();
+                let expected = filter.execute(phase).unwrap();
+                assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-6);
+                assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-6);
+            }
+        }
+    }
+
+    #[test]
+    fn test_firpfb_bank_invalid_phase() {
+        let bank = FirPfbBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        assert!(bank.execute(2, &[0.0, 0.0]).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid filterbank history length")]
+    fn test_firpfb_bank_invalid_history_length() {
+        let bank = FirPfbBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        let _ = bank.execute(0, &[0.0]);
     }
 }
