@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use super::{DotProd, DotProdKernel};
+use super::{DotProd, DotProdBlockPlan, DotProdKernel};
 use crate::error::{Error, Result};
 
 /// Structured dot product object. Holds a fixed coefficient array so a dot
@@ -11,6 +11,7 @@ use crate::error::{Error, Result};
 pub struct DotProduct<T, Coeff> {
     h: Vec<Coeff>, // coefficients array
     executor: DotProdKernel<T, Coeff, T>,
+    block: Option<DotProdBlockPlan<[T], Coeff, T>>,
     _input: PhantomData<fn(&[T])>,
 }
 
@@ -29,6 +30,7 @@ where
         Ok(Self {
             h: h.to_vec(),
             executor: <[T] as DotProd<Coeff>>::plan(h.len()),
+            block: <[T] as DotProd<Coeff>>::plan_block(h),
             _input: PhantomData,
         })
     }
@@ -40,9 +42,11 @@ where
     /// * `h` - time-reversed coefficients array
     pub fn new_rev(h: &[Coeff]) -> Result<Self> {
         let h = Self::checked(h)?;
+        let h: Vec<_> = h.iter().rev().copied().collect();
         Ok(Self {
-            h: h.iter().rev().copied().collect(),
             executor: <[T] as DotProd<Coeff>>::plan(h.len()),
+            block: <[T] as DotProd<Coeff>>::plan_block(&h),
+            h,
             _input: PhantomData,
         })
     }
@@ -60,6 +64,7 @@ where
         }
         self.h.clear();
         self.h.extend_from_slice(h);
+        self.block = <[T] as DotProd<Coeff>>::plan_block(&self.h);
         Ok(())
     }
 
@@ -76,6 +81,7 @@ where
         }
         self.h.clear();
         self.h.extend(h.iter().rev().copied());
+        self.block = <[T] as DotProd<Coeff>>::plan_block(&self.h);
         Ok(())
     }
 
@@ -107,6 +113,37 @@ where
     pub fn execute(&self, x: &[T]) -> T {
         assert_eq!(x.len(), self.h.len(), "Slices must have equal length");
         unsafe { (self.executor)(x, &self.h) }
+    }
+
+    /// Execute overlapping dot products over a contiguous input span.
+    ///
+    /// Produces `y[i] = self.execute(&x[i..i + self.len()])` for every output.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `x.len() == y.len() + self.len() - 1`.
+    pub fn execute_block(&self, x: &[T], y: &mut [T]) {
+        let expected = y.len().checked_add(self.h.len() - 1)
+            .expect("dot product block length overflow");
+        assert_eq!(x.len(), expected, "Invalid sliding dot product block length");
+
+        let completed = self.block.as_ref().map_or(0, |block| {
+            // respect block executor's input and output widths
+            let block_outputs = x.len().saturating_sub(block.input_width - 1).min(y.len());
+            if block_outputs < block.output_width {
+                0
+            } else {
+                unsafe { (block.executor)(x, &block.h, y) }
+            }
+        });
+        debug_assert!(completed <= y.len());
+
+        // block execution may leave some samples uncomputed
+        // use the fallback executor on whatever's left, one at a time
+        for (i, yi) in y[completed..].iter_mut().enumerate() {
+            let i = completed + i;
+            *yi = unsafe { (self.executor)(&x[i..i + self.h.len()], &self.h) };
+        }
     }
 
     fn checked(h: &[Coeff]) -> Result<&[Coeff]> {
@@ -519,6 +556,185 @@ mod tests {
 
             // no run4
         }
+    }
+
+    #[test]
+    fn test_dotprod_rrr_execute_block_matches_execute() {
+        for k in (1..=384).chain([512, 1024]) {
+            let h: Vec<f32> = (0..k)
+                .map(|i| ((i + 1) as f32 * 0.173).sin())
+                .collect();
+            let dp = DotProduct::<f32, f32>::new(&h).unwrap();
+
+            for n in 0..=20 {
+                let offset = k % 4;
+                let storage: Vec<f32> = (0..offset + n + k - 1)
+                    .map(|i| ((i + 3) as f32 * 0.117).cos())
+                    .collect();
+                let x = &storage[offset..];
+                let expected: Vec<_> = (0..n)
+                    .map(|i| dp.execute(&x[i..i + k]))
+                    .collect();
+                let mut actual = vec![0.0; n];
+                dp.execute_block(x, &mut actual);
+
+                for (&actual, &expected) in actual.iter().zip(&expected) {
+                    assert_abs_diff_eq!(
+                        actual,
+                        expected,
+                        epsilon = (2.0 * k as f32 * f32::EPSILON).max(1e-5),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_dotprod_crc_execute_block_matches_execute() {
+        for k in (1..=184).chain([256, 1024]) {
+            let h: Vec<f32> = (0..k)
+                .map(|i| ((i + 1) as f32 * 0.173).sin())
+                .collect();
+            let dp = DotProduct::<Complex32, f32>::new(&h).unwrap();
+
+            for n in 0..=10 {
+                let offset = k % 3;
+                let storage: Vec<Complex32> = (0..offset + n + k - 1)
+                    .map(|i| {
+                        Complex32::new(
+                            ((i + 3) as f32 * 0.117).cos(),
+                            ((i + 5) as f32 * 0.091).sin(),
+                        )
+                    })
+                    .collect();
+                let x = &storage[offset..];
+                let expected: Vec<_> = (0..n)
+                    .map(|i| dp.execute(&x[i..i + k]))
+                    .collect();
+                let mut actual = vec![Complex32::default(); n];
+                dp.execute_block(x, &mut actual);
+
+                for (&actual, &expected) in actual.iter().zip(&expected) {
+                    assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-4);
+                    assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-4);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_dotprod_ccc_execute_block_matches_execute() {
+        for k in (1..=136).chain([256, 1024]) {
+            let h: Vec<Complex32> = (0..k)
+                .map(|i| Complex32::new(
+                    ((i + 1) as f32 * 0.173).sin(),
+                    ((i + 2) as f32 * 0.137).cos(),
+                ))
+                .collect();
+            let dp = DotProduct::<Complex32, Complex32>::new(&h).unwrap();
+
+            for n in 0..=10 {
+                let offset = k % 3;
+                let storage: Vec<Complex32> = (0..offset + n + k - 1)
+                    .map(|i| {
+                        Complex32::new(
+                            ((i + 3) as f32 * 0.117).cos(),
+                            ((i + 5) as f32 * 0.091).sin(),
+                        )
+                    })
+                    .collect();
+                let x = &storage[offset..];
+                let expected: Vec<_> = (0..n)
+                    .map(|i| dp.execute(&x[i..i + k]))
+                    .collect();
+                let mut actual = vec![Complex32::default(); n];
+                dp.execute_block(x, &mut actual);
+
+                for (&actual, &expected) in actual.iter().zip(&expected) {
+                    assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-4);
+                    assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-4);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_dotprod_execute_block_replans_coefficients() {
+        let mut dp = DotProduct::<f32, f32>::new(&[1.0, 2.0, 3.0]).unwrap();
+
+        for k in [3, 33, 352, 368] {
+            let h: Vec<_> = (0..k)
+                .map(|i| ((i + 1) as f32 * 0.173).sin())
+                .collect();
+            dp.set_coefficients(&h).unwrap();
+            let x: Vec<_> = (0..h.len() + 24 - 1)
+                .map(|i| ((i + 3) as f32 * 0.117).cos())
+                .collect();
+            let expected: Vec<_> = x.windows(h.len()).map(|x| dp.execute(x)).collect();
+            let mut actual = vec![0.0; 24];
+            dp.execute_block(&x, &mut actual);
+            for (&actual, &expected) in actual.iter().zip(&expected) {
+                assert_abs_diff_eq!(actual, expected, epsilon = 1e-4);
+            }
+        }
+
+        let h = [7.0, 8.0, 9.0, 10.0, 11.0];
+        dp.set_coefficients_rev(&h).unwrap();
+        let x: Vec<_> = (0..h.len() + 16 - 1).map(|i| i as f32 * 0.25).collect();
+        let expected: Vec<_> = x.windows(h.len()).map(|x| dp.execute(x)).collect();
+        let mut actual = vec![0.0; 16];
+        dp.execute_block(&x, &mut actual);
+        assert_eq!(actual, expected);
+
+        let mut dp = DotProduct::<Complex32, f32>::new(&[1.0, 2.0, 3.0]).unwrap();
+        for k in [3, 65, 176] {
+            let h: Vec<_> = (0..k)
+                .map(|i| ((i + 1) as f32 * 0.173).sin())
+                .collect();
+            dp.set_coefficients_rev(&h).unwrap();
+            let x: Vec<_> = (0..h.len() + 16 - 1)
+                .map(|i| Complex32::new(i as f32 * 0.25, i as f32 * -0.125))
+                .collect();
+            let expected: Vec<_> = x.windows(h.len()).map(|x| dp.execute(x)).collect();
+            let mut actual = vec![Complex32::default(); 16];
+            dp.execute_block(&x, &mut actual);
+            for (&actual, &expected) in actual.iter().zip(&expected) {
+                assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-4);
+                assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-4);
+            }
+        }
+
+        let mut dp = DotProduct::<Complex32, Complex32>::new(&[
+            Complex32::new(1.0, 0.5),
+            Complex32::new(2.0, -0.25),
+            Complex32::new(3.0, 0.125),
+        ]).unwrap();
+        for k in [3, 17, 80] {
+            let h: Vec<_> = (0..k)
+                .map(|i| Complex32::new(
+                    ((i + 1) as f32 * 0.173).sin(),
+                    ((i + 2) as f32 * 0.137).cos(),
+                ))
+                .collect();
+            dp.set_coefficients_rev(&h).unwrap();
+            let x: Vec<_> = (0..h.len() + 16 - 1)
+                .map(|i| Complex32::new(i as f32 * 0.25, i as f32 * -0.125))
+                .collect();
+            let expected: Vec<_> = x.windows(h.len()).map(|x| dp.execute(x)).collect();
+            let mut actual = vec![Complex32::default(); 16];
+            dp.execute_block(&x, &mut actual);
+            for (&actual, &expected) in actual.iter().zip(&expected) {
+                assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-4);
+                assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-4);
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid sliding dot product block length")]
+    fn test_dotprod_execute_block_invalid_input_panics() {
+        let dp = DotProduct::<f32, f32>::new(&[1.0, 2.0, 3.0]).unwrap();
+        dp.execute_block(&[1.0, 2.0, 3.0], &mut [0.0, 0.0]);
     }
 
     #[test]

@@ -10,6 +10,10 @@ use std::simd::{f32x8, f32x16, StdFloat};
 use std::sync::OnceLock;
 
 #[cfg(feature = "simd")]
+use super::rrr_block::plan_dotprod_rrr_block_f32x4;
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+use super::rrr_block::plan_dotprod_rrr_block_avx512;
+#[cfg(feature = "simd")]
 use super::reduce::reduce_sum_sse_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 use super::reduce::{reduce_sum_avx2_f32x8, reduce_sum_avx512_f32x16};
@@ -88,6 +92,16 @@ impl DotProd<f32> for [f32] {
             }
         }
         dotprod_rrr_128
+    }
+
+    #[cfg(feature = "simd")]
+    fn plan_block(h: &[f32]) -> Option<super::DotProdBlockPlan<[f32], f32, f32>> {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        if h.len() > 32 && is_x86_feature_detected!("avx512f") {
+            return plan_dotprod_rrr_block_avx512(h);
+        }
+
+        plan_dotprod_rrr_block_f32x4(h)
     }
 }
 
