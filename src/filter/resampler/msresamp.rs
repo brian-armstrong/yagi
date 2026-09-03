@@ -248,13 +248,11 @@ where
         if n_arb > self.block_scratch.len() {
             self.block_scratch.resize(n_arb, T::default());
         }
-        let mut scratch = std::mem::take(&mut self.block_scratch);
-        let nw = self.arbitrary_resamp.execute_block(x, &mut scratch[..])?;
+        let nw = self.arbitrary_resamp.execute_block(x, &mut self.block_scratch[..])?;
         debug_assert_eq!(nw, n_arb);
 
-        let ny = self.halfband_resamp.execute_block(&scratch[..nw], y)?;
+        let ny = self.halfband_resamp.execute_block(&self.block_scratch[..nw], y)?;
 
-        self.block_scratch = scratch;
         Ok(ny)
     }
 
@@ -275,8 +273,6 @@ where
             self.block_scratch.resize(n_hb, T::default());
         }
 
-        let mut scratch = std::mem::take(&mut self.block_scratch);
-
         // like decim_execute, we have to handle the case where leftover prior input remains
         let mut scratch_offset = 0;
         let mut x_offset = 0;
@@ -284,7 +280,7 @@ where
             // how many inputs from `x` are needed to finish the group
             let need = m - self.buffer_index;
             self.buffer[self.buffer_index..m].copy_from_slice(&x[..need]);
-            self.halfband_resamp.execute(&self.buffer[..m], std::slice::from_mut(&mut scratch[0]))?;
+            self.halfband_resamp.execute(&self.buffer[..m], std::slice::from_mut(&mut self.block_scratch[0]))?;
             // buffer is now drained into 1 scratch buffer sample
             scratch_offset = 1;
             x_offset = need;
@@ -295,17 +291,16 @@ where
         let full_groups = n_hb - scratch_offset;
         let consumed = x_offset + full_groups * m;
         self.halfband_resamp
-            .execute_block(&x[x_offset..consumed], &mut scratch[scratch_offset..n_hb])?;
+            .execute_block(&x[x_offset..consumed], &mut self.block_scratch[scratch_offset..n_hb])?;
 
         // run the arbitrary resampler on the halfband scratch buffer
-        let ny = self.arbitrary_resamp.execute_block(&scratch[..n_hb], y)?;
+        let ny = self.arbitrary_resamp.execute_block(&self.block_scratch[..n_hb], y)?;
 
         // carry leftover samples to the next buffer
         let leftover = x.len() - consumed;
         self.buffer[..leftover].copy_from_slice(&x[consumed..]);
         self.buffer_index = leftover;
 
-        self.block_scratch = scratch;
         Ok(ny)
     }
 }

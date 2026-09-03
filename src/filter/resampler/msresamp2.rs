@@ -315,20 +315,18 @@ where
 
         let (cap0, cap1) = self.interp_block_caps(n);
         self.grow_block_scratch(cap0, cap1);
-        let mut b0 = std::mem::take(&mut self.block0);
-        let mut b1 = std::mem::take(&mut self.block1);
 
         // specializations: the first read reads directly from x, the last
         // write writes directly into y. in all other cases, use the b0/b1 scratch
         let mut len = n;
         for s in 0..self.num_stages {
             let last = s == self.num_stages - 1;
-            let src: &[T] = if s == 0 { x } else { &b0[..len] };
+            let src: &[T] = if s == 0 { x } else { &self.block0[..len] };
             if last {
                 self.resamp2[s].interp_execute_block(&src[..len], &mut y[..2 * len])?;
             } else {
-                self.resamp2[s].interp_execute_block(&src[..len], &mut b1[..2 * len])?;
-                std::mem::swap(&mut b0, &mut b1);
+                self.resamp2[s].interp_execute_block(&src[..len], &mut self.block1[..2 * len])?;
+                std::mem::swap(&mut self.block0, &mut self.block1);
             }
             len *= 2;
         }
@@ -336,10 +334,8 @@ where
         // without this swap, we'd toggle which buffer is which on each run, causing
         // both to be the same size
         if self.num_stages % 2 == 0 {
-            std::mem::swap(&mut b0, &mut b1);
+            std::mem::swap(&mut self.block0, &mut self.block1);
         }
-        self.block0 = b0;
-        self.block1 = b1;
         Ok(n_out)
     }
 
@@ -349,20 +345,18 @@ where
 
         let (cap0, cap1) = self.decim_block_caps(n_in);
         self.grow_block_scratch(cap0, cap1);
-        let mut b0 = std::mem::take(&mut self.block0);
-        let mut b1 = std::mem::take(&mut self.block1);
 
         // same specializations as interp_execute_block (read x, write y)
         let mut len = n_in;
         for s in 0..self.num_stages {
             let g = self.num_stages - s - 1;
             let last = s == self.num_stages - 1;
-            let src: &[T] = if s == 0 { x } else { &b0[..len] };
+            let src: &[T] = if s == 0 { x } else { &self.block0[..len] };
             if last {
                 self.resamp2[g].decim_execute_block(&src[..len], &mut y[..len / 2])?;
             } else {
-                self.resamp2[g].decim_execute_block(&src[..len], &mut b1[..len / 2])?;
-                std::mem::swap(&mut b0, &mut b1);
+                self.resamp2[g].decim_execute_block(&src[..len], &mut self.block1[..len / 2])?;
+                std::mem::swap(&mut self.block0, &mut self.block1);
             }
             len /= 2;
         }
@@ -373,10 +367,8 @@ where
 
         // don't swap shorter and longer buffers across the call
         if self.num_stages % 2 == 0 {
-            std::mem::swap(&mut b0, &mut b1);
+            std::mem::swap(&mut self.block0, &mut self.block1);
         }
-        self.block0 = b0;
-        self.block1 = b1;
         Ok(n_out)
     }
 }
