@@ -1,3 +1,4 @@
+use crate::buffer::Window;
 use crate::error::{Error, Result};
 use crate::dotprod::DotProd;
 use crate::filter;
@@ -9,7 +10,9 @@ use num_complex::ComplexFloat;
 pub struct FirInterpolationFilter<T, Coeff = T> {
     h_sub_len: usize,
     interpolation_factor: usize,
-    filterbank: filter::FirPfbFilter<T, Coeff>,
+    w: Window<T>,
+    bank: filter::FirPfbBank<T, Coeff>,
+    block_scratch: Vec<T>,
 }
 
 impl<T, Coeff> FirInterpolationFilter<T, Coeff>
@@ -50,12 +53,15 @@ where
         let mut h_padded = vec![Coeff::zero(); h_len_padded];
         h_padded[..h_len].clone_from_slice(&h[..h_len]);
 
-        let filterbank = filter::FirPfbFilter::new(interp, &h_padded, h_len_padded)?;
+        let w = Window::new(h_sub_len)?;
+        let bank = filter::FirPfbBank::new(interp, &h_padded, h_len_padded)?;
 
         Ok(Self {
             h_sub_len,
             interpolation_factor: interp,
-            filterbank,
+            w,
+            bank,
+            block_scratch: Vec::new(),
         })
     }
 
@@ -175,7 +181,7 @@ where
 
     /// Reset the interpolator
     pub fn reset(&mut self) -> () {
-        self.filterbank.reset()
+        self.w.reset()
     }
 
     /// Get the interpolation rate
@@ -202,7 +208,7 @@ where
     /// 
     /// * `scale` - scaling factor to apply to each output sample
     pub fn set_scale(&mut self, scale: Coeff) -> () {
-        self.filterbank.set_scale(scale)
+        self.bank.set_scale(scale)
     }
 
     /// Get the output scaling for interpolator
@@ -211,7 +217,7 @@ where
     /// 
     /// The output scaling factor
     pub fn get_scale(&self) -> Coeff {
-        self.filterbank.get_scale()
+        self.bank.get_scale()
     }
 
     /// Execute the interpolator on a single input sample and write the
@@ -222,15 +228,16 @@ where
     /// * `x` - input sample
     /// * `y` - output samples (size: `interp` x 1)
     pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<()> {
-        self.filterbank.push(x);
-
-        for i in 0..self.interpolation_factor {
-            y[i] = self.filterbank.execute(i)?;
-        }
+        self.w.push(x);
+        self.bank.execute_all(self.w.read(), &mut y[..self.interpolation_factor]);
         Ok(())
     }
 
     /// Execute the interpolator on a block of input samples
+    ///
+    /// This function will generally be more efficient than running [`execute`](Self::execute)
+    /// on each sample in a slice. Dot product kernels called here may run in a different
+    /// order, so results can differ by floating-point rounding.
     ///
     /// # Arguments
     ///
@@ -239,10 +246,31 @@ where
     ///
     /// Returns the number of output samples written, `n * interp`.
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        for (i, &xi) in x.iter().enumerate() {
-            self.execute(xi, &mut y[i * self.interpolation_factor..(i + 1) * self.interpolation_factor])?;
+        let num_output = x.len().checked_mul(self.interpolation_factor)
+            .ok_or_else(|| Error::Range("interpolator output length overflow".into()))?;
+        if y.len() < num_output {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), num_output,
+            )));
         }
-        Ok(x.len() * self.interpolation_factor)
+
+        let block_len = x.len().saturating_sub(self.h_sub_len - 1);
+        if block_len > self.block_scratch.len() {
+            self.block_scratch.resize(block_len, T::default());
+        }
+
+        let interpolation_factor = self.interpolation_factor;
+        let bank = &self.bank;
+        let scratch = &mut self.block_scratch;
+
+        self.w.execute_block_contiguous(x, |indices, history| {
+            let output_start = indices.start * interpolation_factor;
+            let output_end = indices.end * interpolation_factor;
+            bank.execute_block_all(history, &mut y[output_start..output_end], scratch);
+        });
+
+        Ok(num_output)
     }
 
     /// Execute the interpolator with zero-valued input (e.g. flush internal state)
@@ -468,6 +496,52 @@ mod tests {
         }
 
         // objects are automatically destroyed when they go out of scope
+    }
+
+    #[test]
+    fn test_firinterp_crcf_execute_block_matches_execute() {
+        let mut reference = FirInterpolationFilter::<Complex32, f32>::new_kaiser(5, 7, 60.0).unwrap();
+        reference.set_scale(0.37);
+        let mut block = reference.clone();
+
+        let x: Vec<_> = (0..257)
+            .map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos()))
+            .collect();
+        let mut expected = vec![Complex32::new(0.0, 0.0); 5 * x.len()];
+        let mut actual = vec![Complex32::new(0.0, 0.0); 5 * x.len()];
+
+        for (i, &xi) in x.iter().enumerate() {
+            reference.execute(xi, &mut expected[5 * i..5 * (i + 1)]).unwrap();
+        }
+
+        let mut offset = 0;
+        for &len in &[1, 7, 31, 3, 64, 151] {
+            let written = block.execute_block(
+                &x[offset..offset + len],
+                &mut actual[5 * offset..5 * (offset + len)],
+            ).unwrap();
+            assert_eq!(written, 5 * len);
+            offset += len;
+        }
+
+        for (expected, actual) in expected.iter().zip(actual.iter()) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_firinterp_execute_block_rejects_short_output() {
+        let mut interp = FirInterpolationFilter::<f32, f32>::new_kaiser(3, 4, 60.0).unwrap();
+        let mut y = [0.0; 5];
+        assert!(interp.execute_block(&[1.0, 2.0], &mut y).is_err());
+
+        let mut actual = [0.0; 3];
+        let mut reference = interp.clone();
+        interp.execute(1.0, &mut actual).unwrap();
+        let mut expected = [0.0; 3];
+        reference.execute(1.0, &mut expected).unwrap();
+        assert_eq!(actual, expected);
     }
 
     #[test]

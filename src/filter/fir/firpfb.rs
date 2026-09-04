@@ -263,6 +263,16 @@ where
         Ok(unsafe { self.execute_unchecked(i, history) })
     }
 
+    /// Execute every phase against one externally managed history.
+    pub(crate) fn execute_all(&self, history: &[T], y: &mut [T]) {
+        assert_eq!(history.len(), self.filter_len, "Invalid filterbank history length");
+        assert_eq!(y.len(), self.num_filters, "Invalid filterbank output length");
+
+        for phase in 0..self.num_filters {
+            y[phase] = unsafe { self.execute_unchecked(phase, history) };
+        }
+    }
+
     /// Execute a phase after the caller has validated its index and history
     ///
     /// # Safety
@@ -297,6 +307,33 @@ where
         let (h, block_h) = self.phase_coefficients(i)?;
         self.execute_block_with_coefficients(history, y, h, block_h);
         Ok(())
+    }
+
+    /// Execute every phase over contiguous sliding histories, writing outputs
+    /// in history-major, phase-minor order.
+    pub(crate) fn execute_block_all(&self, history: &[T], y: &mut [T], scratch: &mut [T]) {
+        assert_eq!(y.len() % self.num_filters, 0, "Invalid filterbank output length");
+        let count = y.len() / self.num_filters;
+        assert_eq!(history.len(), count + self.filter_len - 1, "Invalid filterbank history length");
+
+        if count == 1 {
+            self.execute_all(history, y);
+            return;
+        }
+
+        assert!(scratch.len() >= count, "Insufficient filterbank scratch length");
+        let packed_len = self.plan.packed_len();
+        for phase in 0..self.num_filters {
+            let h_start = phase * self.filter_len;
+            let h = &self.coefficients[h_start..h_start + self.filter_len];
+            let block_h_start = phase * packed_len;
+            let block_h = &self.block_coefficients[block_h_start..block_h_start + packed_len];
+            self.execute_block_with_coefficients(history, &mut scratch[..count], h, block_h);
+
+            for (i, &value) in scratch[..count].iter().enumerate() {
+                y[i * self.num_filters + phase] = value;
+            }
+        }
     }
 
     fn phase_coefficients(&self, i: usize) -> Result<(&[Coeff], &[Coeff])> {
