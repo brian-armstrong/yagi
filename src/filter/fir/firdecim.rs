@@ -202,9 +202,45 @@ where
     ///
     /// Returns the number of output samples written, `n`.
     pub fn execute_block(&mut self, x: &[T], n: usize, y: &mut [T]) -> Result<usize> {
-        for i in 0..n {
-            y[i] = self.execute(&x[i * self.decimation_factor..(i + 1) * self.decimation_factor])?;
+        let input_len = n.checked_mul(self.decimation_factor)
+            .ok_or_else(|| Error::Range("decimator input length overflow".into()))?;
+        if x.len() < input_len {
+            return Err(Error::Config(format!(
+                "input length ({}) must be at least {}",
+                x.len(), input_len,
+            )));
         }
+        if y.len() < n {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                y.len(), n,
+            )));
+        }
+
+        let decimation_factor = self.decimation_factor;
+        let filter_len = self.dp.len();
+        let dp = &self.dp;
+        self.w.execute_block_contiguous(&x[..input_len], |indices, samples| {
+            // execute() produces an output after the first sample in each
+            // decimation group, then retains the rest for the next group
+            let offset = (decimation_factor - indices.start % decimation_factor)
+                % decimation_factor;
+            if offset >= indices.len() {
+                return;
+            }
+
+            let output_start = (indices.start + offset) / decimation_factor;
+            for (i, history) in samples[offset..].windows(filter_len)
+                .step_by(decimation_factor).enumerate()
+            {
+                y[output_start + i] = dp.execute(history);
+            }
+        });
+
+        for yi in &mut y[..n] {
+            *yi = *yi * self.scale;
+        }
+
         Ok(n)
     }
 }
@@ -299,6 +335,52 @@ mod tests {
 
         // check results
         assert_eq!(buf_1, buf_2);
+    }
+
+    #[test]
+    fn test_firdecim_crcf_execute_block_matches_execute() {
+        let decimation_factor = 3;
+        let mut reference = FirDecimationFilter::<Complex32, f32>::new_kaiser(
+            decimation_factor, 4, 60.0,
+        ).unwrap();
+        reference.set_scale(0.37);
+        let mut block = reference.clone();
+
+        let num_outputs = 257;
+        let x: Vec<_> = (0..decimation_factor * num_outputs)
+            .map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos()))
+            .collect();
+        let mut expected = vec![Complex32::new(0.0, 0.0); num_outputs];
+        let mut actual = vec![Complex32::new(0.0, 0.0); num_outputs];
+
+        for (i, chunk) in x.chunks_exact(decimation_factor).enumerate() {
+            expected[i] = reference.execute(chunk).unwrap();
+        }
+
+        let mut offset = 0;
+        for &len in &[1, 7, 31, 3, 64, 151] {
+            let input_start = decimation_factor * offset;
+            let input_end = decimation_factor * (offset + len);
+            let written = block.execute_block(
+                &x[input_start..input_end],
+                len,
+                &mut actual[offset..offset + len],
+            ).unwrap();
+            assert_eq!(written, len);
+            offset += len;
+        }
+
+        for (expected, actual) in expected.iter().zip(actual.iter()) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_firdecim_execute_block_rejects_short_buffers() {
+        let mut decim = FirDecimationFilter::<f32, f32>::new_kaiser(3, 4, 60.0).unwrap();
+        assert!(decim.execute_block(&[0.0; 5], 2, &mut [0.0; 2]).is_err());
+        assert!(decim.execute_block(&[0.0; 6], 2, &mut [0.0; 1]).is_err());
     }
 
     #[test]
