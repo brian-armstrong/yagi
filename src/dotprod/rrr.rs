@@ -95,13 +95,13 @@ impl DotProd<f32> for [f32] {
     }
 
     #[cfg(feature = "simd")]
-    fn plan_block(h: &[f32]) -> Option<super::DotProdBlockPlan<[f32], f32, f32>> {
+    fn plan_block(len: usize) -> Option<super::DotProdBlockPlan<[f32], f32, f32>> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        if h.len() > 32 && is_x86_feature_detected!("avx512f") {
-            return plan_dotprod_rrr_block_avx512(h);
+        if len > 32 && is_x86_feature_detected!("avx512f") {
+            return plan_dotprod_rrr_block_avx512(len);
         }
 
-        plan_dotprod_rrr_block_f32x4(h)
+        plan_dotprod_rrr_block_f32x4(len)
     }
 }
 

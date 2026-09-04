@@ -21,6 +21,7 @@ mod crc_block;
 mod rrr_block;
 
 pub use dotproduct::DotProduct;
+pub(crate) use dotproduct::DotProductPlan;
 
 /// A dot product kernel resolved ahead of time by [`DotProd::plan`].
 pub type DotProdKernel<Elem, Rhs, Out> = unsafe fn(&[Elem], &[Rhs]) -> Out;
@@ -47,15 +48,11 @@ pub trait DotProd<Rhs> {
         |x, h| x.dotprod(h)
     }
 
-    /// Optionally resolve the kernel for a dot product of a block of elements.
+    /// Optionally resolve the kernel and coefficient layout for a block of
+    /// dot products with `len` coefficients.
     #[doc(hidden)]
-    fn plan_block(
-        h: &[Rhs],
-    ) -> Option<DotProdBlockPlan<Self, Rhs, Self::Output>>
-    where
-        Rhs: Copy,
-    {
-        let _ = h;
+    fn plan_block(len: usize) -> Option<DotProdBlockPlan<Self, Rhs, Self::Output>> {
+        let _ = len;
         None
     }
 }
@@ -69,47 +66,60 @@ pub trait DotProd<Rhs> {
 pub type DotProdBlockKernel<Inputs, Coeff, Out> =
     unsafe fn(&Inputs, &[Coeff], &mut [Out]) -> usize;
 
-/// Prepared coefficients and executor for sliding block execution.
+type DotProdRepack<Coeff> = fn(&[Coeff], usize, &mut [Coeff]);
+
+/// Coefficient packing and executor plan for sliding block execution.
 #[doc(hidden)]
 pub struct DotProdBlockPlan<Elem: ?Sized, Rhs, Out> {
-    // A block kernel may layout its coefficients in a different order
-    pub(crate) h: Vec<Rhs>,
+    source_len: usize,
+    packed_len: usize,
     pub(crate) input_width: usize,
     pub(crate) output_width: usize,
     pub(crate) executor: DotProdBlockKernel<Elem, Rhs, Out>,
+    repack: DotProdRepack<Rhs>,
 }
 
-impl<Elem: ?Sized, Rhs: Clone, Out> Clone for DotProdBlockPlan<Elem, Rhs, Out> {
-    fn clone(&self) -> Self {
-        Self {
-            h: self.h.clone(),
-            input_width: self.input_width,
-            output_width: self.output_width,
-            executor: self.executor,
-        }
+impl<Elem: ?Sized, Rhs, Out> DotProdBlockPlan<Elem, Rhs, Out> {
+    pub(crate) fn repack(&self, h: &[Rhs], packed: &mut [Rhs]) {
+        assert_eq!(h.len(), self.source_len, "Block plan and coefficient lengths must be equal");
+        assert_eq!(packed.len(), self.packed_len, "Invalid packed coefficient length");
+        (self.repack)(h, self.input_width, packed);
     }
-}
 
-impl<Elem: ?Sized, Rhs: std::fmt::Debug, Out> std::fmt::Debug
-    for DotProdBlockPlan<Elem, Rhs, Out>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DotProdBlockPlan")
-            .field("h", &self.h)
-            .field("input_width", &self.input_width)
-            .field("output_width", &self.output_width)
-            .finish_non_exhaustive()
+    pub(crate) fn packed_len(&self) -> usize {
+        self.packed_len
     }
 }
 
 #[cfg(feature = "simd")]
 impl<Elem: ?Sized, Rhs, Out> DotProdBlockPlan<Elem, Rhs, Out> {
     pub(super) fn new(
-        h: Vec<Rhs>,
+        source_len: usize,
+        packed_len: usize,
         input_width: usize,
         output_width: usize,
         executor: DotProdBlockKernel<Elem, Rhs, Out>,
+        repack: DotProdRepack<Rhs>,
     ) -> Self {
-        Self { h, input_width, output_width, executor }
+        Self { source_len, packed_len, input_width, output_width, executor, repack }
+    }
+}
+
+impl<Elem: ?Sized, Rhs, Out> Clone for DotProdBlockPlan<Elem, Rhs, Out> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<Elem: ?Sized, Rhs, Out> Copy for DotProdBlockPlan<Elem, Rhs, Out> {}
+
+impl<Elem: ?Sized, Rhs, Out> std::fmt::Debug for DotProdBlockPlan<Elem, Rhs, Out> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DotProdBlockPlan")
+            .field("source_len", &self.source_len)
+            .field("packed_len", &self.packed_len)
+            .field("input_width", &self.input_width)
+            .field("output_width", &self.output_width)
+            .finish_non_exhaustive()
     }
 }

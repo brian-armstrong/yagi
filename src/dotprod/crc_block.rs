@@ -10,20 +10,21 @@ use super::reduce::reduce_sum_complex_sse_f32x4;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use super::reduce::reduce_sum_complex_avx512_f32x16;
 
-fn expand_real_coefficients(h: &[f32], padded_len: usize) -> Vec<f32> {
+fn repack_real_coefficients(h: &[f32], padded_len: usize, packed: &mut [f32]) {
     // by duplicating each coefficient, we can avoid some extra work in the kernel
     // like the rrr version, we will also apply padding to the end
-    let mut prepared = vec![0.0; padded_len * 2];
-    for (expanded, &coefficient) in prepared.chunks_exact_mut(2).zip(h) {
+    debug_assert_eq!(packed.len(), padded_len * 2);
+    let source_len = h.len() * 2;
+    for (expanded, &coefficient) in packed[..source_len].chunks_exact_mut(2).zip(h) {
         expanded.fill(coefficient);
     }
-    prepared
+    packed[source_len..].fill(0.0);
 }
 
 pub(super) fn plan_dotprod_crc_block_f32x4(
-    h: &[f32],
+    len: usize,
 ) -> Option<DotProdBlockPlan<[Complex<f32>], f32, Complex<f32>>> {
-    let padded_len = h.len().next_multiple_of(2);
+    let padded_len = len.next_multiple_of(2);
     let executor = match padded_len {
          2 => dotprod_crc_block_f32x4::<2> as DotProdBlockKernel<[Complex<f32>], f32, Complex<f32>>,
          4 => dotprod_crc_block_f32x4::<4>,
@@ -43,15 +44,21 @@ pub(super) fn plan_dotprod_crc_block_f32x4(
         32 => dotprod_crc_block_f32x4::<32>,
         _ => return None,
     };
-    let prepared = expand_real_coefficients(h, padded_len);
-    Some(DotProdBlockPlan::new(prepared, padded_len, 4, executor))
+    Some(DotProdBlockPlan::new(
+        len,
+        padded_len * 2,
+        padded_len,
+        4,
+        executor,
+        repack_real_coefficients,
+    ))
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub(super) fn plan_dotprod_crc_block_avx512(
-    h: &[f32],
+    len: usize,
 ) -> Option<DotProdBlockPlan<[Complex<f32>], f32, Complex<f32>>> {
-    let padded_len = h.len().next_multiple_of(8);
+    let padded_len = len.next_multiple_of(8);
     let executor = match padded_len {
         16 => dotprod_crc_block_avx512_register::<16> as DotProdBlockKernel<[Complex<f32>], f32, Complex<f32>>,
         24 => dotprod_crc_block_avx512_register::<24>,
@@ -71,8 +78,14 @@ pub(super) fn plan_dotprod_crc_block_avx512(
         136.. => dotprod_crc_block_avx512_memory,
         _ => return None,
     };
-    let prepared = expand_real_coefficients(h, padded_len);
-    Some(DotProdBlockPlan::new(prepared, padded_len, 4, executor))
+    Some(DotProdBlockPlan::new(
+        len,
+        padded_len * 2,
+        padded_len,
+        4,
+        executor,
+        repack_real_coefficients,
+    ))
 }
 
 unsafe fn dotprod_crc_block_f32x4<const N: usize>(

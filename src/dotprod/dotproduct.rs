@@ -5,14 +5,95 @@ use std::marker::PhantomData;
 use super::{DotProd, DotProdBlockPlan, DotProdKernel};
 use crate::error::{Error, Result};
 
+/// A planned singular and block dot product strategy without coefficient storage
+#[derive(Clone, Debug)]
+pub(crate) struct DotProductPlan<T, Coeff> {
+    len: usize,
+    executor: DotProdKernel<T, Coeff, T>,
+    block: Option<DotProdBlockPlan<[T], Coeff, T>>,
+}
+
 /// Structured dot product object. Holds a fixed coefficient array so a dot
 /// product can be executed repeatedly against different inputs.
 #[derive(Clone, Debug)]
 pub struct DotProduct<T, Coeff> {
     h: Vec<Coeff>, // coefficients array
-    executor: DotProdKernel<T, Coeff, T>,
-    block: Option<DotProdBlockPlan<[T], Coeff, T>>,
+    block_h: Vec<Coeff>,
+    plan: DotProductPlan<T, Coeff>,
     _input: PhantomData<fn(&[T])>,
+}
+
+impl<T, Coeff> DotProductPlan<T, Coeff>
+where
+    Coeff: Copy,
+    [T]: DotProd<Coeff, Output = T>,
+{
+    pub(crate) fn new(len: usize) -> Self {
+        assert!(len > 0, "dot product length must be greater than zero");
+        Self {
+            len,
+            executor: <[T] as DotProd<Coeff>>::plan(len),
+            block: <[T] as DotProd<Coeff>>::plan_block(len),
+        }
+    }
+
+    pub(crate) fn packed_len(&self) -> usize {
+        self.block.as_ref().map_or(0, DotProdBlockPlan::packed_len)
+    }
+
+    /// Write this plan's packed representation of `h` to `packed`.
+    pub(crate) fn repack(&self, h: &[Coeff], packed: &mut [Coeff]) {
+        assert_eq!(h.len(), self.len, "Plan and coefficient lengths must be equal");
+        if let Some(block) = self.block.as_ref() {
+            block.repack(h, packed);
+        } else {
+            assert!(packed.is_empty(), "Invalid packed coefficient length");
+        }
+    }
+
+    /// Execute after the caller has established that the input and coefficient
+    /// slices have the length for which this plan was created.
+    #[inline]
+    pub(crate) unsafe fn execute_unchecked(&self, x: &[T], h: &[Coeff]) -> T {
+        debug_assert_eq!(x.len(), self.len);
+        debug_assert_eq!(h.len(), self.len);
+        unsafe { (self.executor)(x, h) }
+    }
+
+    /// Execute overlapping dot products using this plan's prepared block
+    /// strategy and its singular strategy for any remaining outputs.
+    pub(crate) fn execute_block(
+        &self,
+        x: &[T],
+        h: &[Coeff],
+        block_h: &[Coeff],
+        y: &mut [T],
+    ) {
+        assert_eq!(h.len(), self.len, "Plan and coefficient lengths must be equal");
+        let expected = y.len().checked_add(h.len() - 1)
+            .expect("dot product block length overflow");
+        assert_eq!(x.len(), expected, "Invalid sliding dot product block length");
+
+        let completed = self.block.as_ref().map_or(0, |block| {
+            assert_eq!(block_h.len(), block.packed_len(), "Invalid packed coefficient length");
+            // respect block executor's input and output widths
+            let block_outputs = x.len().saturating_sub(block.input_width - 1).min(y.len());
+            if block_outputs < block.output_width {
+                0
+            } else {
+                unsafe { (block.executor)(x, block_h, y) }
+            }
+        });
+        debug_assert!(self.block.is_some() || block_h.is_empty());
+        debug_assert!(completed <= y.len());
+
+        // block execution may leave some samples uncomputed
+        // use the fallback executor on whatever's left, one at a time
+        for (i, yi) in y[completed..].iter_mut().enumerate() {
+            let i = completed + i;
+            *yi = unsafe { self.execute_unchecked(&x[i..i + h.len()], h) };
+        }
+    }
 }
 
 impl<T, Coeff> DotProduct<T, Coeff>
@@ -27,12 +108,7 @@ where
     /// * `h` - coefficients array
     pub fn new(h: &[Coeff]) -> Result<Self> {
         let h = Self::checked(h)?;
-        Ok(Self {
-            h: h.to_vec(),
-            executor: <[T] as DotProd<Coeff>>::plan(h.len()),
-            block: <[T] as DotProd<Coeff>>::plan_block(h),
-            _input: PhantomData,
-        })
+        Ok(Self::from_coefficients(h.to_vec()))
     }
 
     /// Create dot product object with time-reversed coefficients.
@@ -43,12 +119,14 @@ where
     pub fn new_rev(h: &[Coeff]) -> Result<Self> {
         let h = Self::checked(h)?;
         let h: Vec<_> = h.iter().rev().copied().collect();
-        Ok(Self {
-            executor: <[T] as DotProd<Coeff>>::plan(h.len()),
-            block: <[T] as DotProd<Coeff>>::plan_block(&h),
-            h,
-            _input: PhantomData,
-        })
+        Ok(Self::from_coefficients(h))
+    }
+
+    fn from_coefficients(h: Vec<Coeff>) -> Self {
+        let plan = DotProductPlan::new(h.len());
+        let mut block_h = vec![h[0]; plan.packed_len()];
+        plan.repack(&h, &mut block_h);
+        Self { h, block_h, plan, _input: PhantomData }
     }
 
     /// Set the coefficients, reusing the existing allocation when the length is
@@ -60,11 +138,13 @@ where
     pub fn set_coefficients(&mut self, h: &[Coeff]) -> Result<()> {
         let h = Self::checked(h)?;
         if h.len() != self.h.len() {
-            self.executor = <[T] as DotProd<Coeff>>::plan(h.len());
+            self.plan = DotProductPlan::new(h.len());
         }
         self.h.clear();
         self.h.extend_from_slice(h);
-        self.block = <[T] as DotProd<Coeff>>::plan_block(&self.h);
+        self.block_h.clear();
+        self.block_h.resize(self.plan.packed_len(), self.h[0]);
+        self.plan.repack(&self.h, &mut self.block_h);
         Ok(())
     }
 
@@ -77,11 +157,13 @@ where
     pub fn set_coefficients_rev(&mut self, h: &[Coeff]) -> Result<()> {
         let h = Self::checked(h)?;
         if h.len() != self.h.len() {
-            self.executor = <[T] as DotProd<Coeff>>::plan(h.len());
+            self.plan = DotProductPlan::new(h.len());
         }
         self.h.clear();
         self.h.extend(h.iter().rev().copied());
-        self.block = <[T] as DotProd<Coeff>>::plan_block(&self.h);
+        self.block_h.clear();
+        self.block_h.resize(self.plan.packed_len(), self.h[0]);
+        self.plan.repack(&self.h, &mut self.block_h);
         Ok(())
     }
 
@@ -112,7 +194,7 @@ where
     #[inline]
     pub fn execute(&self, x: &[T]) -> T {
         assert_eq!(x.len(), self.h.len(), "Slices must have equal length");
-        unsafe { (self.executor)(x, &self.h) }
+        unsafe { self.plan.execute_unchecked(x, &self.h) }
     }
 
     /// Execute overlapping dot products over a contiguous input span.
@@ -123,27 +205,7 @@ where
     ///
     /// Panics unless `x.len() == y.len() + self.len() - 1`.
     pub fn execute_block(&self, x: &[T], y: &mut [T]) {
-        let expected = y.len().checked_add(self.h.len() - 1)
-            .expect("dot product block length overflow");
-        assert_eq!(x.len(), expected, "Invalid sliding dot product block length");
-
-        let completed = self.block.as_ref().map_or(0, |block| {
-            // respect block executor's input and output widths
-            let block_outputs = x.len().saturating_sub(block.input_width - 1).min(y.len());
-            if block_outputs < block.output_width {
-                0
-            } else {
-                unsafe { (block.executor)(x, &block.h, y) }
-            }
-        });
-        debug_assert!(completed <= y.len());
-
-        // block execution may leave some samples uncomputed
-        // use the fallback executor on whatever's left, one at a time
-        for (i, yi) in y[completed..].iter_mut().enumerate() {
-            let i = completed + i;
-            *yi = unsafe { (self.executor)(&x[i..i + self.h.len()], &self.h) };
-        }
+        self.plan.execute_block(x, &self.h, &self.block_h, y);
     }
 
     fn checked(h: &[Coeff]) -> Result<&[Coeff]> {

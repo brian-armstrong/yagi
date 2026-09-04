@@ -89,16 +89,16 @@ impl DotProd<Complex<f32>> for [Complex<f32>] {
 
     #[cfg(feature = "simd")]
     fn plan_block(
-        h: &[Complex<f32>],
+        len: usize,
     ) -> Option<super::DotProdBlockPlan<[Complex<f32>], Complex<f32>, Complex<f32>>> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        if (h.len() == 8 || h.len() >= 16) && is_x86_feature_detected!("avx512f") {
-            if let Some(plan) = plan_dotprod_ccc_block_avx512(h) {
+        if (len == 8 || len >= 16) && is_x86_feature_detected!("avx512f") {
+            if let Some(plan) = plan_dotprod_ccc_block_avx512(len) {
                 return Some(plan);
             }
         }
 
-        plan_dotprod_ccc_block_f32x4(h)
+        plan_dotprod_ccc_block_f32x4(len)
     }
 }
 

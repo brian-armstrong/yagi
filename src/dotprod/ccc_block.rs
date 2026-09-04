@@ -11,9 +11,9 @@ use super::reduce::reduce_sum_sse_f32x4;
 use super::reduce::reduce_sum_complex_avx512_f32x16;
 
 pub(super) fn plan_dotprod_ccc_block_f32x4(
-    h: &[Complex<f32>],
+    len: usize,
 ) -> Option<DotProdBlockPlan<[Complex<f32>], Complex<f32>, Complex<f32>>> {
-    let padded_len = h.len().next_multiple_of(2);
+    let padded_len = len.next_multiple_of(2);
     let executor = match padded_len {
          2 => dotprod_ccc_block_f32x4::<2> as DotProdBlockKernel<[Complex<f32>], Complex<f32>, Complex<f32>>,
          4 => dotprod_ccc_block_f32x4::<4>,
@@ -26,17 +26,21 @@ pub(super) fn plan_dotprod_ccc_block_f32x4(
         _ => return None,
     };
 
-    // coefficients are zero-padded (suffix) to allow bulk SIMD operations
-    let mut prepared = vec![Complex::new(0.0, 0.0); padded_len];
-    prepared[..h.len()].copy_from_slice(h);
-    Some(DotProdBlockPlan::new(prepared, padded_len, 2, executor))
+    Some(DotProdBlockPlan::new(
+        len,
+        padded_len,
+        padded_len,
+        2,
+        executor,
+        repack_ccc_f32x4,
+    ))
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub(super) fn plan_dotprod_ccc_block_avx512(
-    h: &[Complex<f32>],
+    len: usize,
 ) -> Option<DotProdBlockPlan<[Complex<f32>], Complex<f32>, Complex<f32>>> {
-    let padded_len = h.len().next_multiple_of(8);
+    let padded_len = len.next_multiple_of(8);
     let executor = match padded_len {
          8 => dotprod_ccc_block_avx512_register::<8> as DotProdBlockKernel<[Complex<f32>], Complex<f32>, Complex<f32>>,
         16 => dotprod_ccc_block_avx512_register::<16>,
@@ -50,15 +54,42 @@ pub(super) fn plan_dotprod_ccc_block_avx512(
         _ => return None,
     };
 
+    Some(DotProdBlockPlan::new(
+        len,
+        padded_len * 2,
+        padded_len,
+        4,
+        executor,
+        repack_ccc_avx512,
+    ))
+}
+
+fn repack_ccc_f32x4(
+    h: &[Complex<f32>],
+    padded_len: usize,
+    packed: &mut [Complex<f32>],
+) {
+    // coefficients are zero-padded (suffix) to allow bulk SIMD operations
+    debug_assert_eq!(packed.len(), padded_len);
+    packed[..h.len()].copy_from_slice(h);
+    packed[h.len()..].fill(Complex::new(0.0, 0.0));
+}
+
+fn repack_ccc_avx512(
+    h: &[Complex<f32>],
+    padded_len: usize,
+    packed: &mut [Complex<f32>],
+) {
     // see `dotprod_ccc_block_avx512_register` for an explanation of this arrangement
     // duplicating the coefficients and de-interleaving them allows an extra optimization
-    let mut prepared = vec![Complex::new(0.0, 0.0); padded_len * 2];
-    let (real, imag) = prepared.split_at_mut(padded_len);
-    for ((real, imag), &coefficient) in real.iter_mut().zip(imag).zip(h) {
+    debug_assert_eq!(packed.len(), padded_len * 2);
+    let (real, imag) = packed.split_at_mut(padded_len);
+    for ((real, imag), &coefficient) in real.iter_mut().zip(imag.iter_mut()).zip(h) {
         *real = Complex::new(coefficient.re, coefficient.re);
         *imag = Complex::new(-coefficient.im, coefficient.im);
     }
-    Some(DotProdBlockPlan::new(prepared, padded_len, 4, executor))
+    real[h.len()..].fill(Complex::new(0.0, 0.0));
+    imag[h.len()..].fill(Complex::new(0.0, 0.0));
 }
 
 unsafe fn dotprod_ccc_block_f32x4<const N: usize>(

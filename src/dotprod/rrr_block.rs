@@ -9,9 +9,9 @@ use super::reduce::reduce_sum_sse_f32x4;
 use super::reduce::reduce_sum_avx512_f32x16;
 
 pub(super) fn plan_dotprod_rrr_block_f32x4(
-    h: &[f32],
+    len: usize,
 ) -> Option<DotProdBlockPlan<[f32], f32, f32>> {
-    let padded_len = h.len().next_multiple_of(4);
+    let padded_len = len.next_multiple_of(4);
     let executor = match padded_len {
         4 => dotprod_rrr_block_f32x4::<4> as DotProdBlockKernel<[f32], f32, f32>,
         8 => dotprod_rrr_block_f32x4::<8>,
@@ -24,17 +24,21 @@ pub(super) fn plan_dotprod_rrr_block_f32x4(
         _ => return None,
     };
 
-    // coefficients are zero-padded (suffix) to allow bulk SIMD operations
-    let mut prepared = vec![0.0; padded_len];
-    prepared[..h.len()].copy_from_slice(h);
-    Some(DotProdBlockPlan::new(prepared, padded_len, 4, executor))
+    Some(DotProdBlockPlan::new(
+        len,
+        padded_len,
+        padded_len,
+        4,
+        executor,
+        repack_rrr,
+    ))
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub(super) fn plan_dotprod_rrr_block_avx512(
-    h: &[f32],
+    len: usize,
 ) -> Option<DotProdBlockPlan<[f32], f32, f32>> {
-    let padded_len = h.len().next_multiple_of(16);
+    let padded_len = len.next_multiple_of(16);
     let executor = match padded_len {
          48 => dotprod_rrr_block_avx512_register::<48> as DotProdBlockKernel<[f32], f32, f32>,
          64 => dotprod_rrr_block_avx512_register::<64>,
@@ -53,9 +57,21 @@ pub(super) fn plan_dotprod_rrr_block_avx512(
         272.. => dotprod_rrr_block_avx512_memory,
         _ => return None,
     };
-    let mut prepared = vec![0.0; padded_len];
-    prepared[..h.len()].copy_from_slice(h);
-    Some(DotProdBlockPlan::new(prepared, padded_len, 4, executor))
+    Some(DotProdBlockPlan::new(
+        len,
+        padded_len,
+        padded_len,
+        4,
+        executor,
+        repack_rrr,
+    ))
+}
+
+fn repack_rrr(h: &[f32], padded_len: usize, packed: &mut [f32]) {
+    // coefficients are zero-padded (suffix) to allow bulk SIMD operations
+    debug_assert_eq!(packed.len(), padded_len);
+    packed[..h.len()].copy_from_slice(h);
+    packed[h.len()..].fill(0.0);
 }
 
 unsafe fn dotprod_rrr_block_f32x4<const N: usize>(
