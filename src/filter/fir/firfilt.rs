@@ -432,7 +432,11 @@ where
     }
 
     /// execute filter on block of samples
-    /// 
+    ///
+    /// This function will generally be more efficient than running [`execute_one`](Self::execute_one)
+    /// on each sample in a slice. Dot product kernels called here may run in a different
+    /// order, so results can differ by floating-point rounding.
+    ///
     /// # Arguments
     /// 
     /// * `x` - buffer of input samples
@@ -442,9 +446,17 @@ where
             return Err(Error::Config("input and output block lengths must be equal".into()));
         }
 
-        for (x_i, y_i) in x.iter().zip(y.iter_mut()) {
-            self.push(*x_i);
-            *y_i = self.execute();
+        let dp = &self.dp;
+        self.w.execute_block_contiguous(x, |indices, history| {
+            if indices.len() == 1 {
+                y[indices.start] = dp.execute(history);
+            } else {
+                dp.execute_block(history, &mut y[indices]);
+            }
+        });
+
+        for yi in y {
+            *yi = *yi * self.scale;
         }
 
         Ok(())
@@ -719,6 +731,37 @@ mod tests {
         }
 
         // No need to explicitly destroy objects in Rust
+    }
+
+    #[test]
+    fn test_firfilt_crcf_execute_block_matches_execute_one() {
+        let mut reference = FirFilter::<Complex32, f32>::new_kaiser(15, 0.2, 60.0, 0.0).unwrap();
+        reference.set_scale(0.37);
+        let mut block = reference.clone();
+
+        let x: Vec<_> = (0..257)
+            .map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos()))
+            .collect();
+        let mut expected = vec![Complex32::new(0.0, 0.0); x.len()];
+        let mut actual = vec![Complex32::new(0.0, 0.0); x.len()];
+
+        for (i, &xi) in x.iter().enumerate() {
+            expected[i] = reference.execute_one(xi);
+        }
+
+        let mut offset = 0;
+        for &len in &[1, 7, 31, 3, 64, 151] {
+            block.execute_block(
+                &x[offset..offset + len],
+                &mut actual[offset..offset + len],
+            ).unwrap();
+            offset += len;
+        }
+
+        for (expected, actual) in expected.iter().zip(actual.iter()) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
+        }
     }
 
     #[test]
