@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::buffer::Window;
-use crate::dotprod::{DotProd, DotProdKernel};
+use crate::dotprod::{DotProd, DotProductPlan};
 use crate::filter;
 use std::marker::PhantomData;
 
@@ -13,7 +13,8 @@ pub struct FirPfbBank<T, Coeff = T> {
     num_filters: usize,
     filter_len: usize,
     coefficients: Vec<Coeff>,
-    executor: DotProdKernel<T, Coeff, T>,
+    block_coefficients: Vec<Coeff>,
+    plan: DotProductPlan<T, Coeff>,
     scale: Coeff,
     _input: PhantomData<fn(&[T])>,
 }
@@ -68,14 +69,21 @@ where
             }
         }
 
-        // create a single DotProd kernel to be reused for all phases
-        let executor = <[T] as DotProd<Coeff>>::plan(filter_len);
+        let plan = DotProductPlan::new(filter_len);
+        let packed_len = plan.packed_len();
+        let mut block_coefficients =
+            vec![coefficients[0]; num_filters * packed_len];
+        for (i, h) in coefficients.chunks_exact(filter_len).enumerate() {
+            let start = i * packed_len;
+            plan.repack(h, &mut block_coefficients[start..start + packed_len]);
+        }
 
         Ok(Self {
             num_filters,
             filter_len,
             coefficients,
-            executor,
+            block_coefficients,
+            plan,
             scale: Coeff::one(),
             _input: PhantomData,
         })
@@ -273,9 +281,50 @@ where
         // fetch this phase's coefficients from the flat array
         let start = i * self.filter_len;
         let h = unsafe { self.coefficients.get_unchecked(start..start + self.filter_len) };
-        // execute dotprod against our planned kernel
-        let y = unsafe { (self.executor)(history, h) };
+        let y = unsafe { self.plan.execute_unchecked(history, h) };
         y * self.scale
+    }
+
+    /// Execute one phase over contiguous sliding histories
+    ///
+    /// Produces `y[j] = self.execute(i, &history[j..j + self.filter_len()])`
+    /// for every output.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `history.len() == y.len() + self.filter_len() - 1`.
+    pub fn execute_block(&self, i: usize, history: &[T], y: &mut [T]) -> Result<()> {
+        let (h, block_h) = self.phase_coefficients(i)?;
+        self.execute_block_with_coefficients(history, y, h, block_h);
+        Ok(())
+    }
+
+    fn phase_coefficients(&self, i: usize) -> Result<(&[Coeff], &[Coeff])> {
+        if i >= self.num_filters {
+            return Err(Error::Config(format!("filterbank index ({}) exceeds maximum ({})", i, self.num_filters)));
+        }
+
+        let start = i * self.filter_len;
+        let h = &self.coefficients[start..start + self.filter_len];
+        let packed_len = self.plan.packed_len();
+        let packed_start = i * packed_len;
+        let block_h =
+            &self.block_coefficients[packed_start..packed_start + packed_len];
+        Ok((h, block_h))
+    }
+
+    fn execute_block_with_coefficients(
+        &self,
+        history: &[T],
+        y: &mut [T],
+        h: &[Coeff],
+        block_h: &[Coeff],
+    ) {
+        self.plan.execute_block(history, h, block_h, y);
+
+        for yi in y {
+            *yi = *yi * self.scale;
+        }
     }
 }
 
@@ -454,10 +503,12 @@ where
     /// * `x` - input samples
     /// * `y` - output samples
     pub fn execute_block(&mut self, i: usize, x: &[T], y: &mut [T]) -> Result<()> {
-        for (&xi, yi) in x.iter().zip(y.iter_mut()) {
-            self.push(xi);
-            *yi = self.execute(i)?;
-        }
+        let (h, block_h) = self.bank.phase_coefficients(i)?;
+        let n = x.len().min(y.len());
+        let bank = &self.bank;
+        self.w.execute_block_contiguous(&x[..n], |indices, history| {
+            bank.execute_block_with_coefficients(history, &mut y[indices], h, block_h);
+        });
         Ok(())
     }
 }
@@ -602,5 +653,161 @@ mod tests {
     fn test_firpfb_bank_invalid_history_length() {
         let bank = FirPfbBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
         let _ = bank.execute(0, &[0.0]);
+    }
+
+    #[test]
+    fn test_firpfb_bank_execute_block_rrrf() {
+        let num_filters = 3;
+        let filter_len = 35;
+        let num_outputs = 67;
+        let h: Vec<f32> = (0..num_filters * filter_len)
+            .map(|i| ((i + 3) as f32 * 0.137).sin())
+            .collect();
+        let mut bank = FirPfbBank::<f32, f32>::new(num_filters, &h, h.len()).unwrap();
+        bank.set_scale(0.73);
+
+        let history: Vec<f32> = (0..num_outputs + filter_len - 1)
+            .map(|i| ((i + 7) as f32 * 0.091).cos())
+            .collect();
+
+        for phase in 0..num_filters {
+            let expected: Vec<_> = history.windows(filter_len)
+                .map(|samples| bank.execute(phase, samples).unwrap())
+                .collect();
+            let mut actual = vec![0.0; num_outputs];
+            bank.execute_block(phase, &history, &mut actual).unwrap();
+
+            for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+                assert_abs_diff_eq!(actual, expected, epsilon = 2e-4);
+            }
+        }
+    }
+
+    #[test]
+    fn test_firpfb_bank_execute_block_crcf() {
+        use num_complex::Complex32;
+
+        let num_filters = 4;
+        let filter_len = 17;
+        let num_outputs = 61;
+        let h: Vec<f32> = (0..num_filters * filter_len)
+            .map(|i| ((i + 5) as f32 * 0.113).cos())
+            .collect();
+        let mut bank = FirPfbBank::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
+        bank.set_scale(0.61);
+
+        let history: Vec<Complex32> = (0..num_outputs + filter_len - 1)
+            .map(|i| Complex32::new(
+                ((i + 2) as f32 * 0.071).sin(),
+                ((i + 11) as f32 * 0.047).cos(),
+            ))
+            .collect();
+
+        for phase in 0..num_filters {
+            let expected: Vec<_> = history.windows(filter_len)
+                .map(|samples| bank.execute(phase, samples).unwrap())
+                .collect();
+            let mut actual = vec![Complex32::default(); num_outputs];
+            bank.execute_block(phase, &history, &mut actual).unwrap();
+
+            for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+                assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-4);
+                assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-4);
+            }
+        }
+    }
+
+    #[test]
+    fn test_firpfb_bank_execute_block_cccf() {
+        use num_complex::Complex32;
+
+        let num_filters = 3;
+        let filter_len = 16;
+        let num_outputs = 53;
+        let h: Vec<Complex32> = (0..num_filters * filter_len)
+            .map(|i| Complex32::new(
+                ((i + 7) as f32 * 0.097).cos(),
+                ((i + 4) as f32 * 0.131).sin(),
+            ))
+            .collect();
+        let mut bank = FirPfbBank::<Complex32, Complex32>::new(
+            num_filters,
+            &h,
+            h.len(),
+        ).unwrap();
+        bank.set_scale(Complex32::new(0.61, -0.13));
+
+        let history: Vec<Complex32> = (0..num_outputs + filter_len - 1)
+            .map(|i| Complex32::new(
+                ((i + 2) as f32 * 0.071).sin(),
+                ((i + 11) as f32 * 0.047).cos(),
+            ))
+            .collect();
+
+        for phase in 0..num_filters {
+            let expected: Vec<_> = history.windows(filter_len)
+                .map(|samples| bank.execute(phase, samples).unwrap())
+                .collect();
+            let mut actual = vec![Complex32::default(); num_outputs];
+            bank.execute_block(phase, &history, &mut actual).unwrap();
+
+            for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+                assert_abs_diff_eq!(actual.re, expected.re, epsilon = 2e-4);
+                assert_abs_diff_eq!(actual.im, expected.im, epsilon = 2e-4);
+            }
+        }
+    }
+
+    #[test]
+    fn test_firpfb_filter_execute_block_matches_sample_execution() {
+        use num_complex::Complex32;
+
+        let num_filters = 4;
+        let filter_len = 17;
+        let h: Vec<f32> = (0..num_filters * filter_len)
+            .map(|i| ((i + 1) as f32 * 0.123).sin())
+            .collect();
+        let mut sample_filter =
+            FirPfbFilter::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
+        sample_filter.set_scale(0.79);
+        let mut block_filter = sample_filter.clone();
+
+        let block_lengths = [1, 5, 19, 64, 3, 41];
+        let mut input_index = 0;
+        for (block_index, &block_len) in block_lengths.iter().enumerate() {
+            let phase = (block_index * 3 + 1) % num_filters;
+            let x: Vec<_> = (input_index..input_index + block_len)
+                .map(|i| Complex32::new(
+                    ((i + 3) as f32 * 0.083).cos(),
+                    ((i + 9) as f32 * 0.059).sin(),
+                ))
+                .collect();
+            input_index += block_len;
+
+            let expected: Vec<_> = x.iter().map(|&sample| {
+                sample_filter.push(sample);
+                sample_filter.execute(phase).unwrap()
+            }).collect();
+            let mut actual = vec![Complex32::default(); block_len];
+            block_filter.execute_block(phase, &x, &mut actual).unwrap();
+
+            for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+                assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-4);
+                assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-4);
+            }
+        }
+    }
+
+    #[test]
+    fn test_firpfb_bank_execute_block_invalid_phase() {
+        let bank = FirPfbBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        assert!(bank.execute_block(2, &[0.0, 0.0], &mut [0.0]).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid sliding dot product block length")]
+    fn test_firpfb_bank_execute_block_invalid_history_length() {
+        let bank = FirPfbBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        bank.execute_block(0, &[0.0, 0.0], &mut [0.0, 0.0]).unwrap();
     }
 }
