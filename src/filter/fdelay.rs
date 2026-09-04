@@ -128,11 +128,22 @@ where
     }
 
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        for (&xi, yi) in x.iter().zip(y.iter_mut()) {
-            self.push(xi);
-            *yi = self.execute()?;
-        }
-        Ok(())
+        let n = x.len().min(y.len());
+        let w_index = self.w_index;
+        let f_index = self.f_index;
+        let pfb = &mut self.pfb;
+        let mut result = Ok(());
+
+        self.w.execute_block_contiguous(&x[..n], |indices, samples| {
+            if result.is_err() {
+                return;
+            }
+
+            let delayed = &samples[w_index..w_index + indices.len()];
+            result = pfb.execute_block(f_index, delayed, &mut y[indices]);
+        });
+
+        result
     }
 }
 
@@ -275,6 +286,39 @@ mod tests {
             let v0 = q0.execute();
             let v1 = q1.execute();
             assert_eq!(v0, v1);
+        }
+    }
+
+    #[test]
+    fn test_fdelay_crcf_execute_block_matches_execute() {
+        let mut reference = Fdelay::<Complex32, f32>::new(9, 4, 16).unwrap();
+        let mut block = reference.clone();
+        reference.set_delay(5.375).unwrap();
+        block.set_delay(5.375).unwrap();
+
+        let x: Vec<_> = (0..257)
+            .map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos()))
+            .collect();
+        let mut expected = vec![Complex32::new(0.0, 0.0); x.len()];
+        let mut actual = vec![Complex32::new(0.0, 0.0); x.len()];
+
+        for (i, &xi) in x.iter().enumerate() {
+            reference.push(xi);
+            expected[i] = reference.execute().unwrap();
+        }
+
+        let mut offset = 0;
+        for &len in &[1, 7, 31, 3, 64, 151] {
+            block.execute_block(
+                &x[offset..offset + len],
+                &mut actual[offset..offset + len],
+            ).unwrap();
+            offset += len;
+        }
+
+        for (expected, actual) in expected.iter().zip(actual.iter()) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
         }
     }
 }
