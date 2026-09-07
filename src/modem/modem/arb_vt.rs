@@ -1,7 +1,7 @@
 use crate::modem::modem::*;
 
-
 // Virginia Tech logo
+#[rustfmt::skip]
 pub(super) const MODEM_ARB_VT64: [Complex32; 64] = [
     Complex32::new(-1.5633e+00,  5.5460e-01), Complex32::new(-1.3833e+00,  5.5460e-01),
     Complex32::new(-1.0234e+00,  5.5460e-01), Complex32::new(-1.2034e+00,  5.5460e-01),

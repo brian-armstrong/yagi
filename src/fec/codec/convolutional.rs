@@ -2,12 +2,12 @@
 // convolutional code
 //
 
-use fec::convolutional::{Decoder, Encoder, Puncturer};
 #[cfg(feature = "simd")]
 use fec::convolutional::SimdDecoder;
+use fec::convolutional::{Decoder, Encoder, Puncturer};
 
-use crate::fec::FecScheme;
 use crate::error::{Error, Result};
+use crate::fec::FecScheme;
 
 use super::conv_params::{self, ConvParams};
 
@@ -168,13 +168,8 @@ impl ConvDecoder {
 }
 
 /// parameters and puncturing matrix for a scheme (None if not convolutional)
-pub fn conv_scheme_params(
-    scheme: crate::fec::FecScheme,
-) -> Option<(ConvParams, Option<Vec<Vec<bool>>>)> {
-
-    let to_matrix = |m: &[&[bool]]| -> Option<Vec<Vec<bool>>> {
-        Some(m.iter().map(|r| r.to_vec()).collect())
-    };
+pub fn conv_scheme_params(scheme: crate::fec::FecScheme) -> Option<(ConvParams, Option<Vec<Vec<bool>>>)> {
+    let to_matrix = |m: &[&[bool]]| -> Option<Vec<Vec<bool>>> { Some(m.iter().map(|r| r.to_vec()).collect()) };
 
     Some(match scheme {
         FecScheme::ConvV27 => (conv_params::CONV_V27, None),
@@ -220,7 +215,6 @@ impl std::fmt::Debug for Convolutional {
             .finish_non_exhaustive()
     }
 }
-
 
 impl Convolutional {
     /// create codec for params, optionally punctured by matrix
@@ -289,10 +283,7 @@ impl Convolutional {
         debug_assert_eq!(written, full_bits);
 
         // emitted from an all-zero shift register, so dropping them is lossless
-        debug_assert!(
-            (kept_bits..full_bits).all(|i| get_bit(&self.full, i) == 0),
-            "tail flush bits were not zero"
-        );
+        debug_assert!((kept_bits..full_bits).all(|i| get_bit(&self.full, i) == 0), "tail flush bits were not zero");
 
         match &self.puncturer {
             Some(p) => {
@@ -302,11 +293,7 @@ impl Convolutional {
             None => {
                 let nbytes = kept_bits.div_ceil(8);
                 if msg_enc.len() < nbytes {
-                    return Err(Error::Config(format!(
-                        "encoded buffer too small: {} < {}",
-                        msg_enc.len(),
-                        nbytes
-                    )));
+                    return Err(Error::Config(format!("encoded buffer too small: {} < {}", msg_enc.len(), nbytes)));
                 }
                 msg_enc[..nbytes].copy_from_slice(&self.full[..nbytes]);
                 // zero any bits past the trim point in the final byte
@@ -346,8 +333,7 @@ impl Convolutional {
                 clear_bits(&mut self.full, kept_bits, full_bits);
                 set_bits(&mut self.erasure, kept_bits, full_bits);
 
-                self.decoder
-                    .decode_hard_with_erasure(&self.full, full_bits, &self.erasure, msg_dec)
+                self.decoder.decode_hard_with_erasure(&self.full, full_bits, &self.erasure, msg_dec)
             }
             None => {
                 let nbytes = kept_bits.div_ceil(8);
@@ -366,12 +352,7 @@ impl Convolutional {
     ///  dec_msg_len    :   decoded message length (number of bytes)
     ///  msg_enc        :   encoded message [size: 8*enc_msg_len x 1]
     ///  msg_dec        :   decoded message [size: 1 x dec_msg_len]
-    pub fn decode_soft(
-        &mut self,
-        dec_msg_len: usize,
-        msg_enc: &[u8],
-        msg_dec: &mut [u8],
-    ) -> Result<()> {
+    pub fn decode_soft(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         self.check_len(dec_msg_len)?;
 
         let full_bits = self.encoder.encode_len(dec_msg_len);
@@ -399,8 +380,7 @@ impl Convolutional {
                 }
                 set_bits(&mut self.erasure, kept_bits, full_bits);
 
-                self.decoder
-                    .decode_soft_with_erasure(&self.full[..full_bits], &self.erasure, msg_dec)
+                self.decoder.decode_soft_with_erasure(&self.full[..full_bits], &self.erasure, msg_dec)
             }
             None => {
                 self.full[..kept_bits].copy_from_slice(&msg_enc[..kept_bits]);
@@ -499,9 +479,7 @@ mod tests {
             // encoded length in bits is rate*(n*8 + K - 1), matching the
             // tail-trimmed stream the encoder wrote.
             let nbits = params.rate as usize * (n * 8 + params.order as usize - 1);
-            let soft: Vec<u8> = (0..nbits)
-                .map(|i| if get_bit(&encoded, i) != 0 { 255 } else { 0 })
-                .collect();
+            let soft: Vec<u8> = (0..nbits).map(|i| if get_bit(&encoded, i) != 0 { 255 } else { 0 }).collect();
 
             let mut decoded = vec![0u8; n];
             c.decode_soft(n, &soft, &mut decoded).unwrap();
@@ -519,11 +497,7 @@ mod tests {
             let msg = vec![0u8; min - 1];
             let mut encoded = vec![0u8; 64];
 
-            assert!(
-                c.encode(&msg, &mut encoded).is_err(),
-                "{}: should reject payload below minimum",
-                name
-            );
+            assert!(c.encode(&msg, &mut encoded).is_err(), "{}: should reject payload below minimum", name);
         }
     }
 
@@ -537,12 +511,7 @@ mod tests {
 
         for ((name, params, _), want) in base_codes().into_iter().zip(expected) {
             let c = Convolutional::new(params, None);
-            assert_eq!(
-                c.decoder.kind(),
-                want,
-                "{}: unexpected decoder implementation",
-                name
-            );
+            assert_eq!(c.decoder.kind(), want, "{}: unexpected decoder implementation", name);
         }
     }
 
@@ -586,11 +555,7 @@ mod tests {
             }
         }
 
-        assert!(
-            failures.is_empty(),
-            "clean round trip failed for: {}",
-            failures.join(", ")
-        );
+        assert!(failures.is_empty(), "clean round trip failed for: {}", failures.join(", "));
     }
 
     #[test]
@@ -619,8 +584,7 @@ mod tests {
             let puncturer = Puncturer::from_matrix(&rows).unwrap();
 
             for n in 4..=80usize {
-                let trimmed_bits =
-                    params.rate as usize * (n * 8 + params.order as usize - 1);
+                let trimmed_bits = params.rate as usize * (n * 8 + params.order as usize - 1);
                 let ours = puncturer.punctured_len(trimmed_bits).div_ceil(8);
 
                 assert_eq!(
@@ -654,13 +618,7 @@ mod tests {
                 let want = liquid_len(params.rate, params.order, n);
 
                 // the scheme table must report liquid's length
-                assert_eq!(
-                    scheme.enc_msg_len(n),
-                    want,
-                    "{}: scheme length disagrees with liquid at n={}",
-                    name,
-                    n
-                );
+                assert_eq!(scheme.enc_msg_len(n), want, "{}: scheme length disagrees with liquid at n={}", name, n);
 
                 let mut encoded = vec![0u8; want];
                 let msg = vec![0xa5u8; n];
@@ -712,11 +670,7 @@ mod tests {
             q.encode(&msg, &mut got).unwrap();
 
             assert_eq!(got.len(), want.len(), "{:?} n={}: encoded length", scheme, n);
-            assert_eq!(
-                &got[..], want,
-                "{:?} n={}: codeword differs from liquid",
-                scheme, n
-            );
+            assert_eq!(&got[..], want, "{:?} n={}: codeword differs from liquid", scheme, n);
 
             // and the same bytes must decode back
             let mut dec = vec![0u8; n];
@@ -758,5 +712,4 @@ mod tests {
             }
         }
     }
-
 }

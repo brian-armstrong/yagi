@@ -1,9 +1,9 @@
-use crate::error::{Error, Result};
-use crate::dotprod::{DotProd, DotProduct};
-use crate::filter;
 use crate::buffer::Window;
+use crate::dotprod::{DotProd, DotProduct};
+use crate::error::{Error, Result};
+use crate::filter;
+use num_complex::{Complex32, ComplexFloat};
 use std::f32::consts::PI;
-use num_complex::{ComplexFloat, Complex32};
 
 /// create coefficients for a Kaiser-Bessel windowed sinc filter
 ///
@@ -18,7 +18,8 @@ use num_complex::{ComplexFloat, Complex32};
 ///
 /// Vec of filter coefficients
 pub fn fir_filter_design_kaiser<Coeff>(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<Coeff>>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     let h = filter::fir_design_kaiser(n, fc, as_, mu)?;
@@ -39,8 +40,15 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 /// # Returns
 ///
 /// Vec of filter coefficients
-pub fn fir_filter_design_rnyquist<Coeff>(ftype: filter::FirFilterShape, k: usize, m: usize, beta: f32, mu: f32) -> Result<Vec<Coeff>>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+pub fn fir_filter_design_rnyquist<Coeff>(
+    ftype: filter::FirFilterShape,
+    k: usize,
+    m: usize,
+    beta: f32,
+    mu: f32,
+) -> Result<Vec<Coeff>>
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     let h = filter::fir_design_prototype(ftype, k, m, beta, mu)?;
@@ -60,7 +68,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// Vec of filter coefficients
 pub fn fir_filter_design_firdespm<Coeff>(h_len: usize, fc: f32, as_: f32) -> Result<Vec<Coeff>>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     let mut h = filter::fir_design_pm_lowpass(h_len, fc, as_, 0.0)?;
@@ -82,7 +91,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// Vec of filter coefficients
 pub fn fir_filter_design_rect<Coeff>(n: usize) -> Result<Vec<Coeff>>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     if n == 0 || n > 1024 {
@@ -103,7 +113,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// Vec of filter coefficients
 pub fn fir_filter_design_dc_blocker<Coeff>(m: usize, as_: f32) -> Result<Vec<Coeff>>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     let h = filter::fir_design_notch(m, 0.0, as_)?;
@@ -123,7 +134,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// Vec of filter coefficients
 pub fn fir_filter_design_notch<Coeff>(m: usize, as_: f32, f0: f32) -> Result<Vec<Coeff>>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32> + ComplexNotch,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32> + ComplexNotch,
     f32: Into<Coeff>,
 {
     let h = Coeff::notch(m, as_, f0)?;
@@ -142,13 +154,13 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32> + ComplexNotch,
 ///
 /// The frequency response
 pub fn fir_filter_freqresponse<Coeff>(h: &[Coeff], scale: Coeff, fc: f32) -> Complex32
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     Complex32: From<Coeff>,
 {
     let h_fc = filter::freqresponse(h, fc).unwrap();
     h_fc * Complex32::from(scale)
 }
-
 
 /// compute power spectral density response of filter coefficients in dB
 ///
@@ -162,7 +174,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// The power spectral density
 pub fn fir_filter_get_psd<Coeff>(h: &[Coeff], scale: Coeff, fc: f32) -> f32
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     Complex32: From<Coeff>,
 {
     let h = fir_filter_freqresponse(h, scale, fc);
@@ -180,7 +193,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// The group delay
 pub fn fir_filter_groupdelay<Coeff>(h: &[Coeff], fc: f32) -> Result<f32>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let h = h.iter().map(|&x| x.re()).collect::<Vec<f32>>();
     filter::fir_group_delay(&h, fc)
@@ -204,7 +218,7 @@ impl ComplexNotch for f32 {
 
 impl ComplexNotch for Complex32 {
     fn notch(m: usize, as_: f32, f0: f32) -> Result<Vec<Self>> {
-        // design notch filter as DC blocker, then mix to appropriate frequency 
+        // design notch filter as DC blocker, then mix to appropriate frequency
         let h = filter::fir_design_notch(m, 0.0, as_)?;
         let mut h_c = h.iter().map(|&x| Complex32::new(x, 0.0)).collect::<Vec<Complex32>>();
         for (i, h_i) in h_c.iter_mut().enumerate() {
@@ -217,7 +231,7 @@ impl ComplexNotch for Complex32 {
 
 /// Finite impulse response (FIR) filter
 #[derive(Debug, Clone)]
-pub struct FirFilter<T, Coeff = T> 
+pub struct FirFilter<T, Coeff = T>
 where
     [T]: DotProd<Coeff>,
 {
@@ -237,13 +251,13 @@ where
     Complex32: From<Coeff>,
 {
     /// create filter using coefficients directly specified in an array
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `h` - filter coefficients
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `Firfilt` object.
     pub fn new(h: &[Coeff]) -> Result<Self> {
         let h_len = h.len();
@@ -251,13 +265,8 @@ where
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
 
-        let mut q = Self {
-            h: h.to_vec(),
-            dp: DotProduct::new_rev(h)?,
-            h_len,
-            w: Window::new(h_len)?,
-            scale: Coeff::one(),
-        };
+        let mut q =
+            Self { h: h.to_vec(), dp: DotProduct::new_rev(h)?, h_len, w: Window::new(h_len)?, scale: Coeff::one() };
 
         q.reset();
 
@@ -265,16 +274,16 @@ where
     }
 
     /// create filter using Kaiser-Bessel windowed sinc method
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `n` - filter length
     /// * `fc` - cutoff frequency
     /// * `as_` - stop-band attenuation
     /// * `mu` - fractional sample offset
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `Firfilt` object.
     pub fn new_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Self> {
         let h = fir_filter_design_kaiser(n, fc, as_, mu)?;
@@ -282,17 +291,17 @@ where
     }
 
     /// create filter using square-root Nyquist prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `ftype` - filter type
     /// * `k` - nominal samples/symbol
     /// * `m` - filter delay
     /// * `beta` - rolloff factor
     /// * `mu` - fractional sample offset
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `Firfilt` object.
     pub fn new_rnyquist(ftype: filter::FirFilterShape, k: usize, m: usize, beta: f32, mu: f32) -> Result<Self> {
         let h = fir_filter_design_rnyquist(ftype, k, m, beta, mu)?;
@@ -300,15 +309,15 @@ where
     }
 
     /// create filter using Parks-McClellan algorithm
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `h_len` - filter length
     /// * `fc` - cutoff frequency
     /// * `as_` - stop-band attenuation
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `Firfilt` object.
     pub fn new_firdespm(h_len: usize, fc: f32, as_: f32) -> Result<Self> {
         let h = fir_filter_design_firdespm(h_len, fc, as_)?;
@@ -316,13 +325,13 @@ where
     }
 
     /// create rectangular filter prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `n` - filter length
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `Firfilt` object.
     pub fn new_rect(n: usize) -> Result<Self> {
         let h = fir_filter_design_rect(n)?;
@@ -330,14 +339,14 @@ where
     }
 
     /// create DC blocking filter
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `m` - filter delay
     /// * `as_` - stop-band attenuation
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `Firfilt` object.
     pub fn new_dc_blocker(m: usize, as_: f32) -> Result<Self> {
         let h = fir_filter_design_dc_blocker(m, as_)?;
@@ -345,15 +354,15 @@ where
     }
 
     /// create notch filter
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `m` - filter delay
     /// * `as_` - stop-band attenuation
     /// * `f0` - center frequency
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new `Firfilt` object.
     pub fn new_notch(m: usize, as_: f32, f0: f32) -> Result<Self> {
         let h = fir_filter_design_notch(m, as_, f0)?;
@@ -361,9 +370,9 @@ where
     }
 
     /// set filter coefficients
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `h` - filter coefficients
     pub fn set_coefficients(&mut self, h: &[Coeff]) -> Result<()> {
         // aka recreate
@@ -387,18 +396,18 @@ where
     }
 
     /// push sample into filter object's internal buffer
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - single input sample
     pub fn push(&mut self, x: T) {
         self.w.push(x);
     }
 
     /// write block of samples into filter object's internal buffer
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - buffer of input samples
     pub fn write(&mut self, x: &[T]) {
         for x_i in x.iter() {
@@ -407,9 +416,9 @@ where
     }
 
     /// execute filter on internal buffer and coefficients
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The output sample
     pub fn execute(&self) -> T {
         let x = self.w.read();
@@ -418,13 +427,13 @@ where
     }
 
     /// execute filter on one sample, equivalent to push() and execute()
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - single input sample
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The output sample
     pub fn execute_one(&mut self, x: T) -> T {
         self.push(x);
@@ -438,7 +447,7 @@ where
     /// order, so results can differ by floating-point rounding.
     ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - buffer of input samples
     /// * `y` - buffer of output samples
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
@@ -463,49 +472,49 @@ where
     }
 
     /// set output scaling for filter
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `scale` - output scaling
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
     /// get output scaling for filter
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The output scaling
     pub fn get_scale(&self) -> Coeff {
         self.scale
     }
 
     /// get length of filter object (number of internal coefficients)
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The length of the filter
     pub fn get_length(&self) -> usize {
         self.h_len
     }
 
     /// get pointer to coefficients array
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The coefficients array
     pub fn get_coefficients(&self) -> &[Coeff] {
         &self.h
     }
 
     /// compute complex frequency response of filter object
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `fc` - normalized frequency for evaluation
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The frequency response
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         fir_filter_freqresponse(&self.h, self.scale, fc)
@@ -525,27 +534,26 @@ where
     }
 
     /// compute and return group delay of filter object
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `fc` - frequency to evaluate
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The group delay
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         fir_filter_groupdelay(&self.h, fc)
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::filter::fir::design::FirFilterShape;
+    use crate::utility::test_helpers::{validate_psd_firfilt, validate_psd_firfiltc, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
-    use crate::filter::fir::design::FirFilterShape;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_firfilt, validate_psd_firfiltc};
 
     #[test]
     #[autotest_annotate(autotest_firfilt_crcf_kaiser)]
@@ -555,12 +563,13 @@ mod tests {
         q.set_scale(0.4);
 
         // verify resulting spectrum
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,  fmax: -0.25, pmin: 0.0,  pmax: -60.0, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.15, fmax: 0.15,  pmin: -0.1, pmax: 0.1,   test_lo: true,  test_hi: true },
             PsdRegion { fmin: 0.25,  fmax: 0.5,   pmin: 0.0,  pmax: -60.0, test_lo: false, test_hi: true },
         ];
-        
+
         assert!(validate_psd_firfilt(&q, 1200, &regions).unwrap());
     }
 
@@ -572,6 +581,7 @@ mod tests {
         q.set_scale(0.4);
 
         // verify resulting spectrum
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,  fmax: -0.25, pmin: 0.0,  pmax: -60.0, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.15, fmax: 0.15,  pmin: -0.1, pmax: 0.1,   test_lo: true,  test_hi: true },
@@ -589,6 +599,7 @@ mod tests {
         q.set_scale(0.25);
 
         // verify resulting spectrum
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,  fmax: -0.20, pmin: 0.0, pmax: -10.0, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.12, fmax: 0.12,  pmin: -5.0, pmax: 1.0,  test_lo: true,  test_hi: true },
@@ -603,6 +614,7 @@ mod tests {
     fn test_firfilt_crcf_notch() {
         // design filter and verify resulting spectrum
         let q = FirFilter::<Complex32, f32>::new_notch(20, 60.0, 0.125).unwrap();
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,   fmax: -0.20,  pmin: -0.1, pmax: 0.1,  test_lo: true, test_hi: true },
             PsdRegion { fmin: -0.126, fmax: -0.124, pmin: 0.0,  pmax: -50.0, test_lo: false, test_hi: true },
@@ -619,6 +631,7 @@ mod tests {
     fn test_firfilt_cccf_notch() {
         // design filter and verify resulting spectrum
         let q = FirFilter::<Complex32, Complex32>::new_notch(20, 60.0, 0.125).unwrap();
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,   fmax: 0.06,   pmin: -0.1, pmax: 0.1,  test_lo: true, test_hi: true },
             PsdRegion { fmin: 0.124,  fmax: 0.126,  pmin: 0.0,  pmax: -50.0, test_lo: false, test_hi: true },
@@ -690,13 +703,13 @@ mod tests {
         }
 
         // re-create with longer coefficients array and test impulse response
-        let mut h2 = vec![0.0f32; 2*n+1]; // new random-ish coefficients
-        for i in 0..(2*n+1) {
+        let mut h2 = vec![0.0f32; 2 * n + 1]; // new random-ish coefficients
+        for i in 0..(2 * n + 1) {
             h2[i] = (0.2 * i as f32 + 1.0).cos() + (2.0f32.ln() * i as f32).sin();
         }
         q.set_coefficients(&h2).unwrap();
 
-        for i in 0..(2*n+1) {
+        for i in 0..(2 * n + 1) {
             q.push(Complex32::new(if i == 0 { 1.0 } else { 0.0 }, 0.0));
             let v = q.execute();
             // output is same as input, subject to scaling factor
@@ -739,9 +752,7 @@ mod tests {
         reference.set_scale(0.37);
         let mut block = reference.clone();
 
-        let x: Vec<_> = (0..257)
-            .map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos()))
-            .collect();
+        let x: Vec<_> = (0..257).map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos())).collect();
         let mut expected = vec![Complex32::new(0.0, 0.0); x.len()];
         let mut actual = vec![Complex32::new(0.0, 0.0); x.len()];
 
@@ -751,10 +762,7 @@ mod tests {
 
         let mut offset = 0;
         for &len in &[1, 7, 31, 3, 64, 151] {
-            block.execute_block(
-                &x[offset..offset + len],
-                &mut actual[offset..offset + len],
-            ).unwrap();
+            block.execute_block(&x[offset..offset + len], &mut actual[offset..offset + len]).unwrap();
             offset += len;
         }
 
@@ -813,8 +821,8 @@ mod tests {
     }
 
     fn firfilt_cccf_notch_test_harness(m: usize, as_: f32, f0: f32) {
-        let num_samples = 600;     // number of samples
-        let h_len = 2 * m + 1;  // filter length
+        let num_samples = 600; // number of samples
+        let h_len = 2 * m + 1; // filter length
 
         // design filter from prototype
         let mut q = FirFilter::<Complex32, Complex32>::new_notch(m, as_, f0).unwrap();
@@ -847,30 +855,42 @@ mod tests {
         // No need to explicitly destroy filter object in Rust
     }
 
-    // AUTOTESTS: 
+    // AUTOTESTS:
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_notch_0)]
-    fn test_firfilt_cccf_notch_0() { firfilt_cccf_notch_test_harness(20, 60.0, 0.000); }
+    fn test_firfilt_cccf_notch_0() {
+        firfilt_cccf_notch_test_harness(20, 60.0, 0.000);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_notch_1)]
-    fn test_firfilt_cccf_notch_1() { firfilt_cccf_notch_test_harness(20, 60.0, 0.100); }
+    fn test_firfilt_cccf_notch_1() {
+        firfilt_cccf_notch_test_harness(20, 60.0, 0.100);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_notch_2)]
-    fn test_firfilt_cccf_notch_2() { firfilt_cccf_notch_test_harness(20, 60.0, 0.456); }
+    fn test_firfilt_cccf_notch_2() {
+        firfilt_cccf_notch_test_harness(20, 60.0, 0.456);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_notch_3)]
-    fn test_firfilt_cccf_notch_3() { firfilt_cccf_notch_test_harness(20, 60.0, 0.500); }
+    fn test_firfilt_cccf_notch_3() {
+        firfilt_cccf_notch_test_harness(20, 60.0, 0.500);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_notch_4)]
-    fn test_firfilt_cccf_notch_4() { firfilt_cccf_notch_test_harness(20, 60.0, -0.250); }
+    fn test_firfilt_cccf_notch_4() {
+        firfilt_cccf_notch_test_harness(20, 60.0, -0.250);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_notch_5)]
-    fn test_firfilt_cccf_notch_5() { firfilt_cccf_notch_test_harness(20, 60.0, -0.389); }
+    fn test_firfilt_cccf_notch_5() {
+        firfilt_cccf_notch_test_harness(20, 60.0, -0.389);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_coefficients_test)]
@@ -909,11 +929,13 @@ mod tests {
         // No need to explicitly destroy filter object or free memory in Rust
     }
 
-    fn testbench_firfilt_rnyquist(ftype: FirFilterShape, // filter type
-                                  k: usize,             // samples/symbol
-                                  m: usize,             // semi-length
-                                  beta: f32,            // excess bandwidth factor
-                                  dt: f32)              // fractional delay
+    fn testbench_firfilt_rnyquist(
+        ftype: FirFilterShape, // filter type
+        k: usize,              // samples/symbol
+        m: usize,              // semi-length
+        beta: f32,             // excess bandwidth factor
+        dt: f32,
+    ) // fractional delay
     {
         // derived values
         let hc_len = 4 * k * m + 1; // composite filter length
@@ -937,7 +959,7 @@ mod tests {
         for i in 0..hc_len {
             let lag = i as i32 - (2 * k * m) as i32;
             hc[i] = filter::filter_crosscorr(&ht, &hr, lag as isize);
-        };
+        }
 
         // compute filter inter-symbol interference
         let rxx0 = hc[2 * k * m];
@@ -960,77 +982,112 @@ mod tests {
     // test different filter designs, nominal parameters
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_arkaiser)]
-    fn test_firfilt_rnyquist_baseline_arkaiser() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_arkaiser() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 9, 0.3, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_rkaiser)]
-    fn test_firfilt_rnyquist_baseline_rkaiser() { testbench_firfilt_rnyquist(FirFilterShape::Rkaiser, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_rkaiser() {
+        testbench_firfilt_rnyquist(FirFilterShape::Rkaiser, 2, 9, 0.3, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_rrc)]
-    fn test_firfilt_rnyquist_baseline_rrc() { testbench_firfilt_rnyquist(FirFilterShape::Rrcos, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_rrc() {
+        testbench_firfilt_rnyquist(FirFilterShape::Rrcos, 2, 9, 0.3, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_hm3)]
-    fn test_firfilt_rnyquist_baseline_hm3() { testbench_firfilt_rnyquist(FirFilterShape::Hm3, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_hm3() {
+        testbench_firfilt_rnyquist(FirFilterShape::Hm3, 2, 9, 0.3, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_gmsktxrx)]
-    fn test_firfilt_rnyquist_baseline_gmsktxrx() { testbench_firfilt_rnyquist(FirFilterShape::Gmsktx, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_gmsktxrx() {
+        testbench_firfilt_rnyquist(FirFilterShape::Gmsktx, 2, 9, 0.3, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_rfexp)]
-    fn test_firfilt_rnyquist_baseline_rfexp() { testbench_firfilt_rnyquist(FirFilterShape::Rfexp, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_rfexp() {
+        testbench_firfilt_rnyquist(FirFilterShape::Rfexp, 2, 9, 0.3, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_rfsech)]
-    fn test_firfilt_rnyquist_baseline_rfsech() { testbench_firfilt_rnyquist(FirFilterShape::Rfsech, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_rfsech() {
+        testbench_firfilt_rnyquist(FirFilterShape::Rfsech, 2, 9, 0.3, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_baseline_rfarcsech)]
-    fn test_firfilt_rnyquist_baseline_rfarcsech() { testbench_firfilt_rnyquist(FirFilterShape::Rfarcsech, 2, 9, 0.3, 0.0); }
+    fn test_firfilt_rnyquist_baseline_rfarcsech() {
+        testbench_firfilt_rnyquist(FirFilterShape::Rfarcsech, 2, 9, 0.3, 0.0);
+    }
 
     // test different parameters
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_0)]
-    fn test_firfilt_rnyquist_0() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 4, 0.33, 0.0); } // short length
+    fn test_firfilt_rnyquist_0() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 4, 0.33, 0.0);
+    } // short length
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_1)]
-    fn test_firfilt_rnyquist_1() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 12, 0.20, 0.0); } // longer length
+    fn test_firfilt_rnyquist_1() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 12, 0.20, 0.0);
+    } // longer length
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_2)]
-    fn test_firfilt_rnyquist_2() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 40, 0.20, 0.0); } // very long length
+    fn test_firfilt_rnyquist_2() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 40, 0.20, 0.0);
+    } // very long length
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_3)]
-    fn test_firfilt_rnyquist_3() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 3, 12, 0.20, 0.0); } // k=3
+    fn test_firfilt_rnyquist_3() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 3, 12, 0.20, 0.0);
+    } // k=3
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_4)]
-    fn test_firfilt_rnyquist_4() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 4, 12, 0.20, 0.0); } // k=4
+    fn test_firfilt_rnyquist_4() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 4, 12, 0.20, 0.0);
+    } // k=4
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_5)]
-    fn test_firfilt_rnyquist_5() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 5, 12, 0.20, 0.0); } // k=5
+    fn test_firfilt_rnyquist_5() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 5, 12, 0.20, 0.0);
+    } // k=5
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_6)]
-    fn test_firfilt_rnyquist_6() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 20, 12, 0.20, 0.0); } // k=20
+    fn test_firfilt_rnyquist_6() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 20, 12, 0.20, 0.0);
+    } // k=20
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_7)]
-    fn test_firfilt_rnyquist_7() { testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 12, 0.80, 0.0); } // large excess bandwidth
+    fn test_firfilt_rnyquist_7() {
+        testbench_firfilt_rnyquist(FirFilterShape::Arkaiser, 2, 12, 0.80, 0.0);
+    } // large excess bandwidth
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_8)]
-    fn test_firfilt_rnyquist_8() { testbench_firfilt_rnyquist(FirFilterShape::Rkaiser, 2, 12, 0.20, 0.5); } // iterative design, typical
+    fn test_firfilt_rnyquist_8() {
+        testbench_firfilt_rnyquist(FirFilterShape::Rkaiser, 2, 12, 0.20, 0.5);
+    } // iterative design, typical
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rnyquist_9)]
-    fn test_firfilt_rnyquist_9() { testbench_firfilt_rnyquist(FirFilterShape::Rkaiser, 20, 40, 0.20, 0.5); } // iterative design, stressed
-
+    fn test_firfilt_rnyquist_9() {
+        testbench_firfilt_rnyquist(FirFilterShape::Rkaiser, 20, 40, 0.20, 0.5);
+    } // iterative design, stressed
 
     #[test]
     #[autotest_annotate(autotest_fir_groupdelay_n3)]
@@ -1042,11 +1099,8 @@ mod tests {
 
         // create testing vectors
         let fc: [f32; 4] = [0.000, 0.125, 0.250, 0.375];
-        
-        let g0: [f32; 4] = [1.42857142857143,
-                            1.54756605839643,
-                            2.15384615384615,
-                            2.56861651421767];
+
+        let g0: [f32; 4] = [1.42857142857143, 1.54756605839643, 2.15384615384615, 2.56861651421767];
 
         // run tests
         for i in 0..4 {
@@ -1086,7 +1140,7 @@ mod tests {
         for (i, &x_i) in x.iter().enumerate() {
             q.push(x_i);
             y_test[i] = q.execute();
-            
+
             assert_abs_diff_eq!(y_test[i], y[i], epsilon = tol);
         }
     }
@@ -1111,7 +1165,7 @@ mod tests {
         for (i, &x_i) in x.iter().enumerate() {
             q.push(x_i);
             y_test[i] = q.execute();
-            
+
             assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
             assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
@@ -1137,7 +1191,7 @@ mod tests {
         for (i, &x_i) in x.iter().enumerate() {
             q.push(x_i);
             y_test[i] = q.execute();
-            
+
             assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
             assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
@@ -1146,120 +1200,72 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firfilt_rrrf_data_h4x8)]
     fn test_firfilt_rrrf_data_h4x8() {
-        firfilt_rrrf_test(
-            &FIRFILT_RRRF_DATA_H4X8_H,
-            &FIRFILT_RRRF_DATA_H4X8_X,
-            &FIRFILT_RRRF_DATA_H4X8_Y
-        );
+        firfilt_rrrf_test(&FIRFILT_RRRF_DATA_H4X8_H, &FIRFILT_RRRF_DATA_H4X8_X, &FIRFILT_RRRF_DATA_H4X8_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rrrf_data_h7x16)]
     fn test_firfilt_rrrf_data_h7x16() {
-        firfilt_rrrf_test(
-            &FIRFILT_RRRF_DATA_H7X16_H,
-            &FIRFILT_RRRF_DATA_H7X16_X,
-            &FIRFILT_RRRF_DATA_H7X16_Y
-        );
+        firfilt_rrrf_test(&FIRFILT_RRRF_DATA_H7X16_H, &FIRFILT_RRRF_DATA_H7X16_X, &FIRFILT_RRRF_DATA_H7X16_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rrrf_data_h13x32)]
     fn test_firfilt_rrrf_data_h13x32() {
-        firfilt_rrrf_test(
-            &FIRFILT_RRRF_DATA_H13X32_H,
-            &FIRFILT_RRRF_DATA_H13X32_X,
-            &FIRFILT_RRRF_DATA_H13X32_Y
-        );
+        firfilt_rrrf_test(&FIRFILT_RRRF_DATA_H13X32_H, &FIRFILT_RRRF_DATA_H13X32_X, &FIRFILT_RRRF_DATA_H13X32_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_rrrf_data_h23x64)]
     fn test_firfilt_rrrf_data_h23x64() {
-        firfilt_rrrf_test(
-            &FIRFILT_RRRF_DATA_H23X64_H,
-            &FIRFILT_RRRF_DATA_H23X64_X,
-            &FIRFILT_RRRF_DATA_H23X64_Y
-        );
+        firfilt_rrrf_test(&FIRFILT_RRRF_DATA_H23X64_H, &FIRFILT_RRRF_DATA_H23X64_X, &FIRFILT_RRRF_DATA_H23X64_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_crcf_data_h4x8)]
     fn test_firfilt_crcf_data_h4x8() {
-        firfilt_crcf_test(
-            &FIRFILT_CRCF_DATA_H4X8_H,
-            &FIRFILT_CRCF_DATA_H4X8_X,
-            &FIRFILT_CRCF_DATA_H4X8_Y
-        );
+        firfilt_crcf_test(&FIRFILT_CRCF_DATA_H4X8_H, &FIRFILT_CRCF_DATA_H4X8_X, &FIRFILT_CRCF_DATA_H4X8_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_crcf_data_h7x16)]
     fn test_firfilt_crcf_data_h7x16() {
-        firfilt_crcf_test(
-            &FIRFILT_CRCF_DATA_H7X16_H,
-            &FIRFILT_CRCF_DATA_H7X16_X,
-            &FIRFILT_CRCF_DATA_H7X16_Y
-        );
+        firfilt_crcf_test(&FIRFILT_CRCF_DATA_H7X16_H, &FIRFILT_CRCF_DATA_H7X16_X, &FIRFILT_CRCF_DATA_H7X16_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_crcf_data_h13x32)]
     fn test_firfilt_crcf_data_h13x32() {
-        firfilt_crcf_test(
-            &FIRFILT_CRCF_DATA_H13X32_H,
-            &FIRFILT_CRCF_DATA_H13X32_X,
-            &FIRFILT_CRCF_DATA_H13X32_Y
-        );
+        firfilt_crcf_test(&FIRFILT_CRCF_DATA_H13X32_H, &FIRFILT_CRCF_DATA_H13X32_X, &FIRFILT_CRCF_DATA_H13X32_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_crcf_data_h23x64)]
     fn test_firfilt_crcf_data_h23x64() {
-        firfilt_crcf_test(
-            &FIRFILT_CRCF_DATA_H23X64_H,
-            &FIRFILT_CRCF_DATA_H23X64_X,
-            &FIRFILT_CRCF_DATA_H23X64_Y
-        );
+        firfilt_crcf_test(&FIRFILT_CRCF_DATA_H23X64_H, &FIRFILT_CRCF_DATA_H23X64_X, &FIRFILT_CRCF_DATA_H23X64_Y);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_data_h4x8)]
     fn test_firfilt_cccf_data_h4x8() {
-        firfilt_cccf_test(
-            &FIRFILT_CCCF_DATA_H4X8_H,
-            &FIRFILT_CCCF_DATA_H4X8_X,
-            &FIRFILT_CCCF_DATA_H4X8_Y
-        );
+        firfilt_cccf_test(&FIRFILT_CCCF_DATA_H4X8_H, &FIRFILT_CCCF_DATA_H4X8_X, &FIRFILT_CCCF_DATA_H4X8_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_data_h7x16)]
     fn test_firfilt_cccf_data_h7x16() {
-        firfilt_cccf_test(
-            &FIRFILT_CCCF_DATA_H7X16_H,
-            &FIRFILT_CCCF_DATA_H7X16_X,
-            &FIRFILT_CCCF_DATA_H7X16_Y
-        );
+        firfilt_cccf_test(&FIRFILT_CCCF_DATA_H7X16_H, &FIRFILT_CCCF_DATA_H7X16_X, &FIRFILT_CCCF_DATA_H7X16_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_data_h13x32)]
     fn test_firfilt_cccf_data_h13x32() {
-        firfilt_cccf_test(
-            &FIRFILT_CCCF_DATA_H13X32_H,
-            &FIRFILT_CCCF_DATA_H13X32_X,
-            &FIRFILT_CCCF_DATA_H13X32_Y
-        );
+        firfilt_cccf_test(&FIRFILT_CCCF_DATA_H13X32_H, &FIRFILT_CCCF_DATA_H13X32_X, &FIRFILT_CCCF_DATA_H13X32_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_firfilt_cccf_data_h23x64)]
     fn test_firfilt_cccf_data_h23x64() {
-        firfilt_cccf_test(
-            &FIRFILT_CCCF_DATA_H23X64_H,
-            &FIRFILT_CCCF_DATA_H23X64_X,
-            &FIRFILT_CCCF_DATA_H23X64_Y
-        );
+        firfilt_cccf_test(&FIRFILT_CCCF_DATA_H23X64_H, &FIRFILT_CCCF_DATA_H23X64_X, &FIRFILT_CCCF_DATA_H23X64_Y);
     }
 }

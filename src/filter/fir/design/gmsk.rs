@@ -35,7 +35,7 @@ fn validate_gmsk_config(k: usize, m: usize, beta: f32, dt: f32) -> Result<usize>
 /// * `dt`     : fractional sample delay (-1 <= dt <= 1)
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     let h_len = validate_gmsk_config(k, m, beta, dt)?;
@@ -46,8 +46,7 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     for i in 0..h_len {
         let t = (i as f32 + dt) / k as f32 - m as f32;
 
-        h[i] = qf(2.0 * PI * beta * (t - 0.5) * c0) -
-               qf(2.0 * PI * beta * (t + 0.5) * c0);
+        h[i] = qf(2.0 * PI * beta * (t - 0.5) * c0) - qf(2.0 * PI * beta * (t + 0.5) * c0);
     }
 
     // normalize filter coefficients such that the filter's
@@ -72,7 +71,7 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
 /// * `dt`     : fractional sample delay (-1 <= dt <= 1)
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     let h_len = validate_gmsk_config(k, m, beta, dt)?;
@@ -80,12 +79,12 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     let bt = beta;
 
     // internal options
-    let beta = bt;                // prototype filter cut-off
-    let delta = 1e-3;             // filter design correction factor
-    let prototype = design::FirFilterShape::Kaiser;    // Nyquist prototype
+    let beta = bt; // prototype filter cut-off
+    let delta = 1e-3; // filter design correction factor
+    let prototype = design::FirFilterShape::Kaiser; // Nyquist prototype
 
     // arrays
-    let mut hr = vec![0.0; h_len];         // receive filter coefficients
+    let mut hr = vec![0.0; h_len]; // receive filter coefficients
 
     // design transmit filter
     let ht = fir_design_gmsktx(k, m, bt, 0.0)?;
@@ -95,15 +94,15 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     //
 
     // 'internal' arrays
-    let mut h_tx = vec![Complex32::new(0.0, 0.0); h_len];      // impulse response of transmit filter
-    let mut h_prime = vec![Complex32::new(0.0, 0.0); h_len];   // impulse response of 'prototype' filter
-    let mut g_prime = vec![Complex32::new(0.0, 0.0); h_len];   // impulse response of 'gain' filter
-    let mut h_hat = vec![Complex32::new(0.0, 0.0); h_len];     // impulse response of receive filter
-    
-    let mut h_freq_tx = vec![Complex32::new(0.0, 0.0); h_len];      // frequency response of transmit filter
-    let mut h_freq_prime = vec![Complex32::new(0.0, 0.0); h_len];   // frequency response of 'prototype' filter
-    let mut g_freq_prime = vec![Complex32::new(0.0, 0.0); h_len];   // frequency response of 'gain' filter
-    let mut h_freq_hat = vec![Complex32::new(0.0, 0.0); h_len];     // frequency response of receive filter
+    let mut h_tx = vec![Complex32::new(0.0, 0.0); h_len]; // impulse response of transmit filter
+    let mut h_prime = vec![Complex32::new(0.0, 0.0); h_len]; // impulse response of 'prototype' filter
+    let mut g_prime = vec![Complex32::new(0.0, 0.0); h_len]; // impulse response of 'gain' filter
+    let mut h_hat = vec![Complex32::new(0.0, 0.0); h_len]; // impulse response of receive filter
+
+    let mut h_freq_tx = vec![Complex32::new(0.0, 0.0); h_len]; // frequency response of transmit filter
+    let mut h_freq_prime = vec![Complex32::new(0.0, 0.0); h_len]; // frequency response of 'prototype' filter
+    let mut g_freq_prime = vec![Complex32::new(0.0, 0.0); h_len]; // frequency response of 'gain' filter
+    let mut h_freq_hat = vec![Complex32::new(0.0, 0.0); h_len]; // frequency response of receive filter
 
     // create 'prototype' matched filter
     let h_primef = design::fir_design_prototype(prototype, k, m, beta, 0.0)?;
@@ -140,7 +139,7 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
         // compute response necessary to yield prototype response (not exact, but close)
         h_freq_hat[i] = Complex32::new(
             (h_freq_prime[i].re - h_freq_prime_min + delta) / (h_freq_tx[i].re - h_freq_tx_min + delta),
-            0.0
+            0.0,
         );
 
         // include additional term to add stop-band suppression
@@ -151,11 +150,7 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     // receive response so the design procedure above can remain zero-phase.
     if dt != 0.0 {
         for i in 0..h_len {
-            let bin = if i <= h_len / 2 {
-                i as f32
-            } else {
-                i as f32 - h_len as f32
-            };
+            let bin = if i <= h_len / 2 { i as f32 } else { i as f32 - h_len as f32 };
             let phase = 2.0 * PI * bin * dt / h_len as f32;
             h_freq_hat[i] *= Complex32::from_polar(1.0, phase);
         }
@@ -183,8 +178,7 @@ mod tests {
 
     #[test]
     fn test_gmsk_filter_config() {
-        let designers: [fn(usize, usize, f32, f32) -> Result<Vec<f32>>; 2] =
-            [fir_design_gmsktx, fir_design_gmskrx];
+        let designers: [fn(usize, usize, f32, f32) -> Result<Vec<f32>>; 2] = [fir_design_gmsktx, fir_design_gmskrx];
 
         for design in designers {
             assert!(design(1, 3, 0.3, 0.0).is_err());
@@ -255,11 +249,7 @@ mod tests {
                 continue;
             }
 
-            let bin = if i <= y0.len() / 2 {
-                i as f32
-            } else {
-                i as f32 - y0.len() as f32
-            };
+            let bin = if i <= y0.len() / 2 { i as f32 } else { i as f32 - y0.len() as f32 };
             let phase = 2.0 * PI * bin * dt / y0.len() as f32;
             let expected = y0[i] * Complex32::from_polar(1.0, phase);
             assert_abs_diff_eq!(y1[i].re, expected.re, epsilon = 1e-4);

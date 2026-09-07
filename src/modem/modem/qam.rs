@@ -2,11 +2,11 @@ use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Qam {
-    m_i: usize,       // bits per symbol, in-phase
-    m_q: usize,       // bits per symbol, quadrature
-    m_i_dim: usize,   // in-phase dimension, M_i=2^{m_i}
-    m_q_dim: usize,   // quadrature dimension, M_q=2^{m_q}
-    alpha: f32,       // scaling factor to ensure unity energy
+    m_i: usize,     // bits per symbol, in-phase
+    m_q: usize,     // bits per symbol, quadrature
+    m_i_dim: usize, // in-phase dimension, M_i=2^{m_i}
+    m_q_dim: usize, // quadrature dimension, M_q=2^{m_q}
+    alpha: f32,     // scaling factor to ensure unity energy
 }
 
 impl Modem {
@@ -39,13 +39,7 @@ impl Modem {
         assert_eq!(m_i + m_q, bits_per_symbol);
         assert_eq!(m_i_dim * m_q_dim, modem.constellation_size);
 
-        let data = Qam {
-            m_i,
-            m_q,
-            m_i_dim,
-            m_q_dim,
-            alpha,
-        };
+        let data = Qam { m_i, m_q, m_i_dim, m_q_dim, alpha };
 
         modem.reference = Some([0.0; MAX_MOD_BITS_PER_SYMBOL]);
         let reference = modem.reference.as_mut().unwrap();
@@ -81,7 +75,7 @@ impl Modem {
             // compute output sample
             let y = Complex32::new(
                 (2 * s_i as i32 - qam.m_i_dim as i32 + 1) as f32 * qam.alpha,
-                (2 * s_q as i32 - qam.m_q_dim as i32 + 1) as f32 * qam.alpha
+                (2 * s_q as i32 - qam.m_q_dim as i32 + 1) as f32 * qam.alpha,
             );
             Ok(y)
         } else {

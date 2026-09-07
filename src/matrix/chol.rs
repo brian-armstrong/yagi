@@ -1,7 +1,7 @@
 use num_traits::{Float, Zero};
 
+use crate::error::{Error, Result};
 use crate::matrix::{matrix_access, matrix_access_mut, FloatComplex};
-use crate::error::{Result, Error};
 
 /// Compute Cholesky decomposition of a symmetric/Hermitian positive-
 /// definite matrix as A = L * L^T
@@ -19,10 +19,20 @@ where
         // Assert that a_jj is real, positive
         let a_jj = matrix_access(a, n, n, j, j);
         if a_jj.re() < T::Real::zero() {
-            return Err(Error::Value(format!("matrix_chol(), matrix is not positive definite (real{{A[{},{}]}} = {:e} < 0)", j, j, a_jj.re())));
+            return Err(Error::Value(format!(
+                "matrix_chol(), matrix is not positive definite (real{{A[{},{}]}} = {:e} < 0)",
+                j,
+                j,
+                a_jj.re()
+            )));
         }
         if T::is_complex() && Float::abs(a_jj.im()) > T::Real::zero() {
-            return Err(Error::Value(format!("matrix_chol(), matrix is not positive definite (|imag{{A[{},{}]}}| = {:e} > 0)", j, j, a_jj.im().abs())));
+            return Err(Error::Value(format!(
+                "matrix_chol(), matrix is not positive definite (|imag{{A[{},{}]}}| = {:e} > 0)",
+                j,
+                j,
+                a_jj.im().abs()
+            )));
         }
 
         // Compute l_jj and store it in output matrix
@@ -33,7 +43,13 @@ where
         }
         // Test to ensure a_jj > t0
         if a_jj.re() < t0.re() {
-            return Err(Error::Value(format!("matrix_chol(), matrix is not positive definite (real{{A[{},{}]}} = {:e} < {:e})", j, j, a_jj.re(), t0.re())));
+            return Err(Error::Value(format!(
+                "matrix_chol(), matrix is not positive definite (real{{A[{},{}]}} = {:e} < {:e})",
+                j,
+                j,
+                a_jj.re(),
+                t0.re()
+            )));
         }
 
         let l_jj = (a_jj - t0).sqrt();

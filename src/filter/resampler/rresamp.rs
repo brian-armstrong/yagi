@@ -1,6 +1,6 @@
-use crate::error::{Error, Result};
 use crate::dotprod::DotProd;
-use crate::filter::{self, FirPfbFilter, FirFilterShape};
+use crate::error::{Error, Result};
+use crate::filter::{self, FirFilterShape, FirPfbFilter};
 use crate::math::gcd;
 
 use num_complex::ComplexFloat;
@@ -33,13 +33,7 @@ where
 
         let pfb = FirPfbFilter::new(interp, h, 2 * interp * m)?;
 
-        let mut q = Self {
-            p: interp,
-            q: decim,
-            m,
-            block_len: 1,
-            pfb,
-        };
+        let mut q = Self { p: interp, q: decim, m, block_len: 1, pfb };
 
         q.reset();
         Ok(q)
@@ -51,7 +45,11 @@ where
         let decim = decim / gcd;
 
         let bw = if bw < 0.0 {
-            if interp > decim { 0.5 } else { 0.5 * interp as f32 / decim as f32 }
+            if interp > decim {
+                0.5
+            } else {
+                0.5 * interp as f32 / decim as f32
+            }
         } else if bw > 0.5 {
             return Err(Error::Config(format!("invalid bandwidth ({}), must be less than 0.5", bw)));
         } else {
@@ -200,20 +198,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
+    use crate::fft::spgram::Spgram;
+    use crate::framing::symstreamr::SymStreamR;
     use crate::math::{hamming, WindowType};
     use crate::modem::modem::ModulationScheme;
-    use crate::framing::symstreamr::SymStreamR;
-    use crate::fft::spgram::Spgram;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
+    use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
+    use test_macro::autotest_annotate;
 
     fn test_harness_rresamp_crcf_part(p: usize, q: usize, m: usize, n: usize) {
         // semi-fixed options
         let tol = 1e-12f32; // error tolerance (should be basically zero)
-        let bw = 0.5f32;    // resampling filter bandwidth
-        let as_ = 60.0f32;  // resampling filter stop-band attenuation [dB]
+        let bw = 0.5f32; // resampling filter bandwidth
+        let as_ = 60.0f32; // resampling filter stop-band attenuation [dB]
 
         // create two identical resampler objects
         let mut q0 = Rresamp::<Complex32>::new_kaiser(p, q, m, bw, as_).unwrap();
@@ -226,7 +224,8 @@ mod tests {
 
         // generate input signal (pulse, but can really be anything)
         for i in 0..(2 * q * n) {
-            buf_in[i] = hamming(i, 2 * q * n).unwrap() * num_complex::Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * 0.037 * i as f32);
+            buf_in[i] = hamming(i, 2 * q * n).unwrap()
+                * num_complex::Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * 0.037 * i as f32);
         }
 
         // run resampler normally in one large block (2*q*n inputs, 2*p*n outputs)
@@ -253,39 +252,45 @@ mod tests {
     // actual tests
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_part_P1_Q5)]
-    fn test_rresamp_crcf_part_p1_q5() { test_harness_rresamp_crcf_part(1, 5, 15, 20); }
+    fn test_rresamp_crcf_part_p1_q5() {
+        test_harness_rresamp_crcf_part(1, 5, 15, 20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_part_P2_Q5)]
-    fn test_rresamp_crcf_part_p2_q5() { test_harness_rresamp_crcf_part(2, 5, 15, 20); }
+    fn test_rresamp_crcf_part_p2_q5() {
+        test_harness_rresamp_crcf_part(2, 5, 15, 20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_part_P3_Q5)]
-    fn test_rresamp_crcf_part_p3_q5() { test_harness_rresamp_crcf_part(3, 5, 15, 20); }
+    fn test_rresamp_crcf_part_p3_q5() {
+        test_harness_rresamp_crcf_part(3, 5, 15, 20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_part_P6_Q5)]
-    fn test_rresamp_crcf_part_p6_q5() { test_harness_rresamp_crcf_part(6, 5, 15, 20); }
+    fn test_rresamp_crcf_part_p6_q5() {
+        test_harness_rresamp_crcf_part(6, 5, 15, 20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_part_P8_Q5)]
-    fn test_rresamp_crcf_part_p8_q5() { test_harness_rresamp_crcf_part(8, 5, 15, 20); }
+    fn test_rresamp_crcf_part_p8_q5() {
+        test_harness_rresamp_crcf_part(8, 5, 15, 20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_part_P9_Q5)]
-    fn test_rresamp_crcf_part_p9_q5() { test_harness_rresamp_crcf_part(9, 5, 15, 20); }
+    fn test_rresamp_crcf_part_p9_q5() {
+        test_harness_rresamp_crcf_part(9, 5, 15, 20);
+    }
 
-    fn test_rresamp_crcf(method: &str,
-                         interp: usize,
-                         decim: usize,
-                         m: usize,
-                         bw: f32,
-                         as_: f32)
-    {
+    fn test_rresamp_crcf(method: &str, interp: usize, decim: usize, m: usize, bw: f32, as_: f32) {
         // options
-        let n    = 800000; // number of output samples to analyze
-        let nfft = 800;    // number of bins in transform
-        let tol  = 0.5f32;   // error tolerance [dB]
+        let n = 800000; // number of output samples to analyze
+        let nfft = 800; // number of bins in transform
+        let tol = 0.5f32; // error tolerance [dB]
 
         // create resampler with rate interp/decim
         let mut resamp = match method {
@@ -302,9 +307,9 @@ mod tests {
 
         // create and configure objects
         let bw = 0.2f32; // target output bandwidth
-        let mut q   = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft/2, nfft/4).unwrap();
-        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, r*bw, 25, 0.2, ModulationScheme::Qpsk).unwrap();
-        gen.set_gain((bw*r).sqrt());
+        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
+        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, r * bw, 25, 0.2, ModulationScheme::Qpsk).unwrap();
+        gen.set_gain((bw * r).sqrt());
 
         // generate samples and push through spgram object
         let mut buf_0 = vec![num_complex::Complex32::new(0.0, 0.0); decim]; // input buffer
@@ -322,10 +327,11 @@ mod tests {
 
         // verify result
         let psd = q.get_psd();
+        #[rustfmt::skip]
         let regions = vec![
-            PsdRegion { fmin: -0.5,    fmax: -0.6*bw, pmin: 0.0,   pmax: -as_+tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -0.4*bw, fmax: 0.4*bw,  pmin: 0.0-tol, pmax: 0.0+tol, test_lo: true,  test_hi: true },
-            PsdRegion { fmin: 0.6*bw,  fmax: 0.5,     pmin: 0.0,   pmax: -as_+tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.5,    fmax: -0.6*bw, pmin:     0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.4*bw, fmax: 0.4*bw,  pmin: 0.0-tol, pmax:  0.0+tol, test_lo: true,  test_hi: true },
+            PsdRegion { fmin: 0.6*bw,  fmax: 0.5,     pmin:     0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
         ];
         assert!(validate_psd_spectrum(&psd, nfft, &regions).unwrap());
     }
@@ -333,69 +339,101 @@ mod tests {
     // baseline tests using create_kaiser() method
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_baseline_P1_Q5)]
-    fn test_rresamp_crcf_baseline_p1_q5() { test_rresamp_crcf("baseline", 1, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_baseline_p1_q5() {
+        test_rresamp_crcf("baseline", 1, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_baseline_P2_Q5)]
-    fn test_rresamp_crcf_baseline_p2_q5() { test_rresamp_crcf("baseline", 2, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_baseline_p2_q5() {
+        test_rresamp_crcf("baseline", 2, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_baseline_P3_Q5)]
-    fn test_rresamp_crcf_baseline_p3_q5() { test_rresamp_crcf("baseline", 3, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_baseline_p3_q5() {
+        test_rresamp_crcf("baseline", 3, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_baseline_P6_Q5)]
-    fn test_rresamp_crcf_baseline_p6_q5() { test_rresamp_crcf("baseline", 6, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_baseline_p6_q5() {
+        test_rresamp_crcf("baseline", 6, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_baseline_P8_Q5)]
-    fn test_rresamp_crcf_baseline_p8_q5() { test_rresamp_crcf("baseline", 8, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_baseline_p8_q5() {
+        test_rresamp_crcf("baseline", 8, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_baseline_P9_Q5)]
-    fn test_rresamp_crcf_baseline_p9_q5() { test_rresamp_crcf("baseline", 9, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_baseline_p9_q5() {
+        test_rresamp_crcf("baseline", 9, 5, 15, -1.0, 60.0);
+    }
 
     // tests using create_default() method
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_default_P1_Q5)]
-    fn test_rresamp_crcf_default_p1_q5() { test_rresamp_crcf("default", 1, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_default_p1_q5() {
+        test_rresamp_crcf("default", 1, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_default_P2_Q5)]
-    fn test_rresamp_crcf_default_p2_q5() { test_rresamp_crcf("default", 2, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_default_p2_q5() {
+        test_rresamp_crcf("default", 2, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_default_P3_Q5)]
-    fn test_rresamp_crcf_default_p3_q5() { test_rresamp_crcf("default", 3, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_default_p3_q5() {
+        test_rresamp_crcf("default", 3, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_default_P6_Q5)]
-    fn test_rresamp_crcf_default_p6_q5() { test_rresamp_crcf("default", 6, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_default_p6_q5() {
+        test_rresamp_crcf("default", 6, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_default_P8_Q5)]
-    fn test_rresamp_crcf_default_p8_q5() { test_rresamp_crcf("default", 8, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_default_p8_q5() {
+        test_rresamp_crcf("default", 8, 5, 15, -1.0, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_default_P9_Q5)]
-    fn test_rresamp_crcf_default_p9_q5() { test_rresamp_crcf("default", 9, 5, 15, -1.0, 60.0); }
+    fn test_rresamp_crcf_default_p9_q5() {
+        test_rresamp_crcf("default", 9, 5, 15, -1.0, 60.0);
+    }
 
     // tests using create_prototype() method
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_arkaiser_P3_Q5)]
-    fn test_rresamp_crcf_arkaiser_p3_q5() { test_rresamp_crcf("arkaiser", 3, 5, 40, 0.2, 50.0); }
+    fn test_rresamp_crcf_arkaiser_p3_q5() {
+        test_rresamp_crcf("arkaiser", 3, 5, 40, 0.2, 50.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_arkaiser_P5_Q3)]
-    fn test_rresamp_crcf_arkaiser_p5_q3() { test_rresamp_crcf("arkaiser", 5, 3, 40, 0.2, 50.0); }
+    fn test_rresamp_crcf_arkaiser_p5_q3() {
+        test_rresamp_crcf("arkaiser", 5, 3, 40, 0.2, 50.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_rrcos_P3_Q5)]
-    fn test_rresamp_crcf_rrcos_p3_q5() { test_rresamp_crcf("rrcos", 3, 5, 40, 0.2, 50.0); }
+    fn test_rresamp_crcf_rrcos_p3_q5() {
+        test_rresamp_crcf("rrcos", 3, 5, 40, 0.2, 50.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_rrcos_P5_Q3)]
-    fn test_rresamp_crcf_rrcos_p5_q3() { test_rresamp_crcf("rrcos", 5, 3, 40, 0.2, 50.0); }
+    fn test_rresamp_crcf_rrcos_p5_q3() {
+        test_rresamp_crcf("rrcos", 5, 3, 40, 0.2, 50.0);
+    }
 
     fn testbench_rresamp_crcf_num_output(interp: usize, decim: usize) {
         let mut resamp = Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap();
@@ -420,16 +458,24 @@ mod tests {
     }
 
     #[test]
-    fn test_rresamp_crcf_num_output_0() { testbench_rresamp_crcf_num_output(1, 5); }
+    fn test_rresamp_crcf_num_output_0() {
+        testbench_rresamp_crcf_num_output(1, 5);
+    }
 
     #[test]
-    fn test_rresamp_crcf_num_output_1() { testbench_rresamp_crcf_num_output(3, 5); }
+    fn test_rresamp_crcf_num_output_1() {
+        testbench_rresamp_crcf_num_output(3, 5);
+    }
 
     #[test]
-    fn test_rresamp_crcf_num_output_2() { testbench_rresamp_crcf_num_output(5, 3); }
+    fn test_rresamp_crcf_num_output_2() {
+        testbench_rresamp_crcf_num_output(5, 3);
+    }
 
     #[test]
-    fn test_rresamp_crcf_num_output_3() { testbench_rresamp_crcf_num_output(8, 5); }
+    fn test_rresamp_crcf_num_output_3() {
+        testbench_rresamp_crcf_num_output(8, 5);
+    }
 
     fn testbench_rresamp_crcf_max_input(interp: usize, decim: usize) {
         let resamp = Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap();
@@ -444,7 +490,11 @@ mod tests {
             assert!(
                 num_output <= output_limit,
                 "interp={}, decim={}, limit={}, max_input={}, num_output={}",
-                interp, decim, output_limit, max_input, num_output
+                interp,
+                decim,
+                output_limit,
+                max_input,
+                num_output
             );
 
             // verify that one more block would exceed the limit
@@ -453,20 +503,32 @@ mod tests {
             assert!(
                 next_output > output_limit,
                 "interp={}, decim={}, limit={}, next_input={}, next_output={}",
-                interp, decim, output_limit, next_input, next_output
+                interp,
+                decim,
+                output_limit,
+                next_input,
+                next_output
             );
         }
     }
 
     #[test]
-    fn test_rresamp_crcf_max_input_0() { testbench_rresamp_crcf_max_input(1, 5); }
+    fn test_rresamp_crcf_max_input_0() {
+        testbench_rresamp_crcf_max_input(1, 5);
+    }
 
     #[test]
-    fn test_rresamp_crcf_max_input_1() { testbench_rresamp_crcf_max_input(3, 5); }
+    fn test_rresamp_crcf_max_input_1() {
+        testbench_rresamp_crcf_max_input(3, 5);
+    }
 
     #[test]
-    fn test_rresamp_crcf_max_input_2() { testbench_rresamp_crcf_max_input(5, 3); }
+    fn test_rresamp_crcf_max_input_2() {
+        testbench_rresamp_crcf_max_input(5, 3);
+    }
 
     #[test]
-    fn test_rresamp_crcf_max_input_3() { testbench_rresamp_crcf_max_input(8, 5); }
+    fn test_rresamp_crcf_max_input_3() {
+        testbench_rresamp_crcf_max_input(8, 5);
+    }
 }

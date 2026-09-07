@@ -32,12 +32,7 @@ struct PacketizerPlan {
 ///  crc    :   error-detecting scheme
 ///  fec0   :   inner forward error-correction code
 ///  fec1   :   outer forward error-correction code
-pub fn packetizer_compute_enc_msg_len(
-    n: usize,
-    crc: CrcScheme,
-    fec0: FecScheme,
-    fec1: FecScheme,
-) -> usize {
+pub fn packetizer_compute_enc_msg_len(n: usize, crc: CrcScheme, fec0: FecScheme, fec1: FecScheme) -> usize {
     let k = n + crc.key_len();
     let n0 = fec0.enc_msg_len(k);
     fec1.enc_msg_len(n0)
@@ -52,12 +47,7 @@ pub fn packetizer_compute_enc_msg_len(
 ///  crc    :   error-detecting scheme
 ///  fec0   :   inner forward error-correction code
 ///  fec1   :   outer forward error-correction code
-pub fn packetizer_compute_dec_msg_len(
-    k: usize,
-    crc: CrcScheme,
-    fec0: FecScheme,
-    fec1: FecScheme,
-) -> Result<usize> {
+pub fn packetizer_compute_dec_msg_len(k: usize, crc: CrcScheme, fec0: FecScheme, fec1: FecScheme) -> Result<usize> {
     let mut n_hat = 0usize;
     let mut k_hat = 0usize;
 
@@ -106,10 +96,7 @@ fn interleaver_depth(fs: FecScheme) -> Result<usize> {
         // 2 is not supported. if we swapped the last two stages of the interleaver,
         //   we would get it, but then the interleaver would be incompat with liquid
         1 => Ok(4),
-        w => Err(Error::Config(format!(
-            "packetizer, interleaver cannot preserve {}-bit symbols",
-            w
-        ))),
+        w => Err(Error::Config(format!("packetizer, interleaver cannot preserve {}-bit symbols", w))),
     }
 }
 
@@ -159,21 +146,14 @@ impl Packetizer {
             // interleave no finer than this scheme's symbol
             q.set_depth(interleaver_depth(fs)?);
 
-            plan.push(PacketizerPlan {
-                fec_scheme: fs,
-                dec_msg_len,
-                enc_msg_len,
-                fec: f,
-                interleaver: q,
-            });
+            plan.push(PacketizerPlan { fec_scheme: fs, dec_msg_len, enc_msg_len, fec: f, interleaver: q });
 
             // update length
             n0 = enc_msg_len;
         }
 
-        let plan: [PacketizerPlan; PLAN_LEN] = plan
-            .try_into()
-            .map_err(|_| Error::Config("failed to build packetizer plan".into()))?;
+        let plan: [PacketizerPlan; PLAN_LEN] =
+            plan.try_into().map_err(|_| Error::Config("failed to build packetizer plan".into()))?;
 
         // allocate memory for buffers (scale by 8 for soft decoding)
         Ok(Self {
@@ -218,11 +198,7 @@ impl Packetizer {
     ///  pkt    :   encoded output message
     pub fn encode(&mut self, msg: &[u8], pkt: &mut [u8]) -> Result<()> {
         if msg.len() != self.msg_len {
-            return Err(Error::Config(format!(
-                "input message has wrong length: {} != {}",
-                msg.len(),
-                self.msg_len
-            )));
+            return Err(Error::Config(format!("input message has wrong length: {} != {}", msg.len(), self.msg_len)));
         }
 
         // copy input message to internal buffer[0]
@@ -232,7 +208,7 @@ impl Packetizer {
     }
 
     /// execute the packetizer on an all-zero message
-    /// 
+    ///
     /// pkt    :   encoded output message
     pub fn encode_zero(&mut self, pkt: &mut [u8]) -> Result<()> {
         // initialize with zeros
@@ -245,11 +221,7 @@ impl Packetizer {
     /// is already in buffer_0
     fn encode_buffered(&mut self, pkt: &mut [u8]) -> Result<()> {
         if pkt.len() < self.packet_len {
-            return Err(Error::Config(format!(
-                "output packet too short: {} < {}",
-                pkt.len(),
-                self.packet_len
-            )));
+            return Err(Error::Config(format!("output packet too short: {} < {}", pkt.len(), self.packet_len)));
         }
 
         // compute crc, append to buffer
@@ -269,14 +241,10 @@ impl Packetizer {
         for i in 0..PLAN_LEN {
             // run the encoder: buffer[0] > buffer[1]
             let plan = &mut self.plan[i];
-            plan.fec
-                .encode(&self.buffer_0[..plan.dec_msg_len], &mut self.buffer_1)?;
+            plan.fec.encode(&self.buffer_0[..plan.dec_msg_len], &mut self.buffer_1)?;
 
             // run the interleaver: buffer[1] > buffer[0]
-            plan.interleaver.encode(
-                &self.buffer_1[..plan.enc_msg_len],
-                &mut self.buffer_0[..plan.enc_msg_len],
-            );
+            plan.interleaver.encode(&self.buffer_1[..plan.enc_msg_len], &mut self.buffer_0[..plan.enc_msg_len]);
         }
 
         // copy result to output
@@ -291,18 +259,10 @@ impl Packetizer {
     ///  msg    :   decoded output message
     pub fn decode(&mut self, pkt: &[u8], msg: &mut [u8]) -> Result<bool> {
         if pkt.len() != self.packet_len {
-            return Err(Error::Config(format!(
-                "input packet has wrong length: {} != {}",
-                pkt.len(),
-                self.packet_len
-            )));
+            return Err(Error::Config(format!("input packet has wrong length: {} != {}", pkt.len(), self.packet_len)));
         }
         if msg.len() < self.msg_len {
-            return Err(Error::Config(format!(
-                "output message too short: {} < {}",
-                msg.len(),
-                self.msg_len
-            )));
+            return Err(Error::Config(format!("output message too short: {} < {}", msg.len(), self.msg_len)));
         }
 
         // copy coded message to internal buffer[0]
@@ -312,14 +272,10 @@ impl Packetizer {
         for i in (0..PLAN_LEN).rev() {
             // run the de-interleaver: buffer[0] > buffer[1]
             let plan = &mut self.plan[i];
-            plan.interleaver.decode(
-                &self.buffer_0[..plan.enc_msg_len],
-                &mut self.buffer_1[..plan.enc_msg_len],
-            );
+            plan.interleaver.decode(&self.buffer_0[..plan.enc_msg_len], &mut self.buffer_1[..plan.enc_msg_len]);
 
             // run the decoder: buffer[1] > buffer[0]
-            plan.fec
-                .decode(plan.dec_msg_len, &self.buffer_1, &mut self.buffer_0)?;
+            plan.fec.decode(plan.dec_msg_len, &self.buffer_1, &mut self.buffer_0)?;
         }
 
         Ok(self.finish_decode(msg))
@@ -338,11 +294,7 @@ impl Packetizer {
             )));
         }
         if msg.len() < self.msg_len {
-            return Err(Error::Config(format!(
-                "output message too short: {} < {}",
-                msg.len(),
-                self.msg_len
-            )));
+            return Err(Error::Config(format!("output message too short: {} < {}", msg.len(), self.msg_len)));
         }
 
         // copy coded message to internal buffer[0]
@@ -354,14 +306,11 @@ impl Packetizer {
 
         // run the de-interleaver: buffer[0] > buffer[1]
         let plan = &mut self.plan[1];
-        plan.interleaver.decode_soft(
-            &self.buffer_0[..8 * plan.enc_msg_len],
-            &mut self.buffer_1[..8 * plan.enc_msg_len],
-        );
+        plan.interleaver
+            .decode_soft(&self.buffer_0[..8 * plan.enc_msg_len], &mut self.buffer_1[..8 * plan.enc_msg_len]);
 
         // run the decoder: buffer[1] > buffer[0]
-        plan.fec
-            .decode_soft(plan.dec_msg_len, &self.buffer_1, &mut self.buffer_0)?;
+        plan.fec.decode_soft(plan.dec_msg_len, &self.buffer_1, &mut self.buffer_0)?;
 
         //
         // decode inner level using hard decoding
@@ -369,14 +318,10 @@ impl Packetizer {
 
         // run the de-interleaver: buffer[0] > buffer[1]
         let plan = &mut self.plan[0];
-        plan.interleaver.decode(
-            &self.buffer_0[..plan.enc_msg_len],
-            &mut self.buffer_1[..plan.enc_msg_len],
-        );
+        plan.interleaver.decode(&self.buffer_0[..plan.enc_msg_len], &mut self.buffer_1[..plan.enc_msg_len]);
 
         // run the decoder: buffer[1] > buffer[0]
-        plan.fec
-            .decode(plan.dec_msg_len, &self.buffer_1, &mut self.buffer_0)?;
+        plan.fec.decode(plan.dec_msg_len, &self.buffer_1, &mut self.buffer_0)?;
 
         Ok(self.finish_decode(msg))
     }
@@ -547,8 +492,7 @@ mod tests {
 
     #[test]
     fn test_packetizer_accessors() {
-        let p = Packetizer::new(57, CrcScheme::Crc16, FecScheme::Rep3, FecScheme::Golay2412)
-            .unwrap();
+        let p = Packetizer::new(57, CrcScheme::Crc16, FecScheme::Rep3, FecScheme::Golay2412).unwrap();
 
         assert_eq!(p.dec_msg_len(), 57);
         assert_eq!(p.crc(), CrcScheme::Crc16);
@@ -566,9 +510,8 @@ mod tests {
         let (fec0, fec1) = (FecScheme::Hamming128, FecScheme::Golay2412);
 
         // collect the lengths that are actually achievable
-        let achievable: std::collections::HashSet<usize> = (0..40)
-            .map(|n| packetizer_compute_enc_msg_len(n, crc, fec0, fec1))
-            .collect();
+        let achievable: std::collections::HashSet<usize> =
+            (0..40).map(|n| packetizer_compute_enc_msg_len(n, crc, fec0, fec1)).collect();
 
         let mut rejected = 0;
         for k in 1..120usize {
@@ -660,10 +603,7 @@ mod tests {
         if cfg!(feature = "liquid-quirks") {
             match result {
                 Err(_) => {}
-                Ok(crc_pass) => assert!(
-                    !crc_pass || msg_rx != msg_tx,
-                    "depth 4 should not survive an 8-byte burst"
-                ),
+                Ok(crc_pass) => assert!(!crc_pass || msg_rx != msg_tx, "depth 4 should not survive an 8-byte burst"),
             }
         } else {
             let crc_pass = result.expect("8-byte burst should be correctable at depth 1");
@@ -677,12 +617,7 @@ mod tests {
         let n = 64;
         let crc = CrcScheme::Crc32;
 
-        for fec0 in [
-            FecScheme::RsM8,
-            FecScheme::Hamming74,
-            FecScheme::Golay2412,
-            FecScheme::None,
-        ] {
+        for fec0 in [FecScheme::RsM8, FecScheme::Hamming74, FecScheme::Golay2412, FecScheme::None] {
             let pkt_len = packetizer_compute_enc_msg_len(n, crc, fec0, FecScheme::None);
             let mut p = Packetizer::new(n, crc, fec0, FecScheme::None).unwrap();
 
@@ -698,17 +633,13 @@ mod tests {
             }
 
             let mut msg_rx = vec![0xAAu8; n];
-            let crc_pass = p
-                .decode(&packet, &mut msg_rx)
-                .unwrap_or_else(|e| panic!("{fec0:?}: decode returned Err({e})"));
+            let crc_pass =
+                p.decode(&packet, &mut msg_rx).unwrap_or_else(|e| panic!("{fec0:?}: decode returned Err({e})"));
 
             assert!(!crc_pass, "{fec0:?}: crc should fail on a mangled packet");
 
             // and the payload buffer was actually written, not left untouched
-            assert!(
-                msg_rx.iter().any(|&b| b != 0xAA),
-                "{fec0:?}: decode left the output buffer untouched"
-            );
+            assert!(msg_rx.iter().any(|&b| b != 0xAA), "{fec0:?}: decode left the output buffer untouched");
         }
     }
 }

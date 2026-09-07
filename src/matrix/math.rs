@@ -1,5 +1,5 @@
-use crate::matrix::{matrix_access, matrix_inv, matrix_ludecomp_doolittle, FloatComplex};
 use crate::error::{Error, Result};
+use crate::matrix::{matrix_access, matrix_inv, matrix_ludecomp_doolittle, FloatComplex};
 
 /// Add elements of two matrices
 ///

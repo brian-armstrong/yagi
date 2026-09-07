@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
+use crate::filter::iir::design::{IirBandType, IirFilterShape, IirFormat};
 use crate::filter::iir::iirfilt::IirFilter;
-use crate::filter::iir::design::{IirFilterShape, IirBandType, IirFormat};
 
 use num_complex::Complex32;
 
@@ -25,11 +25,7 @@ impl IirHilbertFilter {
         let filt_0 = IirFilter::new_prototype(ftype, btype, format, n, fc, f0, ap, as_)?;
         let filt_1 = IirFilter::new_prototype(ftype, btype, format, n, fc, f0, ap, as_)?;
 
-        let mut q = Self {
-            filt_0,
-            filt_1,
-            state: 0,
-        };
+        let mut q = Self { filt_0, filt_1, state: 0 };
 
         q.reset();
         Ok(q)
@@ -58,22 +54,22 @@ impl IirHilbertFilter {
                 let yi = self.filt_0.execute(x);
                 let yq = self.filt_1.execute(0.0);
                 2.0 * Complex32::new(yi, yq)
-            },
+            }
             1 => {
                 let yi = self.filt_0.execute(0.0);
                 let yq = self.filt_1.execute(-x);
                 2.0 * Complex32::new(-yq, yi)
-            },
+            }
             2 => {
                 let yi = self.filt_0.execute(-x);
                 let yq = self.filt_1.execute(0.0);
                 2.0 * Complex32::new(-yi, -yq)
-            },
+            }
             3 => {
                 let yi = self.filt_0.execute(0.0);
                 let yq = self.filt_1.execute(x);
                 2.0 * Complex32::new(yq, -yi)
-            },
+            }
             _ => unreachable!(),
         };
 
@@ -93,22 +89,22 @@ impl IirHilbertFilter {
                 let yi = self.filt_0.execute(x.re);
                 let _yq = self.filt_1.execute(x.im);
                 yi
-            },
+            }
             1 => {
                 let _yi = self.filt_0.execute(x.im);
                 let yq = self.filt_1.execute(-x.re);
                 -yq
-            },
+            }
             2 => {
                 let yi = self.filt_0.execute(-x.re);
                 let _yq = self.filt_1.execute(-x.im);
                 -yi
-            },
+            }
             3 => {
                 let _yi = self.filt_0.execute(-x.im);
                 let yq = self.filt_1.execute(x.re);
                 yq
-            },
+            }
             _ => unreachable!(),
         };
 
@@ -167,25 +163,25 @@ impl IirHilbertFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use crate::filter;
     use crate::math::kaiser;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_signal, validate_psd_signalf};
+    use crate::utility::test_helpers::{validate_psd_signal, validate_psd_signalf, PsdRegion};
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_iirhilbf_interp_decim)]
     fn test_iirhilbf_interp_decim() {
-        let tol = 1.0;  // error tolerance [dB]
-        let bw = 0.4;   // pulse bandwidth
+        let tol = 1.0; // error tolerance [dB]
+        let bw = 0.4; // pulse bandwidth
         let as_ = 60.0; // transform stop-band suppression
-        let p = 40;     // pulse semi-length
-        let m = 5;      // Transform order
+        let p = 40; // pulse semi-length
+        let m = 5; // Transform order
 
         // create transform
         let mut q = IirHilbertFilter::new_default(m).unwrap();
         // q.print();
 
-        let h_len = 2 * p + 1;  // pulse length
+        let h_len = 2 * p + 1; // pulse length
         let num_samples = h_len + 2 * m + 8;
 
         let mut buf_0 = vec![Complex32::new(0.0, 0.0); num_samples];
@@ -209,6 +205,7 @@ mod tests {
         q.decim_execute_block(&buf_1, &mut buf_2);
 
         // verify input spectrum
+        #[rustfmt::skip]
         let regions_orig = vec![
             PsdRegion { fmin: -0.5,    fmax: -0.5*bw, pmin: 0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.3*bw, fmax: 0.3*bw,  pmin: -1.0, pmax: 1.0,     test_lo: true,  test_hi: true },
@@ -217,6 +214,7 @@ mod tests {
         assert!(validate_psd_signal(&buf_0, &regions_orig).unwrap());
 
         // verify interpolated spectrum
+        #[rustfmt::skip]
         let regions_interp = vec![
             PsdRegion { fmin: -0.5,           fmax: -0.25-0.25*bw, pmin: 0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.25-0.15*bw,  fmax: -0.25+0.15*bw, pmin: -1.0, pmax: 1.0,     test_lo: true,  test_hi: true },
@@ -233,13 +231,13 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_iirhilbf_filter)]
     fn test_iirhilbf_filter() {
-        let tol: f32 = 1.0;  // error tolerance [dB]
-        let bw: f32 = 0.2;   // pulse bandwidth
-        let f0: f32 = 0.3;   // pulse center frequency
-        let ft: f32 = -0.3;  // frequency of tone in lower half of band
+        let tol: f32 = 1.0; // error tolerance [dB]
+        let bw: f32 = 0.2; // pulse bandwidth
+        let f0: f32 = 0.3; // pulse center frequency
+        let ft: f32 = -0.3; // frequency of tone in lower half of band
         let as_: f32 = 60.0; // transform stop-band suppression
-        let p: usize = 50;   // pulse semi-length
-        let m: usize = 7;    // Transform order
+        let p: usize = 50; // pulse semi-length
+        let m: usize = 7; // Transform order
 
         // create transform
         let mut q = IirHilbertFilter::new_default(m).unwrap();
@@ -264,7 +262,8 @@ mod tests {
         }
         for i in 0..num_samples {
             buf_0[i] += if i < h_len {
-                1e-3 * kaiser(i, num_samples, 10.0).unwrap() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * ft * i as f32)
+                1e-3 * kaiser(i, num_samples, 10.0).unwrap()
+                    * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * ft * i as f32)
             } else {
                 Complex32::new(0.0, 0.0)
             };
@@ -288,6 +287,7 @@ mod tests {
         }
 
         // verify input spectrum
+        #[rustfmt::skip]
         let regions_orig = vec![
             PsdRegion { fmin: -0.5,       fmax: ft-0.03,   pmin: 0.0,  pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: ft-0.01,    fmax: ft+0.01,   pmin: -40.0,pmax: 0.0,      test_lo: true,  test_hi: false },
@@ -298,6 +298,7 @@ mod tests {
         assert!(validate_psd_signal(&buf_0, &regions_orig).unwrap());
 
         // verify interpolated spectrum
+        #[rustfmt::skip]
         let regions_c2r = vec![
             PsdRegion { fmin: -0.5,       fmax: -f0-0.5*bw, pmin: 0.0,  pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: -f0-0.3*bw, fmax: -f0+0.3*bw, pmin: -1.0, pmax: 1.0,      test_lo: true,  test_hi: true },
@@ -308,6 +309,7 @@ mod tests {
         assert!(validate_psd_signalf(&buf_1, &regions_c2r).unwrap());
 
         // verify decimated spectrum (using same regions as original)
+        #[rustfmt::skip]
         let regions_r2c = vec![
             PsdRegion { fmin: -0.5,       fmax: f0-0.5*bw, pmin: 0.0,  pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: f0-0.3*bw,  fmax: f0+0.3*bw, pmin: -1.0, pmax: 1.0,      test_lo: true,  test_hi: true },

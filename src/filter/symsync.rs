@@ -1,32 +1,31 @@
-use crate::error::{Error, Result};
 use crate::dotprod::DotProd;
-use crate::filter::{self, FirPfbFilter, FirFilterShape};
+use crate::error::{Error, Result};
 use crate::filter::iir::IirFilterSos;
+use crate::filter::{self, FirFilterShape, FirPfbFilter};
 use num_complex::ComplexFloat;
-
 
 #[derive(Clone, Debug)]
 pub struct Symsync<T> {
-    k: usize,           // samples/symbol (input)
-    k_out: usize,       // samples/symbol (output)
+    k: usize,     // samples/symbol (input)
+    k_out: usize, // samples/symbol (output)
 
-    npfb: usize,        // number of filters in symsync
-    mf: FirPfbFilter<T, f32>, // matched filter
-    dmf: FirPfbFilter<T, f32>,// derivative matched filter
-    b: usize,           // filterbank index
-    bf: f32,            // filterbank index (fractional)
-    tau: f32,           // fractional sample offset
-    tau_decim: f32,     // fractional sample offset (decimated)
+    npfb: usize,               // number of filters in symsync
+    mf: FirPfbFilter<T, f32>,  // matched filter
+    dmf: FirPfbFilter<T, f32>, // derivative matched filter
+    b: usize,                  // filterbank index
+    bf: f32,                   // filterbank index (fractional)
+    tau: f32,                  // fractional sample offset
+    tau_decim: f32,            // fractional sample offset (decimated)
 
-    rate: f32,          // internal resampling rate
-    del: f32,           // fractional delay step
+    rate: f32, // internal resampling rate
+    del: f32,  // fractional delay step
 
-    q: f32,             // timing error
-    q_hat: f32,         // filtered timing error
-    decim_counter: usize, // decimation counter
+    q: f32,                 // timing error
+    q_hat: f32,             // filtered timing error
+    decim_counter: usize,   // decimation counter
     pll: IirFilterSos<f32>, // loop filter
-    rate_adjustment: f32, // rate adjustment factor
-    is_locked: bool,    // synchronizer locked flag
+    rate_adjustment: f32,   // rate adjustment factor
+    is_locked: bool,        // synchronizer locked flag
 }
 
 impl<T> Symsync<T>
@@ -308,24 +307,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use num_complex::Complex32;
-    use crate::sequence::MSequence;
-    use crate::filter::FirInterpolationFilter;
     use crate::filter::resampler::resamp::Resamp;
+    use crate::filter::FirInterpolationFilter;
     use crate::random::randnf;
+    use crate::sequence::MSequence;
+    use num_complex::Complex32;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_symsync_copy)]
     fn test_symsync_copy() {
         // create base object
-        let mut q0 = Symsync::<Complex32>::new_rnyquist(
-            FirFilterShape::Arkaiser,
-            5,
-            7,
-            0.25,
-            64
-        ).unwrap();
+        let mut q0 = Symsync::<Complex32>::new_rnyquist(FirFilterShape::Arkaiser, 5, 7, 0.25, 64).unwrap();
         q0.set_lf_bw(0.02).unwrap();
 
         // run samples through filter
@@ -402,45 +395,45 @@ mod tests {
 
     fn symsync_crcf_test(method: &str, _k: usize, _m: usize, _beta: f32, _tau: f32, _rate: f32) {
         // options
-        let tol: f32 = 0.2;    // error tolerance
-        let k: usize = _k;      // samples/symbol (input)
-        let m: usize = _m;      // filter delay (symbols)
-        let beta: f32 = _beta;   // filter excess bandwidth factor
-        let num_filters: usize = 32;       // number of filters in the bank
+        let tol: f32 = 0.2; // error tolerance
+        let k: usize = _k; // samples/symbol (input)
+        let m: usize = _m; // filter delay (symbols)
+        let beta: f32 = _beta; // filter excess bandwidth factor
+        let num_filters: usize = 32; // number of filters in the bank
 
-        let num_symbols_init: usize = 200;  // number of initial symbols
-        let num_symbols_test: usize = 100;  // number of testing symbols
+        let num_symbols_init: usize = 200; // number of initial symbols
+        let num_symbols_test: usize = 100; // number of testing symbols
 
         // transmit filter type
-        let ftype_tx = if method == "rnyquist" {
-            FirFilterShape::Arkaiser
-        } else {
-            FirFilterShape::Kaiser
-        };
+        let ftype_tx = if method == "rnyquist" { FirFilterShape::Arkaiser } else { FirFilterShape::Kaiser };
 
-        let bt: f32 = 0.02;               // loop filter bandwidth
-        let mut tau: f32 = _tau;                // fractional symbol offset
-        let rate: f32 = _rate;               // resampled rate
+        let bt: f32 = 0.02; // loop filter bandwidth
+        let mut tau: f32 = _tau; // fractional symbol offset
+        let rate: f32 = _rate; // resampled rate
 
         // derived values
         let num_symbols = num_symbols_init + num_symbols_test;
         let num_samples = k * num_symbols;
         let num_samples_resamp = (num_samples as f32 * rate * 1.1).ceil() as u32 + 4;
-        
+
         // compute delay
-        while tau < 0.0 { tau += 1.0; }    // ensure positive tau
-        let g = k as f32 * tau;                // number of samples offset
-        let ds = g.floor() as i32;               // additional symbol delay
-        let mut dt = g - ds as f32;     // fractional sample offset
-        if dt > 0.5 {                // force dt to be in [0.5,0.5]
+        while tau < 0.0 {
+            // ensure positive tau
+            tau += 1.0;
+        }
+        let g = k as f32 * tau; // number of samples offset
+        let ds = g.floor() as i32; // additional symbol delay
+        let mut dt = g - ds as f32; // fractional sample offset
+        if dt > 0.5 {
+            // force dt to be in [0.5,0.5]
             dt -= 1.0;
         }
 
         // allocate arrays
-        let mut s = vec![Complex32::new(0.0, 0.0); num_symbols as usize];       // data symbols
-        let mut x = vec![Complex32::new(0.0, 0.0); num_samples as usize];       // interpolated samples
-        let mut y = vec![Complex32::new(0.0, 0.0); num_samples_resamp as usize];// resampled data (resamp_crcf)
-        let mut z = vec![Complex32::new(0.0, 0.0); num_symbols as usize + 64];  // synchronized symbols
+        let mut s = vec![Complex32::new(0.0, 0.0); num_symbols as usize]; // data symbols
+        let mut x = vec![Complex32::new(0.0, 0.0); num_samples as usize]; // interpolated samples
+        let mut y = vec![Complex32::new(0.0, 0.0); num_samples_resamp as usize]; // resampled data (resamp_crcf)
+        let mut z = vec![Complex32::new(0.0, 0.0); num_symbols as usize + 64]; // synchronized symbols
 
         // generate pseudo-random QPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
@@ -451,11 +444,11 @@ mod tests {
             let sq = ms.generate_symbol(1);
             s[i] = Complex32::new(
                 if si == 0 { 1.0 } else { -1.0 } * std::f32::consts::FRAC_1_SQRT_2,
-                if sq == 0 { 1.0 } else { -1.0 } * std::f32::consts::FRAC_1_SQRT_2
+                if sq == 0 { 1.0 } else { -1.0 } * std::f32::consts::FRAC_1_SQRT_2,
             );
         }
 
-        // 
+        //
         // create and run interpolator
         //
 
@@ -465,21 +458,21 @@ mod tests {
         // interpolate block of samples
         interp.execute_block(&s[..num_symbols as usize], &mut x[..num_samples as usize]).unwrap();
 
-        // 
+        //
         // run resampler
         //
 
         // create resampler
         let resamp_len = 10 * k; // resampling filter semi-length (filter delay)
-        let resamp_bw = 0.45;        // resampling filter bandwidth
-        let resamp_as = 60.0;        // resampling filter stop-band attenuation
-        let resamp_npfb = 64;  // number of filters in bank
+        let resamp_bw = 0.45; // resampling filter bandwidth
+        let resamp_as = 60.0; // resampling filter stop-band attenuation
+        let resamp_npfb = 64; // number of filters in bank
         let mut resamp = Resamp::<Complex32>::new(rate, resamp_len, resamp_bw, resamp_as, resamp_npfb).unwrap();
 
         // run resampler on block
         let ny = resamp.execute_block(&x[..num_samples as usize], &mut y[..]).unwrap();
 
-        // 
+        //
         // create and run symbol synchronizer
         //
 
@@ -504,7 +497,7 @@ mod tests {
         for i in (nz - num_symbols_test as usize)..nz {
             // compute error
             let err = (z[i] - s[i - delay as usize]).norm();
-            
+
             // assert that error is below tolerance
             assert!(err < tol, "Error {} exceeds tolerance {} at index {}", err, tol, i);
         }
@@ -513,82 +506,91 @@ mod tests {
     // autotest scenarios (root-Nyquist)
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_0)]
-    fn symsync_crcf_scenario_0() { symsync_crcf_test("rnyquist", 2, 7, 0.35,  0.00, 1.0    ); }
+    fn symsync_crcf_scenario_0() {
+        symsync_crcf_test("rnyquist", 2, 7, 0.35, 0.00, 1.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_1)]
-    fn symsync_crcf_scenario_1() { symsync_crcf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0    ); }
+    fn symsync_crcf_scenario_1() {
+        symsync_crcf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_2)]
-    fn symsync_crcf_scenario_2() { symsync_crcf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0001 ); }
+    fn symsync_crcf_scenario_2() {
+        symsync_crcf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0001);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_3)]
-    fn symsync_crcf_scenario_3() { symsync_crcf_test("rnyquist", 2, 7, 0.35, -0.25, 0.9999 ); }
+    fn symsync_crcf_scenario_3() {
+        symsync_crcf_test("rnyquist", 2, 7, 0.35, -0.25, 0.9999);
+    }
 
     // autotest scenarios (Nyquist)
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_4)]
-    fn symsync_crcf_scenario_4() { symsync_crcf_test("nyquist", 2, 7, 0.35,  0.00, 1.0    ); }
+    fn symsync_crcf_scenario_4() {
+        symsync_crcf_test("nyquist", 2, 7, 0.35, 0.00, 1.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_5)]
-    fn symsync_crcf_scenario_5() { symsync_crcf_test("nyquist", 2, 7, 0.35, -0.25, 1.0    ); }
+    fn symsync_crcf_scenario_5() {
+        symsync_crcf_test("nyquist", 2, 7, 0.35, -0.25, 1.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_6)]
-    fn symsync_crcf_scenario_6() { symsync_crcf_test("nyquist", 2, 7, 0.35, -0.25, 1.0001 ); }
+    fn symsync_crcf_scenario_6() {
+        symsync_crcf_test("nyquist", 2, 7, 0.35, -0.25, 1.0001);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_crcf_scenario_7)]
-    fn symsync_crcf_scenario_7() { symsync_crcf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999 ); }
+    fn symsync_crcf_scenario_7() {
+        symsync_crcf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999);
+    }
 
-    fn symsync_rrrf_test(method: &str,
-                         k: usize,
-                         m: usize,
-                         beta: f32,
-                         tau: f32,
-                         rate: f32,
-                         expected_rate: f32)
-    {
+    fn symsync_rrrf_test(method: &str, k: usize, m: usize, beta: f32, tau: f32, rate: f32, expected_rate: f32) {
         // options
-        let tol        = 0.20f32;   // error tolerance
-        let num_filters= 32;       // number of filters in the bank
+        let tol = 0.20f32; // error tolerance
+        let num_filters = 32; // number of filters in the bank
 
-        let num_symbols_init = 400;  // number of initial symbols
-        let num_symbols_test = 100;  // number of testing symbols
+        let num_symbols_init = 400; // number of initial symbols
+        let num_symbols_test = 100; // number of testing symbols
 
         // transmit filter type
-        let ftype_tx = if method == "rnyquist" {
-            FirFilterShape::Arkaiser
-        } else {
-            FirFilterShape::Kaiser
-        };
+        let ftype_tx = if method == "rnyquist" { FirFilterShape::Arkaiser } else { FirFilterShape::Kaiser };
 
-        let bt    = 0.01f32;               // loop filter bandwidth
-        let mut tau   = tau;                // fractional symbol offset
-        let rate  = rate;               // resampled rate
+        let bt = 0.01f32; // loop filter bandwidth
+        let mut tau = tau; // fractional symbol offset
+        let rate = rate; // resampled rate
 
         // derived values
         let num_symbols = num_symbols_init + num_symbols_test;
         let num_samples = k * num_symbols;
         let num_samples_resamp = (num_samples as f32 * rate * 1.1f32).ceil() as usize + 4;
-        
+
         // compute delay
-        while tau < 0.0 { tau += 1.0; }    // ensure positive tau
-        let g = k as f32 * tau;                // number of samples offset
-        let ds = g.floor() as i32;               // additional symbol delay
-        let mut dt = g - ds as f32;     // fractional sample offset
-        if dt > 0.5 {                // force dt to be in [0.5,0.5]
+        while tau < 0.0 {
+            // ensure positive tau
+            tau += 1.0;
+        }
+        let g = k as f32 * tau; // number of samples offset
+        let ds = g.floor() as i32; // additional symbol delay
+        let mut dt = g - ds as f32; // fractional sample offset
+        if dt > 0.5 {
+            // force dt to be in [0.5,0.5]
             dt -= 1.0;
         }
 
         // allocate arrays
-        let mut s = vec![0.0f32; num_symbols];           // data symbols
-        let mut x = vec![0.0f32; num_samples];           // interpolated samples
-        let mut y = vec![0.0f32; num_samples_resamp];    // resampled data (resamp_rrrf)
-        let mut z = vec![0.0f32; num_symbols + 64];      // synchronized symbols
+        let mut s = vec![0.0f32; num_symbols]; // data symbols
+        let mut x = vec![0.0f32; num_samples]; // interpolated samples
+        let mut y = vec![0.0f32; num_samples_resamp]; // resampled data (resamp_rrrf)
+        let mut z = vec![0.0f32; num_symbols + 64]; // synchronized symbols
 
         // generate pseudo-random BPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
@@ -598,7 +600,7 @@ mod tests {
             s[i] = if ms.generate_symbol(1) == 0 { 1.0 } else { -1.0 };
         }
 
-        // 
+        //
         // create and run interpolator
         //
 
@@ -608,21 +610,21 @@ mod tests {
         // interpolate block of samples
         interp.execute_block(&s[..num_symbols], &mut x).unwrap();
 
-        // 
+        //
         // run resampler
         //
 
         // create resampler
         let resamp_len = 10 * k; // resampling filter semi-length (filter delay)
-        let resamp_bw = 0.45f32;        // resampling filter bandwidth
-        let resamp_as = 60.0f32;        // resampling filter stop-band attenuation
-        let resamp_npfb = 64;  // number of filters in bank
+        let resamp_bw = 0.45f32; // resampling filter bandwidth
+        let resamp_as = 60.0f32; // resampling filter stop-band attenuation
+        let resamp_npfb = 64; // number of filters in bank
         let mut resamp = Resamp::<f32>::new(rate, resamp_len, resamp_bw, resamp_as, resamp_npfb).unwrap();
 
         // run resampler on block
         let ny = resamp.execute_block(&x[..num_samples], &mut y).unwrap();
 
-        // 
+        //
         // create and run symbol synchronizer
         //
 
@@ -650,7 +652,7 @@ mod tests {
         for i in (nz - num_symbols_test)..nz {
             // compute error
             let err = (z[i] - s[i - delay]).abs();
-            
+
             // assert that error is below tolerance
             assert!(err < tol, "Error {} exceeds tolerance {}", err, tol);
         }
@@ -659,63 +661,97 @@ mod tests {
     // autotest scenarios (root-Nyquist)
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_0)]
-    fn symsync_rrrf_scenario_0() { symsync_rrrf_test("rnyquist", 2, 7, 0.35,  0.00, 1.0, 2.0    ); }
+    fn symsync_rrrf_scenario_0() {
+        symsync_rrrf_test("rnyquist", 2, 7, 0.35, 0.00, 1.0, 2.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_1)]
-    fn symsync_rrrf_scenario_1() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0, 2.0    ); }
+    fn symsync_rrrf_scenario_1() {
+        symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0, 2.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_2)]
-    fn symsync_rrrf_scenario_2() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0 ); }
+    fn symsync_rrrf_scenario_2() {
+        symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_3)]
-    fn symsync_rrrf_scenario_3() { symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0 ); }
+    fn symsync_rrrf_scenario_3() {
+        symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0);
+    }
 
     // autotest scenarios (Nyquist)
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_4)]
-    fn symsync_rrrf_scenario_4() { symsync_rrrf_test("nyquist", 2, 7, 0.35,  0.00, 1.0, 2.0    ); }
+    fn symsync_rrrf_scenario_4() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, 0.00, 1.0, 2.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_5)]
-    fn symsync_rrrf_scenario_5() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0, 2.0    ); }
+    fn symsync_rrrf_scenario_5() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0, 2.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_6)]
-    fn symsync_rrrf_scenario_6() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0 ); }
+    fn symsync_rrrf_scenario_6() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_7)]
-    fn symsync_rrrf_scenario_7() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0 ); }
+    fn symsync_rrrf_scenario_7() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_8() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.996 ); }
+    fn symsync_rrrf_scenario_8() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.996);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_9() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.994 ); }
+    fn symsync_rrrf_scenario_9() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.994);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_10() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.998 ); }
+    fn symsync_rrrf_scenario_10() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.998);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_11() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.98 ); }
+    fn symsync_rrrf_scenario_11() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.98);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_12() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.981 ); }
+    fn symsync_rrrf_scenario_12() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.981);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_13() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.979 ); }
+    fn symsync_rrrf_scenario_13() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.979);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_14() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.96 ); }
+    fn symsync_rrrf_scenario_14() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.96);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_15() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.962 ); }
+    fn symsync_rrrf_scenario_15() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.962);
+    }
 
     #[test]
-    fn symsync_rrrf_scenario_16() { symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.958 ); }
+    fn symsync_rrrf_scenario_16() {
+        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.958);
+    }
 
     // Test that when rate < 1.0 (more outputs than inputs), execute returns an
     // error if the output buffer is too small, rather than panicking.
@@ -728,9 +764,7 @@ mod tests {
         assert!(sync.get_rate() < 1.0);
 
         // Input buffer with 100 samples
-        let x: Vec<Complex32> = (0..100)
-            .map(|i| Complex32::new(i as f32 * 0.1, 0.0))
-            .collect();
+        let x: Vec<Complex32> = (0..100).map(|i| Complex32::new(i as f32 * 0.1, 0.0)).collect();
 
         // Output buffer sized for normal decimation (1 output per 2 inputs = 50)
         // With rate=0.5, we'd get ~2 outputs per input, so 100 inputs -> ~200 outputs

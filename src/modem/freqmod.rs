@@ -4,20 +4,17 @@ use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
 pub struct Freqmod {
-    ref_: f32,         // phase reference: kf*2^16
-    sincos_table_len: usize,  // table length: 10 bits
-    sincos_table_phase: u16,  // accumulated phase: 16 bits
-    sincos_table: Vec<Complex32>,  // sin|cos look-up table: 2^10 entries
+    ref_: f32,                    // phase reference: kf*2^16
+    sincos_table_len: usize,      // table length: 10 bits
+    sincos_table_phase: u16,      // accumulated phase: 16 bits
+    sincos_table: Vec<Complex32>, // sin|cos look-up table: 2^10 entries
 }
 
 impl Freqmod {
     pub fn new(kf: f32) -> Result<Self> {
         // Validate input
         if kf <= 0.0 {
-            return Err(Error::Config(format!(
-                "modulation factor {:.4e} must be greater than 0",
-                kf
-            )));
+            return Err(Error::Config(format!("modulation factor {:.4e} must be greater than 0", kf)));
         }
 
         let mut q = Self {
@@ -45,9 +42,7 @@ impl Freqmod {
     pub fn modulate(&mut self, m: f32) -> Result<Complex32> {
         // Accumulate phase; this wraps around a 16-bit boundary and ensures
         // that negative numbers are mapped to positive numbers
-        self.sincos_table_phase = (self.sincos_table_phase as i32
-            + (1 << 16)
-            + (self.ref_ * m).round() as i32) as u16;
+        self.sincos_table_phase = (self.sincos_table_phase as i32 + (1 << 16) + (self.ref_ * m).round() as i32) as u16;
 
         // Compute table index: mask out 10 most significant bits with rounding
         // (adding 0x0020 effectively rounds to nearest value with 10 bits of precision)
@@ -59,9 +54,7 @@ impl Freqmod {
 
     pub fn modulate_block(&mut self, m: &[f32], s: &mut [Complex32]) -> Result<()> {
         if m.len() != s.len() {
-            return Err(Error::Range(
-                "input and output arrays must be same length".into()
-            ));
+            return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
         for (x, y) in m.iter().zip(s.iter_mut()) {

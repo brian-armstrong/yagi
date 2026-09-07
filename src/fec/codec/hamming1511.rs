@@ -121,16 +121,8 @@ mod tests {
             let enc = hamming1511_encode_symbol(sym);
             for bit in 0..15 {
                 let rec = enc ^ (1 << bit);
-                assert_eq!(
-                    hamming1511_decode_symbol(rec),
-                    sym,
-                    "symbol {:#05x} failed with bit {} flipped",
-                    sym,
-                    bit
-                );
+                assert_eq!(hamming1511_decode_symbol(rec), sym, "symbol {:#05x} failed with bit {} flipped", sym, bit);
             }
         }
     }
-
-
 }

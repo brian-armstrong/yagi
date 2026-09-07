@@ -1,5 +1,5 @@
+use crate::buffer::{WDelay, Window};
 use crate::error::{Error, Result};
-use crate::buffer::{Window, WDelay};
 use crate::filter;
 use num_complex::ComplexFloat;
 
@@ -19,7 +19,14 @@ pub struct Eqlms<T> {
 
 impl<T> Eqlms<T>
 where
-    T: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Default + std::iter::Sum + std::ops::Mul<f32, Output = T> + std::ops::Div<f32, Output = T>,
+    T: Clone
+        + Copy
+        + ComplexFloat<Real = f32>
+        + From<f32>
+        + Default
+        + std::iter::Sum
+        + std::ops::Mul<f32, Output = T>
+        + std::ops::Div<f32, Output = T>,
     f32: std::ops::Mul<T, Output = T>,
 {
     pub fn new(h: Option<&[T]>, h_len: usize) -> Result<Self> {
@@ -48,13 +55,7 @@ where
         Ok(q)
     }
 
-    pub fn new_rnyquist(
-        filter_type: filter::FirFilterShape,
-        k: usize,
-        m: usize,
-        beta: f32,
-        dt: f32,
-    ) -> Result<Self> {
+    pub fn new_rnyquist(filter_type: filter::FirFilterShape, k: usize, m: usize, beta: f32, dt: f32) -> Result<Self> {
         if k < 2 {
             return Err(Error::Config("samples/symbol must be greater than 1".into()));
         }
@@ -70,7 +71,7 @@ where
 
         let h_len = 2 * k * m + 1;
         let h = filter::fir_design_prototype(filter_type, k, m, beta, dt)?;
-        let hc: Vec<T> = h.iter().map(|&x| (x / k as f32).into() ).collect();
+        let hc: Vec<T> = h.iter().map(|&x| (x / k as f32).into()).collect();
 
         Self::new(Some(&hc), h_len)
     }
@@ -202,12 +203,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use crate::filter::{FirInterpolationFilter, FirFilter, FirFilterShape};
-    use crate::math::{sincf, hamming};
+    use crate::filter::{FirFilter, FirFilterShape, FirInterpolationFilter};
+    use crate::math::{hamming, sincf};
     use crate::modem::modem::{Modem, ModulationScheme};
     use crate::random::randnf;
     use num_complex::Complex;
+    use test_macro::autotest_annotate;
 
     #[allow(clippy::too_many_arguments)]
     fn testbench_eqlms(
@@ -223,7 +224,9 @@ mod tests {
     ) {
         //let tol = 0.025f32; // error tolerance
         let mut mod_ = Modem::new(ms).unwrap();
-        let mut interp = FirInterpolationFilter::<Complex<f32>, f32>::new_prototype(FirFilterShape::Arkaiser, k, m, beta, 0.0).unwrap();
+        let mut interp =
+            FirInterpolationFilter::<Complex<f32>, f32>::new_prototype(FirFilterShape::Arkaiser, k, m, beta, 0.0)
+                .unwrap();
 
         // create fixed channel filter
         let h = [
@@ -250,7 +253,8 @@ mod tests {
             1 => Eqlms::<Complex<f32>>::new_lowpass(2 * k * p + 1, 0.5 / (k as f32)),
             2 => Eqlms::<Complex<f32>>::new(Some(&hp), 2 * k * p + 1),
             _ => Eqlms::<Complex<f32>>::new(None, 2 * k * p + 1),
-        }.unwrap();
+        }
+        .unwrap();
         eq.set_bw(mu).unwrap();
 
         // run equalization
@@ -460,5 +464,4 @@ mod tests {
         let w1 = q1.get_coefficients();
         assert_eq!(w0, w1);
     }
-
 }

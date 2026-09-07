@@ -25,8 +25,8 @@
 //  [Janovetz:1998] J. Janovetz, online: http://www.janovetz.com/jake/
 
 use crate::error::{Error, Result};
-use std::cmp::max;
 use crate::math::{poly_fit_lagrange_barycentric, poly_val_lagrange_barycentric};
+use std::cmp::max;
 
 use super::estimate_req_filter_transition_bandwidth;
 
@@ -69,35 +69,35 @@ pub struct FirPmResponse {
 /// Parks-McClellan filter design object
 #[derive(Debug, Clone)]
 pub struct FirDesignPm {
-    h_len: usize,              // filter length
-    s: usize,                  // odd/even filter length
-    r: usize,                  // number of approximating functions
-    num_bands: usize,          // number of discrete bands
-    grid_size: usize,          // number of points on the grid
-    grid_density: usize,       // density of the grid
-    btype: FirPmBandType,      // band type
-    bands: Vec<f64>,           // bands array [size: 2*num_bands]
-    des: Vec<f64>,             // desired response [size: num_bands]
-    weights: Vec<f64>,         // weights [size: num_bands]
+    h_len: usize,                // filter length
+    s: usize,                    // odd/even filter length
+    r: usize,                    // number of approximating functions
+    num_bands: usize,            // number of discrete bands
+    grid_size: usize,            // number of points on the grid
+    grid_density: usize,         // density of the grid
+    btype: FirPmBandType,        // band type
+    bands: Vec<f64>,             // bands array [size: 2*num_bands]
+    des: Vec<f64>,               // desired response [size: num_bands]
+    weights: Vec<f64>,           // weights [size: num_bands]
     wtype: Vec<FirPmWeightType>, // weight type [size: num_bands]
-    f: Vec<f64>,               // frequencies, [0, 0.5]
-    d: Vec<f64>,               // desired response
-    w: Vec<f64>,               // weight
-    e: Vec<f64>,               // error
-    x: Vec<f64>,               // Chebyshev points : cos(2*pi*f)
-    alpha: Vec<f64>,           // Lagrange interpolating polynomial
-    c: Vec<f64>,               // interpolants
-    rho: f64,                  // extremal weighted error
-    iext: Vec<usize>,          // indices of extrema
-    num_exchanges: usize,      // number of changes in extrema
-    // fid: Option<std::fs::File>, // file for debugging
+    f: Vec<f64>,                 // frequencies, [0, 0.5]
+    d: Vec<f64>,                 // desired response
+    w: Vec<f64>,                 // weight
+    e: Vec<f64>,                 // error
+    x: Vec<f64>,                 // Chebyshev points : cos(2*pi*f)
+    alpha: Vec<f64>,             // Lagrange interpolating polynomial
+    c: Vec<f64>,                 // interpolants
+    rho: f64,                    // extremal weighted error
+    iext: Vec<usize>,            // indices of extrema
+    num_exchanges: usize,        // number of changes in extrema
+                                 // fid: Option<std::fs::File>, // file for debugging
 }
 
 impl FirDesignPm {
     /// create new Parks-McClellan filter design object
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `h_len` - filter length
     /// * `num_bands` - number of bands
     /// * `bands` - band edges, f in [0,0.5], [size: 2*num_bands]
@@ -105,9 +105,9 @@ impl FirDesignPm {
     /// * `weights` - response weighting, or unit weights if `None`, [size: num_bands]
     /// * `wtype` - weight types (e.g. `FirPmWeightType::Flat`) [size: num_bands]
     /// * `btype` - band type (e.g. `FirPmBandType::Bandpass`)
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new Parks-McClellan filter design object
     pub fn new(
         h_len: usize,
@@ -125,17 +125,17 @@ impl FirDesignPm {
     }
 
     /// create Parks-McClellan filter design object with user-defined response
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `h_len` - filter length
     /// * `num_bands` - number of bands
     /// * `bands` - band edges, f in [0,0.5], [size: 2*num_bands]
     /// * `btype` - band type (e.g. `FirPmBandType::Bandpass`)
     /// * `response` - user-defined response and weight function
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new Parks-McClellan filter design object
     pub fn new_with_response<F>(
         h_len: usize,
@@ -154,19 +154,19 @@ impl FirDesignPm {
     }
 
     /// execute filter design and return the filter coefficients
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A vec of filter coefficients
     pub fn execute(&mut self) -> Result<Vec<f32>> {
         self.execute_with_max_iterations(MAX_ITERATIONS)
     }
 
     fn execute_with_max_iterations(&mut self, max_iterations: usize) -> Result<Vec<f32>> {
-        // initial guess of extremal frequencies evenly spaced on F 
+        // initial guess of extremal frequencies evenly spaced on F
         // TODO : guarantee at least one extremal frequency lies in each band
-        for i in 0..self.r+1 {
-            self.iext[i] = (i * (self.grid_size-1)) / self.r;
+        for i in 0..self.r + 1 {
+            self.iext[i] = (i * (self.grid_size - 1)) / self.r;
         }
 
         // iterate over the Remez exchange algorithm
@@ -208,26 +208,17 @@ impl FirDesignPm {
             return Err(Error::Config("Invalid number of bands".to_string()));
         }
         if btype != FirPmBandType::Bandpass {
-            return Err(Error::Config(format!(
-                "Parks-McClellan filter type {btype:?} is not supported",
-            )));
+            return Err(Error::Config(format!("Parks-McClellan filter type {btype:?} is not supported",)));
         }
 
-        let num_band_edges = num_bands
-            .checked_mul(2)
-            .ok_or_else(|| Error::Config("Invalid number of bands".to_string()))?;
+        let num_band_edges =
+            num_bands.checked_mul(2).ok_or_else(|| Error::Config("Invalid number of bands".to_string()))?;
         if bands.len() != num_band_edges {
-            return Err(Error::Config(format!(
-                "Expected {num_band_edges} band edges, got {}",
-                bands.len(),
-            )));
+            return Err(Error::Config(format!("Expected {num_band_edges} band edges, got {}", bands.len(),)));
         }
         if let Some(des) = des {
             if des.len() != num_bands {
-                return Err(Error::Config(format!(
-                    "Expected {num_bands} desired responses, got {}",
-                    des.len(),
-                )));
+                return Err(Error::Config(format!("Expected {num_bands} desired responses, got {}", des.len(),)));
             }
             if des.iter().any(|value| !value.is_finite()) {
                 return Err(Error::Config("Desired responses must be finite".to_string()));
@@ -235,23 +226,15 @@ impl FirDesignPm {
         }
         if let Some(weights) = weights {
             if weights.len() != num_bands {
-                return Err(Error::Config(format!(
-                    "Expected {num_bands} weights, got {}",
-                    weights.len(),
-                )));
+                return Err(Error::Config(format!("Expected {num_bands} weights, got {}", weights.len(),)));
             }
             if weights.iter().any(|weight| !weight.is_finite() || *weight <= 0.0) {
-                return Err(Error::Config(
-                    "Weights must be finite and greater than zero".to_string(),
-                ));
+                return Err(Error::Config("Weights must be finite and greater than zero".to_string()));
             }
         }
         if let Some(wtype) = wtype {
             if wtype.len() != num_bands {
-                return Err(Error::Config(format!(
-                    "Expected {num_bands} weight types, got {}",
-                    wtype.len(),
-                )));
+                return Err(Error::Config(format!("Expected {num_bands} weight types, got {}", wtype.len(),)));
             }
         }
 
@@ -259,9 +242,7 @@ impl FirDesignPm {
         if bands.iter().any(|band| !band.is_finite() || *band < 0.0 || *band > 0.5)
             || bands.windows(2).any(|pair| pair[1] < pair[0])
         {
-            return Err(Error::Config(
-                "Bands must be finite, non-decreasing, and in [0, 0.5]".to_string(),
-            ));
+            return Err(Error::Config("Bands must be finite, non-decreasing, and in [0, 0.5]".to_string()));
         }
 
         // create object
@@ -274,8 +255,8 @@ impl FirDesignPm {
         let mut grid_size = 0;
         let df = 0.5 / (grid_density * r) as f64;
         for i in 0..num_bands {
-            let f0 = bands[2*i] as f64;
-            let f1 = bands[2*i+1] as f64;
+            let f0 = bands[2 * i] as f64;
+            let f1 = bands[2 * i + 1] as f64;
             grid_size += ((f1 - f0) / df + 1.0).floor() as usize;
         }
 
@@ -295,18 +276,18 @@ impl FirDesignPm {
             d: vec![0.0; grid_size],
             w: vec![0.0; grid_size],
             e: vec![0.0; grid_size],
-            x: vec![0.0; r+1],
-            alpha: vec![0.0; r+1],
-            c: vec![0.0; r+1],
+            x: vec![0.0; r + 1],
+            alpha: vec![0.0; r + 1],
+            c: vec![0.0; r + 1],
             rho: 0.0,
-            iext: vec![0; r+1],
+            iext: vec![0; r + 1],
             num_exchanges: 0,
         };
 
         // copy input arrays
         for i in 0..num_bands {
-            obj.bands[2*i] = bands[2*i] as f64;
-            obj.bands[2*i+1] = bands[2*i+1] as f64;
+            obj.bands[2 * i] = bands[2 * i] as f64;
+            obj.bands[2 * i + 1] = bands[2 * i + 1] as f64;
             if let Some(des) = des {
                 obj.des[i] = des[i] as f64;
             }
@@ -321,10 +302,7 @@ impl FirDesignPm {
         Ok(obj)
     }
 
-    fn create_grid(
-        &mut self,
-        mut response: Option<&mut dyn FnMut(f64) -> Result<FirPmResponse>>,
-    ) -> Result<()> {
+    fn create_grid(&mut self, mut response: Option<&mut dyn FnMut(f64) -> Result<FirPmResponse>>) -> Result<()> {
         // frequency step size
         let df = 0.5 / (self.grid_density * self.r) as f64;
 
@@ -336,17 +314,17 @@ impl FirDesignPm {
             let f0 = if i == 0 && self.btype != FirPmBandType::Bandpass {
                 // ensure first point is not zero for differentiator
                 // and Hilbert transforms due to transformation (below)
-                self.bands[2*i].max(df)
+                self.bands[2 * i].max(df)
             } else {
-                self.bands[2*i]
+                self.bands[2 * i]
             };
-            let f1 = self.bands[2*i+1];
+            let f1 = self.bands[2 * i + 1];
 
             let num_points = max(1, ((f1 - f0) / df + 0.5).floor() as usize);
 
             for j in 0..num_points {
                 self.f[n] = f0 + j as f64 * df;
-                
+
                 // compute desired response using function if provided
                 if let Some(response) = response.as_mut() {
                     let value = response(self.f[n])?;
@@ -380,7 +358,7 @@ impl FirDesignPm {
             }
 
             // force endpoint to be upper edge of frequency band
-            self.f[n-1] = f1;
+            self.f[n - 1] = f1;
         }
         self.grid_size = n;
 
@@ -415,17 +393,17 @@ impl FirDesignPm {
     /// compute interpolating polynomial
     fn compute_interp(&mut self) -> Result<()> {
         // compute Chebyshev points on F[iext[]] : cos(2*pi*f)
-        for i in 0..self.r+1 {
+        for i in 0..self.r + 1 {
             self.x[i] = (2.0 * std::f64::consts::PI * self.f[self.iext[i]]).cos();
         }
 
         // compute Lagrange interpolating polynomial
-        poly_fit_lagrange_barycentric(&self.x, self.r+1, &mut self.alpha);
-        
+        poly_fit_lagrange_barycentric(&self.x, self.r + 1, &mut self.alpha);
+
         // compute rho
-        let mut t0 = 0.0;  // numerator
-        let mut t1 = 0.0;  // denominator
-        for i in 0..self.r+1 {
+        let mut t0 = 0.0; // numerator
+        let mut t1 = 0.0; // denominator
+        for i in 0..self.r + 1 {
             t0 += self.alpha[i] * self.d[self.iext[i]];
             let sgn = if i % 2 == 1 { -1.0 } else { 1.0 };
             t1 += self.alpha[i] / self.w[self.iext[i]] * sgn;
@@ -433,7 +411,7 @@ impl FirDesignPm {
         self.rho = t0 / t1;
 
         // compute polynomial values (interpolants)
-        for i in 0..self.r+1 {
+        for i in 0..self.r + 1 {
             let sgn = if i % 2 == 1 { -1.0 } else { 1.0 };
             self.c[i] = self.d[self.iext[i]] - sgn * self.rho / self.w[self.iext[i]];
         }
@@ -443,7 +421,7 @@ impl FirDesignPm {
     fn compute_error(&mut self) -> Result<()> {
         for i in 0..self.grid_size {
             let xf = (2.0 * std::f64::consts::PI * self.f[i]).cos();
-            let h = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf, self.r+1);
+            let h = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf, self.r + 1);
             self.e[i] = self.w[i] * (self.d[i] - h);
         }
         Ok(())
@@ -453,7 +431,7 @@ impl FirDesignPm {
     /// TODO : return number of values which have changed (stopping criteria)
     fn iext_search(&mut self) -> Result<()> {
         // found extremal frequency indices
-        let nmax = 2*self.r + 2*self.num_bands; // max number of extremals
+        let nmax = 2 * self.r + 2 * self.num_bands; // max number of extremals
         let mut found_iext = vec![0; nmax];
         let mut num_found = 0;
 
@@ -462,9 +440,10 @@ impl FirDesignPm {
         num_found += 1;
 
         // search inside grid
-        for i in 1..self.grid_size-1 {
-            if ((self.e[i] >= 0.0) && (self.e[i-1] <= self.e[i]) && (self.e[i+1] <= self.e[i])) ||
-               ((self.e[i] < 0.0) && (self.e[i-1] >= self.e[i]) && (self.e[i+1] >= self.e[i])) {
+        for i in 1..self.grid_size - 1 {
+            if ((self.e[i] >= 0.0) && (self.e[i - 1] <= self.e[i]) && (self.e[i + 1] <= self.e[i]))
+                || ((self.e[i] < 0.0) && (self.e[i - 1] >= self.e[i]) && (self.e[i + 1] >= self.e[i]))
+            {
                 if num_found < nmax {
                     found_iext[num_found] = i;
                     num_found += 1;
@@ -474,11 +453,11 @@ impl FirDesignPm {
 
         // force f=0.5 into candidate set
         if num_found < nmax {
-            found_iext[num_found] = self.grid_size-1;
+            found_iext[num_found] = self.grid_size - 1;
             num_found += 1;
         }
 
-        if num_found < self.r+1 {
+        if num_found < self.r + 1 {
             // too few extremal frequencies found.  Theoretically, this
             // should never happen as the Chebyshev alternation theorem
             // guarantees at least r+1 extrema, however due to finite
@@ -497,7 +476,7 @@ impl FirDesignPm {
             let mut last_positive = self.e[found_iext[0]] > 0.0;
 
             //
-            let mut imin = 0;    // index of found_iext where _E is a minimum extreme
+            let mut imin = 0; // index of found_iext where _E is a minimum extreme
             let mut alternating_sign = true;
             for i in 1..num_found {
                 // update new minimum error extreme
@@ -514,22 +493,22 @@ impl FirDesignPm {
                 } else {
                     // found two extrema with non-alternating sign; delete
                     // the smaller of the two
-                    if self.e[found_iext[i]].abs() < self.e[found_iext[i-1]].abs() {
+                    if self.e[found_iext[i]].abs() < self.e[found_iext[i - 1]].abs() {
                         imin = i;
                     } else {
-                        imin = i-1;
+                        imin = i - 1;
                     }
                     alternating_sign = false;
                     break;
-                }   
+                }
             }
 
             //
             if alternating_sign && num_extra == 1 {
-                if self.e[found_iext[0]].abs() < self.e[found_iext[num_found-1]].abs() {
+                if self.e[found_iext[0]].abs() < self.e[found_iext[num_found - 1]].abs() {
                     imin = 0;
                 } else {
-                    imin = num_found-1;
+                    imin = num_found - 1;
                 }
             }
 
@@ -541,18 +520,18 @@ impl FirDesignPm {
             // starting at index imin+1. Do this after reducing
             // num_extra (the only valid slots).
             for i in imin..num_found {
-                found_iext[i] = found_iext[i+1];
+                found_iext[i] = found_iext[i + 1];
             }
         }
 
         // count number of changes
         self.num_exchanges = 0;
-        for i in 0..self.r+1 {
+        for i in 0..self.r + 1 {
             self.num_exchanges += if self.iext[i] == found_iext[i] { 0 } else { 1 };
         }
 
         // copy new values
-        for i in 0..self.r+1 {
+        for i in 0..self.r + 1 {
             self.iext[i] = found_iext[i];
         }
 
@@ -571,7 +550,7 @@ impl FirDesignPm {
         let tol = 1e-3f64;
         let mut emin = 0.0;
         let mut emax = 0.0;
-        for i in 0..self.r+1 {
+        for i in 0..self.r + 1 {
             let e = self.e[self.iext[i]].abs();
             if i == 0 || e < emin {
                 emin = e;
@@ -597,13 +576,13 @@ impl FirDesignPm {
 
         let mut h = vec![0.0f32; self.h_len];
 
-        // evaluate Lagrange polynomial on evenly spaced points 
+        // evaluate Lagrange polynomial on evenly spaced points
         let p = self.r - self.s + 1;
         let mut g = vec![0.0; p];
         for i in 0..p {
             let f = (i as f64) / (self.h_len as f64);
             let xf = (2.0 * std::f64::consts::PI * f).cos();
-            let cf = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf, self.r+1);
+            let cf = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf, self.r + 1);
 
             let g_val = if self.btype == FirPmBandType::Bandpass && self.s == 1 {
                 // odd filter length, even symmetry
@@ -632,28 +611,28 @@ impl FirDesignPm {
             // odd filter length, even symmetry
             for i in 0..self.h_len {
                 let mut v = g[0];
-                let f = ((i as f64) - (p-1) as f64 + 0.5 * (1.0 - self.s as f64)) / (self.h_len as f64);
+                let f = ((i as f64) - (p - 1) as f64 + 0.5 * (1.0 - self.s as f64)) / (self.h_len as f64);
                 for j in 1..self.r {
                     v += 2.0 * g[j] * (2.0 * std::f64::consts::PI * f * j as f64).cos();
                 }
                 h[i] = (v / (self.h_len as f64)) as f32;
-            }   
+            }
         } else if self.btype != FirPmBandType::Bandpass && self.s == 1 {
             // odd filter length, odd symmetry
             return Err(Error::Internal("Filter configuration not yet supported".to_string()));
         } else if self.btype != FirPmBandType::Bandpass && self.s == 0 {
             // even filter length, odd symmetry
             return Err(Error::Internal("Filter configuration not yet supported".to_string()));
-        }   
+        }
 
         Ok(h)
     }
 }
 
 /// Run filter design (full life cycle of object)
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `h_len` : length of filter (number of taps)
 /// * `num_bands` : number of frequency bands
 /// * `bands` : band edges, f in [0,0.5], [size: num_bands x 2]
@@ -661,40 +640,36 @@ impl FirDesignPm {
 /// * `weights` : response weighting, or unit weights if `None` [size: num_bands x 1]
 /// * `wtype` : weight types (e.g. `FirPmWeightType::Flat`) [size: num_bands x 1]
 /// * `btype` : band type (e.g. `FirPmBandType::Bandpass`)
-/// 
+///
 /// # Returns
-/// 
+///
 /// A vec of filter coefficients
 pub fn fir_design_pm(
-    h_len: usize, 
-    num_bands: usize, 
-    bands: &[f32], 
-    des: &[f32], 
-    weights: Option<&[f32]>, 
-    wtype: Option<&[FirPmWeightType]>, 
-    btype: FirPmBandType) -> Result<Vec<f32>> {
-
+    h_len: usize,
+    num_bands: usize,
+    bands: &[f32],
+    des: &[f32],
+    weights: Option<&[f32]>,
+    wtype: Option<&[FirPmWeightType]>,
+    btype: FirPmBandType,
+) -> Result<Vec<f32>> {
     let mut obj = FirDesignPm::new(h_len, num_bands, bands, des, weights, wtype, btype)?;
     obj.execute()
 }
 
 /// Run filter design for basic low-pass filter
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `n` : filter length, n > 0
 /// * `fc` : cutoff frequency, 0 < fc < 0.5
 /// * `as_` : stop-band attenuation \[dB\], as_ > 0
 /// * `mu` : fractional sample offset, -0.5 < mu < 0.5 \[ignored\]
-/// 
+///
 /// # Returns
-/// 
+///
 /// A vec of filter coefficients
-pub fn fir_design_pm_lowpass(
-    n: usize, 
-    fc: f32, 
-    as_: f32, 
-    mu: f32) -> Result<Vec<f32>> {
+pub fn fir_design_pm_lowpass(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32>> {
     if mu < -0.5 || mu > 0.5 {
         return Err(Error::Config("firdespm_lowpass(), mu (%12.4e) out of range [-0.5,0.5]".to_string()));
     }
@@ -719,13 +694,12 @@ pub fn fir_design_pm_lowpass(
     fir_design_pm(n, num_bands, &bands, &des, Some(&weights), Some(&wtype), btype)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
+    use crate::utility::test_helpers::{validate_psd_signalf, PsdRegion};
     use approx::assert_abs_diff_eq;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_signalf};
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_firdespm_bandpass_n24)]
@@ -742,32 +716,33 @@ mod tests {
         let tol = 1e-4f32;
 
         // Initialize pre-determined coefficient array
+        #[rustfmt::skip]
         let h0 = vec![
-            0.33740917e-2f32,
-            0.14938299e-1f32,
-            0.10569360e-1f32,
-            0.25415067e-2f32,
+             0.33740917e-2f32,
+             0.14938299e-1f32,
+             0.10569360e-1f32,
+             0.25415067e-2f32,
             -0.15929392e-1f32,
             -0.34085343e-1f32,
             -0.38112177e-1f32,
             -0.14629169e-1f32,
-            0.40089541e-1f32,
-            0.11540713e-0f32,
-            0.18850752e-0f32,
-            0.23354606e-0f32,
+             0.40089541e-1f32,
+             0.11540713e-0f32,
+             0.18850752e-0f32,
+             0.23354606e-0f32,
             // symmetry
-            0.23354606e-0f32,
-            0.18850752e-0f32,
-            0.11540713e-0f32,
-            0.40089541e-1f32,
+             0.23354606e-0f32,
+             0.18850752e-0f32,
+             0.11540713e-0f32,
+             0.40089541e-1f32,
             -0.14629169e-1f32,
             -0.38112177e-1f32,
             -0.34085343e-1f32,
             -0.15929392e-1f32,
-            0.25415067e-2f32,
-            0.10569360e-1f32,
-            0.14938299e-1f32,
-            0.33740917e-2f32,
+             0.25415067e-2f32,
+             0.10569360e-1f32,
+             0.14938299e-1f32,
+             0.33740917e-2f32,
         ];
 
         // Create filter
@@ -799,7 +774,7 @@ mod tests {
 
         // Initialize variables
         let n = 32;
-        let num_bands = 3;  
+        let num_bands = 3;
         let bands = vec![0.0f32, 0.1f32, 0.2f32, 0.35f32, 0.425f32, 0.5f32];
         let des = vec![0.0f32, 1.0f32, 0.0f32];
         let weights = vec![10.0f32, 1.0f32, 10.0f32];
@@ -807,7 +782,8 @@ mod tests {
         let tol = 1e-4f32;
 
         // Initialize pre-determined coefficient array
-        let h0 = vec![  
+        #[rustfmt::skip]
+        let h0 = vec![
             -0.57534121e-2f32,
              0.99027198e-3f32,
              0.75733545e-2f32,
@@ -815,7 +791,7 @@ mod tests {
              0.13960525e-1f32,
              0.22951469e-2f32,
             -0.19994067e-1f32,
-             0.71369560e-2f32,   
+             0.71369560e-2f32,
             -0.39657363e-1f32,
              0.11260114e-1f32,
              0.66233643e-1f32,
@@ -823,15 +799,15 @@ mod tests {
              0.85136133e-1f32,
             -0.12024993e+0f32,
             -0.29678577e+0f32,
-             0.30410917e+0f32,   
-             // symmetry
+             0.30410917e+0f32,
+            // symmetry
              0.30410917e+0f32,
             -0.29678577e+0f32,
             -0.12024993e+0f32,
              0.85136133e-1f32,
             -0.10497223e-1f32,
              0.66233643e-1f32,
-             0.11260114e-1f32,   
+             0.11260114e-1f32,
             -0.39657363e-1f32,
              0.71369560e-2f32,
             -0.19994067e-1f32,
@@ -839,7 +815,7 @@ mod tests {
              0.13960525e-1f32,
             -0.65141192e-2f32,
              0.75733545e-2f32,
-             0.99027198e-3f32,   
+             0.99027198e-3f32,
             -0.57534121e-2f32,
         ];
 
@@ -855,34 +831,27 @@ mod tests {
     #[autotest_annotate(autotest_firdespm_lowpass)]
     fn test_firdespm_lowpass() {
         // design filter
-        let n  = 51;
+        let n = 51;
         let fc = 0.2f32;
         let as_ = 60.0f32;
         let mu = 0.0f32;
         let h = fir_design_pm_lowpass(n, fc, as_, mu).unwrap();
 
         // verify resulting spectrum
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,  fmax: -0.25, pmin:  0.0,   pmax: -as_, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -0.15, fmax:  0.15, pmin: -0.02,  pmax: 0.02, test_lo: true, test_hi: true },
+            PsdRegion { fmin: -0.15, fmax:  0.15, pmin: -0.02,  pmax: 0.02, test_lo: true,  test_hi: true },
             PsdRegion { fmin:  0.25,  fmax: 0.5,  pmin:  0.0,   pmax: -as_, test_lo: false, test_hi: true },
         ];
-        
+
         assert!(validate_psd_signalf(&h, &regions).unwrap());
     }
 
     fn firdespm_response_helper(frequency: f64) -> Result<FirPmResponse> {
         Ok(FirPmResponse {
-            desired: if frequency < 0.39 {
-                (20.0 * frequency.abs()).exp()
-            } else {
-                0.0
-            },
-            weight: if frequency < 0.39 {
-                (-10.0 * frequency).exp()
-            } else {
-                1.0
-            },
+            desired: if frequency < 0.39 { (20.0 * frequency.abs()).exp() } else { 0.0 },
+            weight: if frequency < 0.39 { (-10.0 * frequency).exp() } else { 1.0 },
         })
     }
 
@@ -901,11 +870,13 @@ mod tests {
             assert_eq!(captured_value, 42);
             num_calls += 1;
             firdespm_response_helper(frequency)
-        }).unwrap();
+        })
+        .unwrap();
         assert!(num_calls > 0);
         let h = q.execute().unwrap();
 
         // verify resulting spectrum
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.50,  fmax: -0.40, pmin:  0.0, pmax: -20.0, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.36,  fmax: -0.30, pmin: 52.0, pmax:  62.0, test_lo: true,  test_hi: true },
@@ -924,9 +895,9 @@ mod tests {
     #[autotest_annotate(autotest_firdespm_copy)]
     fn test_firdespm_copy() {
         // create valid object
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5]; // regions
+        let des = vec![1.0f32, 0.0]; // desired values
+        let w = vec![1.0f32, 1.0]; // weights
         let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
         let mut q0 = FirDesignPm::new(51, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).unwrap();
 
@@ -960,9 +931,9 @@ mod tests {
 
         // create valid object
         // skipping a print test
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5]; // regions
+        let des = vec![1.0f32, 0.0]; // desired values
+        let w = vec![1.0f32, 1.0]; // weights
         let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
         // let q = FirdesPm::new(51, 2, &bands, &des, Some(&w), Some(&wtype), BandType::Bandpass).unwrap();
         // assert!(q.print().is_ok());
@@ -970,7 +941,7 @@ mod tests {
         // invalid bands & weights
         let bands_0 = vec![0.0f32, 0.3, 0.2, 0.5]; // overlapping bands
         let bands_1 = vec![-0.1f32, 0.0, 0.3, 0.6]; // bands out of range
-        let w_0 = vec![1.0f32, -1.0];           // weights out of range
+        let w_0 = vec![1.0f32, -1.0]; // weights out of range
 
         // try to create regular object with invalid configuration
         assert!(FirDesignPm::new(0, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
@@ -980,19 +951,27 @@ mod tests {
         assert!(FirDesignPm::new(51, 2, &bands, &des, Some(&w_0), Some(&wtype), FirPmBandType::Bandpass).is_err());
 
         // try to create response object with invalid configuration
-        assert!(FirDesignPm::new_with_response(0, 2, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
-        assert!(FirDesignPm::new_with_response(51, 0, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
-        assert!(FirDesignPm::new_with_response(51, 2, &bands_0, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
-        assert!(FirDesignPm::new_with_response(51, 2, &bands_1, FirPmBandType::Bandpass, firdespm_response_helper).is_err());
+        assert!(
+            FirDesignPm::new_with_response(0, 2, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
+        );
+        assert!(
+            FirDesignPm::new_with_response(51, 0, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
+        );
+        assert!(
+            FirDesignPm::new_with_response(51, 2, &bands_0, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
+        );
+        assert!(
+            FirDesignPm::new_with_response(51, 2, &bands_1, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
+        );
     }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_differentiator)]
     fn test_firdespm_differentiator() {
         let n = 51;
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5]; // regions
+        let des = vec![1.0f32, 0.0]; // desired values
+        let w = vec![1.0f32, 1.0]; // weights
         let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
         let btype = FirPmBandType::Differentiator;
         let result = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
@@ -1004,9 +983,9 @@ mod tests {
     #[autotest_annotate(autotest_firdespm_hilbert)]
     fn test_firdespm_hilbert() {
         let n = 51;
-        let bands = vec![0.0f32, 0.2, 0.3, 0.5];  // regions
-        let des = vec![1.0f32, 0.0];              // desired values
-        let w = vec![1.0f32, 1.0];                // weights
+        let bands = vec![0.0f32, 0.2, 0.3, 0.5]; // regions
+        let des = vec![1.0f32, 0.0]; // desired values
+        let w = vec![1.0f32, 1.0]; // weights
         let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
         let btype = FirPmBandType::Hilbert;
         let result = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
@@ -1017,13 +996,7 @@ mod tests {
     fn test_firdespm_response_error() {
         let bands = [0.0, 0.35, 0.4, 0.5];
         let error = Error::Value("response failed".into());
-        let result = FirDesignPm::new_with_response(
-            81,
-            2,
-            &bands,
-            FirPmBandType::Bandpass,
-            |_| Err(error.clone()),
-        );
+        let result = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| Err(error.clone()));
 
         assert_eq!(result.unwrap_err(), error);
     }
@@ -1031,27 +1004,15 @@ mod tests {
     #[test]
     fn test_firdespm_rejects_invalid_response_values() {
         let bands = [0.0, 0.35, 0.4, 0.5];
-        let invalid_desired = FirDesignPm::new_with_response(
-            81,
-            2,
-            &bands,
-            FirPmBandType::Bandpass,
-            |_| Ok(FirPmResponse { desired: f64::NAN, weight: 1.0 }),
-        );
-        let non_finite_weight = FirDesignPm::new_with_response(
-            81,
-            2,
-            &bands,
-            FirPmBandType::Bandpass,
-            |_| Ok(FirPmResponse { desired: 1.0, weight: f64::INFINITY }),
-        );
-        let non_positive_weight = FirDesignPm::new_with_response(
-            81,
-            2,
-            &bands,
-            FirPmBandType::Bandpass,
-            |_| Ok(FirPmResponse { desired: 1.0, weight: 0.0 }),
-        );
+        let invalid_desired = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
+            Ok(FirPmResponse { desired: f64::NAN, weight: 1.0 })
+        });
+        let non_finite_weight = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
+            Ok(FirPmResponse { desired: 1.0, weight: f64::INFINITY })
+        });
+        let non_positive_weight = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
+            Ok(FirPmResponse { desired: 1.0, weight: 0.0 })
+        });
 
         assert!(matches!(invalid_desired, Err(Error::Value(_))));
         assert!(matches!(non_finite_weight, Err(Error::Value(_))));
@@ -1067,28 +1028,14 @@ mod tests {
         let wtype = [FirPmWeightType::Flat, FirPmWeightType::Flat];
         let btype = FirPmBandType::Bandpass;
 
-        let short_bands = FirDesignPm::new(
-            51, 2, &bands[..3], &des, Some(&weights), Some(&wtype), btype,
-        );
-        let long_bands = FirDesignPm::new(
-            51, 2, &extra_bands, &des, Some(&weights), Some(&wtype), btype,
-        );
-        let short_des = FirDesignPm::new(
-            51, 2, &bands, &des[..1], Some(&weights), Some(&wtype), btype,
-        );
-        let short_weights = FirDesignPm::new(
-            51, 2, &bands, &des, Some(&weights[..1]), Some(&wtype), btype,
-        );
-        let short_wtype = FirDesignPm::new(
-            51, 2, &bands, &des, Some(&weights), Some(&wtype[..1]), btype,
-        );
-        let response_short_bands = FirDesignPm::new_with_response(
-            51,
-            2,
-            &bands[..3],
-            btype,
-            |_| Ok(FirPmResponse { desired: 1.0, weight: 1.0 }),
-        );
+        let short_bands = FirDesignPm::new(51, 2, &bands[..3], &des, Some(&weights), Some(&wtype), btype);
+        let long_bands = FirDesignPm::new(51, 2, &extra_bands, &des, Some(&weights), Some(&wtype), btype);
+        let short_des = FirDesignPm::new(51, 2, &bands, &des[..1], Some(&weights), Some(&wtype), btype);
+        let short_weights = FirDesignPm::new(51, 2, &bands, &des, Some(&weights[..1]), Some(&wtype), btype);
+        let short_wtype = FirDesignPm::new(51, 2, &bands, &des, Some(&weights), Some(&wtype[..1]), btype);
+        let response_short_bands = FirDesignPm::new_with_response(51, 2, &bands[..3], btype, |_| {
+            Ok(FirPmResponse { desired: 1.0, weight: 1.0 })
+        });
 
         assert!(matches!(short_bands, Err(Error::Config(_))));
         assert!(matches!(long_bands, Err(Error::Config(_))));
@@ -1108,36 +1055,23 @@ mod tests {
         let invalid_weights = [1.0, f32::NAN];
         let btype = FirPmBandType::Bandpass;
 
-        let bands_result = FirDesignPm::new(
-            51, 2, &invalid_bands, &des, Some(&weights), None, btype,
-        );
-        let des_result = FirDesignPm::new(
-            51, 2, &bands, &invalid_des, Some(&weights), None, btype,
-        );
-        let weights_result = FirDesignPm::new(
-            51, 2, &bands, &des, Some(&invalid_weights), None, btype,
-        );
+        let bands_result = FirDesignPm::new(51, 2, &invalid_bands, &des, Some(&weights), None, btype);
+        let des_result = FirDesignPm::new(51, 2, &bands, &invalid_des, Some(&weights), None, btype);
+        let weights_result = FirDesignPm::new(51, 2, &bands, &des, Some(&invalid_weights), None, btype);
 
         assert!(matches!(bands_result, Err(Error::Config(_))));
         assert!(matches!(des_result, Err(Error::Config(_))));
         assert!(matches!(weights_result, Err(Error::Config(_))));
     }
 
-
     #[test]
     fn test_firdespm_unsupported_response_does_not_invoke_callback() {
         let bands = [0.0, 0.2, 0.3, 0.5];
         let mut callback_invoked = false;
-        let result = FirDesignPm::new_with_response(
-            51,
-            2,
-            &bands,
-            FirPmBandType::Hilbert,
-            |_| {
-                callback_invoked = true;
-                Ok(FirPmResponse { desired: 1.0, weight: 1.0 })
-            },
-        );
+        let result = FirDesignPm::new_with_response(51, 2, &bands, FirPmBandType::Hilbert, |_| {
+            callback_invoked = true;
+            Ok(FirPmResponse { desired: 1.0, weight: 1.0 })
+        });
 
         assert!(matches!(result, Err(Error::Config(_))));
         assert!(!callback_invoked);
@@ -1148,20 +1082,9 @@ mod tests {
         let bands = [0.0, 0.08, 0.16, 0.5];
         let des = [1.0, 0.0];
         let weights = [1.0, 1.0];
-        let mut q = FirDesignPm::new(
-            24,
-            2,
-            &bands,
-            &des,
-            Some(&weights),
-            None,
-            FirPmBandType::Bandpass,
-        ).unwrap();
+        let mut q = FirDesignPm::new(24, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
 
-        assert!(matches!(
-            q.execute_with_max_iterations(1),
-            Err(Error::NoConvergence(_)),
-        ));
+        assert!(matches!(q.execute_with_max_iterations(1), Err(Error::NoConvergence(_)),));
     }
 
     #[test]
@@ -1169,15 +1092,7 @@ mod tests {
         let bands = [0.0, 0.2, 0.3, 0.5];
         let des = [0.0, 0.0];
         let weights = [1.0, 1.0];
-        let mut q = FirDesignPm::new(
-            51,
-            2,
-            &bands,
-            &des,
-            Some(&weights),
-            None,
-            FirPmBandType::Bandpass,
-        ).unwrap();
+        let mut q = FirDesignPm::new(51, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
 
         q.num_exchanges = 1;
         q.e.fill(0.0);
@@ -1189,15 +1104,7 @@ mod tests {
         let bands = [0.0, 0.16, 0.34, 0.5];
         let des = [1.0, 0.0];
         let weights = [1.0, 1.0];
-        let mut q = FirDesignPm::new(
-            81,
-            2,
-            &bands,
-            &des,
-            Some(&weights),
-            None,
-            FirPmBandType::Bandpass,
-        ).unwrap();
+        let mut q = FirDesignPm::new(81, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
 
         // A monotonic error curve has only its two endpoints as extrema.
         for i in 0..q.grid_size {

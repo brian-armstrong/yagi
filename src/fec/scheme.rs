@@ -64,7 +64,6 @@ pub enum FecScheme {
     RsM8,
 }
 
-
 /// Number of FEC schemes, `Unknown` included
 pub const NUM_FEC_SCHEMES: usize = FecScheme::RsM8 as usize + 1;
 
@@ -253,10 +252,7 @@ impl FecScheme {
 
     /// is scheme Hamming?
     pub fn is_hamming(&self) -> bool {
-        matches!(
-            self,
-            FecScheme::Hamming74 | FecScheme::Hamming84 | FecScheme::Hamming128
-        )
+        matches!(self, FecScheme::Hamming74 | FecScheme::Hamming84 | FecScheme::Hamming128)
     }
 
     /// is scheme repeat?
@@ -514,25 +510,16 @@ mod tests {
             assert!(!fs.long_name().is_empty(), "{:?}", fs);
         }
 
-        let tabled: std::collections::HashSet<_> =
-            SCHEMES.iter().map(|&(_, name, ..)| name).collect();
+        let tabled: std::collections::HashSet<_> = SCHEMES.iter().map(|&(_, name, ..)| name).collect();
         assert_eq!(seen, tabled, "SCHEMES and ALL disagree");
     }
 
     #[test]
     fn test_fec_families_disjoint() {
         for &(scheme, ..) in SCHEMES {
-            let families = [
-                scheme.is_convolutional(),
-                scheme.is_reedsolomon(),
-                scheme.is_hamming(),
-                scheme.is_repeat(),
-            ];
-            assert!(
-                families.iter().filter(|&&b| b).count() <= 1,
-                "{:?} belongs to more than one family",
-                scheme
-            );
+            let families =
+                [scheme.is_convolutional(), scheme.is_reedsolomon(), scheme.is_hamming(), scheme.is_repeat()];
+            assert!(families.iter().filter(|&&b| b).count() <= 1, "{:?} belongs to more than one family", scheme);
         }
     }
 

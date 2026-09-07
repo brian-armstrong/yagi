@@ -30,11 +30,7 @@ where
 {
     pub(crate) fn new(len: usize) -> Self {
         assert!(len > 0, "dot product length must be greater than zero");
-        Self {
-            len,
-            executor: <[T] as DotProd<Coeff>>::plan(len),
-            block: <[T] as DotProd<Coeff>>::plan_block(len),
-        }
+        Self { len, executor: <[T] as DotProd<Coeff>>::plan(len), block: <[T] as DotProd<Coeff>>::plan_block(len) }
     }
 
     pub(crate) fn packed_len(&self) -> usize {
@@ -62,16 +58,9 @@ where
 
     /// Execute overlapping dot products using this plan's prepared block
     /// strategy and its singular strategy for any remaining outputs.
-    pub(crate) fn execute_block(
-        &self,
-        x: &[T],
-        h: &[Coeff],
-        block_h: &[Coeff],
-        y: &mut [T],
-    ) {
+    pub(crate) fn execute_block(&self, x: &[T], h: &[Coeff], block_h: &[Coeff], y: &mut [T]) {
         assert_eq!(h.len(), self.len, "Plan and coefficient lengths must be equal");
-        let expected = y.len().checked_add(h.len() - 1)
-            .expect("dot product block length overflow");
+        let expected = y.len().checked_add(h.len() - 1).expect("dot product block length overflow");
         assert_eq!(x.len(), expected, "Invalid sliding dot product block length");
 
         let completed = self.block.as_ref().map_or(0, |block| {
@@ -219,8 +208,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_abs_diff_eq;
     use crate::random::{crandnf, randnf};
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
 
@@ -346,12 +335,7 @@ mod tests {
              1.01828299,   0.76014664,  -0.15605569,
         ];
 
-        for (n, expected) in [
-            (32, -7.99577847),
-            (33, -6.00389114),
-            (34, -6.36813751),
-            (35, -6.44988725),
-        ] {
+        for (n, expected) in [(32, -7.99577847), (33, -6.00389114), (34, -6.36813751), (35, -6.44988725)] {
             let dp = DotProduct::<f32, f32>::new(&h[..n]).unwrap();
             assert_abs_diff_eq!(dp.execute(&x[..n]), expected, epsilon = TOL);
         }
@@ -409,7 +393,7 @@ mod tests {
 
         let test = Cf32::new(-3.35346556487224, 11.78023318618137);
         let test_rev = Cf32::new(3.655541203500000, 4.26531912591000);
-        
+
         let y = h.dotprod(&x);
         // no "run4"
         assert_abs_diff_eq!(y.re, test.re, epsilon = TOL);
@@ -478,7 +462,7 @@ mod tests {
             let y = h.dotprod(&x);
             assert_abs_diff_eq!(y.re, y_test.re, epsilon = TOL);
             assert_abs_diff_eq!(y.im, y_test.im, epsilon = TOL);
- 
+
             // no run4
         }
     }
@@ -623,29 +607,19 @@ mod tests {
     #[test]
     fn test_dotprod_rrr_execute_block_matches_execute() {
         for k in (1..=384).chain([512, 1024]) {
-            let h: Vec<f32> = (0..k)
-                .map(|i| ((i + 1) as f32 * 0.173).sin())
-                .collect();
+            let h: Vec<f32> = (0..k).map(|i| ((i + 1) as f32 * 0.173).sin()).collect();
             let dp = DotProduct::<f32, f32>::new(&h).unwrap();
 
             for n in 0..=20 {
                 let offset = k % 4;
-                let storage: Vec<f32> = (0..offset + n + k - 1)
-                    .map(|i| ((i + 3) as f32 * 0.117).cos())
-                    .collect();
+                let storage: Vec<f32> = (0..offset + n + k - 1).map(|i| ((i + 3) as f32 * 0.117).cos()).collect();
                 let x = &storage[offset..];
-                let expected: Vec<_> = (0..n)
-                    .map(|i| dp.execute(&x[i..i + k]))
-                    .collect();
+                let expected: Vec<_> = (0..n).map(|i| dp.execute(&x[i..i + k])).collect();
                 let mut actual = vec![0.0; n];
                 dp.execute_block(x, &mut actual);
 
                 for (&actual, &expected) in actual.iter().zip(&expected) {
-                    assert_abs_diff_eq!(
-                        actual,
-                        expected,
-                        epsilon = (2.0 * k as f32 * f32::EPSILON).max(1e-5),
-                    );
+                    assert_abs_diff_eq!(actual, expected, epsilon = (2.0 * k as f32 * f32::EPSILON).max(1e-5),);
                 }
             }
         }
@@ -654,25 +628,16 @@ mod tests {
     #[test]
     fn test_dotprod_crc_execute_block_matches_execute() {
         for k in (1..=184).chain([256, 1024]) {
-            let h: Vec<f32> = (0..k)
-                .map(|i| ((i + 1) as f32 * 0.173).sin())
-                .collect();
+            let h: Vec<f32> = (0..k).map(|i| ((i + 1) as f32 * 0.173).sin()).collect();
             let dp = DotProduct::<Complex32, f32>::new(&h).unwrap();
 
             for n in 0..=10 {
                 let offset = k % 3;
                 let storage: Vec<Complex32> = (0..offset + n + k - 1)
-                    .map(|i| {
-                        Complex32::new(
-                            ((i + 3) as f32 * 0.117).cos(),
-                            ((i + 5) as f32 * 0.091).sin(),
-                        )
-                    })
+                    .map(|i| Complex32::new(((i + 3) as f32 * 0.117).cos(), ((i + 5) as f32 * 0.091).sin()))
                     .collect();
                 let x = &storage[offset..];
-                let expected: Vec<_> = (0..n)
-                    .map(|i| dp.execute(&x[i..i + k]))
-                    .collect();
+                let expected: Vec<_> = (0..n).map(|i| dp.execute(&x[i..i + k])).collect();
                 let mut actual = vec![Complex32::default(); n];
                 dp.execute_block(x, &mut actual);
 
@@ -688,27 +653,17 @@ mod tests {
     fn test_dotprod_ccc_execute_block_matches_execute() {
         for k in (1..=136).chain([256, 1024]) {
             let h: Vec<Complex32> = (0..k)
-                .map(|i| Complex32::new(
-                    ((i + 1) as f32 * 0.173).sin(),
-                    ((i + 2) as f32 * 0.137).cos(),
-                ))
+                .map(|i| Complex32::new(((i + 1) as f32 * 0.173).sin(), ((i + 2) as f32 * 0.137).cos()))
                 .collect();
             let dp = DotProduct::<Complex32, Complex32>::new(&h).unwrap();
 
             for n in 0..=10 {
                 let offset = k % 3;
                 let storage: Vec<Complex32> = (0..offset + n + k - 1)
-                    .map(|i| {
-                        Complex32::new(
-                            ((i + 3) as f32 * 0.117).cos(),
-                            ((i + 5) as f32 * 0.091).sin(),
-                        )
-                    })
+                    .map(|i| Complex32::new(((i + 3) as f32 * 0.117).cos(), ((i + 5) as f32 * 0.091).sin()))
                     .collect();
                 let x = &storage[offset..];
-                let expected: Vec<_> = (0..n)
-                    .map(|i| dp.execute(&x[i..i + k]))
-                    .collect();
+                let expected: Vec<_> = (0..n).map(|i| dp.execute(&x[i..i + k])).collect();
                 let mut actual = vec![Complex32::default(); n];
                 dp.execute_block(x, &mut actual);
 
@@ -725,13 +680,9 @@ mod tests {
         let mut dp = DotProduct::<f32, f32>::new(&[1.0, 2.0, 3.0]).unwrap();
 
         for k in [3, 33, 352, 368] {
-            let h: Vec<_> = (0..k)
-                .map(|i| ((i + 1) as f32 * 0.173).sin())
-                .collect();
+            let h: Vec<_> = (0..k).map(|i| ((i + 1) as f32 * 0.173).sin()).collect();
             dp.set_coefficients(&h).unwrap();
-            let x: Vec<_> = (0..h.len() + 24 - 1)
-                .map(|i| ((i + 3) as f32 * 0.117).cos())
-                .collect();
+            let x: Vec<_> = (0..h.len() + 24 - 1).map(|i| ((i + 3) as f32 * 0.117).cos()).collect();
             let expected: Vec<_> = x.windows(h.len()).map(|x| dp.execute(x)).collect();
             let mut actual = vec![0.0; 24];
             dp.execute_block(&x, &mut actual);
@@ -750,13 +701,9 @@ mod tests {
 
         let mut dp = DotProduct::<Complex32, f32>::new(&[1.0, 2.0, 3.0]).unwrap();
         for k in [3, 65, 176] {
-            let h: Vec<_> = (0..k)
-                .map(|i| ((i + 1) as f32 * 0.173).sin())
-                .collect();
+            let h: Vec<_> = (0..k).map(|i| ((i + 1) as f32 * 0.173).sin()).collect();
             dp.set_coefficients_rev(&h).unwrap();
-            let x: Vec<_> = (0..h.len() + 16 - 1)
-                .map(|i| Complex32::new(i as f32 * 0.25, i as f32 * -0.125))
-                .collect();
+            let x: Vec<_> = (0..h.len() + 16 - 1).map(|i| Complex32::new(i as f32 * 0.25, i as f32 * -0.125)).collect();
             let expected: Vec<_> = x.windows(h.len()).map(|x| dp.execute(x)).collect();
             let mut actual = vec![Complex32::default(); 16];
             dp.execute_block(&x, &mut actual);
@@ -770,18 +717,14 @@ mod tests {
             Complex32::new(1.0, 0.5),
             Complex32::new(2.0, -0.25),
             Complex32::new(3.0, 0.125),
-        ]).unwrap();
+        ])
+        .unwrap();
         for k in [3, 17, 80] {
             let h: Vec<_> = (0..k)
-                .map(|i| Complex32::new(
-                    ((i + 1) as f32 * 0.173).sin(),
-                    ((i + 2) as f32 * 0.137).cos(),
-                ))
+                .map(|i| Complex32::new(((i + 1) as f32 * 0.173).sin(), ((i + 2) as f32 * 0.137).cos()))
                 .collect();
             dp.set_coefficients_rev(&h).unwrap();
-            let x: Vec<_> = (0..h.len() + 16 - 1)
-                .map(|i| Complex32::new(i as f32 * 0.25, i as f32 * -0.125))
-                .collect();
+            let x: Vec<_> = (0..h.len() + 16 - 1).map(|i| Complex32::new(i as f32 * 0.25, i as f32 * -0.125)).collect();
             let expected: Vec<_> = x.windows(h.len()).map(|x| dp.execute(x)).collect();
             let mut actual = vec![Complex32::default(); 16];
             dp.execute_block(&x, &mut actual);

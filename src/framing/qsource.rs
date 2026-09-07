@@ -129,33 +129,18 @@ impl std::fmt::Debug for QSourceConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             QSourceConfig::Tone => write!(f, "Tone"),
-            QSourceConfig::Chirp { duration, negate, single } => {
-                f.debug_struct("Chirp")
-                    .field("duration", duration)
-                    .field("negate", negate)
-                    .field("single", single)
-                    .finish()
-            }
+            QSourceConfig::Chirp { duration, negate, single } => f
+                .debug_struct("Chirp")
+                .field("duration", duration)
+                .field("negate", negate)
+                .field("single", single)
+                .finish(),
             QSourceConfig::Noise => write!(f, "Noise"),
             QSourceConfig::Modem { scheme, m, beta } => {
-                f.debug_struct("Modem")
-                    .field("scheme", scheme)
-                    .field("m", m)
-                    .field("beta", beta)
-                    .finish()
+                f.debug_struct("Modem").field("scheme", scheme).field("m", m).field("beta", beta).finish()
             }
-            QSourceConfig::Fsk { m, k } => {
-                f.debug_struct("Fsk")
-                    .field("m", m)
-                    .field("k", k)
-                    .finish()
-            }
-            QSourceConfig::Gmsk { m, bt } => {
-                f.debug_struct("Gmsk")
-                    .field("m", m)
-                    .field("bt", bt)
-                    .finish()
-            }
+            QSourceConfig::Fsk { m, k } => f.debug_struct("Fsk").field("m", m).field("k", k).finish(),
+            QSourceConfig::Gmsk { m, bt } => f.debug_struct("Gmsk").field("m", m).field("bt", bt).finish(),
             QSourceConfig::User(_) => write!(f, "User"),
         }
     }
@@ -266,24 +251,16 @@ impl QSource {
         config: QSourceConfig,
     ) -> Result<Self> {
         if m_channels < 2 || (m_channels % 2) != 0 {
-            return Err(Error::Config(
-                "invalid channelizer size; must be even and greater than 1".into(),
-            ));
+            return Err(Error::Config("invalid channelizer size; must be even and greater than 1".into()));
         }
         if m == 0 {
-            return Err(Error::Config(
-                "invalid channelizer filter semi-length; must be greater than 0".into(),
-            ));
+            return Err(Error::Config("invalid channelizer filter semi-length; must be greater than 0".into()));
         }
         if fc < -0.5 || fc > 0.5 {
-            return Err(Error::Config(
-                "invalid frequency offset; must be in [-0.5, 0.5]".into(),
-            ));
+            return Err(Error::Config("invalid frequency offset; must be in [-0.5, 0.5]".into()));
         }
         if bw < 0.0 || bw > 1.0 {
-            return Err(Error::Config(
-                "invalid bandwidth; must be in [0, 1]".into(),
-            ));
+            return Err(Error::Config("invalid bandwidth; must be in [0, 1]".into()));
         }
 
         // set channelizer values appropriately
@@ -291,11 +268,7 @@ impl QSource {
         let p_channels = p_channels.max(2);
 
         // create resampler to correct for rate offset
-        let rate = if bw == 0.0 {
-            1.0
-        } else {
-            bw * (m_channels as f32) / (p_channels as f32)
-        };
+        let rate = if bw == 0.0 { 1.0 } else { bw * (m_channels as f32) / (p_channels as f32) };
         let resamp = Resamp::new(rate, 12, 0.45, as_, 64)?;
 
         // create mixer for frequency offset correction
@@ -321,20 +294,13 @@ impl QSource {
                 let num = (duration * bw).round() as u64;
                 let df = 2.0 * PI / (num as f32) * (if negate { -1.0 } else { 1.0 });
                 nco.set_frequency(if negate { PI } else { -PI });
-                SourceState::Chirp(ChirpState {
-                    nco,
-                    df,
-                    negate,
-                    single,
-                    num,
-                    timer: num,
-                })
+                SourceState::Chirp(ChirpState { nco, df, negate, single, num, timer: num })
             }
             QSourceConfig::Noise => SourceState::Noise,
             QSourceConfig::Modem { scheme, m: filter_m, beta } => {
                 let symstream = SymStream::new_linear(
                     crate::filter::FirFilterShape::Arkaiser,
-                    2,  // k = 2 samples per symbol (fixed)
+                    2, // k = 2 samples per symbol (fixed)
                     filter_m,
                     beta,
                     scheme,
@@ -344,25 +310,14 @@ impl QSource {
             QSourceConfig::Fsk { m: bits_per_sym, k } => {
                 let modulator = Fskmod::new(bits_per_sym, k, 0.25)?;
                 let mask = (1 << bits_per_sym) - 1;
-                SourceState::Fsk(FskState {
-                    modulator,
-                    buf: vec![Complex32::new(0.0, 0.0); k],
-                    mask,
-                    index: 0,
-                })
+                SourceState::Fsk(FskState { modulator, buf: vec![Complex32::new(0.0, 0.0); k], mask, index: 0 })
             }
             QSourceConfig::Gmsk { m: filter_m, bt } => {
                 let modulator = GmskMod::new(2, filter_m, bt)?;
-                SourceState::Gmsk(GmskState {
-                    modulator,
-                    buf: [Complex32::new(0.0, 0.0); 2],
-                    index: 0,
-                })
+                SourceState::Gmsk(GmskState { modulator, buf: [Complex32::new(0.0, 0.0); 2], index: 0 })
             }
             QSourceConfig::User(callback) => {
-                SourceState::User(UserState {
-                    callback: Arc::new(std::sync::Mutex::new(callback)),
-                })
+                SourceState::User(UserState { callback: Arc::new(std::sync::Mutex::new(callback)) })
             }
         };
 
@@ -440,28 +395,21 @@ impl QSource {
 
     /// Get center frequency of signal applied by channelizer alignment
     fn get_frequency_index(&self) -> f32 {
-        let s = if self.index < self.m_channels / 2 {
-            0.0
-        } else {
-            -1.0
-        };
+        let s = if self.index < self.m_channels / 2 { 0.0 } else { -1.0 };
         (self.index as f32) / (self.m_channels as f32) + s
     }
 
     /// Set signal center frequency
     pub fn set_frequency(&mut self, fc: f32) -> Result<()> {
         if fc < -0.5 || fc > 0.5 {
-            return Err(Error::Config(
-                "invalid frequency offset; must be in [-0.5, 0.5]".into(),
-            ));
+            return Err(Error::Config("invalid frequency offset; must be in [-0.5, 0.5]".into()));
         }
 
         self.fc = fc;
 
         // set channelizer index appropriately
-        self.index = ((if fc < 0.0 { fc + 1.0 } else { fc }) * self.m_channels as f32).round()
-            as usize
-            % self.m_channels;
+        self.index =
+            ((if fc < 0.0 { fc + 1.0 } else { fc }) * self.m_channels as f32).round() as usize % self.m_channels;
 
         // compute frequency applied by channelizer alignment
         let fc_index = self.get_frequency_index();
@@ -470,9 +418,7 @@ impl QSource {
         let fc_mixer = fc - fc_index;
 
         // apply mixer frequency (in radians), scaled by resampling ratio
-        self.mixer.set_frequency(
-            2.0 * PI * fc_mixer * (self.m_channels as f32) / (self.p_channels as f32),
-        );
+        self.mixer.set_frequency(2.0 * PI * fc_mixer * (self.m_channels as f32) / (self.p_channels as f32));
 
         Ok(())
     }
@@ -480,8 +426,7 @@ impl QSource {
     /// Get signal center frequency
     pub fn get_frequency(&self) -> f32 {
         let fc_index = self.get_frequency_index();
-        let fc_mixer = self.mixer.get_frequency() * (self.p_channels as f32)
-            / (2.0 * PI * self.m_channels as f32);
+        let fc_mixer = self.mixer.get_frequency() * (self.p_channels as f32) / (2.0 * PI * self.m_channels as f32);
         fc_index + fc_mixer
     }
 
@@ -527,15 +472,11 @@ impl QSource {
                     if chirp.single {
                         self.enabled = false;
                     }
-                    chirp
-                        .nco
-                        .set_frequency(if chirp.negate { PI } else { -PI });
+                    chirp.nco.set_frequency(if chirp.negate { PI } else { -PI });
                 }
                 sample
             }
-            SourceState::Noise => {
-                Complex32::new(randnf(), randnf()) * std::f32::consts::FRAC_1_SQRT_2
-            }
+            SourceState::Noise => Complex32::new(randnf(), randnf()) * std::f32::consts::FRAC_1_SQRT_2,
             SourceState::Modem(ref mut modem) => {
                 let mut buf = [Complex32::new(0.0, 0.0); 1];
                 modem.symstream.write_samples(&mut buf)?;
@@ -563,11 +504,7 @@ impl QSource {
             }
         };
 
-        let sample = if !self.enabled {
-            Complex32::new(0.0, 0.0)
-        } else {
-            sample
-        };
+        let sample = if !self.enabled { Complex32::new(0.0, 0.0) } else { sample };
 
         // mix sample up
         let mixed = self.mixer.mix_up(sample);
@@ -627,7 +564,9 @@ mod tests {
         assert!(QSource::new(64, 12, 60.0, 0.6, 0.2, 10.0, QSourceConfig::Tone).is_err()); // center frequency out of range
         assert!(QSource::new(64, 12, 60.0, -0.6, 0.2, 10.0, QSourceConfig::Tone).is_err()); // center frequency out of range
         assert!(QSource::new(64, 12, 60.0, 0.0, -0.1, 10.0, QSourceConfig::Tone).is_err()); // bandwidth out of range
-        assert!(QSource::new(64, 12, 60.0, 0.0, 1.1, 10.0, QSourceConfig::Tone).is_err()); // bandwidth out of range
+
+        assert!(QSource::new(64, 12, 60.0, 0.0, 1.1, 10.0, QSourceConfig::Tone).is_err());
+        // bandwidth out of range
     }
 
     #[test]
@@ -723,11 +662,7 @@ mod tests {
         for _ in 0..100 {
             let sample = q.generate().unwrap();
             // FSK output is on unit circle (no scaling)
-            assert!(
-                (sample.norm() - 1.0).abs() < 0.1,
-                "expected magnitude ~1.0, got {}",
-                sample.norm()
-            );
+            assert!((sample.norm() - 1.0).abs() < 0.1, "expected magnitude ~1.0, got {}", sample.norm());
         }
     }
 
@@ -754,10 +689,7 @@ mod tests {
 
     #[test]
     fn test_qsourcecf_user() {
-        let source = TestSineSource {
-            phase: 0.0,
-            freq: 0.1,
-        };
+        let source = TestSineSource { phase: 0.0, freq: 0.1 };
         let config = QSourceConfig::User(Box::new(source));
         let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
 
@@ -766,11 +698,7 @@ mod tests {
         // generate samples and check they're on unit circle
         for _ in 0..100 {
             let sample = q.generate().unwrap();
-            assert!(
-                (sample.norm() - 1.0).abs() < 0.1,
-                "expected magnitude ~1.0, got {}",
-                sample.norm()
-            );
+            assert!((sample.norm() - 1.0).abs() < 0.1, "expected magnitude ~1.0, got {}", sample.norm());
         }
     }
 }

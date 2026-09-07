@@ -4,7 +4,7 @@ use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
 pub struct Freqdem {
-    ref_: f32,         // 1/(2*pi*kf)
+    ref_: f32,          // 1/(2*pi*kf)
     r_prime: Complex32, // previous received sample
 }
 
@@ -12,16 +12,10 @@ impl Freqdem {
     pub fn new(kf: f32) -> Result<Self> {
         // Validate input
         if kf <= 0.0 {
-            return Err(Error::Config(format!(
-                "modulation factor {:.4e} must be greater than 0",
-                kf
-            )));
+            return Err(Error::Config(format!("modulation factor {:.4e} must be greater than 0", kf)));
         }
 
-        let mut q = Self {
-            ref_: 1.0 / (2.0 * PI * kf),
-            r_prime: Complex32::new(0.0, 0.0),
-        };
+        let mut q = Self { ref_: 1.0 / (2.0 * PI * kf), r_prime: Complex32::new(0.0, 0.0) };
 
         q.reset()?;
         Ok(q)
@@ -44,9 +38,7 @@ impl Freqdem {
 
     pub fn demodulate_block(&mut self, r: &[Complex32], m: &mut [f32]) -> Result<()> {
         if r.len() != m.len() {
-            return Err(Error::Range(
-                "input and output arrays must be same length".into()
-            ));
+            return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
         for (x, y) in r.iter().zip(m.iter_mut()) {
@@ -59,9 +51,9 @@ impl Freqdem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use crate::modem::freqmod::Freqmod;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     fn test_freqdem_create() {
@@ -104,20 +96,20 @@ mod tests {
         let tol = 5e-2f32;
 
         // create mod/demod objects
-        let mut mod_ = Freqmod::new(kf)?;  // modulator
-        let mut dem = Freqdem::new(kf)?;  // demodulator
+        let mut mod_ = Freqmod::new(kf)?; // modulator
+        let mut dem = Freqdem::new(kf)?; // demodulator
 
         // allocate arrays
-        let mut m = vec![0.0f32; num_samples];       // message signal
-        let mut r = vec![Complex32::new(0.0, 0.0); num_samples];  // received signal (complex baseband)
-        let mut y = vec![0.0f32; num_samples];       // demodulator output
+        let mut m = vec![0.0f32; num_samples]; // message signal
+        let mut r = vec![Complex32::new(0.0, 0.0); num_samples]; // received signal (complex baseband)
+        let mut y = vec![0.0f32; num_samples]; // demodulator output
 
         // generate message signal (sum of sines)
         for i in 0..num_samples {
             let i = i as f32;
-            m[i as usize] = 0.3 * (2.0 * PI * 0.013 * i + 0.0).cos() +
-                            0.2 * (2.0 * PI * 0.021 * i + 0.4).cos() +
-                            0.4 * (2.0 * PI * 0.037 * i + 1.7).cos();
+            m[i as usize] = 0.3 * (2.0 * PI * 0.013 * i + 0.0).cos()
+                + 0.2 * (2.0 * PI * 0.021 * i + 0.4).cos()
+                + 0.4 * (2.0 * PI * 0.037 * i + 1.7).cos();
         }
 
         // modulate signal
@@ -137,13 +129,19 @@ mod tests {
     // AUTOTESTS: generic PSK
     #[test]
     #[autotest_annotate(autotest_freqmodem_kf_0_02)]
-    fn test_freqmodem_kf_0_02() -> Result<()> { freqmodem_test(0.02) }
+    fn test_freqmodem_kf_0_02() -> Result<()> {
+        freqmodem_test(0.02)
+    }
 
     #[test]
     #[autotest_annotate(autotest_freqmodem_kf_0_04)]
-    fn test_freqmodem_kf_0_04() -> Result<()> { freqmodem_test(0.04) }
+    fn test_freqmodem_kf_0_04() -> Result<()> {
+        freqmodem_test(0.04)
+    }
 
     #[test]
     #[autotest_annotate(autotest_freqmodem_kf_0_08)]
-    fn test_freqmodem_kf_0_08() -> Result<()> { freqmodem_test(0.08) }
+    fn test_freqmodem_kf_0_08() -> Result<()> {
+        freqmodem_test(0.08)
+    }
 }

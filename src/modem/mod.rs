@@ -1,10 +1,10 @@
-pub mod modem;
 pub mod ampmodem;
 pub mod cpfskdem;
 pub mod cpfskmod;
-pub mod fskmod;
-pub mod fskdem;
-pub mod freqmod;
 pub mod freqdem;
-pub mod gmskmod;
+pub mod freqmod;
+pub mod fskdem;
+pub mod fskmod;
 pub mod gmskdem;
+pub mod gmskmod;
+pub mod modem;

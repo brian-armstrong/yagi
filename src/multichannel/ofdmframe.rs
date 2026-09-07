@@ -64,24 +64,16 @@ impl OfdmFrameConfig {
         allocation: Option<&[SubcarrierType]>,
     ) -> Result<Self> {
         if num_subcarriers < 8 {
-            return Err(Error::Config(
-                "ofdmframe_config_create(), number of subcarriers must be at least 8".into(),
-            ));
+            return Err(Error::Config("ofdmframe_config_create(), number of subcarriers must be at least 8".into()));
         }
         if num_subcarriers % 2 != 0 {
-            return Err(Error::Config(
-                "ofdmframe_config_create(), number of subcarriers must be even".into(),
-            ));
+            return Err(Error::Config("ofdmframe_config_create(), number of subcarriers must be even".into()));
         }
         if cp_len > num_subcarriers {
-            return Err(Error::Config(
-                "ofdmframe_config_create(), cyclic prefix cannot exceed symbol length".into(),
-            ));
+            return Err(Error::Config("ofdmframe_config_create(), cyclic prefix cannot exceed symbol length".into()));
         }
         if taper_len > cp_len {
-            return Err(Error::Config(
-                "ofdmframe_config_create(), taper length cannot exceed cyclic prefix".into(),
-            ));
+            return Err(Error::Config("ofdmframe_config_create(), taper length cannot exceed cyclic prefix".into()));
         }
 
         let allocation = match allocation {
@@ -93,25 +85,17 @@ impl OfdmFrameConfig {
             Some(allocation) => {
                 if allocation.len() != num_subcarriers {
                     return Err(Error::Config(
-                        "ofdmframe_config_create(), subcarrier allocation length must match"
-                            .into(),
+                        "ofdmframe_config_create(), subcarrier allocation length must match".into(),
                     ));
                 }
                 allocation.to_vec()
             }
         };
 
-        let counts = ofdmframe_validate_sctype(&allocation).map_err(|_| {
-            Error::Config("ofdmframe_config_create(), invalid subcarrier allocation".into())
-        })?;
+        let counts = ofdmframe_validate_sctype(&allocation)
+            .map_err(|_| Error::Config("ofdmframe_config_create(), invalid subcarrier allocation".into()))?;
 
-        Ok(Self {
-            num_subcarriers,
-            cp_len,
-            taper_len,
-            allocation,
-            counts,
-        })
+        Ok(Self { num_subcarriers, cp_len, taper_len, allocation, counts })
     }
 
     /// Number of subcarriers.
@@ -164,9 +148,7 @@ pub(crate) fn ofdmframe_init_s0(
 ) -> Result<usize> {
     let num_subcarriers = p.len();
     if s0.len() != num_subcarriers || s0_time.len() != num_subcarriers {
-        return Err(Error::Config(
-            "ofdmframe_init_s0(), output lengths must match allocation".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_s0(), output lengths must match allocation".into()));
     }
 
     // compute m-sequence length
@@ -201,9 +183,7 @@ pub(crate) fn ofdmframe_init_s0(
 
     // ensure at least one subcarrier was enabled
     if m_s0 == 0 {
-        return Err(Error::Config(
-            "ofdmframe_init_s0(), no subcarriers enabled; check allocation".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_s0(), no subcarriers enabled; check allocation".into()));
     }
 
     // run inverse fft to get time-domain sequence
@@ -231,9 +211,7 @@ pub(crate) fn ofdmframe_init_s1(
 ) -> Result<usize> {
     let num_subcarriers = p.len();
     if s1.len() != num_subcarriers || s1_time.len() != num_subcarriers {
-        return Err(Error::Config(
-            "ofdmframe_init_s1(), output lengths must match allocation".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_s1(), output lengths must match allocation".into()));
     }
 
     // increase m such that the resulting S1 sequence will
@@ -262,9 +240,7 @@ pub(crate) fn ofdmframe_init_s1(
 
     // ensure at least one subcarrier was enabled
     if m_s1 == 0 {
-        return Err(Error::Config(
-            "ofdmframe_init_s1(), no subcarriers enabled; check allocation".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_s1(), no subcarriers enabled; check allocation".into()));
     }
 
     // run inverse fft to get time-domain sequence
@@ -288,9 +264,7 @@ pub fn ofdmframe_init_default_sctype(p: &mut [SubcarrierType]) -> Result<()> {
     // validate input
     let num_subcarriers = p.len();
     if num_subcarriers < 6 {
-        return Err(Error::Config(
-            "ofdmframe_init_default_sctype(), less than 6 subcarriers".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_default_sctype(), less than 6 subcarriers".into()));
     }
 
     let m2 = num_subcarriers / 2;
@@ -307,21 +281,13 @@ pub fn ofdmframe_init_default_sctype(p: &mut [SubcarrierType]) -> Result<()> {
 
     // upper band
     for i in 1..m2 - g {
-        p[i] = if (i + p2) % pilot_spacing == 0 {
-            SubcarrierType::Pilot
-        } else {
-            SubcarrierType::Data
-        };
+        p[i] = if (i + p2) % pilot_spacing == 0 { SubcarrierType::Pilot } else { SubcarrierType::Data };
     }
 
     // lower band
     for i in 1..m2 - g {
         let k = num_subcarriers - i;
-        p[k] = if (i + p2) % pilot_spacing == 0 {
-            SubcarrierType::Pilot
-        } else {
-            SubcarrierType::Data
-        };
+        p[k] = if (i + p2) % pilot_spacing == 0 { SubcarrierType::Pilot } else { SubcarrierType::Data };
     }
 
     Ok(())
@@ -335,19 +301,13 @@ pub fn ofdmframe_init_sctype_range(f0: f32, f1: f32, p: &mut [SubcarrierType]) -
     // validate input
     let num_subcarriers = p.len();
     if num_subcarriers < 6 {
-        return Err(Error::Config(
-            "ofdmframe_init_sctype_range(), less than 6 subcarriers".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_sctype_range(), less than 6 subcarriers".into()));
     }
     if f0 < -0.5 || f0 > 0.5 {
-        return Err(Error::Config(
-            "ofdmframe_init_sctype_range(), lower frequency edge must be in [-0.5,0.5]".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_sctype_range(), lower frequency edge must be in [-0.5,0.5]".into()));
     }
     if f1 < -0.5 || f1 > 0.5 {
-        return Err(Error::Config(
-            "ofdmframe_init_sctype_range(), upper frequency edge must be in [-0.5,0.5]".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_sctype_range(), upper frequency edge must be in [-0.5,0.5]".into()));
     }
     if f0 >= f1 {
         return Err(Error::Config(
@@ -360,9 +320,7 @@ pub fn ofdmframe_init_sctype_range(f0: f32, f1: f32, p: &mut [SubcarrierType]) -
     let m1 = ((f1 + 0.5) * num_subcarriers as f32) as i32; // upper subcarrier index
     let mp = (m1 - m0).min(num_subcarriers as i32);
     if mp < 6 {
-        return Err(Error::Config(
-            "ofdmframe_init_sctype_range(), less than 6 subcarriers (effectively)".into(),
-        ));
+        return Err(Error::Config("ofdmframe_init_sctype_range(), less than 6 subcarriers (effectively)".into()));
     };
 
     // designate pilot spacing
@@ -392,11 +350,7 @@ pub fn ofdmframe_init_sctype_range(f0: f32, f1: f32, p: &mut [SubcarrierType]) -
 /// [`SubcarrierType`] makes that unrepresentable.
 fn ofdmframe_validate_sctype(p: &[SubcarrierType]) -> Result<SubcarrierCounts> {
     // clear counters
-    let mut counts = SubcarrierCounts {
-        null: 0,
-        pilot: 0,
-        data: 0,
-    };
+    let mut counts = SubcarrierCounts { null: 0, pilot: 0, data: 0 };
 
     for t in p {
         // update appropriate counters
@@ -408,19 +362,13 @@ fn ofdmframe_validate_sctype(p: &[SubcarrierType]) -> Result<SubcarrierCounts> {
     }
 
     if counts.pilot + counts.data == 0 {
-        return Err(Error::Config(
-            "ofdmframe_validate_sctype(), must have at least one enabled subcarrier".into(),
-        ));
+        return Err(Error::Config("ofdmframe_validate_sctype(), must have at least one enabled subcarrier".into()));
     }
     if counts.data == 0 {
-        return Err(Error::Config(
-            "ofdmframe_validate_sctype(), must have at least one data subcarrier".into(),
-        ));
+        return Err(Error::Config("ofdmframe_validate_sctype(), must have at least one data subcarrier".into()));
     }
     if counts.pilot < 2 {
-        return Err(Error::Config(
-            "ofdmframe_validate_sctype(), must have at least two pilot subcarriers".into(),
-        ));
+        return Err(Error::Config("ofdmframe_validate_sctype(), must have at least two pilot subcarriers".into()));
     }
 
     Ok(counts)
@@ -451,9 +399,7 @@ pub fn ofdmframe_sctype_string(p: &[SubcarrierType]) -> String {
 /// parse subcarrier allocation from string, centered on dc
 pub fn ofdmframe_sctype_from_string(s: &str) -> Result<Vec<SubcarrierType>> {
     if s.len() < 2 || s.chars().nth(0).unwrap() != '[' || s.chars().nth(s.len() - 1).unwrap() != ']' {
-        return Err(Error::Config(
-            "ofdmframe_sctype_from_string(), string must be bracketed".into(),
-        ));
+        return Err(Error::Config("ofdmframe_sctype_from_string(), string must be bracketed".into()));
     }
     let num_subcarriers = s.len() - 2;
     let mut p = Vec::with_capacity(num_subcarriers);
@@ -464,12 +410,7 @@ pub fn ofdmframe_sctype_from_string(s: &str) -> Result<Vec<SubcarrierType>> {
             '.' => SubcarrierType::Null,
             '|' => SubcarrierType::Pilot,
             '+' => SubcarrierType::Data,
-            _ => {
-                return Err(Error::Config(format!(
-                    "ofdmframe_sctype_from_string(), invalid character '{}'",
-                    c
-                )))
-            }
+            _ => return Err(Error::Config(format!("ofdmframe_sctype_from_string(), invalid character '{}'", c))),
         };
         p.push(t);
     }

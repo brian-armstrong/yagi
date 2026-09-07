@@ -51,11 +51,7 @@ impl SecdedCode {
         for i in 0..self.parity_bits {
             syndrome <<= 1;
 
-            let parity_bit = if v[0] & (1 << (self.parity_bits - i - 1)) != 0 {
-                1u32
-            } else {
-                0
-            };
+            let parity_bit = if v[0] & (1 << (self.parity_bits - i - 1)) != 0 { 1u32 } else { 0 };
 
             let row = &self.p[i * self.data_bytes..(i + 1) * self.data_bytes];
             let mut p = parity_bit;
@@ -146,8 +142,7 @@ impl SecdedCode {
             msg_enc[j] = self.compute_parity(&msg_dec[i..]);
 
             // copy remaining input bytes
-            msg_enc[j + 1..=j + self.data_bytes]
-                .copy_from_slice(&msg_dec[i..i + self.data_bytes]);
+            msg_enc[j + 1..=j + self.data_bytes].copy_from_slice(&msg_dec[i..i + self.data_bytes]);
 
             // increment output counter
             i += self.data_bytes;
@@ -208,6 +203,7 @@ impl SecdedCode {
 //  1110 0001 1101 0001 :
 //  0001 0011 1100 0111 :
 //  0100 0100 0011 1111 :
+#[rustfmt::skip]
 const SECDED2216: SecdedCode = SecdedCode {
     data_bytes: 2,
     parity_bits: 6,
@@ -233,6 +229,7 @@ const SECDED2216: SecdedCode = SecdedCode {
 //  0110 1100 1111 1111 0000 1000 0000 1000
 //  0010 0001 0010 0100 1111 1111 1001 0000
 //  1100 0001 0100 1000 0100 0000 1111 1111
+#[rustfmt::skip]
 const SECDED3932: SecdedCode = SecdedCode {
     data_bytes: 4,
     parity_bits: 7,
@@ -261,6 +258,7 @@ const SECDED3932: SecdedCode = SecdedCode {
 //  01100100 01000100 01000100 01000000 11110000 11111111 00001111 00001100 :
 //  00000010 00100010 00100010 00100110 11001111 00000000 11111111 00001111 :
 //  00000001 00010001 00010001 00010110 00110000 11110000 11110000 11111111 :
+#[rustfmt::skip]
 const SECDED7264: SecdedCode = SecdedCode {
     data_bytes: 8,
     parity_bits: 8,
@@ -399,12 +397,7 @@ mod tests {
             code.decode_symbol(&sym_rec, &mut sym_dec);
 
             // validate data are the same
-            assert_eq!(
-                &sym_dec[..n],
-                &sym_org[..],
-                "failed to correct single error at bit {}",
-                k
-            );
+            assert_eq!(&sym_dec[..n], &sym_org[..], "failed to correct single error at bit {}", k);
         }
     }
 
@@ -433,26 +426,14 @@ mod tests {
                 let result = code.decode_symbol(&sym_rec, &mut sym_dec);
 
                 // validate that the error was detected
-                assert_eq!(
-                    result,
-                    SecdedResult::MultipleErrors,
-                    "double error at bits {},{} was not detected",
-                    j,
-                    k
-                );
+                assert_eq!(result, SecdedResult::MultipleErrors, "double error at bits {},{} was not detected", j, k);
             }
         }
     }
 
-    fn block_roundtrip(
-        encode: fn(&[u8], &mut [u8]),
-        decode: fn(usize, &[u8], &mut [u8]),
-        data_bytes: usize,
-    ) {
+    fn block_roundtrip(encode: fn(&[u8], &mut [u8]), decode: fn(usize, &[u8], &mut [u8]), data_bytes: usize) {
         for n in 1..=(3 * data_bytes + 1) {
-            let msg: Vec<u8> = (0..n)
-                .map(|i| (i as u8).wrapping_mul(53).wrapping_add(7))
-                .collect();
+            let msg: Vec<u8> = (0..n).map(|i| (i as u8).wrapping_mul(53).wrapping_add(7)).collect();
 
             let r = n % data_bytes;
             let enc_len = (n - r) / data_bytes * (data_bytes + 1) + if r != 0 { r + 1 } else { 0 };

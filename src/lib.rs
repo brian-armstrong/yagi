@@ -12,6 +12,8 @@ pub mod channel;
 pub mod dotprod;
 /// Equalization
 pub mod equalization;
+/// Error Handling
+pub mod error;
 /// FEC (Forward Error Correction)
 pub mod fec;
 /// FFT (Fast Fourier Transform)
@@ -42,5 +44,3 @@ pub mod sequence;
 pub mod utility;
 /// Vector
 pub mod vector;
-/// Error Handling
-pub mod error;

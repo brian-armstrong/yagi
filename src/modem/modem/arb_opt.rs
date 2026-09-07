@@ -1,7 +1,7 @@
 use crate::modem::modem::*;
 
-
 // optimal 16-QAM
+#[rustfmt::skip]
 pub(super) const MODEM_ARB16OPT: [Complex32; 16] = [
      Complex32::new(-0.87119000, -0.87970000),  Complex32::new(-1.15090000, -0.26101000), 
      Complex32::new(-1.10090000,  0.87457000),  Complex32::new(-0.81088000,  0.29689000), 
@@ -14,6 +14,7 @@ pub(super) const MODEM_ARB16OPT: [Complex32; 16] = [
 ];
 
 // optimal 32-QAM
+#[rustfmt::skip]
 pub(super) const MODEM_ARB32OPT: [Complex32; 32] = [
      Complex32::new(-1.04570000, -0.72639000),  Complex32::new(-1.26710000, -0.00824020), 
      Complex32::new(-0.99868000,  0.92359000),  Complex32::new(-1.13660000,  0.45833000), 
@@ -34,6 +35,7 @@ pub(super) const MODEM_ARB32OPT: [Complex32; 32] = [
 ];
 
 // optimal 64-QAM
+#[rustfmt::skip]
 pub(super) const MODEM_ARB64OPT: [Complex32; 64] = [
      Complex32::new(-9.6048e-01, -1.0031e+00),
      Complex32::new(-1.1105e+00, -6.8896e-01),
@@ -101,6 +103,7 @@ pub(super) const MODEM_ARB64OPT: [Complex32; 64] = [
      Complex32::new( 3.9791e-01,  1.8370e-01),
 ];
 // optimal 128-QAM
+#[rustfmt::skip]
 pub(super) const MODEM_ARB128OPT: [Complex32; 128] = [
      Complex32::new(-1.0682e+00, -9.2598e-01),
      Complex32::new(-1.1831e+00, -7.0704e-01),
@@ -232,8 +235,8 @@ pub(super) const MODEM_ARB128OPT: [Complex32; 128] = [
      Complex32::new(-1.0269e-01,  3.2880e-01),
 ];
 
-
 // optimal 256-QAM
+#[rustfmt::skip]
 pub(super) const MODEM_ARB256OPT: [Complex32; 256] = [
      Complex32::new(-9.3121e-01, -1.0845e+00),
      Complex32::new(-1.0165e+00, -9.3103e-01),

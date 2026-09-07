@@ -1,5 +1,5 @@
-use std::ops::Add;
 use num_traits::One;
+use std::ops::Add;
 
 use crate::error::{Error, Result};
 
@@ -31,16 +31,16 @@ use crate::error::{Error, Result};
 //
 #[derive(Debug, Clone)]
 pub struct SMatrix<T> {
-    m: usize,                       // number of rows
-    n: usize,                       // number of columns
-    mlist: Vec<Vec<u16>>,           // list of non-zero col indices in each row
-    nlist: Vec<Vec<u16>>,           // list of non-zero row indices in each col
-    mvals: Vec<Vec<T>>,             // list of non-zero values in each row
-    nvals: Vec<Vec<T>>,             // list of non-zero values in each col
-    num_mlist: Vec<usize>,          // weight of each row, m
-    num_nlist: Vec<usize>,          // weight of each row, n
-    max_num_mlist: usize,           // maximum of num_mlist
-    max_num_nlist: usize,           // maximum of num_nlist
+    m: usize,              // number of rows
+    n: usize,              // number of columns
+    mlist: Vec<Vec<u16>>,  // list of non-zero col indices in each row
+    nlist: Vec<Vec<u16>>,  // list of non-zero row indices in each col
+    mvals: Vec<Vec<T>>,    // list of non-zero values in each row
+    nvals: Vec<Vec<T>>,    // list of non-zero values in each col
+    num_mlist: Vec<usize>, // weight of each row, m
+    num_nlist: Vec<usize>, // weight of each row, n
+    max_num_mlist: usize,  // maximum of num_mlist
+    max_num_nlist: usize,  // maximum of num_nlist
 }
 
 impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> SMatrix<T> {
@@ -195,7 +195,10 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     /// determine if element is set
     pub fn isset(&self, m: usize, n: usize) -> Result<bool> {
         if m >= self.m || n >= self.n {
-            return Err(Error::Range(format!("smatrix_isset({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n)));
+            return Err(Error::Range(format!(
+                "smatrix_isset({},{}), index exceeds matrix dimension ({},{})",
+                m, n, self.m, self.n
+            )));
         }
 
         Ok(self.mlist[m].contains(&(n as u16)))
@@ -204,7 +207,10 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     // insert element at index
     fn insert(&mut self, m: usize, n: usize, v: T) -> Result<()> {
         if m >= self.m || n >= self.n {
-            return Err(Error::Range(format!("smatrix_insert({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n)));
+            return Err(Error::Range(format!(
+                "smatrix_insert({},{}), index exceeds matrix dimension ({},{})",
+                m, n, self.m, self.n
+            )));
         }
 
         // check to see if element is already set
@@ -241,7 +247,10 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     /// delete element at index
     pub fn delete(&mut self, m: usize, n: usize) -> Result<()> {
         if m > self.m || n > self.n {
-            return Err(Error::Range(format!("smatrix_delete({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n)));
+            return Err(Error::Range(format!(
+                "smatrix_delete({},{}), index exceeds matrix dimension ({},{})",
+                m, n, self.m, self.n
+            )));
         }
 
         // check to see if element is already not set
@@ -412,7 +421,6 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
         i
     }
-
 }
 
 impl SMatrix<u8> {
@@ -539,12 +547,7 @@ mod tests {
         // Compute 'c'
         a.mul(&b, &mut c).unwrap();
 
-        let c_test = vec![
-            8.0, 0.0, 0.0,
-            0.0, 0.0, 0.0,
-            0.0, 15.0, 0.0,
-            16.0, 12.0, 0.0
-        ];
+        let c_test = vec![8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 15.0, 0.0, 16.0, 12.0, 0.0];
 
         // Check values
         for i in 0..4 {
@@ -593,6 +596,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_smatrixb_mul)]
     fn test_smatrixb_mul() {
+        #[rustfmt::skip]
         let a_test: Vec<u8> = vec![
             0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -604,6 +608,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0
         ];
 
+        #[rustfmt::skip]
         let b_test: Vec<u8> = vec![
             1, 1, 0, 0, 0,
             0, 0, 0, 0, 1,
@@ -619,6 +624,7 @@ mod tests {
             0, 1, 0, 0, 0
         ];
 
+        #[rustfmt::skip]
         let c_test: Vec<u8> = vec![
             0, 0, 0, 0, 0,
             0, 0, 0, 0, 0,
@@ -671,30 +677,32 @@ mod tests {
         a.set(6, 11, 1);
 
         // Generate vectors
+        #[rustfmt::skip]
         let x: Vec<f32> = vec![
-            -4.3, -0.7, 3.7,
-            -1.7, 2.8, 4.3,
-            2.0, 1.9, 0.6,
-            3.6, 1.0, -3.7,
-            4.3, 0.7, 2.1,
-            4.6, 0.5, 0.8,
-            1.6, -3.8, -0.8,
-            -1.9, -2.1, 2.8,
-            -1.5, 2.5, 0.8,
-            8.4, 1.5, -3.1,
-            -5.8, 0.0, 2.5,
+            -4.3, -0.7,  3.7,
+            -1.7,  2.8,  4.3,
+             2.0,  1.9,  0.6,
+             3.6,  1.0, -3.7,
+             4.3,  0.7,  2.1,
+             4.6,  0.5,  0.8,
+             1.6, -3.8, -0.8,
+            -1.9, -2.1,  2.8,
+            -1.5,  2.5,  0.8,
+             8.4,  1.5, -3.1,
+            -5.8,  0.0,  2.5,
             -4.9, -2.1, -1.5
         ];
 
+        #[rustfmt::skip]
         let y_test: Vec<f32> = vec![
-            -4.3, -0.7, 3.7,
-            3.6, 1.0, -3.7,
-            2.6, 3.3, 1.4,
-            1.7, -4.0, 2.6,
-            0.0, 0.0, 0.0,
-            -5.7, -1.3, 2.5,
-            -13.0, -0.9, 5.3,
-            8.2, -1.4, 0.6
+             -4.3, -0.7,  3.7,
+              3.6,  1.0, -3.7,
+              2.6,  3.3,  1.4,
+              1.7, -4.0,  2.6,
+              0.0,  0.0,  0.0,
+             -5.7, -1.3,  2.5,
+            -13.0, -0.9,  5.3,
+              8.2, -1.4,  0.6
         ];
 
         let mut y = vec![0.0f32; 24];
@@ -734,14 +742,13 @@ mod tests {
         a.set(6, 11, 1);
 
         // Generate vectors
+        #[rustfmt::skip]
         let x: Vec<f32> = vec![
-            3.4, -5.7, 0.3, 2.3, 1.9, 3.9,
+            3.4, -5.7,  0.3, 2.3,  1.9,  3.9,
             2.3, -4.0, -0.5, 1.5, -0.6, -1.0
         ];
 
-        let y_test: Vec<f32> = vec![
-            3.4, 2.3, 4.4, -1.4, 0.0, 1.2, 2.1, 6.5
-        ];
+        let y_test: Vec<f32> = vec![3.4, 2.3, 4.4, -1.4, 0.0, 1.2, 2.1, 6.5];
 
         let mut y = vec![0.0f32; 8];
 
@@ -752,7 +759,6 @@ mod tests {
             assert_abs_diff_eq!(y[i], y_test[i], epsilon = tol);
         }
     }
-
 
     #[test]
     #[autotest_annotate(autotest_smatrixi_vmul)]
@@ -785,7 +791,7 @@ mod tests {
         assert_eq!(y[1], y_test[1]);
         assert_eq!(y[2], y_test[2]);
         assert_eq!(y[3], y_test[3]);
-        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_smatrixi_mul)]
@@ -823,11 +829,11 @@ mod tests {
         //  0  15   0
         // 16  12   0
         a.mul(&b, &mut c).unwrap();
-
+        #[rustfmt::skip]
         let c_test = [
-            8,   0,   0,
-            0,   0,   0,
-            0,  15,   0,
+             8,   0,   0,
+             0,   0,   0,
+             0,  15,   0,
             16,  12,   0
         ];
 

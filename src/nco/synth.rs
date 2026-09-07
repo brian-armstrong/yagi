@@ -287,11 +287,7 @@ impl Synth {
             self.step();
         }
 
-        Ok((
-            despread_early / sum_early,
-            despread_punctual / sum_punctual,
-            despread_late / sum_late
-        ))
+        Ok((despread_early / sum_early, despread_punctual / sum_punctual, despread_late / sum_late))
     }
 
     //
@@ -344,8 +340,8 @@ impl Synth {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_abs_diff_eq;
     use crate::sequence::MSequence;
+    use approx::assert_abs_diff_eq;
 
     // unit-magnitude DFT-like sequence: tab[i] = exp(j*2*pi*i/n)
     fn tab_cexp(n: usize) -> Vec<Complex32> {
@@ -441,7 +437,12 @@ mod tests {
     #[test]
     fn test_synth_despread_triple() {
         for tab in [tab_bpsk(4), tab_bpsk(6), tab_bpsk(8)] {
-            for sym in [Complex32::new(1.0, 0.0), Complex32::new(1.0, 1.0), Complex32::new(0.0, 1.0), Complex32::new(-1.0, 0.0)] {
+            for sym in [
+                Complex32::new(1.0, 0.0),
+                Complex32::new(1.0, 1.0),
+                Complex32::new(0.0, 1.0),
+                Complex32::new(-1.0, 0.0),
+            ] {
                 let n = tab.len();
                 let mut tx = Synth::new(&tab).unwrap();
                 let mut chips = vec![Complex32::new(0.0, 0.0); n];
@@ -481,7 +482,8 @@ mod tests {
         let n = tab.len();
 
         // a different code of the same length
-        let other: Vec<Complex32> = (0..n).map(|i| Complex32::new(if (i * 3 + 1) % 5 > 2 { 1.0 } else { -1.0 }, 0.0)).collect();
+        let other: Vec<Complex32> =
+            (0..n).map(|i| Complex32::new(if (i * 3 + 1) % 5 > 2 { 1.0 } else { -1.0 }, 0.0)).collect();
 
         let sym = Complex32::new(1.0, 0.0);
 

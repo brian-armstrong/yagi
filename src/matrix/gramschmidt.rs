@@ -1,8 +1,8 @@
 use num_traits::NumCast;
 const DEBUG_MATRIX_GRAMSCHMIDT: bool = false;
 
+use crate::error::{Error, Result};
 use crate::matrix::FloatComplex;
-use crate::error::{Result, Error};
 
 /// Compute projection of _u onto _v, store in _e
 pub fn matrix_proj<T>(u: &[T], v: &[T], e: &mut [T]) -> Result<()>

@@ -16,7 +16,7 @@ use crate::filter::fir::design;
 /// * `dt`     : filter fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32>> {
     if k < 2 {
@@ -29,11 +29,11 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
         return Err(Error::Config("beta must be in [0,1]".into()));
     }
 
-    let n = 2 * k * m + 1;       // filter length
+    let n = 2 * k * m + 1; // filter length
 
     let fc = 1.0 / (2.0 * k as f32); // filter cutoff
-    let mut fp = fc * (1.0 - beta);    // pass-band
-    let fs = fc * (1.0 + beta);    // stop-band
+    let mut fp = fc * (1.0 - beta); // pass-band
+    let fs = fc * (1.0 + beta); // stop-band
 
     // root nyquist
     let num_bands = 3;
@@ -86,6 +86,6 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
     for h_i in h.iter_mut() {
         *h_i *= (k as f32 / e2).sqrt();
     }
-    
+
     Ok(h)
 }

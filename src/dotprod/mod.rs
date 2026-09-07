@@ -12,11 +12,11 @@ mod sumsq;
 pub use sumsq::{sumsqcf, sumsqf};
 
 #[cfg(feature = "simd")]
-mod reduce;
-#[cfg(feature = "simd")]
 mod ccc_block;
 #[cfg(feature = "simd")]
 mod crc_block;
+#[cfg(feature = "simd")]
+mod reduce;
 #[cfg(feature = "simd")]
 mod rrr_block;
 
@@ -39,7 +39,7 @@ pub trait DotProd<Rhs> {
     /// Resolve the kernel for a dot product of `len` elements so that a
     /// caller holding fixed-length coefficients can calculate dispatch only
     /// once instead of on every execution.
-    /// 
+    ///
     /// The returned pointer is valid for the life of the process but is tied
     /// to this machine's detected features.
     fn plan(len: usize) -> unsafe fn(&Self, &[Rhs]) -> Self::Output {
@@ -61,10 +61,9 @@ pub trait DotProd<Rhs> {
 /// [`DotProd::plan_block`]. Returns number of outputs written. Some
 /// block kernels may not execute over the full input. Use singular
 /// kernel for remaining inputs.
-/// 
+///
 /// `Inputs` is a slice of inputs, while `Coeff` and `Out` are singular
-pub type DotProdBlockKernel<Inputs, Coeff, Out> =
-    unsafe fn(&Inputs, &[Coeff], &mut [Out]) -> usize;
+pub type DotProdBlockKernel<Inputs, Coeff, Out> = unsafe fn(&Inputs, &[Coeff], &mut [Out]) -> usize;
 
 type DotProdRepack<Coeff> = fn(&[Coeff], usize, &mut [Coeff]);
 

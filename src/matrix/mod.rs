@@ -29,9 +29,10 @@ pub use crate::matrix::sparse::*;
 #[cfg(test)]
 mod tests {
     use crate::matrix::{
-        matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_eye, matrix_gramschmidt, matrix_hermitian_mul,
-        matrix_inv, matrix_linsolve, matrix_ludecomp_crout, matrix_ludecomp_doolittle, matrix_mul, matrix_mul_hermitian,
-        matrix_mul_transpose, matrix_qrdecomp_gramschmidt_f32, matrix_qrdecomp_gramschmidt_c32, matrix_transpose_mul,
+        matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_eye, matrix_gramschmidt,
+        matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout, matrix_ludecomp_doolittle,
+        matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_qrdecomp_gramschmidt_c32,
+        matrix_qrdecomp_gramschmidt_f32, matrix_transpose_mul,
     };
     use approx::assert_abs_diff_eq;
     use num_complex::Complex;
@@ -145,14 +146,7 @@ mod tests {
         let mut scratch = vec![0.0f32; 5 * 6];
 
         // run solver with caller-provided augmented-matrix storage
-        matrix_linsolve(
-            &MATRIXF_DATA_LINSOLVE_A,
-            5,
-            &MATRIXF_DATA_LINSOLVE_B,
-            &mut x,
-            Some(&mut scratch),
-        )
-        .unwrap();
+        matrix_linsolve(&MATRIXF_DATA_LINSOLVE_A, 5, &MATRIXF_DATA_LINSOLVE_B, &mut x, Some(&mut scratch)).unwrap();
 
         for i in 0..5 {
             assert_abs_diff_eq!(MATRIXF_DATA_LINSOLVE_X[i], x[i], epsilon = tol);
@@ -161,14 +155,7 @@ mod tests {
         let mut x = vec![0.0f32; 5];
 
         // run solver with its own allocated storage
-        matrix_linsolve(
-            &MATRIXF_DATA_LINSOLVE_A,
-            5,
-            &MATRIXF_DATA_LINSOLVE_B,
-            &mut x,
-            None,
-        )
-        .unwrap();
+        matrix_linsolve(&MATRIXF_DATA_LINSOLVE_A, 5, &MATRIXF_DATA_LINSOLVE_B, &mut x, None).unwrap();
 
         for i in 0..5 {
             assert_abs_diff_eq!(MATRIXF_DATA_LINSOLVE_X[i], x[i], epsilon = tol);

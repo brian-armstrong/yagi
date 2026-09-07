@@ -9,8 +9,8 @@ use num_complex::{Complex32, ComplexFloat};
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::freqresponse;
 use crate::filter::fir_group_delay;
+use crate::filter::freqresponse;
 use crate::filter::kaiser_beta_stopband_attenuation;
 use crate::math::poly::{poly_fit, poly_val};
 use crate::math::sincd;
@@ -318,7 +318,8 @@ mod tests {
             for &f in &[0.05f32, 0.1, 0.2] {
                 let mut acc = Complex32::new(0.0, 0.0);
                 for (i, &h_i) in h.iter().enumerate() {
-                    acc += h_i * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * f * (i as f32 - nominal - mu));
+                    acc +=
+                        h_i * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * f * (i as f32 - nominal - mu));
                 }
                 // with the expected ramp removed the response is real and
                 // positive across the passband

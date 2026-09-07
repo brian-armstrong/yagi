@@ -1,10 +1,10 @@
-use crate::error::{Error, Result};
-use num_complex::{Complex32, ComplexFloat};
-use core::f32;
 use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
+use crate::error::{Error, Result};
 use crate::filter::iir::design;
 use crate::filter::iir::iirfiltsos::IirFilterSos;
+use core::f32;
+use num_complex::{Complex32, ComplexFloat};
 
 // References:
 //  [Pintelon:1990] Rik Pintelon and Johan Schoukens, "Real-Time
@@ -18,7 +18,6 @@ enum IirFilterType {
     Norm,
     Sos,
 }
-
 
 /// design coefficients for a prototype IIR filter
 ///  _ftype      :   filter type (e.g. LIQUID_IIRDES_BUTTER)
@@ -53,7 +52,7 @@ where
     let r = n % 2; // odd/even order
     let l = (n - r) / 2; // filter semi-length
 
-    let h_len = if format == design::IirFormat::SecondOrderSections { 3*(l+r) } else { n+1 };
+    let h_len = if format == design::IirFormat::SecondOrderSections { 3 * (l + r) } else { n + 1 };
     let mut b = vec![0.0; h_len];
     let mut a = vec![0.0; h_len];
 
@@ -67,37 +66,36 @@ where
     Ok((b, a, nsos))
 }
 
-
 /// create coefficients for a simplified low-pass Butterworth IIR filter
 ///  order  : filter order
 ///  fc     : low-pass prototype cut-off frequency
-pub fn iir_filter_design_lowpass<Coeff>(
-    order: usize,
-    fc: f32,
-) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+pub fn iir_filter_design_lowpass<Coeff>(order: usize, fc: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-        iir_filter_design_prototype(
-            design::IirFilterShape::Butter,
-            design::IirBandType::Lowpass,
-            design::IirFormat::SecondOrderSections,
-            order,
-            fc,
-            0.0,
-            0.1,
-            60.0,
-        )
+    iir_filter_design_prototype(
+        design::IirFilterShape::Butter,
+        design::IirBandType::Lowpass,
+        design::IirFormat::SecondOrderSections,
+        order,
+        fc,
+        0.0,
+        0.1,
+        60.0,
+    )
 }
 
 /// create coefficients for an 8th-order integrating filter
 pub fn iir_filter_design_integrator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     // integrator digital zeros/poles/gain, [Pintelon:1990] Table II
     //
     // zeros, digital, integrator
+    #[rustfmt::skip]
     let zdi = [
         Complex32::from(1.175839 * -1.0),
         3.371020 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.1125),
@@ -109,6 +107,7 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
         Complex32::from(5.443743),
     ];
     // poles, digital, integrator
+    #[rustfmt::skip]
     let pdi = [
         Complex32::from(0.5805235 * -1.0),
         0.2332021 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -114.0968),
@@ -133,15 +132,16 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     Ok((b, a, 4))
 }
 
-
 /// create coefficients for an 8th-order differentiating filter
 pub fn iir_filter_design_differentiator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     // differentiator digital zeros/poles/gain, [Pintelon:1990] Table IV
     //
     // zeros, digital, differentiator
+    #[rustfmt::skip]
     let zdd = [
         Complex32::from(1.702575 * -1.0),
         5.877385 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -221.4063),
@@ -152,6 +152,7 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
         5.350284 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *   66.88802),
         Complex32::from(1.0),
     ];
+    #[rustfmt::skip]
     let pdd = [
         Complex32::from(0.8476936 * -1.0),
         0.2990781 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.5188),
@@ -185,7 +186,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///          1 - (1-alpha)z^-1
 /// ```
 pub fn iir_filter_design_dc_blocker<Coeff>(alpha: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     if alpha <= 0.0 {
@@ -210,7 +212,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///          1 - (1-alpha)z^-1
 /// ```
 pub fn iir_filter_design_dc_blocker_scale<Coeff>(alpha: f32) -> Result<Coeff>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     if alpha <= 0.0 {
         return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));
@@ -224,7 +227,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>
 ///  _zeta   :   damping factor (1/sqrt(2) suggested)
 ///  _K      :   loop gain (1000 suggested)
 pub fn iir_filter_design_pll<Coeff>(w: f32, zeta: f32, k: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
     if w <= 0.0 || w >= 1.0 {
@@ -260,7 +264,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// The frequency response
 pub fn iir_filter_freqresponse<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> Complex32
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let mut hb = Complex32::default();
     let mut ha = Complex32::default();
@@ -293,20 +298,21 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 ///
 /// The frequency response
 pub fn iir_filter_freqresponse_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> Complex32
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let mut h;
 
     h = Complex32::from(1.0);
 
     for i in 0..nsos {
-        let hb = b[3*i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0) +
-                    b[3*i+1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0) +
-                    b[3*i+2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
+        let hb = b[3 * i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0)
+            + b[3 * i + 1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0)
+            + b[3 * i + 2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
 
-        let ha = a[3*i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0) +
-                    a[3*i+1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0) +
-                    a[3*i+2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
+        let ha = a[3 * i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0)
+            + a[3 * i + 1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0)
+            + a[3 * i + 2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
 
         h *= hb / ha;
     }
@@ -316,7 +322,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 
 /// compute power spectral density response of filter coefficients in dB
 pub fn iir_filter_get_psd<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> f32
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let h = iir_filter_freqresponse(b, a, scale, fc);
     10.0 * (h * h.conj()).re.log10()
@@ -324,7 +331,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 
 /// compute power spectral density response of filter coefficients in dB
 pub fn iir_filter_get_psd_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> f32
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let h = iir_filter_freqresponse_sos(b, a, scale, nsos, fc);
     10.0 * (h * h.conj()).re.log10()
@@ -332,7 +340,8 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 
 /// compute group delay in samples
 pub fn iir_filter_groupdelay<Coeff>(b: &[Coeff], a: &[Coeff], fc: f32) -> Result<f32>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let mut b_re = vec![0.0; b.len()];
     let mut a_re = vec![0.0; a.len()];
@@ -349,13 +358,14 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 
 /// compute group delay in samples
 pub fn iir_filter_groupdelay_sos<Coeff>(b: &[Coeff], a: &[Coeff], nsos: usize, fc: f32) -> Result<f32>
-where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
+where
+    Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let mut groupdelay = 0.0;
 
     for i in 0..nsos {
-        let b_re: [f32; 3] = [b[3*i].re(), b[3*i+1].re(), b[3*i+2].re()];
-        let a_re: [f32; 3] = [a[3*i].re(), a[3*i+1].re(), a[3*i+2].re()];
+        let b_re: [f32; 3] = [b[3 * i].re(), b[3 * i + 1].re(), b[3 * i + 2].re()];
+        let a_re: [f32; 3] = [a[3 * i].re(), a[3 * i + 1].re(), a[3 * i + 2].re()];
 
         groupdelay += design::iir_group_delay(&b_re, &a_re, fc)?;
     }
@@ -366,20 +376,20 @@ where Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 /// Infinite impulse response (IIR) filter
 #[derive(Debug, Clone)]
 pub struct IirFilter<T, Coeff = T> {
-    b: Vec<Coeff>,              // numerator (feed-forward coefficients)
-    dpb: DotProduct<T, Coeff>,  // numerator dot product
-    a: Vec<Coeff>,              // denominator (feed-back coefficients)
-    dpa: DotProduct<T, Coeff>,  // denominator dot product
-    v: Window<T>,               // internal filter state (buffer)
-    n: usize,                   // filter length (order+1)
-    nb: usize,                  // numerator length
-    na: usize,                  // denominator length
+    b: Vec<Coeff>,             // numerator (feed-forward coefficients)
+    dpb: DotProduct<T, Coeff>, // numerator dot product
+    a: Vec<Coeff>,             // denominator (feed-back coefficients)
+    dpa: DotProduct<T, Coeff>, // denominator dot product
+    v: Window<T>,              // internal filter state (buffer)
+    n: usize,                  // filter length (order+1)
+    nb: usize,                 // numerator length
+    na: usize,                 // denominator length
 
     filter_type: IirFilterType,
 
     qsos: Vec<IirFilterSos<T, Coeff>>, // second-order sections filters
 
-    scale: Coeff,              // output scaling factor
+    scale: Coeff, // output scaling factor
 }
 
 impl<T, Coeff> IirFilter<T, Coeff>
@@ -390,22 +400,22 @@ where
     f32: Into<Coeff>,
 {
     /// Create a new IIR filter from a numerator and denominator
-    /// 
+    ///
     /// # Notes
-    /// 
+    ///
     /// The number of feed-forward and feed-back coefficients do not need to be equal, but they do need to be non-zero.
-    /// Furthermore, the first feed-back coefficient \(a_0\) cannot be equal to zero, otherwise the filter will 
+    /// Furthermore, the first feed-back coefficient \(a_0\) cannot be equal to zero, otherwise the filter will
     /// be invalid as this value is factored out from all coefficients.
-    /// For stability reasons the number of coefficients should reasonably not exceed about 8 for single-precision 
+    /// For stability reasons the number of coefficients should reasonably not exceed about 8 for single-precision
     /// floating-point.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `b` - The numerator coefficients
     /// * `a` - The denominator coefficients
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new IIR filter
     pub fn new(b: &[Coeff], a: &[Coeff]) -> Result<Self> {
         if b.is_empty() {
@@ -477,8 +487,8 @@ where
         };
 
         for i in 0..nsos {
-            let bt = [b[3*i], b[3*i+1], b[3*i+2]];
-            let at = [a[3*i], a[3*i+1], a[3*i+2]];
+            let bt = [b[3 * i], b[3 * i + 1], b[3 * i + 2]];
+            let at = [a[3 * i], a[3 * i + 1], a[3 * i + 2]];
             filter.qsos.push(IirFilterSos::<T, Coeff>::new(&bt, &at)?);
         }
 
@@ -632,10 +642,7 @@ where
     }
 
     #[inline]
-    fn execute_sos_const<const NSOS: usize>(
-        qsos: &mut [IirFilterSos<T, Coeff>],
-        mut x: T,
-    ) -> T {
+    fn execute_sos_const<const NSOS: usize>(qsos: &mut [IirFilterSos<T, Coeff>], mut x: T) -> T {
         let qsos: &mut [IirFilterSos<T, Coeff>; NSOS] = qsos.try_into().unwrap();
         for sos in qsos {
             x = sos.execute(x);
@@ -680,8 +687,7 @@ where
     }
 
     fn execute_sos_block_const<const NSOS: usize>(&mut self, x: &[T], y: &mut [T]) {
-        let qsos: &mut [IirFilterSos<T, Coeff>; NSOS] =
-            self.qsos.as_mut_slice().try_into().unwrap();
+        let qsos: &mut [IirFilterSos<T, Coeff>; NSOS] = self.qsos.as_mut_slice().try_into().unwrap();
         for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
             let mut value = *x_s;
             for sos in qsos.iter_mut() {
@@ -709,19 +715,17 @@ where
                     *y_s = self.execute_norm(*x_s);
                 }
             }
-            IirFilterType::Sos => {
-                match self.qsos.len() {
-                    1 => self.execute_sos_block_const::<1>(x, y),
-                    2 => self.execute_sos_block_const::<2>(x, y),
-                    3 => self.execute_sos_block_const::<3>(x, y),
-                    4 => self.execute_sos_block_const::<4>(x, y),
-                    5 => self.execute_sos_block_const::<5>(x, y),
-                    6 => self.execute_sos_block_const::<6>(x, y),
-                    7 => self.execute_sos_block_const::<7>(x, y),
-                    8 => self.execute_sos_block_const::<8>(x, y),
-                    _ => self.execute_sos_block_dynamic(x, y),
-                }
-            }
+            IirFilterType::Sos => match self.qsos.len() {
+                1 => self.execute_sos_block_const::<1>(x, y),
+                2 => self.execute_sos_block_const::<2>(x, y),
+                3 => self.execute_sos_block_const::<3>(x, y),
+                4 => self.execute_sos_block_const::<4>(x, y),
+                5 => self.execute_sos_block_const::<5>(x, y),
+                6 => self.execute_sos_block_const::<6>(x, y),
+                7 => self.execute_sos_block_const::<7>(x, y),
+                8 => self.execute_sos_block_const::<8>(x, y),
+                _ => self.execute_sos_block_dynamic(x, y),
+            },
         }
 
         Ok(())
@@ -765,56 +769,56 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fft::spgram::Spgram;
+    use crate::random::randnf;
+    use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
+    use approx::assert_abs_diff_eq;
     use design::{IirBandType, IirFilterShape, IirFormat};
     use test_macro::autotest_annotate;
-    use crate::fft::spgram::Spgram;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
-    use crate::random::randnf;
-    use approx::assert_abs_diff_eq;
-    
+
     #[test]
     #[autotest_annotate(autotest_iirfilt_integrator)]
     fn test_iirfilt_integrator() {
         // options
         let num_ones = 10;
         let num_samples = 40;
-    
+
         // allocate memory for data arrays
         let mut buf_0 = vec![0.0f32; num_samples]; // filter input
         let mut buf_1 = vec![0.0f32; num_samples]; // filter output
-    
+
         // generate input signal
         for i in 0..num_samples {
             buf_0[i] = if i < num_ones { 1.0 } else { 0.0 };
         }
-    
+
         // create integrator and run on sample data
         let mut q = IirFilter::<f32, f32>::new_integrator().unwrap();
         q.execute_block(&buf_0, &mut buf_1).unwrap();
-    
+
         // check that last value matches expected
         assert_abs_diff_eq!(buf_1[num_samples - 1], num_ones as f32, epsilon = 0.01);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirfilt_differentiator)]
     fn test_iirfilt_differentiator() {
         // options
         let num_samples = 400;
-    
+
         // allocate memory for data arrays
         let mut buf_0 = vec![0.0f32; num_samples]; // filter input
         let mut buf_1 = vec![0.0f32; num_samples]; // filter output
-    
+
         // generate input signal
         for i in 0..num_samples {
             buf_0[i] = i as f32;
         }
-    
+
         // create differentiator and run on sample data
         let mut q = IirFilter::<f32, f32>::new_differentiator().unwrap();
         q.execute_block(&buf_0, &mut buf_1).unwrap();
-    
+
         // check that derivative is equal to 1
         assert_abs_diff_eq!(buf_1[num_samples - 1], 1.0f32, epsilon = 0.01);
     }
@@ -832,7 +836,7 @@ mod tests {
         let mut filter = IirFilter::<Complex32, f32>::new_dc_blocker(alpha).unwrap();
 
         // create and configure objects
-        let mut q = Spgram::new(nfft, crate::math::WindowType::Hann, nfft/2, nfft/4).unwrap();
+        let mut q = Spgram::new(nfft, crate::math::WindowType::Hann, nfft / 2, nfft / 4).unwrap();
 
         // start running input through filter
         for _ in 0..n {
@@ -847,10 +851,11 @@ mod tests {
 
         // verify result
         let psd = q.get_psd();
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: -0.500, fmax: -0.200, pmin: -tol, pmax: tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: -0.002, fmax: 0.002, pmin: -tol, pmax: -20.0, test_lo: false, test_hi: true },
-            PsdRegion { fmin: 0.200, fmax: 0.500, pmin: -tol, pmax: tol, test_lo: true, test_hi: true },
+            PsdRegion { fmin: -0.500, fmax: -0.200, pmin: -tol, pmax:   tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin: -0.002, fmax:  0.002, pmin: -tol, pmax: -20.0, test_lo: false, test_hi: true },
+            PsdRegion { fmin:  0.200, fmax:  0.500, pmin: -tol, pmax:   tol, test_lo:  true, test_hi: true },
         ];
         assert!(validate_psd_spectrum(&psd, nfft, &regions).unwrap());
     }
@@ -865,8 +870,9 @@ mod tests {
             0.2,
             0.0,
             0.1,
-            60.0
-        ).unwrap();
+            60.0,
+        )
+        .unwrap();
 
         // start running input through filter
         let num_samples = 80;
@@ -920,15 +926,14 @@ mod tests {
         let scale = filter.get_scale();
         assert_eq!(scale, 7.22);
         assert_eq!(filter.get_length(), 8); // 7+1
+
         // Rust automatically handles destruction of objects when they go out of scope
     }
 
     #[test]
     fn test_iirfilt_sos_block_const_matches() {
         let x = (0..32)
-            .map(|i| {
-                Complex32::new(i as f32 * 0.03125 - 0.4, 0.25 - i as f32 * 0.015625)
-            })
+            .map(|i| Complex32::new(i as f32 * 0.03125 - 0.4, 0.25 - i as f32 * 0.015625))
             .collect::<Vec<_>>();
 
         for nsos in 1..=9 {
@@ -944,10 +949,7 @@ mod tests {
             sample_filter.set_scale(0.875);
             let mut block_filter = sample_filter.clone();
 
-            let expected = x
-                .iter()
-                .map(|&v| sample_filter.execute(v))
-                .collect::<Vec<_>>();
+            let expected = x.iter().map(|&v| sample_filter.execute(v)).collect::<Vec<_>>();
             let mut actual = vec![Complex32::default(); x.len()];
             block_filter.execute_block(&x, &mut actual).unwrap();
 
@@ -1009,6 +1011,7 @@ mod tests {
     #[autotest_annotate(autotest_iir_groupdelay_n8)]
     fn test_iir_groupdelay_n8() {
         // create coefficients arrays (7th-order Butterworth)
+        #[rustfmt::skip]
         let b = [
             0.00484212,
             0.03389481,
@@ -1020,6 +1023,7 @@ mod tests {
             0.00484212,
         ];
 
+        #[rustfmt::skip]
         let a = [
              1.00000000,
             -1.38928008,
@@ -1034,6 +1038,7 @@ mod tests {
         let tol = 1e-3f32;
 
         // create testing vectors
+        #[rustfmt::skip]
         let fc = [
             0.00000,
             0.06250,
@@ -1044,6 +1049,7 @@ mod tests {
             0.37500,
         ];
 
+        #[rustfmt::skip]
         let g0 = [
             3.09280801068444,
             3.30599360247944,
@@ -1078,6 +1084,7 @@ mod tests {
     #[autotest_annotate(autotest_iir_groupdelay_sos_n8)]
     fn test_iir_groupdelay_sos_n8() {
         // create coefficients arrays (7th-order Butterworth)
+        #[rustfmt::skip]
         let b = [
             0.00484212, 0.00968423, 0.00484212,
             1.00000000, 2.00000000, 1.00000000,
@@ -1085,6 +1092,7 @@ mod tests {
             1.00000000, 1.00000000, 0.00000000,
         ];
 
+        #[rustfmt::skip]
         let a = [
             1.00000000, -0.33283597, 0.07707999,
             1.00000000, -0.38797498, 0.25551325,
@@ -1095,6 +1103,7 @@ mod tests {
         let tol = 1e-3f32;
 
         // create testing vectors
+        #[rustfmt::skip]
         let fc = [
             0.00000,
             0.06250,
@@ -1105,6 +1114,7 @@ mod tests {
             0.37500,
         ];
 
+        #[rustfmt::skip]
         let g0 = [
             3.09280801068444,
             3.30599360247944,
@@ -1135,29 +1145,24 @@ mod tests {
     //  _x_len  :   input array length
     //  _y      :   output array
     //  _y_len  :   output array length
-    fn iirfilt_rrrf_test(
-        b: &[f32],
-        a: &[f32],
-        x: &[f32],
-        y: &[f32],
-    ) -> () {
+    fn iirfilt_rrrf_test(b: &[f32], a: &[f32], x: &[f32], y: &[f32]) -> () {
         let tol = 0.001f32;
-    
+
         // load filter coefficients externally
         let mut q = IirFilter::<f32, f32>::new(b, a).unwrap();
-    
+
         // allocate memory for output
         let mut y_test = vec![0.0; y.len()];
-    
+
         // compute output
         q.execute_block(x, &mut y_test).unwrap();
-    
+
         // Compare results
         for (y_i, y_test_i) in y.iter().zip(y_test.iter()) {
             assert_abs_diff_eq!(*y_i, *y_test_i, epsilon = tol);
         }
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirfilt_rrrf_h3x64)]
     fn test_iirfilt_rrrf_h3x64() {
@@ -1199,23 +1204,18 @@ mod tests {
     //  _x_len  :   input array length
     //  _y      :   output array
     //  _y_len  :   output array length
-    fn iirfilt_crcf_test(
-        b: &[f32],
-        a: &[f32],
-        x: &[Complex32],
-        y: &[Complex32],
-    ) -> () {
+    fn iirfilt_crcf_test(b: &[f32], a: &[f32], x: &[Complex32], y: &[Complex32]) -> () {
         let tol = 0.001f32;
-    
+
         // load filter coefficients externally
         let mut q = IirFilter::<Complex32, f32>::new(b, a).unwrap();
-    
+
         // allocate memory for output
         let mut y_test = vec![Complex32::new(0.0, 0.0); y.len()];
-    
+
         // compute output
         q.execute_block(x, &mut y_test).unwrap();
-    
+
         // Compare results
         for (y_i, y_test_i) in y.iter().zip(y_test.iter()) {
             assert_abs_diff_eq!(y_i.re, y_test_i.re, epsilon = tol);
@@ -1255,7 +1255,7 @@ mod tests {
             &IIRFILT_CRCF_DATA_H7X64_Y,
         );
     }
-    
+
     // autotest helper function
     //  _b      :   filter coefficients (numerator)
     //  _a      :   filter coefficients (denominator)
@@ -1264,23 +1264,18 @@ mod tests {
     //  _x_len  :   input array length
     //  _y      :   output array
     //  _y_len  :   output array length
-    fn iirfilt_cccf_test(
-        b: &[Complex32],
-        a: &[Complex32],
-        x: &[Complex32],
-        y: &[Complex32],
-    ) -> () {
+    fn iirfilt_cccf_test(b: &[Complex32], a: &[Complex32], x: &[Complex32], y: &[Complex32]) -> () {
         let tol = 0.001f32;
-    
+
         // load filter coefficients externally
         let mut q = IirFilter::<Complex32, Complex32>::new(b, a).unwrap();
-    
+
         // allocate memory for output
         let mut y_test = vec![Complex32::new(0.0, 0.0); y.len()];
-    
+
         // compute output
         q.execute_block(x, &mut y_test).unwrap();
-    
+
         // Compare results
         for (y_i, y_test_i) in y.iter().zip(y_test.iter()) {
             assert_abs_diff_eq!(y_i.re, y_test_i.re, epsilon = tol);

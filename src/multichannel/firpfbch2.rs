@@ -82,7 +82,8 @@ where
             w1.push(Window::new(h_sub_len)?);
         }
 
-        let mut q = Self { channelizer_type, num_channels, num_channels_half, m, dp, ifft, x, x_out, w0, w1, flag: false };
+        let mut q =
+            Self { channelizer_type, num_channels, num_channels_half, m, dp, ifft, x, x_out, w0, w1, flag: false };
 
         q.reset();
         Ok(q)
@@ -286,8 +287,10 @@ mod tests {
         }
 
         // create filterbank objects from prototype
-        let mut qa = FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_).unwrap();
-        let mut qs = FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Synthesizer, num_channels, m, as_).unwrap();
+        let mut qa =
+            FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_).unwrap();
+        let mut qs =
+            FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Synthesizer, num_channels, m, as_).unwrap();
 
         // run channelizer
         let mut y_channels = vec![Complex32::new(0.0, 0.0); num_channels];
@@ -352,7 +355,8 @@ mod tests {
         let num_channels = 72;
         let m = 12;
         let as_ = 80.0f32;
-        let mut q_orig = FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_).unwrap();
+        let mut q_orig =
+            FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_).unwrap();
 
         let half = num_channels / 2;
         let mut buf_0 = vec![Complex32::new(0.0, 0.0); half];

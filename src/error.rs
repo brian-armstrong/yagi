@@ -16,18 +16,12 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Internal(s) =>
-                write!(f, "{}", s),
-            Error::Config(s) =>
-                write!(f, "{}", s),
-            Error::Value(s) =>
-                write!(f, "{}", s),
-            Error::Range(s) =>
-                write!(f, "{}", s),
-            Error::Mode(s) =>
-                write!(f, "{}", s),
-            Error::NoConvergence(s) =>
-                write!(f, "{}", s),
+            Error::Internal(s) => write!(f, "{}", s),
+            Error::Config(s) => write!(f, "{}", s),
+            Error::Value(s) => write!(f, "{}", s),
+            Error::Range(s) => write!(f, "{}", s),
+            Error::Mode(s) => write!(f, "{}", s),
+            Error::NoConvergence(s) => write!(f, "{}", s),
         }
     }
 }

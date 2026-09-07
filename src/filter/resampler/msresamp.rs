@@ -1,8 +1,8 @@
-use crate::error::{Error, Result};
 use crate::dotprod::DotProd;
+use crate::error::{Error, Result};
+use crate::filter::resampler::msresamp2::{MsResamp2, ResampType};
 use crate::filter::resampler::resamp::Resamp;
 use crate::filter::resampler::resamp2::Resamp2Coeff;
-use crate::filter::resampler::msresamp2::{MsResamp2, ResampType};
 use std::f32;
 
 use num_complex::ComplexFloat;
@@ -49,7 +49,6 @@ where
                     num_halfband_stages += 1;
                     rate_arbitrary *= 2.0;
                 }
-
             }
         }
 
@@ -60,13 +59,7 @@ where
         let halfband_resamp = MsResamp2::new(type_, num_halfband_stages, 0.4, 0.0, as_)?;
 
         // TODO: Compute appropriate parameters
-        let arbitrary_resamp = Resamp::new(
-            rate_arbitrary,
-            7,
-            f32::min(0.515 * rate_arbitrary, 0.49),
-            as_,
-            256,
-        )?;
+        let arbitrary_resamp = Resamp::new(rate_arbitrary, 7, f32::min(0.515 * rate_arbitrary, 0.49), as_, 256)?;
 
         Ok(Self {
             rate,
@@ -225,10 +218,7 @@ where
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         let required_output = self.get_num_output(x.len());
         if y.len() < required_output {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), required_output,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), required_output,)));
         }
 
         if self.num_halfband_stages == 0 {
@@ -308,27 +298,27 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_abs_diff_eq;
-    use test_macro::autotest_annotate;
-    use num_complex::Complex32;
-    use crate::random::randnf;
     use crate::fft::spgram::Spgram;
-    use crate::framing::symstreamr::SymStreamR;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
-    use crate::modem::modem::ModulationScheme;
-    use crate::math::WindowType;
     use crate::filter::FirFilterShape;
+    use crate::framing::symstreamr::SymStreamR;
+    use crate::math::WindowType;
+    use crate::modem::modem::ModulationScheme;
+    use crate::random::randnf;
+    use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
+    use approx::assert_abs_diff_eq;
+    use num_complex::Complex32;
+    use test_macro::autotest_annotate;
 
     fn testbench_msresamp_crcf(r: f32, as_: f32) {
         // options
-        let n = 800000;      // number of output samples to analyze
+        let n = 800000; // number of output samples to analyze
         let bw = 0.2f32; // target output bandwidth
         let nfft = 800;
         let tol = 0.5f32;
 
         // create and configure objects
-        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft/2, nfft/4).unwrap();
-        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, r*bw, 25, 0.2, ModulationScheme::Qpsk).unwrap();
+        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
+        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, r * bw, 25, 0.2, ModulationScheme::Qpsk).unwrap();
         gen.set_gain((bw as f32).sqrt());
         let mut resamp = MsResamp::<Complex32, f32>::new(r, as_).unwrap();
 
@@ -349,6 +339,7 @@ mod tests {
 
         // verify result
         let psd = q.get_psd();
+        #[rustfmt::skip]
         let regions = vec![
             PsdRegion { fmin: -0.5,    fmax: -0.6*bw, pmin: 0.0,   pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.4*bw, fmax: 0.4*bw,  pmin: 0.0-tol, pmax: 0.0+tol, test_lo: true,  test_hi: true },
@@ -359,15 +350,21 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_01)]
-    fn test_msresamp_crcf_01() { testbench_msresamp_crcf(0.127115323, 60.0); }
+    fn test_msresamp_crcf_01() {
+        testbench_msresamp_crcf(0.127115323, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_02)]
-    fn test_msresamp_crcf_02() { testbench_msresamp_crcf(0.373737373, 60.0); }
+    fn test_msresamp_crcf_02() {
+        testbench_msresamp_crcf(0.373737373, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_03)]
-    fn test_msresamp_crcf_03() { testbench_msresamp_crcf(0.676543210, 60.0); }
+    fn test_msresamp_crcf_03() {
+        testbench_msresamp_crcf(0.676543210, 60.0);
+    }
 
     // #[test]
     // #[autotest_annotate(xautotest_msresamp_crcf_04)]
@@ -380,7 +377,7 @@ mod tests {
 
         // sizes to test in sequence
         let s = if rate < 0.1 { 131 } else { 1 }; // scale: increase for large decimation rates
-        let sizes = [1*s, 2*s, 3*s, 20*s, 7*s, 64*s, 4*s, 4*s, 4*s, 27*s];
+        let sizes = [1 * s, 2 * s, 3 * s, 20 * s, 7 * s, 64 * s, 4 * s, 4 * s, 4 * s, 27 * s];
 
         // allocate buffers (over-provision output to help avoid segmentation faults on error)
         let max_input = 64 * s;
@@ -401,35 +398,51 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_0)]
-    fn test_msresamp_crcf_num_output_0() { testbench_msresamp_crcf_num_output(1.00); }
+    fn test_msresamp_crcf_num_output_0() {
+        testbench_msresamp_crcf_num_output(1.00);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_1)]
-    fn test_msresamp_crcf_num_output_1() { testbench_msresamp_crcf_num_output(1e3); }
+    fn test_msresamp_crcf_num_output_1() {
+        testbench_msresamp_crcf_num_output(1e3);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_2)]
-    fn test_msresamp_crcf_num_output_2() { testbench_msresamp_crcf_num_output(1e-3); }
+    fn test_msresamp_crcf_num_output_2() {
+        testbench_msresamp_crcf_num_output(1e-3);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_3)]
-    fn test_msresamp_crcf_num_output_3() { testbench_msresamp_crcf_num_output(2f32.sqrt()); }
+    fn test_msresamp_crcf_num_output_3() {
+        testbench_msresamp_crcf_num_output(2f32.sqrt());
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_4)]
-    fn test_msresamp_crcf_num_output_4() { testbench_msresamp_crcf_num_output(17f32.sqrt()); }
+    fn test_msresamp_crcf_num_output_4() {
+        testbench_msresamp_crcf_num_output(17f32.sqrt());
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_5)]
-    fn test_msresamp_crcf_num_output_5() { testbench_msresamp_crcf_num_output(1.0 / std::f32::consts::PI); }
+    fn test_msresamp_crcf_num_output_5() {
+        testbench_msresamp_crcf_num_output(1.0 / std::f32::consts::PI);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_6)]
-    fn test_msresamp_crcf_num_output_6() { testbench_msresamp_crcf_num_output(8.0f32.exp()); }
+    fn test_msresamp_crcf_num_output_6() {
+        testbench_msresamp_crcf_num_output(8.0f32.exp());
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_num_output_7)]
-    fn test_msresamp_crcf_num_output_7() { testbench_msresamp_crcf_num_output((-8.0f32).exp()); }
+    fn test_msresamp_crcf_num_output_7() {
+        testbench_msresamp_crcf_num_output((-8.0f32).exp());
+    }
 
     fn testbench_msresamp_crcf_max_input(rate: f32) {
         // create object
@@ -451,7 +464,10 @@ mod tests {
             assert!(
                 num_output <= output_limit,
                 "rate={}, limit={}, num_input={}, num_output={}",
-                rate, output_limit, num_input, num_output
+                rate,
+                output_limit,
+                num_input,
+                num_output
             );
 
             // verify that one more input would exceed the limit
@@ -459,7 +475,10 @@ mod tests {
             assert!(
                 num_output_more > output_limit,
                 "rate={}, limit={}, num_input+1={}, num_output_more={}",
-                rate, output_limit, num_input + 1, num_output_more
+                rate,
+                output_limit,
+                num_input + 1,
+                num_output_more
             );
 
             // actually run the resampler to verify
@@ -469,22 +488,34 @@ mod tests {
     }
 
     #[test]
-    fn test_msresamp_crcf_max_input_0() { testbench_msresamp_crcf_max_input(1.00); }
+    fn test_msresamp_crcf_max_input_0() {
+        testbench_msresamp_crcf_max_input(1.00);
+    }
 
     #[test]
-    fn test_msresamp_crcf_max_input_1() { testbench_msresamp_crcf_max_input(0.50); }
+    fn test_msresamp_crcf_max_input_1() {
+        testbench_msresamp_crcf_max_input(0.50);
+    }
 
     #[test]
-    fn test_msresamp_crcf_max_input_2() { testbench_msresamp_crcf_max_input(2.0); }
+    fn test_msresamp_crcf_max_input_2() {
+        testbench_msresamp_crcf_max_input(2.0);
+    }
 
     #[test]
-    fn test_msresamp_crcf_max_input_3() { testbench_msresamp_crcf_max_input(0.127115323); }
+    fn test_msresamp_crcf_max_input_3() {
+        testbench_msresamp_crcf_max_input(0.127115323);
+    }
 
     #[test]
-    fn test_msresamp_crcf_max_input_4() { testbench_msresamp_crcf_max_input(std::f32::consts::PI); }
+    fn test_msresamp_crcf_max_input_4() {
+        testbench_msresamp_crcf_max_input(std::f32::consts::PI);
+    }
 
     #[test]
-    fn test_msresamp_crcf_max_input_5() { testbench_msresamp_crcf_max_input(1.0 / std::f32::consts::PI); }
+    fn test_msresamp_crcf_max_input_5() {
+        testbench_msresamp_crcf_max_input(1.0 / std::f32::consts::PI);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp_crcf_copy)]

@@ -2,9 +2,9 @@ use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Dpsk {
-    d_phi: f32,            // half of phase between symbols
-    phi: f32,              // angle state for differential PSK
-    alpha: f32,            // scaling factor for phase symbols
+    d_phi: f32, // half of phase between symbols
+    phi: f32,   // angle state for differential PSK
+    alpha: f32, // scaling factor for phase symbols
 }
 
 impl Dpsk {
@@ -19,12 +19,9 @@ impl Modem {
         let mut modem = Self::_new(bits_per_symbol, scheme)?;
 
         let alpha = PI / modem.constellation_size as f32;
-        
-        modem.data = Some(ModemData::Dpsk(Dpsk {
-            alpha,
-            phi: 0.0,
-            d_phi: PI * (1.0 - 1.0 / modem.constellation_size as f32),
-        }));
+
+        modem.data =
+            Some(ModemData::Dpsk(Dpsk { alpha, phi: 0.0, d_phi: PI * (1.0 - 1.0 / modem.constellation_size as f32) }));
 
         modem.reference = Some([0.0; MAX_MOD_BITS_PER_SYMBOL]);
         let reference = modem.reference.as_mut().unwrap();
@@ -50,7 +47,7 @@ impl Modem {
             if dpsk.phi > 2.0 * PI {
                 dpsk.phi -= 2.0 * PI;
             }
-            
+
             // compute output sample
             let y = Complex32::from_polar(1.0, dpsk.phi);
 

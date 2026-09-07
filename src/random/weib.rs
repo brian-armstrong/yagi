@@ -55,8 +55,8 @@ pub fn randweibf_cdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_randweibf)]

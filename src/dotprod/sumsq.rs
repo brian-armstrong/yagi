@@ -1,7 +1,7 @@
 // Sum of squares: sum{ |x|^2 }
 
-use num_complex::Complex32;
 use super::DotProd;
+use num_complex::Complex32;
 
 /// Computes the sum of squares of a real vector: `sum{ x[i]^2 }`
 pub fn sumsqf(v: &[f32]) -> f32 {
@@ -95,6 +95,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_sumsqcf_3)]
     fn test_sumsqcf_3() {
+        #[rustfmt::skip]
         let x = [
             Complex32::new(-0.143606511525, -0.137405158308),
             Complex32::new(-0.155077565599, -0.128712786230),
@@ -106,6 +107,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_sumsqcf_4)]
     fn test_sumsqcf_4() {
+        #[rustfmt::skip]
         let x = [
             Complex32::new(-0.027688113439,  0.014257850202),
             Complex32::new( 0.135913101830, -0.193497844930),
@@ -118,6 +120,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_sumsqcf_7)]
     fn test_sumsqcf_7() {
+        #[rustfmt::skip]
         let x = [
             Complex32::new(-0.052790293375,  0.173778162166),
             Complex32::new( 0.026113336498, -0.228399854303),
@@ -133,6 +136,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_sumsqcf_8)]
     fn test_sumsqcf_8() {
+        #[rustfmt::skip]
         let x = [
             Complex32::new(-0.114842287937, -0.044108491804),
             Complex32::new(-0.027032488500, -0.098073597323),
@@ -149,6 +153,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_sumsqcf_15)]
     fn test_sumsqcf_15() {
+        #[rustfmt::skip]
         let x = [
             Complex32::new(-0.233166865552, -0.325575589001),
             Complex32::new(-0.062157314569, -0.052675113778),
@@ -172,6 +177,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_sumsqcf_16)]
     fn test_sumsqcf_16() {
+        #[rustfmt::skip]
         let x = [
             Complex32::new(-0.065168142317,  0.069453199546),
             Complex32::new( 0.175268433034, -0.227486860237),
@@ -214,8 +220,7 @@ mod tests {
     fn test_sumsqcf_matches_interleaved_real() {
         for n in [1usize, 3, 8, 15, 16, 33, 64, 100] {
             let flat: Vec<f32> = (0..2 * n).map(|i| (i as f32 * 0.37).sin()).collect();
-            let cplx: Vec<Complex32> =
-                flat.chunks(2).map(|c| Complex32::new(c[0], c[1])).collect();
+            let cplx: Vec<Complex32> = flat.chunks(2).map(|c| Complex32::new(c[0], c[1])).collect();
             assert_eq!(sumsqcf(&cplx), sumsqf(&flat));
         }
     }

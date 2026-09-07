@@ -244,8 +244,7 @@ mod tests {
         let as_ = 60.0f32; // filter stop-band attenuation
 
         // create filterbank object
-        let mut qa =
-            FirPfbChannelizerR::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
+        let mut qa = FirPfbChannelizerR::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
 
         // create multi-signal source generator
         let mut gen = MSource::new_default().unwrap();
@@ -254,14 +253,15 @@ mod tests {
         gen.add_noise(0.0, 1.0, -60.0).unwrap(); // wide-band noise
         gen.add_noise(-0.30, 0.10, -20.0).unwrap(); // narrow-band noise
         gen.add_noise(0.08, 0.01, -30.0).unwrap(); // very narrow-band noise
+
         // modulated data
         gen.add_modem(
-            0.1875,              // center frequency
-            0.065,               // bandwidth (symbol rate)
-            -20.0,               // gain
+            0.1875,                 // center frequency
+            0.065,                  // bandwidth (symbol rate)
+            -20.0,                  // gain
             ModulationScheme::Qpsk, // modulation scheme
-            12,                  // filter semi-length
-            0.3,                 // modem parameters
+            12,                     // filter semi-length
+            0.3,                    // modem parameters
         )
         .unwrap();
 

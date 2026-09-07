@@ -1,5 +1,5 @@
-use crate::matrix::{matrix_gjelim, FloatComplex};
 use crate::error::{Error, Result};
+use crate::matrix::{matrix_gjelim, FloatComplex};
 
 /// Solve linear system of n equations: Ax = b
 ///
@@ -15,22 +15,16 @@ use crate::error::{Error, Result};
 /// # Returns
 ///
 /// `Ok(())` if successful, `Err(...)` otherwise
-pub fn matrix_linsolve<T>(
-    a: &[T],
-    n: usize,
-    b: &[T],
-    x: &mut [T],
-    scratch: Option<&mut [T]>,
-) -> Result<()>
+pub fn matrix_linsolve<T>(a: &[T], n: usize, b: &[T], x: &mut [T], scratch: Option<&mut [T]>) -> Result<()>
 where
     T: FloatComplex,
 {
-    let cols = n.checked_add(1).ok_or_else(|| {
-        Error::Config("matrix_linsolve(), augmented matrix size overflow".into())
-    })?;
-    let scratch_len = n.checked_mul(cols).ok_or_else(|| {
-        Error::Config("matrix_linsolve(), augmented matrix size overflow".into())
-    })?;
+    let cols = n
+        .checked_add(1)
+        .ok_or_else(|| Error::Config("matrix_linsolve(), augmented matrix size overflow".into()))?;
+    let scratch_len = n
+        .checked_mul(cols)
+        .ok_or_else(|| Error::Config("matrix_linsolve(), augmented matrix size overflow".into()))?;
 
     let mut owned = Vec::new();
     let m = match scratch {

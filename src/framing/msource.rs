@@ -45,19 +45,13 @@ impl MSource {
     /// * `as_` - channelizer filter stop-band suppression (dB)
     pub fn new(m_channels: usize, m: usize, as_: f32) -> Result<Self> {
         if m_channels < 2 {
-            return Err(Error::Config(
-                "number of subcarriers must be at least 2".into(),
-            ));
+            return Err(Error::Config("number of subcarriers must be at least 2".into()));
         }
         if m_channels % 2 != 0 {
-            return Err(Error::Config(
-                "number of subcarriers must be even".into(),
-            ));
+            return Err(Error::Config("number of subcarriers must be even".into()));
         }
         if m == 0 {
-            return Err(Error::Config(
-                "filter semi-length must be greater than zero".into(),
-            ));
+            return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
 
         let ch = FirPfbChannelizer2::new_kaiser(ChannelizerType::Synthesizer, m_channels, m, as_)?;
@@ -231,14 +225,7 @@ impl MSource {
     /// # Returns
     ///
     /// ID of the added source
-    pub fn add_fsk(
-        &mut self,
-        fc: f32,
-        bw: f32,
-        gain: f32,
-        m: usize,
-        k: usize,
-    ) -> Result<SourceId> {
+    pub fn add_fsk(&mut self, fc: f32, bw: f32, gain: f32, m: usize, k: usize) -> Result<SourceId> {
         // create object with double the bandwidth to account for k samples/symbol
         let config = QSourceConfig::Fsk { m, k };
         let source = QSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
@@ -258,14 +245,7 @@ impl MSource {
     /// # Returns
     ///
     /// ID of the added source
-    pub fn add_gmsk(
-        &mut self,
-        fc: f32,
-        bw: f32,
-        gain: f32,
-        m: usize,
-        bt: f32,
-    ) -> Result<SourceId> {
+    pub fn add_gmsk(&mut self, fc: f32, bw: f32, gain: f32, m: usize, bt: f32) -> Result<SourceId> {
         // create object with double the bandwidth to account for 2 samples/symbol
         let config = QSourceConfig::Gmsk { m, bt };
         let source = QSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
@@ -495,6 +475,7 @@ mod tests {
             spgram.write(&buf);
         }
 
+        #[rustfmt::skip]
         let regions = [
             // noise floor between signals
             PsdRegion { fmin: -0.500, fmax:  0.275, pmin: -80.0, pmax: -40.0, test_lo: false, test_hi: true },
@@ -613,9 +594,7 @@ mod tests {
         let mut q = MSource::new_default().unwrap();
 
         // add a user-defined source
-        let source = TestConstantSource {
-            value: Complex32::new(1.0, 0.0),
-        };
+        let source = TestConstantSource { value: Complex32::new(1.0, 0.0) };
         let id = q.add_user(0.0, 0.1, 0.0, source).unwrap();
         assert_eq!(id, 0);
 
@@ -661,9 +640,9 @@ mod tests {
         let mut gen = MSource::new_default().unwrap();
 
         // Add signals matching the firpfbchr test
-        gen.add_noise(0.0, 1.0, -60.0).unwrap();      // wide-band noise floor
-        gen.add_noise(-0.30, 0.10, -20.0).unwrap();   // narrow-band noise at -0.30
-        gen.add_noise(0.08, 0.01, -30.0).unwrap();    // very narrow-band noise at 0.08
+        gen.add_noise(0.0, 1.0, -60.0).unwrap(); // wide-band noise floor
+        gen.add_noise(-0.30, 0.10, -20.0).unwrap(); // narrow-band noise at -0.30
+        gen.add_noise(0.08, 0.01, -30.0).unwrap(); // very narrow-band noise at 0.08
         gen.add_modem(0.1875, 0.065, -20.0, ModulationScheme::Qpsk, 12, 0.3).unwrap();
 
         let nfft = 2400;
@@ -697,22 +676,33 @@ mod tests {
         let (_mod_min, mod_max) = check_region(0.17, 0.20, "Modem [0.17, 0.20]");
 
         // Verify noise floor is around -60 dB
-        assert!(floor_min > -65.0 && floor_max < -55.0,
-            "Noise floor should be ~-60 dB, got [{}, {}]", floor_min, floor_max);
+        assert!(
+            floor_min > -65.0 && floor_max < -55.0,
+            "Noise floor should be ~-60 dB, got [{}, {}]",
+            floor_min,
+            floor_max
+        );
 
         // Verify narrow-band noise is around -20 dB
-        assert!(nb_min > -25.0 && nb_max < -15.0,
-            "Narrow-band noise should be ~-20 dB, got [{}, {}]", nb_min, nb_max);
+        assert!(
+            nb_min > -25.0 && nb_max < -15.0,
+            "Narrow-band noise should be ~-20 dB, got [{}, {}]",
+            nb_min,
+            nb_max
+        );
 
         // Verify very narrow-band noise peak is around -30 dB
         // (region includes noise floor at edges due to narrow bandwidth)
-        assert!(vnb_max > -35.0 && vnb_max < -25.0,
-            "Very narrow noise peak should be ~-30 dB, got max={}", vnb_max);
+        assert!(vnb_max > -35.0 && vnb_max < -25.0, "Very narrow noise peak should be ~-30 dB, got max={}", vnb_max);
 
         // Verify modem signal is present and above noise floor
         // Note: actual power differs from gain setting due to modulation/filtering
-        assert!(mod_max > floor_max + 10.0,
-            "Modem signal should be above noise floor, got max={} vs floor={}", mod_max, floor_max);
+        assert!(
+            mod_max > floor_max + 10.0,
+            "Modem signal should be above noise floor, got max={} vs floor={}",
+            mod_max,
+            floor_max
+        );
     }
 
     #[test]
@@ -725,13 +715,13 @@ mod tests {
 
         let mut gen = MSource::new_default().unwrap();
         // add signals (fc, bw, gain)
-        gen.add_noise(0.0, 1.0, -40.0).unwrap();   // wide-band noise
-        gen.add_tone(-0.4, 0.0, 20.0).unwrap();    // tone
-        gen.add_tone(-0.3, 0.0, 10.0).unwrap();    // tone
-        gen.add_tone(-0.2, 0.0, 0.0).unwrap();     // tone
-        gen.add_tone(-0.1, 0.0, -10.0).unwrap();   // tone
-        gen.add_tone(0.0, 0.0, -20.0).unwrap();    // tone
-        gen.add_tone(0.1, 0.0, -30.0).unwrap();    // tone
+        gen.add_noise(0.0, 1.0, -40.0).unwrap(); // wide-band noise
+        gen.add_tone(-0.4, 0.0, 20.0).unwrap(); // tone
+        gen.add_tone(-0.3, 0.0, 10.0).unwrap(); // tone
+        gen.add_tone(-0.2, 0.0, 0.0).unwrap(); // tone
+        gen.add_tone(-0.1, 0.0, -10.0).unwrap(); // tone
+        gen.add_tone(0.0, 0.0, -20.0).unwrap(); // tone
+        gen.add_tone(0.1, 0.0, -30.0).unwrap(); // tone
 
         let mut buf = vec![Complex32::new(0.0, 0.0); 1024];
         while gen.get_num_samples() < num_samples as u64 {
@@ -739,6 +729,7 @@ mod tests {
             spgram.write(&buf);
         }
 
+        #[rustfmt::skip]
         let regions = [
             // noise floor between signals
             PsdRegion { fmin: -0.500, fmax: -0.405, pmin: -43.0, pmax: -37.0, test_lo: true, test_hi: true },
@@ -769,7 +760,7 @@ mod tests {
 
         let mut gen = MSource::new_default().unwrap();
         // add signals (fc, bw, gain, duration, negate, single)
-        gen.add_noise(0.0, 1.0, -40.0).unwrap();   // wide-band noise
+        gen.add_noise(0.0, 1.0, -40.0).unwrap(); // wide-band noise
         gen.add_chirp(0.0, 0.60, 20.0, (num_samples as f32) * 0.9, false, true).unwrap();
 
         let mut buf = vec![Complex32::new(0.0, 0.0); 1024];
@@ -778,6 +769,7 @@ mod tests {
             spgram.write(&buf);
         }
 
+        #[rustfmt::skip]
         let regions = [
             // noise floor outside chirp bandwidth
             PsdRegion { fmin: -0.500, fmax: -0.305, pmin: -43.0, pmax: -37.0, test_lo: true, test_hi: true },
@@ -799,11 +791,7 @@ mod tests {
     impl QSourceCallback for PulseTrainSource {
         fn generate(&mut self, output: &mut [Complex32]) -> crate::error::Result<()> {
             for sample in output.iter_mut() {
-                *sample = if self.counter == 0 {
-                    Complex32::new(1.0, 0.0)
-                } else {
-                    Complex32::new(0.0, 0.0)
-                };
+                *sample = if self.counter == 0 { Complex32::new(1.0, 0.0) } else { Complex32::new(0.0, 0.0) };
                 self.counter = (self.counter + 1) % 8;
             }
             Ok(())
@@ -818,10 +806,10 @@ mod tests {
     #[autotest_annotate(autotest_msourcecf_aggregate)]
     fn test_msourcecf_aggregate() {
         // msource parameters
-        let ms = ModulationScheme::Qpsk;    // linear modulation scheme
-        let m = 12;                          // modulation filter semi-length
-        let beta = 0.30;                     // modulation filter excess bandwidth factor
-        let bt = 0.35;                       // GMSK filter bandwidth-time factor
+        let ms = ModulationScheme::Qpsk; // linear modulation scheme
+        let m = 12; // modulation filter semi-length
+        let beta = 0.30; // modulation filter excess bandwidth factor
+        let bt = 0.35; // GMSK filter bandwidth-time factor
 
         // spectral periodogram options
         let nfft = 2400;
@@ -836,13 +824,13 @@ mod tests {
         let mut gen = MSource::new_default().unwrap();
 
         // add signals     (fc,    bw,    gain, {options})
-        gen.add_noise(0.00, 1.00, -40.0).unwrap();                      // wide-band noise
-        gen.add_tone(-0.45, 0.00, 20.0).unwrap();                       // tone
-        gen.add_fsk(-0.33, 0.05, -10.0, 3, 16).unwrap();                // FSK
-        gen.add_gmsk(-0.20, 0.05, 0.0, m, bt).unwrap();                 // modulated data (GMSK)
-        gen.add_noise(-0.05, 0.10, 0.0).unwrap();                       // narrow-band noise
+        gen.add_noise(0.00, 1.00, -40.0).unwrap(); // wide-band noise
+        gen.add_tone(-0.45, 0.00, 20.0).unwrap(); // tone
+        gen.add_fsk(-0.33, 0.05, -10.0, 3, 16).unwrap(); // FSK
+        gen.add_gmsk(-0.20, 0.05, 0.0, m, bt).unwrap(); // modulated data (GMSK)
+        gen.add_noise(-0.05, 0.10, 0.0).unwrap(); // narrow-band noise
         gen.add_chirp(0.07, 0.07, 20.0, 8000.0, false, false).unwrap(); // chirp
-        gen.add_modem(0.20, 0.10, 0.0, ms, m, beta).unwrap();           // modulated data (linear)
+        gen.add_modem(0.20, 0.10, 0.0, ms, m, beta).unwrap(); // modulated data (linear)
         gen.add_user(0.40, 0.15, -10.0, PulseTrainSource { counter: 0 }).unwrap(); // tones
 
         while gen.get_num_samples() < num_samples {
@@ -850,6 +838,7 @@ mod tests {
             spgram.write(&buf);
         }
 
+        #[rustfmt::skip]
         let regions = [
             // noise floor between signals
             PsdRegion { fmin: -0.500, fmax: -0.455, pmin: -43.0, pmax: -37.0, test_lo: true, test_hi: true },

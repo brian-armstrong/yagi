@@ -1,8 +1,8 @@
-use num_traits::{Float, Zero};
 use num_complex::{Complex, ComplexFloat};
+use num_traits::{Float, Zero};
 
-use crate::matrix::{matrix_access, matrix_access_mut, FloatComplex};
 use crate::error::{Error, Result};
+use crate::matrix::{matrix_access, matrix_access_mut, FloatComplex};
 
 /// Q/R decomposition using the Gram-Schmidt algorithm
 pub fn matrix_qrdecomp_gramschmidt<T>(x: &[T], m: usize, n: usize, q: &mut [T], r: &mut [T]) -> Result<()>
@@ -76,11 +76,10 @@ where
     Ok(())
 }
 
-
 #[macro_export]
 macro_rules! matrix_qrdecomp_gramschmidt {
     ($name:tt, $T:ty) => {
-        pub fn $name(x: &[$T], m: usize, n: usize, q: &mut [$T], r: &mut [$T]) ->  Result<()> {
+        pub fn $name(x: &[$T], m: usize, n: usize, q: &mut [$T], r: &mut [$T]) -> Result<()> {
             // validate input
             if m != n {
                 return Err(Error::Range("matrix_qrdecomp_gramschmidt(), input matrix not square".to_string()));

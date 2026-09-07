@@ -9,9 +9,7 @@ use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::math::{poly_fit, poly_val};
 use crate::matrix::matrix_linsolve;
-use crate::multichannel::ofdmframe::{
-    ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierType,
-};
+use crate::multichannel::ofdmframe::{ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierType};
 use crate::nco::{unwrap_phase, Osc, OscScheme};
 use crate::sequence::MSequence;
 use num_complex::Complex32;
@@ -53,11 +51,7 @@ impl EqGainState {
 
     /// Estimate complex equalizer gain using separate polynomial fits for
     /// magnitude and unwrapped phase.
-    fn estimate_poly(
-        allocation: &[SubcarrierType],
-        gain: &mut [Complex32],
-        order: usize,
-    ) -> Result<()> {
+    fn estimate_poly(allocation: &[SubcarrierType], gain: &mut [Complex32], order: usize) -> Result<()> {
         let m = gain.len();
         let m2 = m / 2;
         let n = allocation.iter().filter(|&&p| p != SubcarrierType::Null).count();
@@ -89,9 +83,7 @@ impl EqGainState {
         }
 
         if idx != n {
-            return Err(Error::Internal(
-                "ofdmframesync_estimate_eqgain_poly(), pilot subcarrier mismatch".into(),
-            ));
+            return Err(Error::Internal("ofdmframesync_estimate_eqgain_poly(), pilot subcarrier mismatch".into()));
         }
 
         unwrap_phase(&mut y_arg);
@@ -149,8 +141,7 @@ impl DftEqGainState {
         for t in 0..num_taps {
             let delay = (t + num_subcarriers - lead) % num_subcarriers;
             for k in 0..num_subcarriers {
-                let theta = -2.0 * std::f32::consts::PI * (k as f32) * (delay as f32)
-                    / (num_subcarriers as f32);
+                let theta = -2.0 * std::f32::consts::PI * (k as f32) * (delay as f32) / (num_subcarriers as f32);
                 basis[t * num_subcarriers + k] = Complex32::from_polar(1.0, theta);
             }
         }
@@ -297,8 +288,7 @@ impl OfdmFrameAcquisition {
 
         let backoff = cp_len.min(2);
         let phi = backoff as f32 * 2.0 * std::f32::consts::PI / m as f32;
-        let backoff_phase =
-            (0..m).map(|i| Complex32::from_polar(1.0, i as f32 * phi)).collect();
+        let backoff_phase = (0..m).map(|i| Complex32::from_polar(1.0, i as f32 * phi)).collect();
         let active = counts.pilot + counts.data;
         let taps = DftEqGainState::default_num_taps(cp_len, active);
 
@@ -346,17 +336,13 @@ impl OfdmFrameAcquisition {
         self.eqgain = match method {
             EqGainMethod::Poly { order } => {
                 if order == 0 {
-                    return Err(Error::Config(
-                        "ofdmframesync, polynomial order must be at least 1".into(),
-                    ));
+                    return Err(Error::Config("ofdmframesync, polynomial order must be at least 1".into()));
                 }
                 EqGainState::Poly { order }
             }
             EqGainMethod::Dft { num_taps } => {
                 if num_taps == 0 {
-                    return Err(Error::Config(
-                        "ofdmframesync, tap count must be at least 1".into(),
-                    ));
+                    return Err(Error::Config("ofdmframesync, tap count must be at least 1".into()));
                 }
                 if num_taps > active || num_taps > m {
                     return Err(Error::Config(format!(
@@ -375,11 +361,7 @@ impl OfdmFrameAcquisition {
         self.eqgain.method()
     }
 
-    fn execute(
-        &mut self,
-        config: &OfdmFrameConfig,
-        frontend: &mut OfdmRxFrontend,
-    ) -> Result<AcquisitionStatus> {
+    fn execute(&mut self, config: &OfdmFrameConfig, frontend: &mut OfdmRxFrontend) -> Result<AcquisitionStatus> {
         match self.stage {
             AcquisitionStage::SeekPlcp { .. } => self.execute_seekplcp(config, frontend),
             AcquisitionStage::PlcpShort0 { .. } => self.execute_s0a(config, frontend),
@@ -403,7 +385,6 @@ impl OfdmFrameAcquisition {
             self.stage = AcquisitionStage::SeekPlcp { timer };
             return Ok(AcquisitionStatus::Pending);
         }
-
 
         let m = config.num_subcarriers();
         let cp_len = config.cp_len();
@@ -439,11 +420,7 @@ impl OfdmFrameAcquisition {
         Ok(AcquisitionStatus::Pending)
     }
 
-    fn execute_s0a(
-        &mut self,
-        config: &OfdmFrameConfig,
-        frontend: &mut OfdmRxFrontend,
-    ) -> Result<AcquisitionStatus> {
+    fn execute_s0a(&mut self, config: &OfdmFrameConfig, frontend: &mut OfdmRxFrontend) -> Result<AcquisitionStatus> {
         let AcquisitionStage::PlcpShort0 { mut timer } = self.stage else {
             unreachable!("S0a handler called outside S0a state")
         };
@@ -470,11 +447,7 @@ impl OfdmFrameAcquisition {
         Ok(AcquisitionStatus::Pending)
     }
 
-    fn execute_s0b(
-        &mut self,
-        config: &OfdmFrameConfig,
-        frontend: &mut OfdmRxFrontend,
-    ) -> Result<AcquisitionStatus> {
+    fn execute_s0b(&mut self, config: &OfdmFrameConfig, frontend: &mut OfdmRxFrontend) -> Result<AcquisitionStatus> {
         let AcquisitionStage::PlcpShort1 { mut timer, s0_metric } = self.stage else {
             unreachable!("S0b handler called outside S0b state")
         };
@@ -510,35 +483,19 @@ impl OfdmFrameAcquisition {
         // compute carrier frequency offset estimate using ML method
         let mut t0 = Complex32::new(0.0, 0.0);
         for i in 0..m2 {
-            t0 += rc[i].conj()
-                * self.s0_time[i]
-                * rc[i + m2]
-                * self.s0_time[i + m2].conj();
+            t0 += rc[i].conj() * self.s0_time[i] * rc[i + m2] * self.s0_time[i + m2].conj();
         }
 
         // set NCO frequency
         frontend.nco.set_frequency(t0.arg() / m2 as f32);
 
-        self.stage = AcquisitionStage::PlcpLong {
-            timer,
-            attempts: 0,
-            previous_half_detected: false,
-        };
+        self.stage = AcquisitionStage::PlcpLong { timer, attempts: 0, previous_half_detected: false };
 
         Ok(AcquisitionStatus::Pending)
     }
 
-    fn execute_s1(
-        &mut self,
-        config: &OfdmFrameConfig,
-        frontend: &mut OfdmRxFrontend,
-    ) -> Result<AcquisitionStatus> {
-        let AcquisitionStage::PlcpLong {
-            mut timer,
-            mut attempts,
-            previous_half_detected,
-        } = self.stage
-        else {
+    fn execute_s1(&mut self, config: &OfdmFrameConfig, frontend: &mut OfdmRxFrontend) -> Result<AcquisitionStatus> {
+        let AcquisitionStage::PlcpLong { mut timer, mut attempts, previous_half_detected } = self.stage else {
             unreachable!("S1 handler called outside S1 state")
         };
 
@@ -568,10 +525,7 @@ impl OfdmFrameAcquisition {
         g_hat /= self.m_s1 as f32; // normalize output
         g_hat *= self.g0;
         // rotate by complex phasor relative to timing backoff
-        g_hat *= Complex32::from_polar(
-            1.0,
-            self.backoff as f32 * 2.0 * std::f32::consts::PI / m as f32,
-        );
+        g_hat *= Complex32::from_polar(1.0, self.backoff as f32 * 2.0 * std::f32::consts::PI / m as f32);
 
         // check conditions for g_hat:
         //  1. magnitude should be large (near unity) when aligned
@@ -587,8 +541,7 @@ impl OfdmFrameAcquisition {
 
         // calculate the prefix check for the next window. the prefix is rotated
         // by pi.
-        let this_half_detected =
-            magnitude_ok && (std::f32::consts::PI - g_hat.arg().abs()).abs() < phase_limit;
+        let this_half_detected = magnitude_ok && (std::f32::consts::PI - g_hat.arg().abs()).abs() < phase_limit;
 
         if detected && precursor_ok {
             // normalize gain by subcarriers, apply timing backoff correction
@@ -599,10 +552,7 @@ impl OfdmFrameAcquisition {
                 self.gain[i] *= self.backoff_phase[i]; // timing backoff correction
             }
             self.estimate_eqgain(config)?;
-            return Ok(AcquisitionStatus::Acquired {
-                payload_timer: m + cp_len + self.backoff,
-                backoff: self.backoff,
-            });
+            return Ok(AcquisitionStatus::Acquired { payload_timer: m + cp_len + self.backoff, backoff: self.backoff });
         }
 
         if attempts == 16 {
@@ -613,11 +563,7 @@ impl OfdmFrameAcquisition {
         }
 
         // wait another half symbol
-        self.stage = AcquisitionStage::PlcpLong {
-            timer: m2,
-            attempts,
-            previous_half_detected: this_half_detected,
-        };
+        self.stage = AcquisitionStage::PlcpLong { timer: m2, attempts, previous_half_detected: this_half_detected };
         Ok(AcquisitionStatus::Pending)
     }
 
@@ -635,12 +581,7 @@ impl OfdmFrameAcquisition {
         metric / self.m_s0 as f32 // normalize output
     }
 
-    fn estimate_gain_s0(
-        &mut self,
-        config: &OfdmFrameConfig,
-        frontend: &mut OfdmRxFrontend,
-        which: usize,
-    ) {
+    fn estimate_gain_s0(&mut self, config: &OfdmFrameConfig, frontend: &mut OfdmRxFrontend, which: usize) {
         let m = config.num_subcarriers();
 
         // compute fft of x_time
@@ -751,20 +692,12 @@ impl PayloadReceiver {
         self.phase_slope = 0.0;
     }
 
-    fn begin(
-        &mut self,
-        timer: usize,
-        backoff: usize,
-        backoff_phase: &[Complex32],
-        channel_gain: &[Complex32],
-    ) {
+    fn begin(&mut self, timer: usize, backoff: usize, backoff_phase: &[Complex32], channel_gain: &[Complex32]) {
         self.reset();
         self.timer = timer;
         self.backoff = backoff;
         // compute composite gain
-        for ((equalizer, &phase), &gain) in
-            self.equalizer.iter_mut().zip(backoff_phase).zip(channel_gain)
-        {
+        for ((equalizer, &phase), &gain) in self.equalizer.iter_mut().zip(backoff_phase).zip(channel_gain) {
             *equalizer = phase / gain;
         }
     }
@@ -817,13 +750,10 @@ impl PayloadReceiver {
         let sum_x: f32 = self.pilot_frequencies.iter().sum();
         let sum_y: f32 = self.pilot_phases.iter().sum();
         let sum_xx: f32 = self.pilot_frequencies.iter().map(|x| x * x).sum();
-        let sum_xy: f32 =
-            self.pilot_frequencies.iter().zip(&self.pilot_phases).map(|(x, y)| x * y).sum();
+        let sum_xy: f32 = self.pilot_frequencies.iter().zip(&self.pilot_phases).map(|(x, y)| x * y).sum();
         let denominator = nf * sum_xx - sum_x * sum_x;
         if denominator == 0.0 {
-            return Err(Error::Internal(
-                "ofdmframesync_rxsymbol(), pilot frequencies are degenerate".into(),
-            ));
+            return Err(Error::Internal("ofdmframesync_rxsymbol(), pilot frequencies are degenerate".into()));
         }
         let mut slope = (nf * sum_xy - sum_x * sum_y) / denominator;
         let offset = (sum_y - slope * sum_x) / nf;
@@ -855,7 +785,6 @@ impl PayloadReceiver {
         Ok(())
     }
 }
-
 
 /// One equalized OFDM payload symbol recovered by [`OfdmFrameSync::execute`].
 ///
@@ -1013,21 +942,19 @@ impl OfdmFrameSync {
             self.frontend.input_buffer.push(sample);
 
             let symbol_ready = match self.mode {
-                FrameSyncMode::Acquiring => {
-                    match self.acquisition.execute(&self.config, &mut self.frontend)? {
-                        AcquisitionStatus::Pending => false,
-                        AcquisitionStatus::Acquired { payload_timer, backoff } => {
-                            self.payload.begin(
-                                payload_timer,
-                                backoff,
-                                &self.acquisition.backoff_phase,
-                                &self.acquisition.gain,
-                            );
-                            self.mode = FrameSyncMode::Receiving;
-                            false
-                        }
+                FrameSyncMode::Acquiring => match self.acquisition.execute(&self.config, &mut self.frontend)? {
+                    AcquisitionStatus::Pending => false,
+                    AcquisitionStatus::Acquired { payload_timer, backoff } => {
+                        self.payload.begin(
+                            payload_timer,
+                            backoff,
+                            &self.acquisition.backoff_phase,
+                            &self.acquisition.gain,
+                        );
+                        self.mode = FrameSyncMode::Receiving;
+                        false
                     }
-                }
+                },
                 FrameSyncMode::Receiving => self.payload.execute(&self.config, &mut self.frontend)?,
             };
 
@@ -1118,13 +1045,7 @@ mod tests {
         OfdmFrameSync::new(&config)
     }
 
-    fn make_frame(
-        fg: &mut OfdmFrameGen,
-        m: usize,
-        cp_len: usize,
-        num_data: usize,
-        x: &[Complex32],
-    ) -> Vec<Complex32> {
+    fn make_frame(fg: &mut OfdmFrameGen, m: usize, cp_len: usize, num_data: usize, x: &[Complex32]) -> Vec<Complex32> {
         let sym = m + cp_len;
         let mut y = vec![Complex32::new(0.0, 0.0); (3 + num_data) * sym];
         let mut n = 0;
@@ -1203,9 +1124,8 @@ mod tests {
         n += sym;
 
         // generate data symbol (random)
-        let x: Vec<Complex32> = (0..m)
-            .map(|_| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * randf()))
-            .collect();
+        let x: Vec<Complex32> =
+            (0..m).map(|_| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * randf())).collect();
 
         // write data symbol
         fg.write_symbol(&x, &mut y[n..n + sym]).unwrap();
@@ -1294,12 +1214,7 @@ mod tests {
         assert_abs_diff_eq!(small.acquisition.sync_threshold, 0.42, epsilon = 1e-6);
     }
 
-    fn ofdmframesync_test_cfo_noise(
-            epsilon: f32,
-            snr_db: f32,
-            num_data: usize,
-            pad: usize,
-        ) {
+    fn ofdmframesync_test_cfo_noise(epsilon: f32, snr_db: f32, num_data: usize, pad: usize) {
         let m = 64;
         let cp_len = 8;
         let dphi = 2.0 * std::f32::consts::PI * epsilon / m as f32;
@@ -1312,9 +1227,8 @@ mod tests {
 
         assert_eq!(fs.get_cfo(), 0.0, "cfo starts at zero");
 
-        let x: Vec<Complex32> = (0..m)
-            .map(|_| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * randf()))
-            .collect();
+        let x: Vec<Complex32> =
+            (0..m).map(|_| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * randf())).collect();
 
         let frame = make_frame(&mut fg, m, cp_len, num_data, &x);
 
@@ -1346,15 +1260,9 @@ mod tests {
             }
         }
         let rmse_0 = (err_0 / c as f32).sqrt();
-        assert!(
-            rmse_0 < nstd + 0.5,
-            "payload first rmse {rmse_0} at snr {snr_db} dB ({nstd})"
-        );
+        assert!(rmse_0 < nstd + 0.5, "payload first rmse {rmse_0} at snr {snr_db} dB ({nstd})");
         let rmse_last = (err_last / c as f32).sqrt();
-        assert!(
-            rmse_last < nstd + 0.5,
-            "payload last rmse {rmse_last} at snr {snr_db} dB ({nstd})"
-        );
+        assert!(rmse_last < nstd + 0.5, "payload last rmse {rmse_last} at snr {snr_db} dB ({nstd})");
     }
 
     #[test]
@@ -1370,12 +1278,7 @@ mod tests {
         }
     }
 
-    fn ofdmframesync_test_delay(
-        delay: usize,
-        gain: f32,
-        method: EqGainMethod,
-        rmse_max: f32,
-    ) {
+    fn ofdmframesync_test_delay(delay: usize, gain: f32, method: EqGainMethod, rmse_max: f32) {
         let m = 64;
         let cp_len = 16;
 
@@ -1386,10 +1289,7 @@ mod tests {
             .map(|i| {
                 let a = if i % 2 == 0 { 1.0 } else { -1.0 };
                 let b = if (i / 5) % 2 == 0 { 1.0 } else { -1.0 };
-                Complex32::new(
-                    a * std::f32::consts::FRAC_1_SQRT_2,
-                    b * std::f32::consts::FRAC_1_SQRT_2,
-                )
+                Complex32::new(a * std::f32::consts::FRAC_1_SQRT_2, b * std::f32::consts::FRAC_1_SQRT_2)
             })
             .collect();
 
@@ -1427,11 +1327,18 @@ mod tests {
         let rmse = test_case_rmse(delay, gain, method).expect("test case failed to acquire");
         let method_s = match method {
             EqGainMethod::Poly { order } => format!("poly-{order}"),
-            EqGainMethod::Dft { num_taps } => format!("dft-{num_taps}")
+            EqGainMethod::Dft { num_taps } => format!("dft-{num_taps}"),
         };
         let delay_s = if gain < 1.0 { "delay" } else { "lead" };
-        assert!(rmse < rmse_max, "ofdmframesync method ({}) {} {}: rmse actual {} >= expected {}",
-          method_s, delay_s, delay, rmse, rmse_max);
+        assert!(
+            rmse < rmse_max,
+            "ofdmframesync method ({}) {} {}: rmse actual {} >= expected {}",
+            method_s,
+            delay_s,
+            delay,
+            rmse,
+            rmse_max
+        );
     }
 
     #[test]
@@ -1572,4 +1479,3 @@ mod tests {
         assert_eq!(first_result.consumed + last_result.consumed, y.len());
     }
 }
-

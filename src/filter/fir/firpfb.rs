@@ -1,6 +1,6 @@
-use crate::error::{Error, Result};
 use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProductPlan};
+use crate::error::{Error, Result};
 use crate::filter;
 use std::marker::PhantomData;
 
@@ -33,15 +33,15 @@ where
     [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new FIR PFB coefficient bank
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `num_filters` - number of filters in the bank
     /// * `h` - filter coefficients
     /// * `h_len` - filter length
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
     pub fn new(num_filters: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
         if num_filters == 0 {
@@ -71,8 +71,7 @@ where
 
         let plan = DotProductPlan::new(filter_len);
         let packed_len = plan.packed_len();
-        let mut block_coefficients =
-            vec![coefficients[0]; num_filters * packed_len];
+        let mut block_coefficients = vec![coefficients[0]; num_filters * packed_len];
         for (i, h) in coefficients.chunks_exact(filter_len).enumerate() {
             let start = i * packed_len;
             plan.repack(h, &mut block_coefficients[start..start + packed_len]);
@@ -90,32 +89,32 @@ where
     }
 
     /// Create a new FIR PFB filter bank with default parameters
-    /// 
+    ///
     /// This is equivalent to FirPfbBank::new_kaiser(num_filters, m, 0.5, 60.0)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `num_filters` - number of filters in the bank
     /// * `m` - filter delay
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
     pub fn default(num_filters: usize, m: usize) -> Result<Self> {
         Self::new_kaiser(num_filters, m, 0.5, 60.0)
     }
 
     /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `num_filters` - number of filters in the bank
     /// * `m` - filter delay
     /// * `fc` - filter normalized cut-off frequency
     /// * `as_` - filter stop-band suppression \[dB\]
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
     pub fn new_kaiser(num_filters: usize, m: usize, fc: f32, as_: f32) -> Result<Self> {
         if num_filters == 0 {
@@ -139,19 +138,25 @@ where
     }
 
     /// Create a new FIR PFB filter bank using square-root Nyquist prototype filter design
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
     /// * `k` - samples/symbol
     /// * `m` - filter delay
     /// * `beta` - excess bandwidth factor
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
-    pub fn new_rnyquist(filter_type: filter::FirFilterShape, num_filters: usize, k: usize, m: usize, beta: f32) -> Result<Self> {
+    pub fn new_rnyquist(
+        filter_type: filter::FirFilterShape,
+        num_filters: usize,
+        k: usize,
+        m: usize,
+        beta: f32,
+    ) -> Result<Self> {
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
         }
@@ -173,19 +178,25 @@ where
     }
 
     /// Create a new FIR PFB filter bank using square-root derivative Nyquist prototype filter design
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
     /// * `k` - samples/symbol
     /// * `m` - filter delay
     /// * `beta` - excess bandwidth factor
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
-    pub fn new_drnyquist(filter_type: filter::FirFilterShape, num_filters: usize, k: usize, m: usize, beta: f32) -> Result<Self> {
+    pub fn new_drnyquist(
+        filter_type: filter::FirFilterShape,
+        num_filters: usize,
+        k: usize,
+        m: usize,
+        beta: f32,
+    ) -> Result<Self> {
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
         }
@@ -231,27 +242,27 @@ where
     }
 
     /// Set the output scaling for the filter bank
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `scale` - scaling factor to apply to each output sample
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
     /// Get the output scaling for the filter bank
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The scaling factor applied to each output sample
     pub fn get_scale(&self) -> Coeff {
         self.scale
     }
 
     /// Execute one phase against externally managed history
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `i` - index of filter to use
     /// * `history` - input history, with length [`filter_len`](Self::filter_len)
     pub fn execute(&self, i: usize, history: &[T]) -> Result<T> {
@@ -345,18 +356,11 @@ where
         let h = &self.coefficients[start..start + self.filter_len];
         let packed_len = self.plan.packed_len();
         let packed_start = i * packed_len;
-        let block_h =
-            &self.block_coefficients[packed_start..packed_start + packed_len];
+        let block_h = &self.block_coefficients[packed_start..packed_start + packed_len];
         Ok((h, block_h))
     }
 
-    fn execute_block_with_coefficients(
-        &self,
-        history: &[T],
-        y: &mut [T],
-        h: &[Coeff],
-        block_h: &[Coeff],
-    ) {
+    fn execute_block_with_coefficients(&self, history: &[T], y: &mut [T], h: &[Coeff], block_h: &[Coeff]) {
         self.plan.execute_block(history, h, block_h, y);
 
         for yi in y {
@@ -372,83 +376,95 @@ where
     [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new FIR PFB filter bank
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `num_filters` - number of filters in the bank
     /// * `h` - filter coefficients
     /// * `h_len` - filter length
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
     pub fn new(num_filters: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
         Self::from_bank(FirPfbBank::new(num_filters, h, h_len)?)
     }
 
     /// Create a new FIR PFB filter bank with default parameters
-    /// 
+    ///
     /// This is equivalent to FirPfbFilter::new_kaiser(num_filters, m, 0.5, 60.0)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `num_filters` - number of filters in the bank
     /// * `m` - filter delay
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
     pub fn default(num_filters: usize, m: usize) -> Result<Self> {
         Self::from_bank(FirPfbBank::default(num_filters, m)?)
     }
 
     /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `num_filters` - number of filters in the bank
     /// * `m` - filter delay
     /// * `fc` - filter normalized cut-off frequency
     /// * `as_` - filter stop-band suppression \[dB\]
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
     pub fn new_kaiser(num_filters: usize, m: usize, fc: f32, as_: f32) -> Result<Self> {
         Self::from_bank(FirPfbBank::new_kaiser(num_filters, m, fc, as_)?)
     }
 
     /// Create a new FIR PFB filter bank using square-root Nyquist prototype filter design
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
     /// * `k` - samples/symbol
     /// * `m` - filter delay
     /// * `beta` - excess bandwidth factor
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
-    pub fn new_rnyquist(filter_type: filter::FirFilterShape, num_filters: usize, k: usize, m: usize, beta: f32) -> Result<Self> {
+    pub fn new_rnyquist(
+        filter_type: filter::FirFilterShape,
+        num_filters: usize,
+        k: usize,
+        m: usize,
+        beta: f32,
+    ) -> Result<Self> {
         Self::from_bank(FirPfbBank::new_rnyquist(filter_type, num_filters, k, m, beta)?)
     }
 
     /// Create a new FIR PFB filter bank using square-root derivative Nyquist prototype filter design
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
     /// * `k` - samples/symbol
     /// * `m` - filter delay
     /// * `beta` - excess bandwidth factor
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new FIR PFB filter bank
-    pub fn new_drnyquist(filter_type: filter::FirFilterShape, num_filters: usize, k: usize, m: usize, beta: f32) -> Result<Self> {
+    pub fn new_drnyquist(
+        filter_type: filter::FirFilterShape,
+        num_filters: usize,
+        k: usize,
+        m: usize,
+        beta: f32,
+    ) -> Result<Self> {
         Self::from_bank(FirPfbBank::new_drnyquist(filter_type, num_filters, k, m, beta)?)
     }
 
@@ -484,58 +500,58 @@ where
     }
 
     /// Set the output scaling for the filter bank
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `scale` - scaling factor to apply to each output sample
     pub fn set_scale(&mut self, scale: Coeff) {
         self.bank.set_scale(scale);
     }
 
     /// Get the output scaling for the filter bank
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The scaling factor applied to each output sample
     pub fn get_scale(&self) -> Coeff {
         self.bank.get_scale()
     }
 
     /// Push a sample into the filter bank
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - input sample
     pub fn push(&mut self, x: T) -> () {
         self.w.push(x)
     }
 
     /// Write a block of samples into the filter bank
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - input samples
     pub fn write(&mut self, x: &[T]) -> () {
         self.w.write(x)
     }
 
     /// Execute the filter bank on a single input sample
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `i` - index of filter to use
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The output sample
     pub fn execute(&mut self, i: usize) -> Result<T> {
         self.bank.execute(i, self.w.read())
     }
 
     /// Execute the filter bank on a block of input samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `i` - index of filter to use
     /// * `x` - input samples
     /// * `y` - output samples
@@ -553,8 +569,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_firpfb_impulse_response)]
@@ -564,6 +580,7 @@ mod tests {
 
         // k=2, m=3, beta=0.3, npfb=4;
         // h=rrcos(k*npfb,m,beta);
+        #[rustfmt::skip]
         let h: [f32; 48] = [
             -0.033116, -0.024181, -0.006284,  0.018261, 
              0.045016,  0.068033,  0.080919,  0.078177, 
@@ -580,6 +597,7 @@ mod tests {
         ];
 
         // filter input
+        #[rustfmt::skip]
         let noise: [f32; 12] = [
              0.438310,  1.001900,  0.200600,  0.790040, 
              1.134200,  1.592200, -0.702980, -0.937560, 
@@ -587,6 +605,7 @@ mod tests {
         ];
 
         // expected filter outputs
+        #[rustfmt::skip]
         let test: [f32; 4] = [
             2.05558467194397,
             1.56922189602661,
@@ -596,7 +615,7 @@ mod tests {
 
         // Load filter coefficients externally
         let mut f = FirPfbFilter::<f32, f32>::new(4, &h, 48).unwrap();
-        
+
         for &n in noise.iter() {
             f.push(n);
         }
@@ -650,9 +669,7 @@ mod tests {
 
         let num_filters = 4;
         let filter_len = 5;
-        let h: Vec<f32> = (0..num_filters * filter_len)
-            .map(|i| ((i + 1) as f32 * 0.17).sin())
-            .collect();
+        let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 1) as f32 * 0.17).sin()).collect();
         let mut bank = FirPfbBank::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
         bank.set_scale(0.73);
 
@@ -663,10 +680,7 @@ mod tests {
         let mut history = Window::new(filter_len).unwrap();
 
         for i in 0..37 {
-            let sample = Complex32::new(
-                ((i + 3) as f32 * 0.11).cos(),
-                ((i + 5) as f32 * 0.07).sin(),
-            );
+            let sample = Complex32::new(((i + 3) as f32 * 0.11).cos(), ((i + 5) as f32 * 0.07).sin());
             history.push(sample);
             filter.push(sample);
 
@@ -697,20 +711,15 @@ mod tests {
         let num_filters = 3;
         let filter_len = 35;
         let num_outputs = 67;
-        let h: Vec<f32> = (0..num_filters * filter_len)
-            .map(|i| ((i + 3) as f32 * 0.137).sin())
-            .collect();
+        let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 3) as f32 * 0.137).sin()).collect();
         let mut bank = FirPfbBank::<f32, f32>::new(num_filters, &h, h.len()).unwrap();
         bank.set_scale(0.73);
 
-        let history: Vec<f32> = (0..num_outputs + filter_len - 1)
-            .map(|i| ((i + 7) as f32 * 0.091).cos())
-            .collect();
+        let history: Vec<f32> = (0..num_outputs + filter_len - 1).map(|i| ((i + 7) as f32 * 0.091).cos()).collect();
 
         for phase in 0..num_filters {
-            let expected: Vec<_> = history.windows(filter_len)
-                .map(|samples| bank.execute(phase, samples).unwrap())
-                .collect();
+            let expected: Vec<_> =
+                history.windows(filter_len).map(|samples| bank.execute(phase, samples).unwrap()).collect();
             let mut actual = vec![0.0; num_outputs];
             bank.execute_block(phase, &history, &mut actual).unwrap();
 
@@ -727,23 +736,17 @@ mod tests {
         let num_filters = 4;
         let filter_len = 17;
         let num_outputs = 61;
-        let h: Vec<f32> = (0..num_filters * filter_len)
-            .map(|i| ((i + 5) as f32 * 0.113).cos())
-            .collect();
+        let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 5) as f32 * 0.113).cos()).collect();
         let mut bank = FirPfbBank::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
         bank.set_scale(0.61);
 
         let history: Vec<Complex32> = (0..num_outputs + filter_len - 1)
-            .map(|i| Complex32::new(
-                ((i + 2) as f32 * 0.071).sin(),
-                ((i + 11) as f32 * 0.047).cos(),
-            ))
+            .map(|i| Complex32::new(((i + 2) as f32 * 0.071).sin(), ((i + 11) as f32 * 0.047).cos()))
             .collect();
 
         for phase in 0..num_filters {
-            let expected: Vec<_> = history.windows(filter_len)
-                .map(|samples| bank.execute(phase, samples).unwrap())
-                .collect();
+            let expected: Vec<_> =
+                history.windows(filter_len).map(|samples| bank.execute(phase, samples).unwrap()).collect();
             let mut actual = vec![Complex32::default(); num_outputs];
             bank.execute_block(phase, &history, &mut actual).unwrap();
 
@@ -762,29 +765,18 @@ mod tests {
         let filter_len = 16;
         let num_outputs = 53;
         let h: Vec<Complex32> = (0..num_filters * filter_len)
-            .map(|i| Complex32::new(
-                ((i + 7) as f32 * 0.097).cos(),
-                ((i + 4) as f32 * 0.131).sin(),
-            ))
+            .map(|i| Complex32::new(((i + 7) as f32 * 0.097).cos(), ((i + 4) as f32 * 0.131).sin()))
             .collect();
-        let mut bank = FirPfbBank::<Complex32, Complex32>::new(
-            num_filters,
-            &h,
-            h.len(),
-        ).unwrap();
+        let mut bank = FirPfbBank::<Complex32, Complex32>::new(num_filters, &h, h.len()).unwrap();
         bank.set_scale(Complex32::new(0.61, -0.13));
 
         let history: Vec<Complex32> = (0..num_outputs + filter_len - 1)
-            .map(|i| Complex32::new(
-                ((i + 2) as f32 * 0.071).sin(),
-                ((i + 11) as f32 * 0.047).cos(),
-            ))
+            .map(|i| Complex32::new(((i + 2) as f32 * 0.071).sin(), ((i + 11) as f32 * 0.047).cos()))
             .collect();
 
         for phase in 0..num_filters {
-            let expected: Vec<_> = history.windows(filter_len)
-                .map(|samples| bank.execute(phase, samples).unwrap())
-                .collect();
+            let expected: Vec<_> =
+                history.windows(filter_len).map(|samples| bank.execute(phase, samples).unwrap()).collect();
             let mut actual = vec![Complex32::default(); num_outputs];
             bank.execute_block(phase, &history, &mut actual).unwrap();
 
@@ -801,11 +793,8 @@ mod tests {
 
         let num_filters = 4;
         let filter_len = 17;
-        let h: Vec<f32> = (0..num_filters * filter_len)
-            .map(|i| ((i + 1) as f32 * 0.123).sin())
-            .collect();
-        let mut sample_filter =
-            FirPfbFilter::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
+        let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 1) as f32 * 0.123).sin()).collect();
+        let mut sample_filter = FirPfbFilter::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
         sample_filter.set_scale(0.79);
         let mut block_filter = sample_filter.clone();
 
@@ -814,17 +803,17 @@ mod tests {
         for (block_index, &block_len) in block_lengths.iter().enumerate() {
             let phase = (block_index * 3 + 1) % num_filters;
             let x: Vec<_> = (input_index..input_index + block_len)
-                .map(|i| Complex32::new(
-                    ((i + 3) as f32 * 0.083).cos(),
-                    ((i + 9) as f32 * 0.059).sin(),
-                ))
+                .map(|i| Complex32::new(((i + 3) as f32 * 0.083).cos(), ((i + 9) as f32 * 0.059).sin()))
                 .collect();
             input_index += block_len;
 
-            let expected: Vec<_> = x.iter().map(|&sample| {
-                sample_filter.push(sample);
-                sample_filter.execute(phase).unwrap()
-            }).collect();
+            let expected: Vec<_> = x
+                .iter()
+                .map(|&sample| {
+                    sample_filter.push(sample);
+                    sample_filter.execute(phase).unwrap()
+                })
+                .collect();
             let mut actual = vec![Complex32::default(); block_len];
             block_filter.execute_block(phase, &x, &mut actual).unwrap();
 

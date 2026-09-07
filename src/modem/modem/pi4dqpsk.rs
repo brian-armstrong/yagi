@@ -2,7 +2,7 @@ use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Pi4Dqpsk {
-    theta: f32,    // phase state
+    theta: f32, // phase state
 }
 
 impl Pi4Dqpsk {
@@ -91,7 +91,6 @@ impl Modem {
         Ok(s)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

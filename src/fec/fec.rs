@@ -5,13 +5,11 @@
 use crate::error::{Error, Result};
 
 use super::codec::{
-    golay2412_decode, golay2412_encode, hamming128_decode, hamming128_decode_soft,
-    hamming128_encode, hamming74_decode,
-    hamming74_decode_soft, hamming74_encode, hamming84_decode, hamming84_decode_soft,
-    hamming84_encode, pass_decode, pass_encode, rep3_decode, rep3_decode_soft,
-    rep3_encode, rep5_decode, rep5_decode_soft, rep5_encode, secded2216_decode, secded2216_encode,
-    secded3932_decode, secded3932_encode, secded7264_decode, secded7264_encode,
-    conv_scheme_params, Convolutional, ReedSolomon,
+    conv_scheme_params, golay2412_decode, golay2412_encode, hamming128_decode, hamming128_decode_soft,
+    hamming128_encode, hamming74_decode, hamming74_decode_soft, hamming74_encode, hamming84_decode,
+    hamming84_decode_soft, hamming84_encode, pass_decode, pass_encode, rep3_decode, rep3_decode_soft, rep3_encode,
+    rep5_decode, rep5_decode_soft, rep5_encode, secded2216_decode, secded2216_encode, secded3932_decode,
+    secded3932_encode, secded7264_decode, secded7264_encode, Convolutional, ReedSolomon,
 };
 use super::scheme::FecScheme;
 
@@ -33,9 +31,7 @@ impl Fec {
     /// create fec object
     pub fn new(scheme: FecScheme) -> Result<Self> {
         let data = match scheme {
-            FecScheme::Unknown => {
-                return Err(Error::Config("cannot create FEC with unknown scheme".into()))
-            }
+            FecScheme::Unknown => return Err(Error::Config("cannot create FEC with unknown scheme".into())),
             FecScheme::None
             | FecScheme::Rep3
             | FecScheme::Rep5
@@ -55,11 +51,7 @@ impl Fec {
             }
         };
 
-        Ok(Self {
-            scheme,
-            rate: scheme.rate(),
-            data,
-        })
+        Ok(Self { scheme, rate: scheme.rate(), data })
     }
 
     /// get scheme
@@ -86,17 +78,11 @@ impl Fec {
         let enc_len = self.enc_msg_len(dec_len);
 
         if msg_enc.len() < enc_len {
-            return Err(Error::Config(format!(
-                "encoded buffer too small: {} < {}",
-                msg_enc.len(),
-                enc_len
-            )));
+            return Err(Error::Config(format!("encoded buffer too small: {} < {}", msg_enc.len(), enc_len)));
         }
 
         match self.scheme {
-            FecScheme::Unknown => {
-                return Err(Error::Config("cannot encode with unknown scheme".into()))
-            }
+            FecScheme::Unknown => return Err(Error::Config("cannot encode with unknown scheme".into())),
             FecScheme::None => pass_encode(msg_dec, msg_enc),
             FecScheme::Rep3 => rep3_encode(msg_dec, msg_enc),
             FecScheme::Rep5 => rep5_encode(msg_dec, msg_enc),
@@ -129,25 +115,15 @@ impl Fec {
         let enc_len = self.enc_msg_len(dec_msg_len);
 
         if msg_enc.len() < enc_len {
-            return Err(Error::Config(format!(
-                "encoded buffer too small: {} < {}",
-                msg_enc.len(),
-                enc_len
-            )));
+            return Err(Error::Config(format!("encoded buffer too small: {} < {}", msg_enc.len(), enc_len)));
         }
 
         if msg_dec.len() < dec_msg_len {
-            return Err(Error::Config(format!(
-                "decoded buffer too small: {} < {}",
-                msg_dec.len(),
-                dec_msg_len
-            )));
+            return Err(Error::Config(format!("decoded buffer too small: {} < {}", msg_dec.len(), dec_msg_len)));
         }
 
         match self.scheme {
-            FecScheme::Unknown => {
-                return Err(Error::Config("cannot decode with unknown scheme".into()))
-            }
+            FecScheme::Unknown => return Err(Error::Config("cannot decode with unknown scheme".into())),
             FecScheme::None => pass_decode(&msg_enc[..dec_msg_len], msg_dec),
             FecScheme::Rep3 => rep3_decode(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Rep5 => rep5_decode(dec_msg_len, msg_enc, msg_dec),
@@ -193,35 +169,20 @@ impl Fec {
     ///  dec_msg_len    :   decoded message length (number of bytes)
     ///  msg_enc        :   encoded soft bits, 8 bytes per hard bit
     ///  msg_dec        :   decoded message, at least dec_msg_len bytes
-    pub fn decode_soft(
-        &mut self,
-        dec_msg_len: usize,
-        msg_enc: &[u8],
-        msg_dec: &mut [u8],
-    ) -> Result<()> {
+    pub fn decode_soft(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         let enc_len = self.enc_msg_len(dec_msg_len);
         let soft_len = enc_len * 8;
 
         if msg_enc.len() < soft_len {
-            return Err(Error::Config(format!(
-                "soft encoded buffer too small: {} < {}",
-                msg_enc.len(),
-                soft_len
-            )));
+            return Err(Error::Config(format!("soft encoded buffer too small: {} < {}", msg_enc.len(), soft_len)));
         }
 
         if msg_dec.len() < dec_msg_len {
-            return Err(Error::Config(format!(
-                "decoded buffer too small: {} < {}",
-                msg_dec.len(),
-                dec_msg_len
-            )));
+            return Err(Error::Config(format!("decoded buffer too small: {} < {}", msg_dec.len(), dec_msg_len)));
         }
 
         match self.scheme {
-            FecScheme::Unknown => {
-                return Err(Error::Config("cannot decode with unknown scheme".into()))
-            }
+            FecScheme::Unknown => return Err(Error::Config("cannot decode with unknown scheme".into())),
             FecScheme::Rep3 => rep3_decode_soft(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Rep5 => rep5_decode_soft(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Hamming74 => hamming74_decode_soft(dec_msg_len, msg_enc, msg_dec),
@@ -297,10 +258,8 @@ mod tests {
 
         // 8 soft bytes per hard bit, MSB first
         let soft = [
-            // 0xA5 = 1010 0101
-            0xFF, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF,
-            // 0x5A = 0101 1010
-            0x00, 0xFF, 0x00, 0xFF, 0xFF, 0x00, 0xFF, 0x00,
+            0xFF, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, // 0xA5 = 1010 0101
+            0x00, 0xFF, 0x00, 0xFF, 0xFF, 0x00, 0xFF, 0x00, // 0x5A = 0101 1010
         ];
         let mut msg_dec = [0u8; 2];
 
@@ -663,12 +622,7 @@ mod tests {
         for n in 1..=32usize {
             let r = n % 3;
             let expected = (n - r) / 3 * 6 + r * 3;
-            assert_eq!(
-                fec.enc_msg_len(n),
-                expected,
-                "enc_msg_len disagrees with encoder layout for length {}",
-                n
-            );
+            assert_eq!(fec.enc_msg_len(n), expected, "enc_msg_len disagrees with encoder layout for length {}", n);
         }
     }
 
@@ -758,11 +712,7 @@ mod tests {
             fec.decode_soft(n, &msg_soft, &mut dec_soft).unwrap();
             fec.decode(n, &msg_enc, &mut dec_hard).unwrap();
 
-            assert_eq!(
-                dec_soft, dec_hard,
-                "{:?}: soft fallback disagreed with hard decoding",
-                scheme
-            );
+            assert_eq!(dec_soft, dec_hard, "{:?}: soft fallback disagreed with hard decoding", scheme);
             assert_eq!(dec_soft, msg_org, "{:?}: soft fallback lost data", scheme);
         }
     }
@@ -798,12 +748,7 @@ mod tests {
         let r0 = q0.decode(n, &msg_enc_0, &mut msg_dec_0);
         let r1 = q1.decode(n, &msg_enc_1, &mut msg_dec_1);
 
-        assert_eq!(
-            r0.is_ok(),
-            r1.is_ok(),
-            "{:?}: clone disagreed on decode success",
-            scheme
-        );
+        assert_eq!(r0.is_ok(), r1.is_ok(), "{:?}: clone disagreed on decode success", scheme);
 
         // on the failure path Reed-Solomon returns before writing `msg_dec`,
         // so comparing the outputs there would just compare two untouched
@@ -821,16 +766,8 @@ mod tests {
         q0.decode(n, &msg_enc_0, &mut msg_dec_0).unwrap();
         q1.decode(n, &msg_enc_1, &mut msg_dec_1).unwrap();
 
-        assert_eq!(
-            msg_dec_0, msg_dec_1,
-            "{:?}: clone decoded corrupted message differently",
-            scheme
-        );
-        assert_eq!(
-            msg_dec_0, msg_org,
-            "{:?}: failed to correct a single bit error",
-            scheme
-        );
+        assert_eq!(msg_dec_0, msg_dec_1, "{:?}: clone decoded corrupted message differently", scheme);
+        assert_eq!(msg_dec_0, msg_org, "{:?}: failed to correct a single bit error", scheme);
     }
 
     // repeat codes
@@ -999,17 +936,14 @@ mod tests {
     // enc_msg_len must match what each encoder actually writes.
     #[test]
     fn test_fec_secded_enc_msg_len() {
-        for (scheme, data_bytes) in [
-            (FecScheme::Secded2216, 2usize),
-            (FecScheme::Secded3932, 4),
-            (FecScheme::Secded7264, 8),
-        ] {
+        for (scheme, data_bytes) in
+            [(FecScheme::Secded2216, 2usize), (FecScheme::Secded3932, 4), (FecScheme::Secded7264, 8)]
+        {
             let fec = Fec::new(scheme).unwrap();
 
             for n in 1..=40usize {
                 let r = n % data_bytes;
-                let expected =
-                    (n - r) / data_bytes * (data_bytes + 1) + if r != 0 { r + 1 } else { 0 };
+                let expected = (n - r) / data_bytes * (data_bytes + 1) + if r != 0 { r + 1 } else { 0 };
                 assert_eq!(
                     fec.enc_msg_len(n),
                     expected,
@@ -1086,9 +1020,8 @@ mod tests {
     #[autotest_annotate(autotest_fec_config)]
     fn test_fec_config() {
         use crate::fec::codec::{
-            golay2412_decode_symbol, golay2412_encode_symbol, hamming128_decode_symbol,
-            hamming1511_decode_symbol, hamming1511_encode_symbol, hamming3126_decode_symbol,
-            hamming3126_encode_symbol,
+            golay2412_decode_symbol, golay2412_encode_symbol, hamming128_decode_symbol, hamming1511_decode_symbol,
+            hamming1511_encode_symbol, hamming3126_decode_symbol, hamming3126_encode_symbol,
         };
 
         fn panics(f: impl FnOnce() + std::panic::UnwindSafe) -> bool {
@@ -1100,18 +1033,32 @@ mod tests {
             result.is_err()
         }
 
-        assert!(panics(|| { golay2412_encode_symbol(1 << 12); }));
-        assert!(panics(|| { golay2412_decode_symbol(1 << 24); }));
+        assert!(panics(|| {
+            golay2412_encode_symbol(1 << 12);
+        }));
+        assert!(panics(|| {
+            golay2412_decode_symbol(1 << 24);
+        }));
 
-        assert!(panics(|| { hamming3126_encode_symbol(1 << 26); }));
-        assert!(panics(|| { hamming3126_decode_symbol(1u32 << 31); }));
+        assert!(panics(|| {
+            hamming3126_encode_symbol(1 << 26);
+        }));
+        assert!(panics(|| {
+            hamming3126_decode_symbol(1u32 << 31);
+        }));
 
-        assert!(panics(|| { hamming1511_encode_symbol(1 << 11); }));
-        assert!(panics(|| { hamming1511_decode_symbol(1 << 15); }));
+        assert!(panics(|| {
+            hamming1511_encode_symbol(1 << 11);
+        }));
+        assert!(panics(|| {
+            hamming1511_decode_symbol(1 << 15);
+        }));
 
         // liquid also checks hamming128_encode_symbol(1<<8), but ours takes a
         // u8 so the type already bounds it
-        assert!(panics(|| { hamming128_decode_symbol(1 << 12); }));
+        assert!(panics(|| {
+            hamming128_decode_symbol(1 << 12);
+        }));
 
         // no liquid_print_fec_schemes (skip)
     }

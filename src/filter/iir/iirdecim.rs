@@ -1,8 +1,8 @@
-use crate::error::{Error, Result};
 use crate::dotprod::DotProd;
+use crate::error::{Error, Result};
+use crate::filter::iir::design::{IirBandType, IirFilterShape, IirFormat};
 use crate::filter::iir::iirfilt::IirFilter;
-use crate::filter::iir::design::{IirFilterShape, IirBandType, IirFormat};
-use num_complex::{ComplexFloat, Complex32};
+use num_complex::{Complex32, ComplexFloat};
 
 /// Infinite impulse response (IIR) decimation filter
 #[derive(Clone, Debug)]
@@ -10,7 +10,6 @@ pub struct IirDecimationFilter<T, Coeff = T> {
     decimation_factor: usize,
     iirfilt: IirFilter<T, Coeff>,
 }
-
 
 impl<T, Coeff> IirDecimationFilter<T, Coeff>
 where
@@ -20,24 +19,24 @@ where
     f32: Into<Coeff>,
 {
     /// Create a new IIR decimation filter from external coefficients
-    /// 
+    ///
     /// # Notes
-    /// 
+    ///
     /// The number of feed-forward and feed-back coefficients do not need to be equal, but they do
     ///  need to be non-zero. Furthermore, the first feed-back coefficient \(a_0\) cannot be equal to
     ///  zero, otherwise the filter will be invalid as this value is factored out from all
     ///  coefficients.
     /// For stability reasons the number of coefficients should reasonably not exceed about 8 for
     ///  single-precision floating-point.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `decimation_factor` - The decimation factor
     /// * `b` - The feed-forward coefficients
     /// * `a` - The feed-back coefficients
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new IIR decimation filter
     pub fn new(decimation_factor: usize, b: &[Coeff], a: &[Coeff]) -> Result<Self> {
         if decimation_factor < 2 {
@@ -50,14 +49,14 @@ where
     }
 
     /// Create a new IIR decimation filter with a default Butterworth prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `decimation_factor` - The decimation factor
     /// * `order` - The filter order
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new IIR decimation filter
     pub fn new_default(decimation_factor: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
@@ -74,9 +73,9 @@ where
     }
 
     /// Create a new IIR decimation filter from a prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `decimation_factor` - The decimation factor
     /// * `ftype` - The filter type
     /// * `btype` - The band type
@@ -86,9 +85,9 @@ where
     /// * `f0` - The center frequency
     /// * `ap` - The pass-band ripple
     /// * `as_` - The stop-band ripple
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new IIR decimation filter
     pub fn new_prototype(
         decimation_factor: usize,
@@ -116,13 +115,13 @@ where
     }
 
     /// Execute the filter on `decimation_factor` input samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - The input samples
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The output sample
     pub fn execute(&mut self, x: &[T]) -> T {
         let mut y = T::default();
@@ -136,9 +135,9 @@ where
     }
 
     /// Execute the filter on a block of input samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - The input samples (size: `n * decimation_factor`)
     /// * `y` - The output samples (size: `n`)
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> () {
@@ -148,13 +147,13 @@ where
     }
 
     /// Get the group delay at a given frequency
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `fc` - The frequency
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The group delay
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         self.iirfilt.groupdelay(fc)
@@ -164,8 +163,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use crate::random::randnf;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_iirdecim_copy)]

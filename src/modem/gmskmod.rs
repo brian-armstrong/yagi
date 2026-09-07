@@ -8,12 +8,12 @@ use std::f32::consts::PI;
 /// GMSK modulator
 #[derive(Clone, Debug)]
 pub struct GmskMod {
-    k: usize,      // samples/symbol
-    m: usize,      // symbol delay
-    bt: f32,       // bandwidth/time product
+    k: usize, // samples/symbol
+    m: usize, // symbol delay
+    bt: f32,  // bandwidth/time product
     interp: FirInterpolationFilter<f32, f32>,
-    theta: f32,    // phase state
-    k_inv: f32,    // 1/k
+    theta: f32, // phase state
+    k_inv: f32, // 1/k
 }
 
 impl GmskMod {
@@ -26,37 +26,18 @@ impl GmskMod {
     /// * `bt` - bandwidth-time product (must be in (0, 1))
     pub fn new(k: usize, m: usize, bt: f32) -> Result<Self> {
         if k < 2 {
-            return Err(Error::Config(
-                "samples/symbol must be at least 2".into(),
-            ));
+            return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
         if m < 1 {
-            return Err(Error::Config(
-                "symbol delay must be at least 1".into(),
-            ));
+            return Err(Error::Config("symbol delay must be at least 1".into()));
         }
         if bt <= 0.0 || bt >= 1.0 {
-            return Err(Error::Config(
-                "bandwidth/time product must be in (0, 1)".into(),
-            ));
+            return Err(Error::Config("bandwidth/time product must be in (0, 1)".into()));
         }
 
-        let interp = FirInterpolationFilter::new_prototype(
-            FirFilterShape::Gmsktx,
-            k,
-            m,
-            bt,
-            0.0,
-        )?;
+        let interp = FirInterpolationFilter::new_prototype(FirFilterShape::Gmsktx, k, m, bt, 0.0)?;
 
-        let mut q = Self {
-            k,
-            m,
-            bt,
-            interp,
-            theta: 0.0,
-            k_inv: 1.0 / k as f32,
-        };
+        let mut q = Self { k, m, bt, interp, theta: 0.0, k_inv: 1.0 / k as f32 };
 
         q.reset();
         Ok(q)
@@ -91,11 +72,7 @@ impl GmskMod {
     /// * `y` - output buffer (length k)
     pub fn modulate(&mut self, s: u8, y: &mut [Complex32]) -> Result<()> {
         if y.len() < self.k {
-            return Err(Error::Config(format!(
-                "output buffer too small: {} < {}",
-                y.len(),
-                self.k
-            )));
+            return Err(Error::Config(format!("output buffer too small: {} < {}", y.len(), self.k)));
         }
 
         // generate sample from symbol
@@ -157,11 +134,7 @@ mod tests {
             // check output is on unit circle
             for sample in &buf {
                 let mag = sample.norm();
-                assert!(
-                    (mag - 1.0).abs() < 1e-5,
-                    "output should be on unit circle, got {}",
-                    mag
-                );
+                assert!((mag - 1.0).abs() < 1e-5, "output should be on unit circle, got {}", mag);
             }
         }
     }
@@ -181,13 +154,7 @@ mod tests {
                 // phase should change smoothly (allow for wrapping)
                 let diff = (phase - prev_phase).abs();
                 let diff = diff.min((diff - 2.0 * PI).abs()).min((diff + 2.0 * PI).abs());
-                assert!(
-                    diff < 1.0,
-                    "phase discontinuity detected: {} -> {} (diff={})",
-                    prev_phase,
-                    phase,
-                    diff
-                );
+                assert!(diff < 1.0, "phase discontinuity detected: {} -> {} (diff={})", prev_phase, phase, diff);
                 prev_phase = phase;
             }
         }
@@ -225,12 +192,7 @@ mod tests {
             mod_copy.modulate(s, &mut buf_copy).unwrap();
 
             for (a, b) in buf_orig.iter().zip(buf_copy.iter()) {
-                assert!(
-                    (a - b).norm() < 1e-6,
-                    "copy mismatch: {:?} vs {:?}",
-                    a,
-                    b
-                );
+                assert!((a - b).norm() < 1e-6, "copy mismatch: {:?} vs {:?}", a, b);
             }
         }
     }

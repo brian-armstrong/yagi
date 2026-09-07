@@ -1,5 +1,5 @@
-use crate::matrix::{matrix_access, matrix_access_mut, matrix_eye, FloatComplex};
 use crate::error::{Error, Result};
+use crate::matrix::{matrix_access, matrix_access_mut, matrix_eye, FloatComplex};
 
 /// L/U/P decomposition, Crout's method
 pub fn matrix_ludecomp_crout<T>(x: &[T], rx: usize, cx: usize, l: &mut [T], u: &mut [T], p: &mut [T]) -> Result<()>

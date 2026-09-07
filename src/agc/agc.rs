@@ -221,14 +221,26 @@ where
 
         self.squelch_mode = match self.squelch_mode {
             AgcSquelchMode::Enabled => {
-                if threshold_exceeded { AgcSquelchMode::Rise } else { AgcSquelchMode::Enabled }
-            },
+                if threshold_exceeded {
+                    AgcSquelchMode::Rise
+                } else {
+                    AgcSquelchMode::Enabled
+                }
+            }
             AgcSquelchMode::Rise => {
-                if threshold_exceeded { AgcSquelchMode::SignalHi } else { AgcSquelchMode::Fall }
-            },
+                if threshold_exceeded {
+                    AgcSquelchMode::SignalHi
+                } else {
+                    AgcSquelchMode::Fall
+                }
+            }
             AgcSquelchMode::SignalHi => {
-                if threshold_exceeded { AgcSquelchMode::SignalHi } else { AgcSquelchMode::Fall }
-            },
+                if threshold_exceeded {
+                    AgcSquelchMode::SignalHi
+                } else {
+                    AgcSquelchMode::Fall
+                }
+            }
             AgcSquelchMode::Fall => {
                 self.squelch_timer = self.squelch_timeout;
                 if threshold_exceeded {
@@ -236,7 +248,7 @@ where
                 } else {
                     AgcSquelchMode::SignalLo
                 }
-            },
+            }
             AgcSquelchMode::SignalLo => {
                 self.squelch_timer -= 1;
                 if self.squelch_timer == 0 {
@@ -246,7 +258,7 @@ where
                 } else {
                     AgcSquelchMode::SignalLo
                 }
-            },
+            }
             AgcSquelchMode::Timeout => AgcSquelchMode::Enabled,
             AgcSquelchMode::Disabled => AgcSquelchMode::Disabled,
         };
@@ -259,28 +271,28 @@ where
 mod tests {
     use super::*;
     use crate::random::randnf;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_agc_crcf_dc_gain_control)]
     fn test_agc_crcf_dc_gain_control() {
         // set parameters
-        let gamma = 0.1f32;     // nominal signal level
-        let bt    = 0.1f32;     // bandwidth-time product
-        let tol   = 0.001f32;   // error tolerance
+        let gamma = 0.1f32; // nominal signal level
+        let bt = 0.1f32; // bandwidth-time product
+        let tol = 0.001f32; // error tolerance
 
         // create AGC object and initialize
         let mut q = Agc::<Complex32>::new();
         q.set_bandwidth(bt).unwrap();
 
-        let x = num_complex::Complex32::new(gamma, 0.0);    // input sample
-        let mut y = num_complex::Complex32::new(0.0, 0.0);  // output sample
+        let x = num_complex::Complex32::new(gamma, 0.0); // input sample
+        let mut y = num_complex::Complex32::new(0.0, 0.0); // output sample
         for _ in 0..256 {
             y = q.execute(x).unwrap();
         }
-        
+
         // Check results
         assert_abs_diff_eq!(y.re, 1.0f32, epsilon = tol);
         assert_abs_diff_eq!(y.im, 0.0f32, epsilon = tol);
@@ -297,8 +309,8 @@ mod tests {
     #[autotest_annotate(autotest_agc_crcf_scale)]
     fn test_agc_crcf_scale() {
         // set parameters
-        let scale = 4.0f32;     // output scale (independent of AGC loop)
-        let tol   = 0.001f32;   // error tolerance
+        let scale = 4.0f32; // output scale (independent of AGC loop)
+        let tol = 0.001f32; // error tolerance
 
         // create AGC object and initialize
         let mut q = Agc::new();
@@ -311,7 +323,7 @@ mod tests {
         for _ in 0..256 {
             y = q.execute(x).unwrap();
         }
-        
+
         // Check results
         assert_abs_diff_eq!(y.re, scale, epsilon = tol);
         assert_abs_diff_eq!(y.im, 0.0f32, epsilon = tol);
@@ -322,10 +334,10 @@ mod tests {
     #[autotest_annotate(autotest_agc_crcf_ac_gain_control)]
     fn test_agc_crcf_ac_gain_control() {
         // set parameters
-        let gamma = 0.1f32;             // nominal signal level
-        let bt    = 0.1f32;             // bandwidth-time product
-        let tol   = 0.001f32;           // error tolerance
-        let dphi  = 0.1f32;             // NCO frequency
+        let gamma = 0.1f32; // nominal signal level
+        let bt = 0.1f32; // bandwidth-time product
+        let tol = 0.001f32; // error tolerance
+        let dphi = 0.1f32; // NCO frequency
 
         // create AGC object and initialize
         let mut q = Agc::new();
@@ -349,12 +361,12 @@ mod tests {
     #[autotest_annotate(autotest_agc_crcf_rssi_sinusoid)]
     fn test_agc_crcf_rssi_sinusoid() {
         // set parameters
-        let gamma = 0.3f32;         // nominal signal level
-        let bt    = 0.05f32;        // agc bandwidth
-        let tol   = 0.001f32;       // error tolerance
+        let gamma = 0.3f32; // nominal signal level
+        let bt = 0.05f32; // agc bandwidth
+        let tol = 0.001f32; // error tolerance
 
         // signal properties
-        let dphi = 0.1f32;          // signal frequency
+        let dphi = 0.1f32; // signal frequency
 
         // create AGC object and initialize
         let mut q = Agc::new();
@@ -386,9 +398,9 @@ mod tests {
         use std::f32::consts::FRAC_1_SQRT_2;
 
         // set parameters
-        let gamma = -30.0f32;   // nominal signal level [dB]
-        let bt    =  2e-3f32;   // agc bandwidth
-        let tol   =  1.0f32;    // error tolerance [dB]
+        let gamma = -30.0f32; // nominal signal level [dB]
+        let bt = 2e-3f32; // agc bandwidth
+        let tol = 1.0f32; // error tolerance [dB]
 
         // signal properties
         let nstd = 10f32.powf(gamma / 20.0);
@@ -424,13 +436,13 @@ mod tests {
         // create agc object, set loop bandwidth, and initialize parameters
         let mut q = Agc::<Complex32>::new();
         q.set_bandwidth(0.25).unwrap();
-        q.set_signal_level(1e-3f32).unwrap();     // initial guess at starting signal level
+        q.set_signal_level(1e-3f32).unwrap(); // initial guess at starting signal level
 
         // initialize squelch functionality
         assert!(!q.squelch_is_enabled());
-        q.squelch_enable();             // enable squelch
+        q.squelch_enable(); // enable squelch
         q.squelch_set_threshold(-50.0); // threshold for detection [dB]
-        q.squelch_set_timeout(100);     // timeout for hysteresis
+        q.squelch_set_timeout(100); // timeout for hysteresis
         assert!(q.squelch_is_enabled());
         assert_eq!(q.squelch_get_threshold(), -50.0);
         assert_eq!(q.squelch_get_timeout(), 100);
@@ -476,8 +488,8 @@ mod tests {
     #[autotest_annotate(autotest_agc_crcf_lock)]
     fn test_agc_lock() {
         // set parameters
-        let gamma = 0.1f32;     // nominal signal level
-        let tol   = 0.01f32;    // error tolerance
+        let gamma = 0.1f32; // nominal signal level
+        let tol = 0.01f32; // error tolerance
 
         // create AGC object and initialize buffers for block processing
         let mut q = Agc::<Complex32>::new();
@@ -491,18 +503,18 @@ mod tests {
         q.set_rssi(0.0).unwrap();
 
         // lock AGC and show it is not tracking
-        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol);  // base signal level is 0 dB
-        assert!(!q.is_locked());         // not locked
+        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol); // base signal level is 0 dB
+        assert!(!q.is_locked()); // not locked
         q.lock();
-        assert!(q.is_locked());          // locked
+        assert!(q.is_locked()); // locked
         for _ in 0..256 {
             q.execute_block(&buf_0, &mut buf_1).unwrap();
         }
-        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol);  // signal level has not changed
+        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol); // signal level has not changed
 
         // unlock AGC and show it is tracking
         q.unlock();
-        assert!(!q.is_locked());         // unlocked
+        assert!(!q.is_locked()); // unlocked
         q.init(&buf_0).unwrap();
         // agc tracks to signal level
         assert_abs_diff_eq!(q.get_rssi(), 20.0 * gamma.log10(), epsilon = tol);

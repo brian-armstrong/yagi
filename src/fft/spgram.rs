@@ -1,8 +1,8 @@
-use crate::error::{Error, Result};
-use crate::fft::{Fft, Direction};
 use crate::buffer::Window;
-use crate::math::WindowType;
+use crate::error::{Error, Result};
+use crate::fft::{Direction, Fft};
 use crate::math::windows;
+use crate::math::WindowType;
 use num_complex::Complex32;
 use num_traits::Zero;
 use std::cmp::max;
@@ -40,7 +40,10 @@ pub struct Spgram<T> {
     sample_rate: f32,
 }
 
-impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Complex32: From<T> {
+impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T>> Spgram<T>
+where
+    Complex32: From<T>,
+{
     /// create spgram object
     ///  _nfft       : FFT size
     ///  _wtype      : window type, e.g. LIQUID_WINDOW_HAMMING
@@ -304,7 +307,7 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
             return Err(Error::Value("psd_mag must be the same length as the fft size".into()));
         }
 
-        let nfft_2 = self.nfft / 2; 
+        let nfft_2 = self.nfft / 2;
         let scale = if self.accumulate {
             1.0 / max(1, self.num_transforms) as f32
         } else {
@@ -346,147 +349,173 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
             q.step();
         }
 
-        Ok(q.get_psd())            
+        Ok(q.get_psd())
     }
 }
 
 #[cfg(test)]
- mod tests {
+mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
     use crate::random::randnf;
-    
+    use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
+
     fn testbench_spgramcf_noise(nfft: usize, wlen: usize, delay: usize, wtype: WindowType, noise_floor: f32) {
-        let num_samples = 2000 * nfft;  // number of samples to generate
+        let num_samples = 2000 * nfft; // number of samples to generate
         let nstd = 10f32.powf(noise_floor / 20.0); // noise std. dev.
         let tol = 0.5f32; // error tolerance [dB]
-    
+
         // create spectral periodogram
         let mut q = if wlen == 0 || delay == 0 || wtype == WindowType::Unknown {
             Spgram::<Complex32>::default(nfft).unwrap()
         } else {
             Spgram::<Complex32>::new(nfft, wtype, wlen, delay).unwrap()
         };
-    
+
         for _ in 0..num_samples {
             let noise = Complex32::new(randnf(), randnf()) * nstd * (0.5f32).sqrt();
             q.push(noise);
         }
-    
+
         // verify number of samples processed
         assert_eq!(q.get_num_samples(), num_samples as u64);
         assert_eq!(q.get_num_samples_total(), num_samples as u64);
-    
+
         // compute power spectral density output
         let psd = q.get_psd();
-    
+
         // verify result
         for p in psd.iter() {
             assert_abs_diff_eq!(*p, noise_floor, epsilon = tol);
         }
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_440)]
-    fn test_spgramcf_noise_440() { testbench_spgramcf_noise(440, 0, 0, WindowType::Unknown, -80.0); }
-    
+    fn test_spgramcf_noise_440() {
+        testbench_spgramcf_noise(440, 0, 0, WindowType::Unknown, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_1024)]
-    fn test_spgramcf_noise_1024() { testbench_spgramcf_noise(1024, 0, 0, WindowType::Unknown, -80.0); }
-    
+    fn test_spgramcf_noise_1024() {
+        testbench_spgramcf_noise(1024, 0, 0, WindowType::Unknown, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_1200)]
-    fn test_spgramcf_noise_1200() { testbench_spgramcf_noise(1200, 0, 0, WindowType::Unknown, -80.0); }
-    
+    fn test_spgramcf_noise_1200() {
+        testbench_spgramcf_noise(1200, 0, 0, WindowType::Unknown, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_custom_0)]
-    fn test_spgramcf_noise_custom_0() { testbench_spgramcf_noise(400, 400, 100, WindowType::Hamming, -80.0); }
-    
+    fn test_spgramcf_noise_custom_0() {
+        testbench_spgramcf_noise(400, 400, 100, WindowType::Hamming, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_custom_1)]
-    fn test_spgramcf_noise_custom_1() { testbench_spgramcf_noise(512, 200, 120, WindowType::Hamming, -80.0); }
-    
+    fn test_spgramcf_noise_custom_1() {
+        testbench_spgramcf_noise(512, 200, 120, WindowType::Hamming, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_custom_2)]
-    fn test_spgramcf_noise_custom_2() { testbench_spgramcf_noise(640, 100, 10, WindowType::Hamming, -80.0); }
-    
+    fn test_spgramcf_noise_custom_2() {
+        testbench_spgramcf_noise(640, 100, 10, WindowType::Hamming, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_custom_3)]
-    fn test_spgramcf_noise_custom_3() { testbench_spgramcf_noise(960, 83, 17, WindowType::Hamming, -80.0); }
-    
+    fn test_spgramcf_noise_custom_3() {
+        testbench_spgramcf_noise(960, 83, 17, WindowType::Hamming, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_hamming)]
-    fn test_spgramcf_noise_hamming() { testbench_spgramcf_noise(800, 0, 0, WindowType::Hamming, -80.0); }
-    
+    fn test_spgramcf_noise_hamming() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::Hamming, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_hann)]
-    fn test_spgramcf_noise_hann() { testbench_spgramcf_noise(800, 0, 0, WindowType::Hann, -80.0); } 
-    
+    fn test_spgramcf_noise_hann() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::Hann, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_blackmanharris)]
-    fn test_spgramcf_noise_blackmanharris() { testbench_spgramcf_noise(800, 0, 0, WindowType::BlackmanHarris, -80.0); }
-    
+    fn test_spgramcf_noise_blackmanharris() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::BlackmanHarris, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_blackmanharris7)]
-    fn test_spgramcf_noise_blackmanharris7() { testbench_spgramcf_noise(800, 0, 0, WindowType::BlackmanHarris7, -80.0); }
-    
-    #[test] 
+    fn test_spgramcf_noise_blackmanharris7() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::BlackmanHarris7, -80.0);
+    }
+
+    #[test]
     #[autotest_annotate(autotest_spgramcf_noise_kaiser)]
-    fn test_spgramcf_noise_kaiser() { testbench_spgramcf_noise(800, 0, 0, WindowType::Kaiser, -80.0); }
-    
-    #[test] 
+    fn test_spgramcf_noise_kaiser() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::Kaiser, -80.0);
+    }
+
+    #[test]
     #[autotest_annotate(autotest_spgramcf_noise_flattop)]
-    fn test_spgramcf_noise_flattop() { testbench_spgramcf_noise(800, 0, 0, WindowType::FlatTop, -80.0); }
-    
+    fn test_spgramcf_noise_flattop() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::FlatTop, -80.0);
+    }
+
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_triangular)]
-    fn test_spgramcf_noise_triangular() { testbench_spgramcf_noise(800, 0, 0, WindowType::Triangular, -80.0); }
-    
-    #[test] 
+    fn test_spgramcf_noise_triangular() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::Triangular, -80.0);
+    }
+
+    #[test]
     #[autotest_annotate(autotest_spgramcf_noise_rcostaper)]
-    fn test_spgramcf_noise_rcostaper() { testbench_spgramcf_noise(800, 0, 0, WindowType::RcosTaper, -80.0); }   
+    fn test_spgramcf_noise_rcostaper() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::RcosTaper, -80.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_kbd)]
-    fn test_spgramcf_noise_kbd() { testbench_spgramcf_noise(800, 0, 0, WindowType::Kbd, -80.0); }   
+    fn test_spgramcf_noise_kbd() {
+        testbench_spgramcf_noise(800, 0, 0, WindowType::Kbd, -80.0);
+    }
 
     fn testbench_spgramcf_signal(nfft: usize, wtype: WindowType, fc: f32, snr_db: f32) {
         use crate::filter::FirFilterShape;
         use crate::framing::symstreamr::SymStreamR;
         use crate::modem::modem::ModulationScheme;
-        use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
         use crate::nco::{Osc, OscScheme};
-        use std::f32::consts::{PI, FRAC_1_SQRT_2};
+        use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
+        use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
         let bw = 0.25f32; // signal bandwidth (relative)
         let m = 25;
         let beta = 0.2f32;
         let n0 = -80.0f32;
         let tol = 0.5f32;
-    
+
         // create objects
-        let mut q = Spgram::<Complex32>::new(nfft, wtype, nfft/2, nfft/4).unwrap();
-        let mut gen = SymStreamR::new_linear(
-            FirFilterShape::Kaiser,
-            bw,
-            m,
-            beta,
-            ModulationScheme::Qpsk
-        ).unwrap();
+        let mut q = Spgram::<Complex32>::new(nfft, wtype, nfft / 2, nfft / 4).unwrap();
+        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, bw, m, beta, ModulationScheme::Qpsk).unwrap();
         let mut mixer = Osc::new(OscScheme::Vco);
-    
+
         // set parameters
-        let nstd = 10f32.powf(n0 / 20.0); // noise std. dev.   
+        let nstd = 10f32.powf(n0 / 20.0); // noise std. dev.
         gen.set_gain(10f32.powf((n0 + snr_db + 10.0 * bw.log10()) / 20.0));
         mixer.set_frequency(2.0 * PI * fc);
-    
+
         // generate samples and push through spgram object
         let buf_len = 256;
         let mut num_samples = 0;
         let mut sample_buf = vec![Complex32::new(0.0, 0.0); buf_len];
         let mut mixed_buf = vec![Complex32::new(0.0, 0.0); buf_len];
-    
+
         while num_samples < 2000 * nfft {
             // generate block of samples
             gen.write_samples(&mut sample_buf).unwrap();
@@ -501,43 +530,56 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
             q.write(&mixed_buf);
             num_samples += buf_len;
         }
-    
+
         // verify result
         let psd = q.get_psd();
         let sn = 10.0 * (10f32.powf((snr_db + n0) / 10.0) + 10f32.powf(n0 / 10.0)).log10();
-    
+
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,          fmax: fc - 0.6 * bw, pmin: n0 - tol, pmax: n0 + tol, test_lo: true, test_hi: true },
             PsdRegion { fmin: fc - 0.4 * bw, fmax: fc + 0.4 * bw, pmin: sn - tol, pmax: sn + tol, test_lo: true, test_hi: true },
             PsdRegion { fmin: fc + 0.6 * bw, fmax: 0.5,           pmin: n0 - tol, pmax: n0 + tol, test_lo: true, test_hi: true },
         ];
-    
+
         assert!(validate_psd_spectrum(&psd, nfft, &regions).unwrap());
     }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_signal_00)]
-    fn test_spgramcf_signal_00() { testbench_spgramcf_signal(800, WindowType::Hamming, 0.0, 30.0); }
+    fn test_spgramcf_signal_00() {
+        testbench_spgramcf_signal(800, WindowType::Hamming, 0.0, 30.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_signal_01)]
-    fn test_spgramcf_signal_01() { testbench_spgramcf_signal(800, WindowType::Hamming, 0.2, 10.0); }
+    fn test_spgramcf_signal_01() {
+        testbench_spgramcf_signal(800, WindowType::Hamming, 0.2, 10.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_signal_02)]
-    fn test_spgramcf_signal_02() { testbench_spgramcf_signal(800, WindowType::Hann, 0.2, 10.0); }
+    fn test_spgramcf_signal_02() {
+        testbench_spgramcf_signal(800, WindowType::Hann, 0.2, 10.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_signal_03)]
-    fn test_spgramcf_signal_03() { testbench_spgramcf_signal(400, WindowType::Kaiser, -0.3, 40.0); }
+    fn test_spgramcf_signal_03() {
+        testbench_spgramcf_signal(400, WindowType::Kaiser, -0.3, 40.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_signal_04)]
-    fn test_spgramcf_signal_04() { testbench_spgramcf_signal(640, WindowType::Hamming, -0.2, 0.0); }
+    fn test_spgramcf_signal_04() {
+        testbench_spgramcf_signal(640, WindowType::Hamming, -0.2, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_signal_05)]
-    fn test_spgramcf_signal_05() { testbench_spgramcf_signal(640, WindowType::Hamming, 0.1, -3.0); }
+    fn test_spgramcf_signal_05() {
+        testbench_spgramcf_signal(640, WindowType::Hamming, 0.1, -3.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_spgramcf_counters)]
@@ -612,7 +654,7 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
         assert!(Spgram::<Complex32>::new(2, WindowType::Hamming, 100, 100).is_err()); // window length too large
         assert!(Spgram::<Complex32>::new(400, WindowType::Hamming, 0, 200).is_err()); // window length too small
         assert!(Spgram::<Complex32>::new(400, WindowType::Unknown, 0, 200).is_err()); // invalid window type
-        // assert!(Spgram::<Complex32>::new(400, WindowType::NumFunctions, 200, 200).is_err()); // invalid window type (can't do in rust)
+                                                                                      // assert!(Spgram::<Complex32>::new(400, WindowType::NumFunctions, 200, 200).is_err()); // invalid window type (can't do in rust)
         assert!(Spgram::<Complex32>::new(400, WindowType::Kbd, 201, 200).is_err()); // KBD must be even
         assert!(Spgram::<Complex32>::new(400, WindowType::Hamming, 200, 0).is_err()); // delay too small
 
@@ -738,8 +780,7 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T> > Spgram<T> where Co
                 timer = delay;
             }
 
-            let signal = Complex32::new(0.3, 0.0)
-                + Complex32::new(randnf(), randnf()) * 0.1;
+            let signal = Complex32::new(0.3, 0.0) + Complex32::new(randnf(), randnf()) * 0.1;
 
             q_clean.push(signal);
             // Feed identical in-window samples; substitute garbage out-of-window.

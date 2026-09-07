@@ -2,8 +2,8 @@ use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Psk {
-    d_phi: f32,            // half of phase between symbols
-    alpha: f32,            // scaling factor for phase symbols
+    d_phi: f32, // half of phase between symbols
+    alpha: f32, // scaling factor for phase symbols
 }
 
 impl Modem {

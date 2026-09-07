@@ -2,13 +2,13 @@ use crate::error::{Error, Result};
 use num_complex::Complex32;
 use std::f32::consts::PI;
 
-/// Compute analog zeros, poles, gain of low-pass Butterworth filter, grouping 
-/// complex conjugates together. If filter order is odd, the single real pole 
-/// (-1) is at the end of the array. There are no zeros for the analog Butterworth 
+/// Compute analog zeros, poles, gain of low-pass Butterworth filter, grouping
+/// complex conjugates together. If filter order is odd, the single real pole
+/// (-1) is at the end of the array. There are no zeros for the analog Butterworth
 /// filter. The gain is unity.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `n` - filter order
 /// * `za` - output analog zeros [length: 0]
 /// * `pa` - output analog poles [length: _n]
@@ -17,7 +17,7 @@ pub fn iir_design_butter_analog(
     n: usize,
     za: &mut Vec<Complex32>,
     pa: &mut Vec<Complex32>,
-    ka: &mut Complex32
+    ka: &mut Complex32,
 ) -> Result<()> {
     if n == 0 {
         return Err(Error::Config("filter order must be greater than zero".to_string()));
@@ -28,7 +28,7 @@ pub fn iir_design_butter_analog(
 
     za.clear();
     pa.clear();
-    
+
     for i in 0..l {
         let theta = (2.0 * (i as f32 + 1.0) + n as f32 - 1.0) * PI / (2.0 * n as f32);
         pa.push(Complex32::from_polar(1.0, theta));
@@ -81,18 +81,18 @@ mod tests {
                 if n % 2 == 0 {
                     // poles should be in conjugate pairs
                     if i % 2 == 0 {
-                        assert_abs_diff_eq!(pa[i].re, pa[i+1].re, epsilon = 1e-6);
-                        assert_abs_diff_eq!(pa[i].im, -pa[i+1].im, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].re, pa[i + 1].re, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].im, -pa[i + 1].im, epsilon = 1e-6);
                     }
                 } else {
                     // odd orders should have one real pole at -1
-                    if i == n-1 {
+                    if i == n - 1 {
                         assert_abs_diff_eq!(pa[i].re, -1.0, epsilon = 1e-6);
                         assert_abs_diff_eq!(pa[i].im, 0.0, epsilon = 1e-6);
                     } else if i % 2 == 0 {
                         // remaining poles should be in conjugate pairs
-                        assert_abs_diff_eq!(pa[i].re, pa[i+1].re, epsilon = 1e-6);
-                        assert_abs_diff_eq!(pa[i].im, -pa[i+1].im, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].re, pa[i + 1].re, epsilon = 1e-6);
+                        assert_abs_diff_eq!(pa[i].im, -pa[i + 1].im, epsilon = 1e-6);
                     }
                 }
             }

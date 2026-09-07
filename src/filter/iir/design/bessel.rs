@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
+use libm::lgammaf;
 use num_complex::Complex32;
 use std::f32::consts::LN_2;
-use libm::lgammaf;
 
 //
 // Bessel filter design
@@ -13,13 +13,13 @@ use libm::lgammaf;
 //      Polynomials." IEEE Transactions on Circuit Theory, September, 1965.
 //
 
-/// Compute analog zeros, poles, gain of low-pass Bessel filter, grouping complex 
+/// Compute analog zeros, poles, gain of low-pass Bessel filter, grouping complex
 /// conjugates together. If the filter order is odd, the single real pole is at
-/// the end of the array. There are no zeros for the analog Bessel filter. The 
+/// the end of the array. There are no zeros for the analog Bessel filter. The
 /// gain is unity.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `n` - filter order
 /// * `za` - output analog zeros [length: 0]
 /// * `pa` - output analog poles [length: _n]
@@ -89,7 +89,7 @@ fn fpoly_bessel_roots_orchard(n: usize, roots: &mut [Complex32]) -> Result<()> {
     let mut r_hat = vec![Complex32::new(0.0, 0.0); n];
 
     for i in 1..n {
-        let p = i % 2;  // order is odd?
+        let p = i % 2; // order is odd?
         let l = (i + p) / 2;
 
         if i == 1 {

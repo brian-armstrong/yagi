@@ -10,8 +10,8 @@ pub mod spgram;
 
 pub use r2r::{fft_r2r_run, FftR2r, FftR2rKind};
 
-use std::sync::Arc;
 use num_complex::Complex;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Direction {
@@ -74,18 +74,20 @@ pub fn fft_run<T: FftNum>(input: &[Complex<T>], output: &mut [Complex<T>], direc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_fft_shift_4)]
     fn test_shift_4() {
+        #[rustfmt::skip]
         let mut input = vec![
             Complex::new(0, 0),
             Complex::new(1, 1),
             Complex::new(2, 2),
             Complex::new(3, 3),
         ];
+        #[rustfmt::skip]
         let expected = vec![
             Complex::new(2, 2),
             Complex::new(3, 3),

@@ -19,17 +19,17 @@ use crate::filter::IirFilter;
 #[derive(Debug, Clone)]
 pub struct Cvsd {
     num_bits: usize,
-    bitref: u8,             // historical bit reference
-    bitmask: u8,            // historical bit reference mask
-    ref_: f32,              // internal reference
+    bitref: u8,  // historical bit reference
+    bitmask: u8, // historical bit reference mask
+    ref_: f32,   // internal reference
 
-    zeta: f32,              // delta step factor
-    delta: f32,             // current step size
-    delta_min: f32,         // minimum delta
-    delta_max: f32,         // maximum delta
+    zeta: f32,      // delta step factor
+    delta: f32,     // current step size
+    delta_min: f32, // minimum delta
+    delta_max: f32, // maximum delta
 
-    alpha: f32,             // pre-/de-emphasis filter coefficient
-    beta: f32,              // DC-blocking coefficient (decoder)
+    alpha: f32, // pre-/de-emphasis filter coefficient
+    beta: f32,  // DC-blocking coefficient (decoder)
     // `None` when signal conditioning is disabled
     filters: Option<Filters>,
 }
@@ -72,10 +72,7 @@ impl Cvsd {
     }
 
     /// enable signal conditioning
-    pub fn with_conditioning(
-        mut self,
-        alpha: f32,
-    ) -> Result<Self> {
+    pub fn with_conditioning(mut self, alpha: f32) -> Result<Self> {
         if !(0.0..=1.0).contains(&alpha) {
             return Err(Error::Config("cvsd alpha must be in [0,1]".into()));
         }
@@ -353,5 +350,4 @@ mod tests {
             assert!((q.decode(0) + 1.0).abs() < 1e-6);
         }
     }
-
 }

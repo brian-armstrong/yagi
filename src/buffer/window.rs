@@ -21,13 +21,7 @@ impl<T: Default + Clone + Copy> Window<T> {
         let mask = n_pow2 - 1;
         let num_allocated = n_pow2 + n - 1;
 
-        let mut window = Window {
-            v: vec![T::default(); num_allocated],
-            len: n,
-            n: n_pow2,
-            mask,
-            read_index: 0,
-        };
+        let mut window = Window { v: vec![T::default(); num_allocated], len: n, n: n_pow2, mask, read_index: 0 };
 
         window.reset();
         Ok(window)
@@ -149,9 +143,7 @@ impl<T: Default + Clone + Copy> Window<T> {
             self.write(&input[input.len() - self.len..]);
         }
     }
-
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -262,7 +254,7 @@ mod tests {
         let mut q1 = q0.clone();
 
         // write a few more values
-        for _ in 0..wlen/2 {
+        for _ in 0..wlen / 2 {
             let v = Complex::new(rand::random::<f32>(), rand::random::<f32>());
             q0.push(v);
             q1.push(v);
@@ -344,10 +336,7 @@ mod tests {
                     }
                 });
 
-                assert_eq!(
-                    actual_histories.into_iter().collect::<Option<Vec<_>>>().unwrap(),
-                    expected_histories
-                );
+                assert_eq!(actual_histories.into_iter().collect::<Option<Vec<_>>>().unwrap(), expected_histories);
                 assert_eq!(actual.read(), expected.read());
             }
         }

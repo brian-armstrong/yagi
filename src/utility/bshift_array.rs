@@ -12,9 +12,7 @@ use crate::error::{Error, Result};
 pub fn lbshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
-        return Err(Error::Range(
-            "lbshift(), shift amount must be in [0,7]".into(),
-        ));
+        return Err(Error::Range("lbshift(), shift amount must be in [0,7]".into()));
     }
     if src.is_empty() {
         return Ok(());
@@ -32,9 +30,7 @@ pub fn lbshift(src: &mut [u8], b: usize) -> Result<()> {
 pub fn rbshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
-        return Err(Error::Range(
-            "rbshift(), shift amount must be in [0,7]".into(),
-        ));
+        return Err(Error::Range("rbshift(), shift amount must be in [0,7]".into()));
     }
     if src.is_empty() {
         return Ok(());
@@ -52,9 +48,7 @@ pub fn rbshift(src: &mut [u8], b: usize) -> Result<()> {
 pub fn lbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
-        return Err(Error::Range(
-            "lbcircshift(), shift amount must be in [0,7]".into(),
-        ));
+        return Err(Error::Range("lbcircshift(), shift amount must be in [0,7]".into()));
     }
     // shifting by nothing leaves the array alone, and returning here keeps
     // shift_1 below 8 so the byte shifts stay in range
@@ -87,9 +81,7 @@ pub fn lbcircshift(src: &mut [u8], b: usize) -> Result<()> {
 pub fn rbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
-        return Err(Error::Range(
-            "rbcircshift(), shift amount must be in [0,7]".into(),
-        ));
+        return Err(Error::Range("rbcircshift(), shift amount must be in [0,7]".into()));
     }
     // shifting by nothing leaves the array alone, and returning here keeps
     // shift_0 below 8 so the byte shifts stay in range

@@ -1,6 +1,6 @@
-use crate::error::{Error, Result};
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
+use crate::error::{Error, Result};
 use crate::filter::{self, FirPfbBank};
 use crate::math::nextpow2;
 
@@ -58,15 +58,7 @@ where
         let bank = FirPfbBank::new(npfb, &h, n - 1)?;
         let w = Window::new(bank.filter_len())?;
 
-        let mut q = Self {
-            m,
-            r: rate,
-            step: 0,
-            phase: 0,
-            bits_index: bits,
-            w,
-            bank,
-        };
+        let mut q = Self { m, r: rate, step: 0, phase: 0, bits_index: bits, w, bank };
 
         q.set_rate(rate)?;
 
@@ -202,18 +194,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use num_complex::Complex32;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_signal};
     use crate::random::randnf;
+    use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
+    use num_complex::Complex32;
+    use test_macro::autotest_annotate;
 
     fn testbench_resamp_crcf(r: f32, as_db: f32, _id: usize) {
         // options
-        let bw: f32 = 0.25;  // target output signal bandwidth
-        let tol: f32 = 0.5;  // output PSD error tolerance [dB]
-        let m: usize = 20;   // resampler semi-length
+        let bw: f32 = 0.25; // target output signal bandwidth
+        let tol: f32 = 0.5; // output PSD error tolerance [dB]
+        let m: usize = 20; // resampler semi-length
         let npfb: usize = 2048; // number of filters in bank
-        let fc: f32 = 0.45;  // resampler cut-off frequency
+        let fc: f32 = 0.45; // resampler cut-off frequency
 
         // create resampler
         let mut resamp = Resamp::<Complex32>::new(r, m, fc, as_db, npfb).unwrap();
@@ -230,21 +222,18 @@ mod tests {
         let mut buf_1 = vec![Complex32::new(0.0, 0.0); num_output];
 
         for i in 0..num_input {
-            buf_0[i] = if i < pulse_len {
-                Complex32::new(pulse[i] * bw, 0.0)
-            } else {
-                Complex32::new(0.0, 0.0)
-            };
+            buf_0[i] = if i < pulse_len { Complex32::new(pulse[i] * bw, 0.0) } else { Complex32::new(0.0, 0.0) };
         }
 
         // resample
         let nw = resamp.execute_block(&buf_0, &mut buf_1).unwrap();
 
         // verify result
+        #[rustfmt::skip]
         let regions = vec![
-            PsdRegion { fmin: -0.5, fmax: -0.6 * bw, pmin: 0.0, pmax: -as_db + tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -0.4 * bw, fmax: 0.4 * bw, pmin: -tol, pmax: tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: 0.6 * bw, fmax: 0.5, pmin: 0.0, pmax: -as_db + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin:      -0.5, fmax: -0.6 * bw, pmin:  0.0, pmax: -as_db + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.4 * bw, fmax:  0.4 * bw, pmin: -tol, pmax:          tol, test_lo: true,  test_hi: true },
+            PsdRegion { fmin:  0.6 * bw, fmax:       0.5, pmin:  0.0, pmax: -as_db + tol, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_signal(&buf_1[..nw], &regions).unwrap());
@@ -274,7 +263,6 @@ mod tests {
         testbench_resamp_crcf(0.973621947, 60.0, 3);
     }
 
-    // Commented out tests
     // #[test]
     // fn test_resamp_crcf_04() {
     //     testbench_resamp_crcf(1.023832447, 60.0, 4);
@@ -345,35 +333,51 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_0)]
-    fn test_resamp_crcf_num_output_0() { testbench_resamp_crcf_num_output(1.00, 64); }
+    fn test_resamp_crcf_num_output_0() {
+        testbench_resamp_crcf_num_output(1.00, 64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_1)]
-    fn test_resamp_crcf_num_output_1() { testbench_resamp_crcf_num_output(1.00, 256); }
+    fn test_resamp_crcf_num_output_1() {
+        testbench_resamp_crcf_num_output(1.00, 256);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_2)]
-    fn test_resamp_crcf_num_output_2() { testbench_resamp_crcf_num_output(0.50, 256); }
+    fn test_resamp_crcf_num_output_2() {
+        testbench_resamp_crcf_num_output(0.50, 256);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_3)]
-    fn test_resamp_crcf_num_output_3() { testbench_resamp_crcf_num_output(2f32.sqrt(), 256); }
+    fn test_resamp_crcf_num_output_3() {
+        testbench_resamp_crcf_num_output(2f32.sqrt(), 256);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_4)]
-    fn test_resamp_crcf_num_output_4() { testbench_resamp_crcf_num_output(17f32.sqrt(), 16); }
+    fn test_resamp_crcf_num_output_4() {
+        testbench_resamp_crcf_num_output(17f32.sqrt(), 16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_5)]
-    fn test_resamp_crcf_num_output_5() { testbench_resamp_crcf_num_output(1.0 / std::f32::consts::PI, 64); }
+    fn test_resamp_crcf_num_output_5() {
+        testbench_resamp_crcf_num_output(1.0 / std::f32::consts::PI, 64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_6)]
-    fn test_resamp_crcf_num_output_6() { testbench_resamp_crcf_num_output(5.0f32.exp(), 64); }
+    fn test_resamp_crcf_num_output_6() {
+        testbench_resamp_crcf_num_output(5.0f32.exp(), 64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_num_output_7)]
-    fn test_resamp_crcf_num_output_7() { testbench_resamp_crcf_num_output((-5.0f32).exp(), 64); }
+    fn test_resamp_crcf_num_output_7() {
+        testbench_resamp_crcf_num_output((-5.0f32).exp(), 64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp_crcf_copy)]
@@ -436,7 +440,10 @@ mod tests {
             assert!(
                 num_output <= output_limit,
                 "rate={}, limit={}, num_input={}, num_output={}",
-                rate, output_limit, num_input, num_output
+                rate,
+                output_limit,
+                num_input,
+                num_output
             );
 
             // verify that one more input would exceed the limit
@@ -444,7 +451,10 @@ mod tests {
             assert!(
                 num_output_more > output_limit,
                 "rate={}, limit={}, num_input+1={}, num_output_more={}",
-                rate, output_limit, num_input + 1, num_output_more
+                rate,
+                output_limit,
+                num_input + 1,
+                num_output_more
             );
 
             // actually run the resampler to verify
@@ -454,22 +464,34 @@ mod tests {
     }
 
     #[test]
-    fn test_resamp_crcf_max_input_0() { testbench_resamp_crcf_max_input(1.00, 64); }
+    fn test_resamp_crcf_max_input_0() {
+        testbench_resamp_crcf_max_input(1.00, 64);
+    }
 
     #[test]
-    fn test_resamp_crcf_max_input_1() { testbench_resamp_crcf_max_input(0.50, 256); }
+    fn test_resamp_crcf_max_input_1() {
+        testbench_resamp_crcf_max_input(0.50, 256);
+    }
 
     #[test]
-    fn test_resamp_crcf_max_input_2() { testbench_resamp_crcf_max_input(2.0, 256); }
+    fn test_resamp_crcf_max_input_2() {
+        testbench_resamp_crcf_max_input(2.0, 256);
+    }
 
     #[test]
-    fn test_resamp_crcf_max_input_3() { testbench_resamp_crcf_max_input(0.127115323, 64); }
+    fn test_resamp_crcf_max_input_3() {
+        testbench_resamp_crcf_max_input(0.127115323, 64);
+    }
 
     #[test]
-    fn test_resamp_crcf_max_input_4() { testbench_resamp_crcf_max_input(std::f32::consts::PI, 64); }
+    fn test_resamp_crcf_max_input_4() {
+        testbench_resamp_crcf_max_input(std::f32::consts::PI, 64);
+    }
 
     #[test]
-    fn test_resamp_crcf_max_input_5() { testbench_resamp_crcf_max_input(1.0 / std::f32::consts::PI, 64); }
+    fn test_resamp_crcf_max_input_5() {
+        testbench_resamp_crcf_max_input(1.0 / std::f32::consts::PI, 64);
+    }
 
     #[test]
     fn test_resamp_crcf_block_matches() {
@@ -480,10 +502,7 @@ mod tests {
             let chunks = [0usize, 1, 5, 13, 14, 15, 64, 3, 97];
             let total: usize = chunks.iter().sum();
             let input: Vec<_> = (0..total)
-                .map(|i| Complex32::new(
-                    ((i + 3) as f32 * 0.11).cos(),
-                    ((i + 5) as f32 * 0.07).sin(),
-                ))
+                .map(|i| Complex32::new(((i + 3) as f32 * 0.11).cos(), ((i + 5) as f32 * 0.07).sin()))
                 .collect();
 
             let mut offset = 0;
@@ -513,9 +532,7 @@ mod tests {
         let rate = 1.37;
         let mut q_sample = Resamp::<f32, f32>::new(rate, 7, 0.4, 60.0, 64).unwrap();
         let mut q_block = q_sample.clone();
-        let input: Vec<_> = (0..257)
-            .map(|i| ((i + 3) as f32 * 0.11).cos())
-            .collect();
+        let input: Vec<_> = (0..257).map(|i| ((i + 3) as f32 * 0.11).cos()).collect();
 
         let num_output = q_sample.get_num_output(input.len());
         let mut expected = vec![0.0; num_output];

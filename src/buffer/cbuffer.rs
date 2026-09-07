@@ -152,9 +152,7 @@ impl<T: Default + Clone + Copy> CBuffer<T> {
 
         // ensure number of samples to write doesn't exceed space available
         if n > self.max_size - self.num_elements {
-            return Err(Error::Range(
-                "cbuffer write(), cannot write more elements than are available".into(),
-            ));
+            return Err(Error::Range("cbuffer write(), cannot write more elements than are available".into()));
         }
 
         self.num_elements += n;
@@ -221,9 +219,7 @@ impl<T: Default + Clone + Copy> CBuffer<T> {
     pub fn release(&mut self, n: usize) -> Result<()> {
         // advance read_index by n making sure not to step on write_index
         if n > self.num_elements {
-            return Err(Error::Range(
-                "cbuffer release(), cannot release more elements in buffer than exist".into(),
-            ));
+            return Err(Error::Range("cbuffer release(), cannot release more elements in buffer than exist".into()));
         }
 
         self.read_index = (self.read_index + n) % self.max_size;
@@ -285,9 +281,7 @@ impl<T: Default + Clone + Copy> CBuffer<T> {
     pub fn commit(&mut self, n: usize) -> Result<()> {
         let contiguous = self.max_size - self.write_index;
         if n > self.max_size - self.num_elements || n > contiguous {
-            return Err(Error::Range(
-                "cbuffer commit(), more samples than reserve() could have returned".into(),
-            ));
+            return Err(Error::Range("cbuffer commit(), more samples than reserve() could have returned".into()));
         }
 
         self.write_index = (self.write_index + n) % self.max_size;
@@ -299,9 +293,9 @@ impl<T: Default + Clone + Copy> CBuffer<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::random::{randf, randnf};
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
-    use crate::random::{randf, randnf};
 
     #[test]
     #[autotest_annotate(autotest_cbufferf)]
@@ -366,20 +360,26 @@ mod tests {
         let c = |re: f32, im: f32| Complex32::new(re, im);
 
         // input array of values
+        #[rustfmt::skip]
         let v = [
             c(1.0, -1.0), c(2.0, 2.0), c(3.0, -3.0), c(4.0, 4.0),
             c(5.0, -5.0), c(6.0, 6.0), c(7.0, -7.0), c(8.0, 8.0),
         ];
 
         // output test arrays
-        let test1 = [c(1.0, -1.0), c(2.0, 2.0), c(3.0, -3.0), c(4.0, 4.0)];
+        #[rustfmt::skip]
+        let test1 = [
+            c(1.0, -1.0), c(2.0, 2.0), c(3.0, -3.0), c(4.0, 4.0)];
+        #[rustfmt::skip]
         let test2 = [
             c(3.0, -3.0), c(4.0, 4.0), c(1.0, -1.0), c(2.0, 2.0), c(3.0, -3.0),
             c(4.0, 4.0), c(5.0, -5.0), c(6.0, 6.0), c(7.0, -7.0), c(8.0, 8.0),
         ];
+        #[rustfmt::skip]
         let test3 = [
             c(3.0, -3.0), c(4.0, 4.0), c(5.0, -5.0), c(6.0, 6.0), c(7.0, -7.0), c(8.0, 8.0),
         ];
+        #[rustfmt::skip]
         let test4 = [
             c(3.0, -3.0), c(4.0, 4.0), c(5.0, -5.0), c(6.0, 6.0), c(7.0, -7.0),
             c(8.0, 8.0), c(1.0, -1.0), c(2.0, 2.0), c(3.0, -3.0),
@@ -447,8 +447,7 @@ mod tests {
             // write samples if space is available
             if num_available_to_write > 0 {
                 // number of elements to write
-                let num_to_write =
-                    (randf() * num_available_to_write as f32) as usize % num_available_to_write + 1;
+                let num_to_write = (randf() * num_available_to_write as f32) as usize % num_available_to_write + 1;
 
                 // generate samples to write
                 for i in 0..num_to_write {
@@ -466,8 +465,7 @@ mod tests {
             // read samples if available
             if num_available_to_read > 0 {
                 // number of elements to read
-                let num_to_read = (randf() * num_available_to_read as f32) as usize
-                    % num_available_to_read;
+                let num_to_read = (randf() * num_available_to_read as f32) as usize % num_available_to_read;
 
                 // read samples and compare
                 let num_read = {
@@ -712,9 +710,7 @@ mod tests {
         let mut expected: std::collections::VecDeque<f32> = std::collections::VecDeque::new();
 
         // a fixed, deliberately awkward schedule of writes and reads
-        let ops: &[(usize, usize)] = &[
-            (7, 3), (5, 8), (4, 0), (6, 9), (10, 10), (1, 1), (9, 5), (3, 7),
-        ];
+        let ops: &[(usize, usize)] = &[(7, 3), (5, 8), (4, 0), (6, 9), (10, 10), (1, 1), (9, 5), (3, 7)];
 
         let mut next = 0.0f32;
         for &(to_write, to_read) in ops {
@@ -741,5 +737,4 @@ mod tests {
             assert_eq!(q.size(), expected.len());
         }
     }
-
 }

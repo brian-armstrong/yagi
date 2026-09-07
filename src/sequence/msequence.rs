@@ -4,37 +4,37 @@ use crate::utility::bits::{bdotprod, msb_index};
 const MIN_MSEQUENCE_M: u32 = 2;
 const MAX_MSEQUENCE_M: u32 = 31;
 
-// default m-sequence generators:       g (hex)            m   n
-const MSEQUENCE_GENPOLY_M2: u32 = 0x00000003;   //  2   3
-const MSEQUENCE_GENPOLY_M3: u32 = 0x00000006;   //  3   7
-const MSEQUENCE_GENPOLY_M4: u32 = 0x0000000c;   //  4   15
-const MSEQUENCE_GENPOLY_M5: u32 = 0x00000014;   //  5   31
-const MSEQUENCE_GENPOLY_M6: u32 = 0x00000030;   //  6   63
-const MSEQUENCE_GENPOLY_M7: u32 = 0x00000060;   //  7   127
-const MSEQUENCE_GENPOLY_M8: u32 = 0x000000b8;   //  8   255
-const MSEQUENCE_GENPOLY_M9: u32 = 0x00000110;   //  9   511
-const MSEQUENCE_GENPOLY_M10: u32 = 0x00000240;  // 10   1,023
-const MSEQUENCE_GENPOLY_M11: u32 = 0x00000500;  // 11   2,047
-const MSEQUENCE_GENPOLY_M12: u32 = 0x00000e08;  // 12   4,095
-const MSEQUENCE_GENPOLY_M13: u32 = 0x00001c80;  // 13   8,191
-const MSEQUENCE_GENPOLY_M14: u32 = 0x00003802;  // 14   16,383
-const MSEQUENCE_GENPOLY_M15: u32 = 0x00006000;  // 15   32,767
-const MSEQUENCE_GENPOLY_M16: u32 = 0x0000d008;  // 16   65,535
-const MSEQUENCE_GENPOLY_M17: u32 = 0x00012000;  // 17   131,071
-const MSEQUENCE_GENPOLY_M18: u32 = 0x00020400;  // 18   262,143
-const MSEQUENCE_GENPOLY_M19: u32 = 0x00072000;  // 19   524,287
-const MSEQUENCE_GENPOLY_M20: u32 = 0x00090000;  // 20   1,048,575
-const MSEQUENCE_GENPOLY_M21: u32 = 0x00140000;  // 21   2,097,151
-const MSEQUENCE_GENPOLY_M22: u32 = 0x00300000;  // 22   4,194,303
-const MSEQUENCE_GENPOLY_M23: u32 = 0x00420000;  // 23   8,388,607
-const MSEQUENCE_GENPOLY_M24: u32 = 0x00e10000;  // 24   16,777,215
-const MSEQUENCE_GENPOLY_M25: u32 = 0x01000004;  // 25   33,554,431
-const MSEQUENCE_GENPOLY_M26: u32 = 0x02000023;  // 26   67,108,863
-const MSEQUENCE_GENPOLY_M27: u32 = 0x04000013;  // 27   134,217,727
-const MSEQUENCE_GENPOLY_M28: u32 = 0x08000004;  // 28   268,435,455
-const MSEQUENCE_GENPOLY_M29: u32 = 0x10000002;  // 29   536,870,911
-const MSEQUENCE_GENPOLY_M30: u32 = 0x20000029;  // 30   1,073,741,823
-const MSEQUENCE_GENPOLY_M31: u32 = 0x40000004;  // 31   2,147,483,647
+// default m-sequence generators:       g (hex)    m   n
+const MSEQUENCE_GENPOLY_M2: u32 = 0x00000003; //   2   3
+const MSEQUENCE_GENPOLY_M3: u32 = 0x00000006; //   3   7
+const MSEQUENCE_GENPOLY_M4: u32 = 0x0000000c; //   4   15
+const MSEQUENCE_GENPOLY_M5: u32 = 0x00000014; //   5   31
+const MSEQUENCE_GENPOLY_M6: u32 = 0x00000030; //   6   63
+const MSEQUENCE_GENPOLY_M7: u32 = 0x00000060; //   7   127
+const MSEQUENCE_GENPOLY_M8: u32 = 0x000000b8; //   8   255
+const MSEQUENCE_GENPOLY_M9: u32 = 0x00000110; //   9   511
+const MSEQUENCE_GENPOLY_M10: u32 = 0x00000240; // 10   1,023
+const MSEQUENCE_GENPOLY_M11: u32 = 0x00000500; // 11   2,047
+const MSEQUENCE_GENPOLY_M12: u32 = 0x00000e08; // 12   4,095
+const MSEQUENCE_GENPOLY_M13: u32 = 0x00001c80; // 13   8,191
+const MSEQUENCE_GENPOLY_M14: u32 = 0x00003802; // 14   16,383
+const MSEQUENCE_GENPOLY_M15: u32 = 0x00006000; // 15   32,767
+const MSEQUENCE_GENPOLY_M16: u32 = 0x0000d008; // 16   65,535
+const MSEQUENCE_GENPOLY_M17: u32 = 0x00012000; // 17   131,071
+const MSEQUENCE_GENPOLY_M18: u32 = 0x00020400; // 18   262,143
+const MSEQUENCE_GENPOLY_M19: u32 = 0x00072000; // 19   524,287
+const MSEQUENCE_GENPOLY_M20: u32 = 0x00090000; // 20   1,048,575
+const MSEQUENCE_GENPOLY_M21: u32 = 0x00140000; // 21   2,097,151
+const MSEQUENCE_GENPOLY_M22: u32 = 0x00300000; // 22   4,194,303
+const MSEQUENCE_GENPOLY_M23: u32 = 0x00420000; // 23   8,388,607
+const MSEQUENCE_GENPOLY_M24: u32 = 0x00e10000; // 24   16,777,215
+const MSEQUENCE_GENPOLY_M25: u32 = 0x01000004; // 25   33,554,431
+const MSEQUENCE_GENPOLY_M26: u32 = 0x02000023; // 26   67,108,863
+const MSEQUENCE_GENPOLY_M27: u32 = 0x04000013; // 27   134,217,727
+const MSEQUENCE_GENPOLY_M28: u32 = 0x08000004; // 28   268,435,455
+const MSEQUENCE_GENPOLY_M29: u32 = 0x10000002; // 29   536,870,911
+const MSEQUENCE_GENPOLY_M30: u32 = 0x20000029; // 30   1,073,741,823
+const MSEQUENCE_GENPOLY_M31: u32 = 0x40000004; // 31   2,147,483,647
 
 /// maximal-length sequence
 #[derive(Debug, Clone, Copy)]
@@ -57,13 +57,7 @@ impl MSequence {
             return Err(Error::Config(format!("m ({}) not in range", m)));
         }
 
-        Ok(Self {
-            m,
-            g,
-            a,
-            n: (1 << m) - 1,
-            state: a,
-        })
+        Ok(Self { m, g, a, n: (1 << m) - 1, state: a })
     }
 
     pub fn create_genpoly(g: u32) -> Result<Self> {
@@ -97,7 +91,7 @@ impl MSequence {
             18 => MSEQUENCE_GENPOLY_M18,
             19 => MSEQUENCE_GENPOLY_M19,
             20 => MSEQUENCE_GENPOLY_M20,
-            21 => MSEQUENCE_GENPOLY_M21, 
+            21 => MSEQUENCE_GENPOLY_M21,
             22 => MSEQUENCE_GENPOLY_M22,
             23 => MSEQUENCE_GENPOLY_M23,
             24 => MSEQUENCE_GENPOLY_M24,
@@ -135,10 +129,18 @@ impl MSequence {
     }
 
     /// Getter methods
-    pub fn get_genpoly_length(&self) -> u32 { self.m }
-    pub fn get_length(&self) -> u32 { self.n }
-    pub fn get_genpoly(&self) -> u32 { self.g }
-    pub fn get_state(&self) -> u32 { self.state }
+    pub fn get_genpoly_length(&self) -> u32 {
+        self.m
+    }
+    pub fn get_length(&self) -> u32 {
+        self.n
+    }
+    pub fn get_genpoly(&self) -> u32 {
+        self.g
+    }
+    pub fn get_state(&self) -> u32 {
+        self.state
+    }
 
     pub fn set_state(&mut self, a: u32) {
         self.state = a;
@@ -164,7 +166,7 @@ impl MSequence {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
     use test_macro::autotest_annotate;
 
@@ -190,7 +192,7 @@ mod tests{
         assert_eq!(rxy, n as i32);
 
         // when sequences are misaligned, autocorrelation is equal to -1
-        for _ in 0..n-1 {
+        for _ in 0..n - 1 {
             bs2.push(ms.advance());
             rxy = 2 * bs1.correlate(&bs2).unwrap() - n as i32;
             assert_eq!(rxy, -1);
@@ -199,47 +201,69 @@ mod tests{
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m2)]
-    fn test_msequence_xcorr_m2() { msequence_test_autocorrelation(2); }
+    fn test_msequence_xcorr_m2() {
+        msequence_test_autocorrelation(2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m3)]
-    fn test_msequence_xcorr_m3() { msequence_test_autocorrelation(3); }
+    fn test_msequence_xcorr_m3() {
+        msequence_test_autocorrelation(3);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m4)]
-    fn test_msequence_xcorr_m4() { msequence_test_autocorrelation(4); }
+    fn test_msequence_xcorr_m4() {
+        msequence_test_autocorrelation(4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m5)]
-    fn test_msequence_xcorr_m5() { msequence_test_autocorrelation(5); }
+    fn test_msequence_xcorr_m5() {
+        msequence_test_autocorrelation(5);
+    }
 
-    #[test] 
+    #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m6)]
-    fn test_msequence_xcorr_m6() { msequence_test_autocorrelation(6); }
+    fn test_msequence_xcorr_m6() {
+        msequence_test_autocorrelation(6);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m7)]
-    fn test_msequence_xcorr_m7() { msequence_test_autocorrelation(7); }
-    
+    fn test_msequence_xcorr_m7() {
+        msequence_test_autocorrelation(7);
+    }
+
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m8)]
-    fn test_msequence_xcorr_m8() { msequence_test_autocorrelation(8); }
+    fn test_msequence_xcorr_m8() {
+        msequence_test_autocorrelation(8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m9)]
-    fn test_msequence_xcorr_m9() { msequence_test_autocorrelation(9); }
+    fn test_msequence_xcorr_m9() {
+        msequence_test_autocorrelation(9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m10)]
-    fn test_msequence_xcorr_m10() { msequence_test_autocorrelation(10); }
+    fn test_msequence_xcorr_m10() {
+        msequence_test_autocorrelation(10);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m11)]
-    fn test_msequence_xcorr_m11() { msequence_test_autocorrelation(11); }
+    fn test_msequence_xcorr_m11() {
+        msequence_test_autocorrelation(11);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_xcorr_m12)]
-    fn test_msequence_xcorr_m12() { msequence_test_autocorrelation(12); }
+    fn test_msequence_xcorr_m12() {
+        msequence_test_autocorrelation(12);
+    }
 
     fn msequence_test_period(m: u32) {
         // create and initialize m-sequence
@@ -253,123 +277,183 @@ mod tests{
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m2)]
-    fn test_msequence_period_m2() { msequence_test_period(2); }
+    fn test_msequence_period_m2() {
+        msequence_test_period(2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m3)]
-    fn test_msequence_period_m3() { msequence_test_period(3); }
+    fn test_msequence_period_m3() {
+        msequence_test_period(3);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m4)]
-    fn test_msequence_period_m4() { msequence_test_period(4); }
+    fn test_msequence_period_m4() {
+        msequence_test_period(4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m5)]
-    fn test_msequence_period_m5() { msequence_test_period(5); }
+    fn test_msequence_period_m5() {
+        msequence_test_period(5);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m6)]
-    fn test_msequence_period_m6() { msequence_test_period(6); }
+    fn test_msequence_period_m6() {
+        msequence_test_period(6);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m7)]
-    fn test_msequence_period_m7() { msequence_test_period(7); }
+    fn test_msequence_period_m7() {
+        msequence_test_period(7);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m8)]
-    fn test_msequence_period_m8() { msequence_test_period(8); }
+    fn test_msequence_period_m8() {
+        msequence_test_period(8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m9)]
-    fn test_msequence_period_m9() { msequence_test_period(9); }
+    fn test_msequence_period_m9() {
+        msequence_test_period(9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m10)]
-    fn test_msequence_period_m10() { msequence_test_period(10); }
+    fn test_msequence_period_m10() {
+        msequence_test_period(10);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m11)]
-    fn test_msequence_period_m11() { msequence_test_period(11); }
+    fn test_msequence_period_m11() {
+        msequence_test_period(11);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m12)]
-    fn test_msequence_period_m12() { msequence_test_period(12); }
+    fn test_msequence_period_m12() {
+        msequence_test_period(12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m13)]
-    fn test_msequence_period_m13() { msequence_test_period(13); }
+    fn test_msequence_period_m13() {
+        msequence_test_period(13);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m14)]
-    fn test_msequence_period_m14() { msequence_test_period(14); }
+    fn test_msequence_period_m14() {
+        msequence_test_period(14);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m15)]
-    fn test_msequence_period_m15() { msequence_test_period(15); }
+    fn test_msequence_period_m15() {
+        msequence_test_period(15);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m16)]
-    fn test_msequence_period_m16() { msequence_test_period(16); }
+    fn test_msequence_period_m16() {
+        msequence_test_period(16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m17)]
-    fn test_msequence_period_m17() { msequence_test_period(17); }
+    fn test_msequence_period_m17() {
+        msequence_test_period(17);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m18)]
-    fn test_msequence_period_m18() { msequence_test_period(18); }
+    fn test_msequence_period_m18() {
+        msequence_test_period(18);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m19)]
-    fn test_msequence_period_m19() { msequence_test_period(19); }
+    fn test_msequence_period_m19() {
+        msequence_test_period(19);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m20)]
-    fn test_msequence_period_m20() { msequence_test_period(20); }
+    fn test_msequence_period_m20() {
+        msequence_test_period(20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m21)]
-    fn test_msequence_period_m21() { msequence_test_period(21); }
+    fn test_msequence_period_m21() {
+        msequence_test_period(21);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m22)]
-    fn test_msequence_period_m22() { msequence_test_period(22); }
+    fn test_msequence_period_m22() {
+        msequence_test_period(22);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m23)]
-    fn test_msequence_period_m23() { msequence_test_period(23); }
+    fn test_msequence_period_m23() {
+        msequence_test_period(23);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m24)]
-    fn test_msequence_period_m24() { msequence_test_period(24); }
+    fn test_msequence_period_m24() {
+        msequence_test_period(24);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m25)]
-    fn test_msequence_period_m25() { msequence_test_period(25); }
+    fn test_msequence_period_m25() {
+        msequence_test_period(25);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m26)]
-    fn test_msequence_period_m26() { msequence_test_period(26); }
+    fn test_msequence_period_m26() {
+        msequence_test_period(26);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m27)]
-    fn test_msequence_period_m27() { msequence_test_period(27); }
+    fn test_msequence_period_m27() {
+        msequence_test_period(27);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m28)]
-    fn test_msequence_period_m28() { msequence_test_period(28); }
+    fn test_msequence_period_m28() {
+        msequence_test_period(28);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m29)]
-    fn test_msequence_period_m29() { msequence_test_period(29); }
-        
+    fn test_msequence_period_m29() {
+        msequence_test_period(29);
+    }
+
     #[test]
     #[autotest_annotate(autotest_msequence_period_m30)]
-    fn test_msequence_period_m30() { msequence_test_period(30); }
+    fn test_msequence_period_m30() {
+        msequence_test_period(30);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_period_m31)]
-    fn test_msequence_period_m31() { msequence_test_period(31); }
+    fn test_msequence_period_m31() {
+        msequence_test_period(31);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msequence_config)]

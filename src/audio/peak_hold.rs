@@ -9,12 +9,7 @@ pub struct PeakHold {
 
 impl PeakHold {
     pub fn new(hold: usize) -> Self {
-        Self {
-            hold,
-            current: vec![],
-            current_max: f32::MIN,
-            previous: vec![f32::MIN; hold],
-        }
+        Self { hold, current: vec![], current_max: f32::MIN, previous: vec![f32::MIN; hold] }
     }
 
     pub fn reset(&mut self) {

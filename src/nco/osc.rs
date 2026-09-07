@@ -1,4 +1,3 @@
-
 use num_complex::Complex;
 use std::f32::consts::PI;
 
@@ -9,7 +8,6 @@ use super::nco::Nco;
 use super::vco::Vco;
 
 const PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OscScheme {
@@ -43,13 +41,7 @@ impl Osc {
             OscScheme::Nco => OscData::Nco(Nco::new()),
             OscScheme::Vco => OscData::Vco(Vco::new()),
         };
-        let mut nco = Osc { 
-            theta: 0,
-            d_theta: 0,
-            alpha: 0.0,
-            beta: 0.0,
-            osc: data,
-        };
+        let mut nco = Osc { theta: 0, d_theta: 0, alpha: 0.0, beta: 0.0, osc: data };
 
         // Set default PLL bandwidth
         nco.pll_set_bandwidth(PLL_BANDWIDTH_DEFAULT);
@@ -240,14 +232,14 @@ impl Osc {
 
 #[cfg(test)]
 mod tests {
+    use crate::fft::spgram::Spgram;
+    use crate::math::windows::{hann, WindowType};
     use crate::nco::{Osc, OscScheme};
+    use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
     use lazy_static::lazy_static;
     use num_complex::Complex;
     use std::f32::consts::PI;
     use test_macro::autotest_annotate;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_spgramcf};
-    use crate::fft::spgram::Spgram;
-    use crate::math::windows::{hann, WindowType};
 
     // compute the error between a constrained phase and its expected fixed-point
     // value, taking the shorter way around the accumulator word so that values
@@ -255,7 +247,11 @@ mod tests {
     fn constrain_error(theta: f32, expected: u32) -> u32 {
         let phase = Osc::constrain(theta);
         let error = if phase > expected { phase - expected } else { expected - phase };
-        if error < 0x80000000 { error } else { 0xffffffff - error }
+        if error < 0x80000000 {
+            error
+        } else {
+            0xffffffff - error
+        }
     }
 
     #[test]
@@ -356,7 +352,14 @@ mod tests {
     }
 
     // Test phase-locked loop
-    fn nco_crcf_pll_test(scheme: OscScheme, phase_offset: f32, freq_offset: f32, pll_bandwidth: f32, num_iterations: usize, tol: f32) {
+    fn nco_crcf_pll_test(
+        scheme: OscScheme,
+        phase_offset: f32,
+        freq_offset: f32,
+        pll_bandwidth: f32,
+        num_iterations: usize,
+        tol: f32,
+    ) {
         // Create NCO objects
         let mut nco_tx = Osc::new(scheme);
         let mut nco_rx = Osc::new(scheme);
@@ -630,7 +633,8 @@ mod tests {
 
         // generate signal (pseudo-random)
         let mut rng = rand::thread_rng();
-        let buf_0: Vec<Complex<f32>> = (0..buf_len).map(|_| Complex::new(0.0, 2.0 * PI * rng.gen::<f32>()).exp()).collect();
+        let buf_0: Vec<Complex<f32>> =
+            (0..buf_len).map(|_| Complex::new(0.0, 2.0 * PI * rng.gen::<f32>()).exp()).collect();
 
         // mix signal
         let mut buf_1 = vec![Complex::new(0.0, 0.0); buf_len];
@@ -872,7 +876,14 @@ mod tests {
     }
 
     // autotest helper function
-    fn nco_crcf_frequency_test(scheme: OscScheme, phase: f32, frequency: f32, sincos: &[Complex<f32>], num_samples: usize, tol: f32) {
+    fn nco_crcf_frequency_test(
+        scheme: OscScheme,
+        phase: f32,
+        frequency: f32,
+        sincos: &[Complex<f32>],
+        num_samples: usize,
+        tol: f32,
+    ) {
         // create object
         let mut nco = Osc::new(scheme);
 
@@ -889,8 +900,20 @@ mod tests {
             let y = sincos[i];
 
             // run tests
-            assert!((y_test.re - y.re).abs() < tol, "Real part error at index {}: expected {}, got {}", i, y.re, y_test.re);
-            assert!((y_test.im - y.im).abs() < tol, "Imaginary part error at index {}: expected {}, got {}", i, y.im, y_test.im);
+            assert!(
+                (y_test.re - y.re).abs() < tol,
+                "Real part error at index {}: expected {}, got {}",
+                i,
+                y.re,
+                y_test.re
+            );
+            assert!(
+                (y_test.im - y.im).abs() < tol,
+                "Imaginary part error at index {}: expected {}, got {}",
+                i,
+                y.im,
+                y_test.im
+            );
 
             // step oscillator
             nco.step();
@@ -907,7 +930,8 @@ mod tests {
         nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 2.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_2, 256, tol); // 1/sqrt(2)
         nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 3.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_3, 256, tol); // 1/sqrt(3)
         nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 5.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_5, 256, tol); // 1/sqrt(5)
-        nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 7.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_7, 256, tol); // 1/sqrt(7)
+        nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 7.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_7, 256, tol);
+        // 1/sqrt(7)
     }
 
     pub fn generate_sincos(frequency: f32, num_samples: usize) -> Vec<Complex<f32>> {

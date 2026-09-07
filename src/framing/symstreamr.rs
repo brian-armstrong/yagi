@@ -1,9 +1,9 @@
 use crate::error::{Error, Result};
 use crate::filter::msresamp::MsResamp;
-use crate::framing::symstream::SymStream;
 use crate::filter::FirFilterShape;
-use crate::modem::modem::ModulationScheme;
+use crate::framing::symstream::SymStream;
 use crate::math::nextpow2;
+use crate::modem::modem::ModulationScheme;
 use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
@@ -20,13 +20,7 @@ impl SymStreamR {
         Self::new_linear(FirFilterShape::Arkaiser, 0.5, 7, 0.3, ModulationScheme::Qpsk)
     }
 
-    pub fn new_linear(
-        ftype: FirFilterShape,
-        bw: f32,
-        m: usize,
-        beta: f32,
-        ms: ModulationScheme,
-    ) -> Result<Self> {
+    pub fn new_linear(ftype: FirFilterShape, bw: f32, m: usize, beta: f32, ms: ModulationScheme) -> Result<Self> {
         const BW_MIN: f32 = 0.001;
         const BW_MAX: f32 = 1.000;
         if !(BW_MIN..=BW_MAX).contains(&bw) {
@@ -40,13 +34,7 @@ impl SymStreamR {
         let buf_len = 1 << nextpow2((0.5 / bw).ceil() as u32)?;
         let buf = vec![Complex32::new(0.0, 0.0); buf_len];
 
-        let mut q = Self {
-            symstream,
-            resamp,
-            buf,
-            buf_size: 0,
-            buf_index: 0,
-        };
+        let mut q = Self { symstream, resamp, buf, buf_size: 0, buf_index: 0 };
 
         q.reset();
         Ok(q)
@@ -131,11 +119,11 @@ impl SymStreamR {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use crate::fft::{fft_run, Direction};
     use crate::fft::spgram::Spgram;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
+    use crate::fft::{fft_run, Direction};
+    use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     fn testbench_symstreamrcf_delay(bw: f32, m: usize) {
         // create object and get expected delay
@@ -171,8 +159,13 @@ mod tests {
 
         // print results
         if cfg!(test) {
-            println!("expected delay: {:.6}, measured: {:.6}, err: {:.6} (tol= {:.3})",
-                     delay, delay_meas, delay - delay_meas, tol);
+            println!(
+                "expected delay: {:.6}, measured: {:.6}, err: {:.6} (tol= {:.3})",
+                delay,
+                delay_meas,
+                delay - delay_meas,
+                tol
+            );
         }
 
         // verify delay is relatively close to expected
@@ -181,83 +174,123 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_00)]
-    fn test_symstreamrcf_delay_00() { testbench_symstreamrcf_delay(0.500, 4); }
+    fn test_symstreamrcf_delay_00() {
+        testbench_symstreamrcf_delay(0.500, 4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_01)]
-    fn test_symstreamrcf_delay_01() { testbench_symstreamrcf_delay(0.500, 5); }
+    fn test_symstreamrcf_delay_01() {
+        testbench_symstreamrcf_delay(0.500, 5);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_02)]
-    fn test_symstreamrcf_delay_02() { testbench_symstreamrcf_delay(0.500, 6); }
+    fn test_symstreamrcf_delay_02() {
+        testbench_symstreamrcf_delay(0.500, 6);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_03)]
-    fn test_symstreamrcf_delay_03() { testbench_symstreamrcf_delay(0.500, 7); }
+    fn test_symstreamrcf_delay_03() {
+        testbench_symstreamrcf_delay(0.500, 7);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_04)]
-    fn test_symstreamrcf_delay_04() { testbench_symstreamrcf_delay(0.500, 8); }
+    fn test_symstreamrcf_delay_04() {
+        testbench_symstreamrcf_delay(0.500, 8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_05)]
-    fn test_symstreamrcf_delay_05() { testbench_symstreamrcf_delay(0.500, 9); }
+    fn test_symstreamrcf_delay_05() {
+        testbench_symstreamrcf_delay(0.500, 9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_06)]
-    fn test_symstreamrcf_delay_06() { testbench_symstreamrcf_delay(0.500, 10); }
+    fn test_symstreamrcf_delay_06() {
+        testbench_symstreamrcf_delay(0.500, 10);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_07)]
-    fn test_symstreamrcf_delay_07() { testbench_symstreamrcf_delay(0.500, 14); }
+    fn test_symstreamrcf_delay_07() {
+        testbench_symstreamrcf_delay(0.500, 14);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_08)]
-    fn test_symstreamrcf_delay_08() { testbench_symstreamrcf_delay(0.500, 20); }
+    fn test_symstreamrcf_delay_08() {
+        testbench_symstreamrcf_delay(0.500, 20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_09)]
-    fn test_symstreamrcf_delay_09() { testbench_symstreamrcf_delay(0.500, 31); }
+    fn test_symstreamrcf_delay_09() {
+        testbench_symstreamrcf_delay(0.500, 31);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_10)]
-    fn test_symstreamrcf_delay_10() { testbench_symstreamrcf_delay(0.800, 12); }
+    fn test_symstreamrcf_delay_10() {
+        testbench_symstreamrcf_delay(0.800, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_11)]
-    fn test_symstreamrcf_delay_11() { testbench_symstreamrcf_delay(0.700, 12); }
+    fn test_symstreamrcf_delay_11() {
+        testbench_symstreamrcf_delay(0.700, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_12)]
-    fn test_symstreamrcf_delay_12() { testbench_symstreamrcf_delay(0.600, 12); }
+    fn test_symstreamrcf_delay_12() {
+        testbench_symstreamrcf_delay(0.600, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_13)]
-    fn test_symstreamrcf_delay_13() { testbench_symstreamrcf_delay(0.500, 12); }
+    fn test_symstreamrcf_delay_13() {
+        testbench_symstreamrcf_delay(0.500, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_14)]
-    fn test_symstreamrcf_delay_14() { testbench_symstreamrcf_delay(0.400, 12); }
+    fn test_symstreamrcf_delay_14() {
+        testbench_symstreamrcf_delay(0.400, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_15)]
-    fn test_symstreamrcf_delay_15() { testbench_symstreamrcf_delay(0.300, 12); }
+    fn test_symstreamrcf_delay_15() {
+        testbench_symstreamrcf_delay(0.300, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_16)]
-    fn test_symstreamrcf_delay_16() { testbench_symstreamrcf_delay(0.200, 12); }
+    fn test_symstreamrcf_delay_16() {
+        testbench_symstreamrcf_delay(0.200, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_17)]
-    fn test_symstreamrcf_delay_17() { testbench_symstreamrcf_delay(0.100, 12); }
+    fn test_symstreamrcf_delay_17() {
+        testbench_symstreamrcf_delay(0.100, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_18)]
-    fn test_symstreamrcf_delay_18() { testbench_symstreamrcf_delay(0.050, 12); }
+    fn test_symstreamrcf_delay_18() {
+        testbench_symstreamrcf_delay(0.050, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamrcf_delay_19)]
-    fn test_symstreamrcf_delay_19() { testbench_symstreamrcf_delay(0.025, 12); }
+    fn test_symstreamrcf_delay_19() {
+        testbench_symstreamrcf_delay(0.025, 12);
+    }
 
     fn testbench_symstreamrcf_psd(bw: f32, m: usize, beta: f32) {
         // create object
@@ -292,6 +325,7 @@ mod tests {
         // TODO: sidelobe suppression based on internal msresamp object; should be more like -80 dB
         let f0 = 0.5 * (1.0 - beta) * bw;
         let f1 = 0.5 * (1.0 + beta) * bw;
+        #[rustfmt::skip]
         let regions = vec![
             PsdRegion {fmin: -0.5, fmax: -f1,  pmin:  0.0, pmax: -55.0, test_lo: false, test_hi: true},
             PsdRegion {fmin: -f0,  fmax:  f0,  pmin: -2.0, pmax:   2.0, test_lo: true,  test_hi: true},
@@ -334,8 +368,9 @@ mod tests {
             5, // k = 1/0.2
             17,
             0.27,
-            ModulationScheme::Dpsk4
-        ).unwrap();
+            ModulationScheme::Dpsk4,
+        )
+        .unwrap();
 
         // allocate memory for buffers
         let buf_len = 1337;

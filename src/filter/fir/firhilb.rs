@@ -1,6 +1,6 @@
-use crate::error::{Error, Result};
 use crate::buffer::Window;
 use crate::dotprod::DotProduct;
+use crate::error::{Error, Result};
 use crate::filter;
 use num_traits::Zero;
 use std::f32::consts::PI;
@@ -8,30 +8,30 @@ use std::f32::consts::PI;
 use num_complex::Complex32;
 
 /// Finite impulse response (FIR) Hilbert transform
-/// 
+///
 /// 2:1 real-to-complex decimator
-/// 
+///
 /// 1:2 complex-to-real interpolator
 #[derive(Clone, Debug)]
 pub struct FirHilbertFilter {
-    m: usize,           // filter semi-length, h_len = 4*m+1
-    dpq: DotProduct<f32, f32>,  // quadrature filter dot product
-    w0: Window<f32>,    // input buffer (even samples)
-    w1: Window<f32>,    // input buffer (odd samples)
-    w2: Window<f32>,    // additional buffers needed exclusively for real-to-complex filter operations
-    w3: Window<f32>,    // additional buffers needed exclusively for real-to-complex filter operations
-    toggle: bool,       // toggle for real-to-complex/complex-to-real operation
+    m: usize,                  // filter semi-length, h_len = 4*m+1
+    dpq: DotProduct<f32, f32>, // quadrature filter dot product
+    w0: Window<f32>,           // input buffer (even samples)
+    w1: Window<f32>,           // input buffer (odd samples)
+    w2: Window<f32>,           // additional buffers needed exclusively for real-to-complex filter operations
+    w3: Window<f32>,           // additional buffers needed exclusively for real-to-complex filter operations
+    toggle: bool,              // toggle for real-to-complex/complex-to-real operation
 }
 
 impl FirHilbertFilter {
     /// Create a new FIR Hilbert transform object with a particular filter
     /// semi-length and desired stop-band attenuation.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `m` - filter semi-length, delay is 2*m+1
     /// * `as_` - filter stop-band attenuation \[dB\]
-    /// 
+    ///
     /// # Returns
     ///
     /// A new FIR Hilbert transform object
@@ -69,15 +69,7 @@ impl FirHilbertFilter {
         let w2 = Window::new(2 * m)?;
         let w3 = Window::new(2 * m)?;
 
-        let mut q = Self {
-            m,
-            dpq: DotProduct::new(&hq)?,
-            w0,
-            w1,
-            w2,
-            w3,
-            toggle: false,
-        };
+        let mut q = Self { m, dpq: DotProduct::new(&hq)?, w0, w1, w2, w3, toggle: false };
 
         q.reset();
         Ok(q)
@@ -93,17 +85,17 @@ impl FirHilbertFilter {
     }
 
     /// Execute the Hilbert transform (real-to-complex)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - real-valued input sample
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A complex-valued output sample
     pub fn r2c_execute(&mut self, x: f32) -> Result<Complex32> {
-        let yi;  // in-phase component
-        let yq;  // quadrature component
+        let yi; // in-phase component
+        let yq; // quadrature component
 
         if !self.toggle {
             // push sample into upper branch
@@ -137,17 +129,17 @@ impl FirHilbertFilter {
     }
 
     /// Execute the Hilbert transform (complex-to-real)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - complex-valued input sample
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A tuple of two real-valued output samples
     ///    (lower side-band retained, upper side-band retained)
     pub fn c2r_execute(&mut self, x: Complex32) -> Result<(f32, f32)> {
-        let yi;  // in-phase component
+        let yi; // in-phase component
         let yq;
 
         if !self.toggle {
@@ -180,17 +172,17 @@ impl FirHilbertFilter {
     }
 
     /// Execute the Hilbert transform decimator (real-to-complex)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - real-valued input array, [size: 2 x 1]
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A complex-valued output sample
     pub fn decim_execute(&mut self, x: &[f32]) -> Result<Complex32> {
-        let yi;  // in-phase component
-        let yq;  // quadrature component
+        let yi; // in-phase component
+        let yq; // quadrature component
 
         // compute quadrature component (filter branch)
         self.w1.push(x[0]);
@@ -211,23 +203,23 @@ impl FirHilbertFilter {
     }
 
     /// Execute the Hilbert transform decimator (real-to-complex) on a block of samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - real-valued input array, [size: 2*n x 1]
     /// * `n` - number of output samples
     /// * `y` - complex-valued output array, [size: n x 1]
     pub fn decim_execute_block(&mut self, x: &[f32], n: usize, y: &mut [Complex32]) -> Result<()> {
         for i in 0..n {
-            y[i] = self.decim_execute(&x[2*i..2*i+2])?;
+            y[i] = self.decim_execute(&x[2 * i..2 * i + 2])?;
         }
         Ok(())
     }
 
     /// Execute the Hilbert transform interpolator (complex-to-real)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - complex-valued input sample
     /// * `y` - real-valued output array, [size: 2 x 1]
     pub fn interp_execute(&mut self, x: Complex32, y: &mut [f32]) -> Result<()> {
@@ -248,15 +240,15 @@ impl FirHilbertFilter {
     }
 
     /// Execute the Hilbert transform interpolator (complex-to-real) on a block of samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - complex-valued input array, [size: n x 1]
     /// * `n` - number of output samples
     /// * `y` - real-valued output array, [size: 2*n x 1]
     pub fn interp_execute_block(&mut self, x: &[Complex32], n: usize, y: &mut [f32]) -> Result<()> {
         for i in 0..n {
-            self.interp_execute(x[i], &mut y[2*i..2*i+2])?;
+            self.interp_execute(x[i], &mut y[2 * i..2 * i + 2])?;
         }
         Ok(())
     }
@@ -265,13 +257,14 @@ impl FirHilbertFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_signal, validate_psd_signalf};
+    use crate::utility::test_helpers::{validate_psd_signal, validate_psd_signalf, PsdRegion};
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_firhilbf_decim)]
     fn test_firhilbf_decim() {
+        #[rustfmt::skip]
         let x: [f32; 32] = [
             1.0000,  0.7071,  0.0000, -0.7071, -1.0000, -0.7071, -0.0000,  0.7071,
             1.0000,  0.7071,  0.0000, -0.7071, -1.0000, -0.7071, -0.0000,  0.7071,
@@ -279,21 +272,22 @@ mod tests {
             1.0000,  0.7071, -0.0000, -0.7071, -1.0000, -0.7071, -0.0000,  0.7071
         ];
 
+        #[rustfmt::skip]
         let test: [Complex32; 16] = [
-            Complex32::new(0.0000, -0.0055), Complex32::new(-0.0000,  0.0231), Complex32::new(0.0000, -0.0605), Complex32::new(-0.0000,  0.1459),
+            Complex32::new(0.0000, -0.0055), Complex32::new(-0.0000,  0.0231), Complex32::new( 0.0000, -0.0605), Complex32::new(-0.0000,  0.1459),
             Complex32::new(0.0000, -0.5604), Complex32::new(-0.7071, -0.7669), Complex32::new(-0.7071,  0.7294), Complex32::new(0.7071,  0.7008),
             Complex32::new(0.7071, -0.7064), Complex32::new(-0.7071, -0.7064), Complex32::new(-0.7071,  0.7064), Complex32::new(0.7071,  0.7064),
             Complex32::new(0.7071, -0.7064), Complex32::new(-0.7071, -0.7064), Complex32::new(-0.7071,  0.7064), Complex32::new(0.7071,  0.7064)
         ];
 
         let mut y = [Complex32::new(0.0, 0.0); 16];
-        let m = 5;   // h_len = 4*m+1 = 21
+        let m = 5; // h_len = 4*m+1 = 21
         let mut ht = FirHilbertFilter::new(m, 60.0).unwrap();
         let tol = 0.005;
 
         // run decimator
         for i in 0..16 {
-            y[i] = ht.decim_execute(&x[2*i..2*i+2]).unwrap();
+            y[i] = ht.decim_execute(&x[2 * i..2 * i + 2]).unwrap();
         }
 
         // run validation
@@ -306,28 +300,30 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firhilbf_interp)]
     fn test_firhilbf_interp() {
+        #[rustfmt::skip]
         let x: [Complex32; 16] = [
-            Complex32::new(1.0000, 0.0000), Complex32::new(-0.0000, -1.0000), Complex32::new(-1.0000, 0.0000), Complex32::new(0.0000, 1.0000),
+            Complex32::new(1.0000,  0.0000), Complex32::new(-0.0000, -1.0000), Complex32::new(-1.0000, 0.0000), Complex32::new(0.0000, 1.0000),
             Complex32::new(1.0000, -0.0000), Complex32::new(-0.0000, -1.0000), Complex32::new(-1.0000, 0.0000), Complex32::new(0.0000, 1.0000),
             Complex32::new(1.0000, -0.0000), Complex32::new(-0.0000, -1.0000), Complex32::new(-1.0000, 0.0000), Complex32::new(0.0000, 1.0000),
-            Complex32::new(1.0000, -0.0000), Complex32::new(0.0000, -1.0000), Complex32::new(-1.0000, 0.0000), Complex32::new(0.0000, 1.0000)
+            Complex32::new(1.0000, -0.0000), Complex32::new( 0.0000, -1.0000), Complex32::new(-1.0000, 0.0000), Complex32::new(0.0000, 1.0000)
         ];
 
+        #[rustfmt::skip]
         let test: [f32; 32] = [
-            0.0000, -0.0055, -0.0000, -0.0231, -0.0000, -0.0605, -0.0000, -0.1459,
-            -0.0000, -0.5604, -0.0000, 0.7669, 1.0000, 0.7294, 0.0000, -0.7008,
-            -1.0000, -0.7064, -0.0000, 0.7064, 1.0000, 0.7064, 0.0000, -0.7064,
-            -1.0000, -0.7064, -0.0000, 0.7064, 1.0000, 0.7064, 0.0000, -0.7064
+             0.0000, -0.0055, -0.0000, -0.0231, -0.0000, -0.0605, -0.0000, -0.1459,
+            -0.0000, -0.5604, -0.0000,  0.7669,  1.0000,  0.7294,  0.0000, -0.7008,
+            -1.0000, -0.7064, -0.0000,  0.7064,  1.0000,  0.7064,  0.0000, -0.7064,
+            -1.0000, -0.7064, -0.0000,  0.7064,  1.0000,  0.7064,  0.0000, -0.7064
         ];
 
         let mut y = [0.0; 32];
-        let m = 5;   // h_len = 4*m+1 = 21
+        let m = 5; // h_len = 4*m+1 = 21
         let mut ht = FirHilbertFilter::new(m, 60.0).unwrap();
         let tol = 0.005;
 
         // run interpolator
         for i in 0..16 {
-            ht.interp_execute(x[i], &mut y[2*i..2*i+2]).unwrap();
+            ht.interp_execute(x[i], &mut y[2 * i..2 * i + 2]).unwrap();
         }
 
         // run validation
@@ -339,11 +335,11 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firhilbf_psd)]
     fn test_firhilbf_psd() {
-        let tol: f32 = 1.0;  // error tolerance [dB]
-        let bw: f32 = 0.4;   // pulse bandwidth
+        let tol: f32 = 1.0; // error tolerance [dB]
+        let bw: f32 = 0.4; // pulse bandwidth
         let as_: f32 = 60.0; // transform stop-band suppression
-        let p: usize = 40;   // pulse semi-length
-        let m: usize = 25;   // Transform delay
+        let p: usize = 40; // pulse semi-length
+        let m: usize = 25; // Transform delay
 
         // create transform
         let mut q = FirHilbertFilter::new(m, as_).unwrap();
@@ -372,6 +368,7 @@ mod tests {
         q.decim_execute_block(&buf_1, num_samples, &mut buf_2).unwrap();
 
         // verify input spectrum
+        #[rustfmt::skip]
         let regions_orig = vec![
             PsdRegion { fmin: -0.5,    fmax: -0.5*bw, pmin: 0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.3*bw, fmax: 0.3*bw,  pmin: -1.0, pmax: 1.0,     test_lo: true,  test_hi: true },
@@ -380,12 +377,13 @@ mod tests {
         assert!(validate_psd_signal(&buf_0, &regions_orig).unwrap());
 
         // verify interpolated spectrum
+        #[rustfmt::skip]
         let regions_interp = vec![
-            PsdRegion { fmin: -0.5,           fmax: -0.25-0.25*bw, pmin: 0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -0.25-0.15*bw,  fmax: -0.25+0.15*bw, pmin: -1.0, pmax: 1.0,     test_lo: true,  test_hi: true },
-            PsdRegion { fmin: -0.25+0.25*bw,  fmax: 0.25-0.25*bw,  pmin: 0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: 0.25-0.15*bw,   fmax: 0.25+0.15*bw,  pmin: -1.0, pmax: 1.0,     test_lo: true,  test_hi: true },
-            PsdRegion { fmin: 0.25+0.25*bw,   fmax: 0.5,           pmin: 0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.5,           fmax: -0.25-0.25*bw, pmin:  0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.25-0.15*bw,  fmax: -0.25+0.15*bw, pmin: -1.0, pmax:  1.0,     test_lo: true,  test_hi: true },
+            PsdRegion { fmin: -0.25+0.25*bw,  fmax: 0.25-0.25*bw,  pmin:  0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin:  0.25-0.15*bw,  fmax: 0.25+0.15*bw,  pmin: -1.0, pmax:  1.0,     test_lo: true,  test_hi: true },
+            PsdRegion { fmin:  0.25+0.25*bw,  fmax: 0.5,           pmin:  0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
         ];
         assert!(validate_psd_signalf(&buf_1, &regions_interp).unwrap());
 

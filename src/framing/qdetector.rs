@@ -5,11 +5,11 @@ use std::f32::consts::PI;
 
 use crate::dotprod::sumsqcf;
 use crate::error::{Error, Result};
-use crate::fft::{Fft, Direction};
-use crate::filter::{FirInterpolationFilter, FirFilterShape};
+use crate::fft::{Direction, Fft};
+use crate::filter::{FirFilterShape, FirInterpolationFilter};
 use crate::math::nextpow2;
+use crate::modem::cpfskmod::{CpfskFilterType, Cpfskmod};
 use crate::modem::gmskmod::GmskMod;
-use crate::modem::cpfskmod::{Cpfskmod, CpfskFilterType};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum QdetectorState {
@@ -20,36 +20,36 @@ enum QdetectorState {
 /// Frame detector using FFT-based cross-correlation
 #[derive(Clone)]
 pub struct Qdetector {
-    s_len: usize,                 // template (time) length
-    s: Vec<Complex32>,            // template (time)
-    s_conj_freq: Vec<Complex32>,  // template conjugate (freq), [size: nfft x 1]
-    s2_sum: f32,                  // sum{ |s|^2 }
+    s_len: usize,                // template (time) length
+    s: Vec<Complex32>,           // template (time)
+    s_conj_freq: Vec<Complex32>, // template conjugate (freq), [size: nfft x 1]
+    s2_sum: f32,                 // sum{ |s|^2 }
 
-    buf_time_0: Vec<Complex32>,   // time-domain buffer (FFT input)
-    buf_freq_0: Vec<Complex32>,   // frequency-domain buffer (FFT output)
-    buf_freq_1: Vec<Complex32>,   // frequency-domain buffer (IFFT input)
-    buf_time_1: Vec<Complex32>,   // time-domain buffer (IFFT output)
-    nfft: usize,                  // fft size
-    fft: Fft<f32>,                // FFT object
-    ifft: Fft<f32>,               // IFFT object
+    buf_time_0: Vec<Complex32>, // time-domain buffer (FFT input)
+    buf_freq_0: Vec<Complex32>, // frequency-domain buffer (FFT output)
+    buf_freq_1: Vec<Complex32>, // frequency-domain buffer (IFFT input)
+    buf_time_1: Vec<Complex32>, // time-domain buffer (IFFT output)
+    nfft: usize,                // fft size
+    fft: Fft<f32>,              // FFT object
+    ifft: Fft<f32>,             // IFFT object
 
-    counter: usize,               // sample counter for determining when to compute FFTs
-    threshold: f32,               // detection threshold
-    dphi_max: f32,                // carrier offset search range (radians/sample)
-    range: i32,                   // carrier offset search range (subcarriers)
+    counter: usize, // sample counter for determining when to compute FFTs
+    threshold: f32, // detection threshold
+    dphi_max: f32,  // carrier offset search range (radians/sample)
+    range: i32,     // carrier offset search range (subcarriers)
 
-    x2_sum_0: f32,                // sum{ |x|^2 } of first half of buffer
-    x2_sum_1: f32,                // sum{ |x|^2 } of second half of buffer
+    x2_sum_0: f32, // sum{ |x|^2 } of first half of buffer
+    x2_sum_1: f32, // sum{ |x|^2 } of second half of buffer
 
-    rxy: f32,                     // peak correlation output
-    offset: i32,                  // FFT offset index for peak correlation (coarse carrier estimate)
-    tau_hat: f32,                 // timing offset estimate
-    gamma_hat: f32,               // signal level estimate (channel gain)
-    dphi_hat: f32,                // carrier frequency offset estimate
-    phi_hat: f32,                 // carrier phase offset estimate
+    rxy: f32,       // peak correlation output
+    offset: i32,    // FFT offset index for peak correlation (coarse carrier estimate)
+    tau_hat: f32,   // timing offset estimate
+    gamma_hat: f32, // signal level estimate (channel gain)
+    dphi_hat: f32,  // carrier frequency offset estimate
+    phi_hat: f32,   // carrier phase offset estimate
 
-    state: QdetectorState,        // execution state
-    frame_detected: bool,         // frame detected flag
+    state: QdetectorState, // execution state
+    frame_detected: bool,  // frame detected flag
 }
 
 impl Qdetector {
@@ -127,13 +127,7 @@ impl Qdetector {
     /// * `k` - samples/symbol
     /// * `m` - filter delay
     /// * `beta` - excess bandwidth factor
-    pub fn new_linear(
-        sequence: &[Complex32],
-        ftype: FirFilterShape,
-        k: usize,
-        m: usize,
-        beta: f32,
-    ) -> Result<Self> {
+    pub fn new_linear(sequence: &[Complex32], ftype: FirFilterShape, k: usize, m: usize, beta: f32) -> Result<Self> {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
@@ -169,12 +163,7 @@ impl Qdetector {
     /// * `k` - samples/symbol
     /// * `m` - filter delay
     /// * `beta` - excess bandwidth factor
-    pub fn new_gmsk(
-        sequence: &[u8],
-        k: usize,
-        m: usize,
-        beta: f32,
-    ) -> Result<Self> {
+    pub fn new_gmsk(sequence: &[u8], k: usize, m: usize, beta: f32) -> Result<Self> {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
@@ -548,9 +537,9 @@ impl std::fmt::Debug for Qdetector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
     use rand::Rng;
+    use test_macro::autotest_annotate;
 
     fn qdetector_runtest_linear(sequence_len: usize) {
         let k = 2;
@@ -588,10 +577,10 @@ mod tests {
     }
 
     fn qdetector_runtest(mut q: Qdetector) {
-        let gamma = 1.0;  // channel gain
-        let tau = 0.0;    // fractional sample timing offset
-        let dphi = 0.0;   // carrier frequency offset
-        let phi = 0.5;    // carrier phase offset
+        let gamma = 1.0; // channel gain
+        let tau = 0.0; // fractional sample timing offset
+        let dphi = 0.0; // carrier frequency offset
+        let phi = 0.5; // carrier phase offset
 
         let seq = q.get_sequence().to_vec();
         let sequence_len = q.get_seq_len();
@@ -645,84 +634,124 @@ mod tests {
     // linear tests
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n64)]
-    fn test_qdetector_linear_n64() { qdetector_runtest_linear(64); }
+    fn test_qdetector_linear_n64() {
+        qdetector_runtest_linear(64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n83)]
-    fn test_qdetector_linear_n83() { qdetector_runtest_linear(83); }
+    fn test_qdetector_linear_n83() {
+        qdetector_runtest_linear(83);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n128)]
-    fn test_qdetector_linear_n128() { qdetector_runtest_linear(128); }
+    fn test_qdetector_linear_n128() {
+        qdetector_runtest_linear(128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n167)]
-    fn test_qdetector_linear_n167() { qdetector_runtest_linear(167); }
+    fn test_qdetector_linear_n167() {
+        qdetector_runtest_linear(167);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n256)]
-    fn test_qdetector_linear_n256() { qdetector_runtest_linear(256); }
+    fn test_qdetector_linear_n256() {
+        qdetector_runtest_linear(256);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n335)]
-    fn test_qdetector_linear_n335() { qdetector_runtest_linear(335); }
+    fn test_qdetector_linear_n335() {
+        qdetector_runtest_linear(335);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n512)]
-    fn test_qdetector_linear_n512() { qdetector_runtest_linear(512); }
+    fn test_qdetector_linear_n512() {
+        qdetector_runtest_linear(512);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n671)]
-    fn test_qdetector_linear_n671() { qdetector_runtest_linear(671); }
+    fn test_qdetector_linear_n671() {
+        qdetector_runtest_linear(671);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n1024)]
-    fn test_qdetector_linear_n1024() { qdetector_runtest_linear(1024); }
+    fn test_qdetector_linear_n1024() {
+        qdetector_runtest_linear(1024);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_linear_n1341)]
-    fn test_qdetector_linear_n1341() { qdetector_runtest_linear(1341); }
+    fn test_qdetector_linear_n1341() {
+        qdetector_runtest_linear(1341);
+    }
 
     // gmsk tests
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n64)]
-    fn test_qdetector_gmsk_n64() { qdetector_runtest_gmsk(64); }
+    fn test_qdetector_gmsk_n64() {
+        qdetector_runtest_gmsk(64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n83)]
-    fn test_qdetector_gmsk_n83() { qdetector_runtest_gmsk(83); }
+    fn test_qdetector_gmsk_n83() {
+        qdetector_runtest_gmsk(83);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n128)]
-    fn test_qdetector_gmsk_n128() { qdetector_runtest_gmsk(128); }
+    fn test_qdetector_gmsk_n128() {
+        qdetector_runtest_gmsk(128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n167)]
-    fn test_qdetector_gmsk_n167() { qdetector_runtest_gmsk(167); }
+    fn test_qdetector_gmsk_n167() {
+        qdetector_runtest_gmsk(167);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n256)]
-    fn test_qdetector_gmsk_n256() { qdetector_runtest_gmsk(256); }
+    fn test_qdetector_gmsk_n256() {
+        qdetector_runtest_gmsk(256);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n335)]
-    fn test_qdetector_gmsk_n335() { qdetector_runtest_gmsk(335); }
+    fn test_qdetector_gmsk_n335() {
+        qdetector_runtest_gmsk(335);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n512)]
-    fn test_qdetector_gmsk_n512() { qdetector_runtest_gmsk(512); }
+    fn test_qdetector_gmsk_n512() {
+        qdetector_runtest_gmsk(512);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n671)]
-    fn test_qdetector_gmsk_n671() { qdetector_runtest_gmsk(671); }
+    fn test_qdetector_gmsk_n671() {
+        qdetector_runtest_gmsk(671);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n1024)]
-    fn test_qdetector_gmsk_n1024() { qdetector_runtest_gmsk(1024); }
+    fn test_qdetector_gmsk_n1024() {
+        qdetector_runtest_gmsk(1024);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qdetector_cccf_gmsk_n1341)]
-    fn test_qdetector_gmsk_n1341() { qdetector_runtest_gmsk(1341); }
+    fn test_qdetector_gmsk_n1341() {
+        qdetector_runtest_gmsk(1341);
+    }
 
     // copy test
     #[test]
@@ -750,11 +779,7 @@ mod tests {
         // try to detect frame
         let mut frames_detected = 0;
         for i in 0..(sequence_len + 80) {
-            let s = if i < sequence_len {
-                sequence[i]
-            } else {
-                Complex32::from_polar(1.0, i as f32)
-            };
+            let s = if i < sequence_len { sequence[i] } else { Complex32::from_polar(1.0, i as f32) };
 
             let v0 = q0.execute(s);
             let v1 = q1.execute(s);

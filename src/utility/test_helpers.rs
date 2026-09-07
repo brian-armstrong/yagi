@@ -1,8 +1,8 @@
 use num_complex::Complex;
 
 use crate::error::{Error, Result};
-use crate::fft::{fft_run, Direction};
 use crate::fft::spgram::Spgram;
+use crate::fft::{fft_run, Direction};
 use crate::filter::{FirFilter, IirFilter};
 use crate::math::nextpow2;
 
@@ -16,11 +16,7 @@ pub struct PsdRegion {
     pub test_hi: bool,
 }
 
-pub fn validate_psd_spectrum(
-    psd: &[f32],
-    nfft: usize,
-    regions: &[PsdRegion],
-) -> Result<bool> {
+pub fn validate_psd_spectrum(psd: &[f32], nfft: usize, regions: &[PsdRegion]) -> Result<bool> {
     let mut fail = vec![false; nfft];
 
     for region in regions.iter() {
@@ -51,10 +47,7 @@ pub fn validate_psd_spectrum(
     Ok(!fail.iter().any(|&x| x))
 }
 
-pub fn validate_psd_signal(
-    buf: &[Complex<f32>],
-    regions: &[PsdRegion],
-) -> Result<bool> {
+pub fn validate_psd_signal(buf: &[Complex<f32>], regions: &[PsdRegion]) -> Result<bool> {
     let buf_len = buf.len() as u32;
     let nfft = 4 << nextpow2(buf_len.max(64))?;
     let mut buf_time = vec![Complex::new(0.0, 0.0); nfft];
@@ -74,10 +67,7 @@ pub fn validate_psd_signal(
     validate_psd_spectrum(&buf_psd, nfft, regions)
 }
 
-pub fn validate_psd_signalf(
-    buf: &[f32],
-    regions: &[PsdRegion],
-) -> Result<bool> {
+pub fn validate_psd_signalf(buf: &[f32], regions: &[PsdRegion]) -> Result<bool> {
     let buf_cplx: Vec<Complex<f32>> = buf.iter().map(|&x| Complex::new(x, 0.0)).collect();
     validate_psd_signal(&buf_cplx, regions)
 }
@@ -112,11 +102,7 @@ pub fn validate_psd_firfiltc(
     validate_psd_spectrum(&psd, nfft, regions)
 }
 
-pub fn validate_psd_iirfilt(
-    iirfilt: &IirFilter<f32, f32>,
-    nfft: usize,
-    regions: &[PsdRegion],
-) -> Result<bool> {
+pub fn validate_psd_iirfilt(iirfilt: &IirFilter<f32, f32>, nfft: usize, regions: &[PsdRegion]) -> Result<bool> {
     let mut psd = vec![0.0; nfft];
     for i in 0..nfft {
         let f = (i as f32) / (nfft as f32) - 0.5;
@@ -127,10 +113,7 @@ pub fn validate_psd_iirfilt(
     validate_psd_spectrum(&psd, nfft, regions)
 }
 
-pub fn validate_psd_spgramcf(
-    spgram: &Spgram<Complex<f32>>,
-    regions: &[PsdRegion],
-) -> Result<bool> {
+pub fn validate_psd_spgramcf(spgram: &Spgram<Complex<f32>>, regions: &[PsdRegion]) -> Result<bool> {
     let nfft = spgram.get_nfft();
     let psd = spgram.get_psd();
     validate_psd_spectrum(&psd, nfft, regions)

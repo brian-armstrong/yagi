@@ -2,7 +2,6 @@ use crate::error::{Error, Result};
 use crate::math::sincd;
 use std::f64::consts::PI;
 
-
 /// Design Nyquist raised-cosine filter
 ///
 /// # Arguments
@@ -12,7 +11,7 @@ use std::f64::consts::PI;
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// A vec of filter coefficients
 pub fn fir_design_rcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     if k < 1 {
@@ -72,6 +71,7 @@ mod tests {
 
         // Initialize pre-determined coefficient array
         // nb the last initializer was missing from the autotest
+        #[rustfmt::skip]
         let h0: [f32; 13] = [
              1.65502646542134e-17,
              7.20253052925685e-02,

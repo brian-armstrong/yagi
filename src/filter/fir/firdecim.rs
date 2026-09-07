@@ -1,11 +1,10 @@
-use crate::error::{Error, Result};
-use crate::buffer::Window;
 use super::design;
+use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
+use crate::error::{Error, Result};
 use crate::matrix::FloatComplex;
 
 use num_complex::Complex32;
-
 
 /// Finite impulse response (FIR) decimation filter
 #[derive(Clone, Debug)]
@@ -26,15 +25,15 @@ where
     [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new decimation filter from external coefficients
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `decimation_factor` - The decimation factor
     /// * `h` - The filter coefficients
     /// * `h_len` - The length of the filter coefficients
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new decimation filter
     pub fn new(decimation_factor: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
         if h_len == 0 {
@@ -59,15 +58,15 @@ where
     }
 
     /// Create a new decimation filter from a Kaiser-Bessel filter prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `decimation_factor` - The decimation factor
     /// * `m` - The filter delay
     /// * `as_` - The stop-band attenuation
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new decimation filter
     pub fn new_kaiser(decimation_factor: usize, m: usize, as_: f32) -> Result<Self> {
         if decimation_factor < 2 {
@@ -89,19 +88,25 @@ where
     }
 
     /// Create a new decimation filter from a filter prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `filter_type` - The filter type
     /// * `decimation_factor` - The decimation factor
     /// * `m` - The filter delay
     /// * `beta` - The excess bandwidth factor
     /// * `dt` - The fractional sample delay
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new decimation filter
-    pub fn new_prototype(filter_type: design::FirFilterShape, decimation_factor: usize, m: usize, beta: f32, dt: f32) -> Result<Self> {
+    pub fn new_prototype(
+        filter_type: design::FirFilterShape,
+        decimation_factor: usize,
+        m: usize,
+        beta: f32,
+        dt: f32,
+    ) -> Result<Self> {
         if decimation_factor < 2 {
             return Err(Error::Config("decimation factor must be greater than 1".into()));
         }
@@ -128,40 +133,40 @@ where
     }
 
     /// Get the decimation rate
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The decimation rate
     pub fn get_decim_rate(&self) -> usize {
         self.decimation_factor
     }
 
     /// Set the output scaling for the filter
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `scale` - The scaling factor
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
     /// Get the output scaling for the filter
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The scaling factor
     pub fn get_scale(&self) -> Coeff {
         self.scale
     }
 
     /// Compute the frequency response of the filter at a given frequency
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `fc` - The normalized frequency
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The frequency response
     pub fn freqresp(&self, fc: f32) -> Result<Complex32> {
         let mut h_freq = design::freqresponse(&self.h, fc)?;
@@ -170,13 +175,13 @@ where
     }
 
     /// Execute the filter on `decimation_factor` input samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - The input samples
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The output sample
     pub fn execute(&mut self, x: &[T]) -> Result<T> {
         let mut y = T::zero();
@@ -202,19 +207,14 @@ where
     ///
     /// Returns the number of output samples written, `n`.
     pub fn execute_block(&mut self, x: &[T], n: usize, y: &mut [T]) -> Result<usize> {
-        let input_len = n.checked_mul(self.decimation_factor)
+        let input_len = n
+            .checked_mul(self.decimation_factor)
             .ok_or_else(|| Error::Range("decimator input length overflow".into()))?;
         if x.len() < input_len {
-            return Err(Error::Config(format!(
-                "input length ({}) must be at least {}",
-                x.len(), input_len,
-            )));
+            return Err(Error::Config(format!("input length ({}) must be at least {}", x.len(), input_len,)));
         }
         if y.len() < n {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), n,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n,)));
         }
 
         let decimation_factor = self.decimation_factor;
@@ -223,16 +223,13 @@ where
         self.w.execute_block_contiguous(&x[..input_len], |indices, samples| {
             // execute() produces an output after the first sample in each
             // decimation group, then retains the rest for the next group
-            let offset = (decimation_factor - indices.start % decimation_factor)
-                % decimation_factor;
+            let offset = (decimation_factor - indices.start % decimation_factor) % decimation_factor;
             if offset >= indices.len() {
                 return;
             }
 
             let output_start = (indices.start + offset) / decimation_factor;
-            for (i, history) in samples[offset..].windows(filter_len)
-                .step_by(decimation_factor).enumerate()
-            {
+            for (i, history) in samples[offset..].windows(filter_len).step_by(decimation_factor).enumerate() {
                 y[output_start + i] = dp.execute(history);
             }
         });
@@ -248,10 +245,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
-    use crate::math::WindowType;
     use crate::filter::fir::design::FirFilterShape;
+    use crate::math::WindowType;
+    use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     fn test_firdecim_freqresp_matches_firfilt() {
@@ -314,8 +311,8 @@ mod tests {
         let mut buf_1 = vec![Complex32::new(0.0, 0.0); num_blocks]; // output (regular)
         let mut buf_2 = vec![Complex32::new(0.0, 0.0); num_blocks]; // output (block)
 
-        let mut decim = FirDecimationFilter::<Complex32, f32>::new_prototype(
-            FirFilterShape::Arkaiser, m, n, beta, 0.0).unwrap();
+        let mut decim =
+            FirDecimationFilter::<Complex32, f32>::new_prototype(FirFilterShape::Arkaiser, m, n, beta, 0.0).unwrap();
 
         // create random-ish input (does not really matter what the input is
         // so long as the outputs match, but systematic for repeatability)
@@ -340,9 +337,7 @@ mod tests {
     #[test]
     fn test_firdecim_crcf_execute_block_matches_execute() {
         let decimation_factor = 3;
-        let mut reference = FirDecimationFilter::<Complex32, f32>::new_kaiser(
-            decimation_factor, 4, 60.0,
-        ).unwrap();
+        let mut reference = FirDecimationFilter::<Complex32, f32>::new_kaiser(decimation_factor, 4, 60.0).unwrap();
         reference.set_scale(0.37);
         let mut block = reference.clone();
 
@@ -361,11 +356,8 @@ mod tests {
         for &len in &[1, 7, 31, 3, 64, 151] {
             let input_start = decimation_factor * offset;
             let input_end = decimation_factor * (offset + len);
-            let written = block.execute_block(
-                &x[input_start..input_end],
-                len,
-                &mut actual[offset..offset + len],
-            ).unwrap();
+            let written =
+                block.execute_block(&x[input_start..input_end], len, &mut actual[offset..offset + len]).unwrap();
             assert_eq!(written, len);
             offset += len;
         }
@@ -399,12 +391,7 @@ mod tests {
 
     include!("firdecim_test_data.rs");
 
-    fn firdecim_rrrf_test(
-        m: usize,
-        h: &[f32],
-        x: &[f32],
-        y: &[f32],
-    ) {
+    fn firdecim_rrrf_test(m: usize, h: &[f32], x: &[f32], y: &[f32]) {
         let tol = 0.001f32;
 
         // load filter coefficients externally
@@ -415,8 +402,8 @@ mod tests {
 
         // compute output
         for i in 0..y.len() {
-            y_test[i] = q.execute(&x[m*i..m*(i+1)]).unwrap();
-            
+            y_test[i] = q.execute(&x[m * i..m * (i + 1)]).unwrap();
+
             assert_abs_diff_eq!(y_test[i], y[i], epsilon = tol);
         }
     }
@@ -424,44 +411,48 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firdecim_rrrf_data_M2h4x20)]
     fn test_firdecim_rrrf_data_m2h4x20() {
-        firdecim_rrrf_test(2,
-                       &FIRDECIM_RRRF_DATA_M2H4X20_H,
-                       &FIRDECIM_RRRF_DATA_M2H4X20_X,
-                       &FIRDECIM_RRRF_DATA_M2H4X20_Y);
+        firdecim_rrrf_test(
+            2,
+            &FIRDECIM_RRRF_DATA_M2H4X20_H,
+            &FIRDECIM_RRRF_DATA_M2H4X20_X,
+            &FIRDECIM_RRRF_DATA_M2H4X20_Y,
+        );
     }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_rrrf_data_M3h7x30)]
     fn test_firdecim_rrrf_data_m3h7x30() {
-        firdecim_rrrf_test(3,
-                        &FIRDECIM_RRRF_DATA_M3H7X30_H,
-                        &FIRDECIM_RRRF_DATA_M3H7X30_X,
-                        &FIRDECIM_RRRF_DATA_M3H7X30_Y);
+        firdecim_rrrf_test(
+            3,
+            &FIRDECIM_RRRF_DATA_M3H7X30_H,
+            &FIRDECIM_RRRF_DATA_M3H7X30_X,
+            &FIRDECIM_RRRF_DATA_M3H7X30_Y,
+        );
     }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_rrrf_data_M4h13x40)]
     fn test_firdecim_rrrf_data_m4h13x40() {
-        firdecim_rrrf_test(4,
-                        &FIRDECIM_RRRF_DATA_M4H13X40_H,
-                        &FIRDECIM_RRRF_DATA_M4H13X40_X,
-                        &FIRDECIM_RRRF_DATA_M4H13X40_Y);
+        firdecim_rrrf_test(
+            4,
+            &FIRDECIM_RRRF_DATA_M4H13X40_H,
+            &FIRDECIM_RRRF_DATA_M4H13X40_X,
+            &FIRDECIM_RRRF_DATA_M4H13X40_Y,
+        );
     }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_rrrf_data_M5h23x50)]
     fn test_firdecim_rrrf_data_m5h23x50() {
-        firdecim_rrrf_test(5,
-                        &FIRDECIM_RRRF_DATA_M5H23X50_H,
-                        &FIRDECIM_RRRF_DATA_M5H23X50_X,
-                        &FIRDECIM_RRRF_DATA_M5H23X50_Y);
+        firdecim_rrrf_test(
+            5,
+            &FIRDECIM_RRRF_DATA_M5H23X50_H,
+            &FIRDECIM_RRRF_DATA_M5H23X50_X,
+            &FIRDECIM_RRRF_DATA_M5H23X50_Y,
+        );
     }
 
-    fn firdecim_crcf_test(m: usize,
-                          h: &[f32],
-                          x: &[Complex32],
-                          y: &[Complex32])
-    {
+    fn firdecim_crcf_test(m: usize, h: &[f32], x: &[Complex32], y: &[Complex32]) {
         let tol = 0.001f32;
 
         // load filter coefficients externally
@@ -472,8 +463,8 @@ mod tests {
 
         // compute output
         for i in 0..y.len() {
-            y_test[i] = q.execute(&x[m*i..m*(i+1)]).unwrap();
-            
+            y_test[i] = q.execute(&x[m * i..m * (i + 1)]).unwrap();
+
             assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
             assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
@@ -482,47 +473,48 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firdecim_crcf_data_M2h4x20)]
     fn test_firdecim_crcf_data_m2h4x20() {
-        firdecim_crcf_test(2,
-                        &FIRDECIM_CRCF_DATA_M2H4X20_H,
-                        &FIRDECIM_CRCF_DATA_M2H4X20_X,
-                        &FIRDECIM_CRCF_DATA_M2H4X20_Y);
+        firdecim_crcf_test(
+            2,
+            &FIRDECIM_CRCF_DATA_M2H4X20_H,
+            &FIRDECIM_CRCF_DATA_M2H4X20_X,
+            &FIRDECIM_CRCF_DATA_M2H4X20_Y,
+        );
     }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_crcf_data_M3h7x30)]
-    fn test_firdecim_crcf_data_m3h7x30()
-    {
-        firdecim_crcf_test(3,
-                        &FIRDECIM_CRCF_DATA_M3H7X30_H,
-                        &FIRDECIM_CRCF_DATA_M3H7X30_X,
-                        &FIRDECIM_CRCF_DATA_M3H7X30_Y);
+    fn test_firdecim_crcf_data_m3h7x30() {
+        firdecim_crcf_test(
+            3,
+            &FIRDECIM_CRCF_DATA_M3H7X30_H,
+            &FIRDECIM_CRCF_DATA_M3H7X30_X,
+            &FIRDECIM_CRCF_DATA_M3H7X30_Y,
+        );
     }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_crcf_data_M4h13x40)]
-    fn test_firdecim_crcf_data_m4h13x40()
-    {
-        firdecim_crcf_test(4,
-                        &FIRDECIM_CRCF_DATA_M4H13X40_H,
-                        &FIRDECIM_CRCF_DATA_M4H13X40_X,
-                        &FIRDECIM_CRCF_DATA_M4H13X40_Y);
+    fn test_firdecim_crcf_data_m4h13x40() {
+        firdecim_crcf_test(
+            4,
+            &FIRDECIM_CRCF_DATA_M4H13X40_H,
+            &FIRDECIM_CRCF_DATA_M4H13X40_X,
+            &FIRDECIM_CRCF_DATA_M4H13X40_Y,
+        );
     }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_crcf_data_M5h23x50)]
-    fn test_firdecim_crcf_data_m5h23x50()
-    {
-        firdecim_crcf_test(5,
-                        &FIRDECIM_CRCF_DATA_M5H23X50_H,
-                        &FIRDECIM_CRCF_DATA_M5H23X50_X,
-                        &FIRDECIM_CRCF_DATA_M5H23X50_Y);
+    fn test_firdecim_crcf_data_m5h23x50() {
+        firdecim_crcf_test(
+            5,
+            &FIRDECIM_CRCF_DATA_M5H23X50_H,
+            &FIRDECIM_CRCF_DATA_M5H23X50_X,
+            &FIRDECIM_CRCF_DATA_M5H23X50_Y,
+        );
     }
 
-    fn firdecim_cccf_test(m: usize,
-                          h: &[Complex32],
-                          x: &[Complex32],
-                          y: &[Complex32])
-    {
+    fn firdecim_cccf_test(m: usize, h: &[Complex32], x: &[Complex32], y: &[Complex32]) {
         let tol = 0.001f32;
 
         // load filter coefficients externally
@@ -533,8 +525,8 @@ mod tests {
 
         // compute output
         for i in 0..y.len() {
-            y_test[i] = q.execute(&x[m*i..m*(i+1)]).unwrap();
-            
+            y_test[i] = q.execute(&x[m * i..m * (i + 1)]).unwrap();
+
             assert_abs_diff_eq!(y_test[i].re, y[i].re, epsilon = tol);
             assert_abs_diff_eq!(y_test[i].im, y[i].im, epsilon = tol);
         }
@@ -542,38 +534,42 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_firdecim_cccf_data_M2h4x20)]
-    fn test_firdecim_cccf_data_m2h4x20()
-    {
-        firdecim_cccf_test(2,
-                        &FIRDECIM_CCCF_DATA_M2H4X20_H,
-                        &FIRDECIM_CCCF_DATA_M2H4X20_X,
-                        &FIRDECIM_CCCF_DATA_M2H4X20_Y);
+    fn test_firdecim_cccf_data_m2h4x20() {
+        firdecim_cccf_test(
+            2,
+            &FIRDECIM_CCCF_DATA_M2H4X20_H,
+            &FIRDECIM_CCCF_DATA_M2H4X20_X,
+            &FIRDECIM_CCCF_DATA_M2H4X20_Y,
+        );
     }
     #[test]
     #[autotest_annotate(autotest_firdecim_cccf_data_M3h7x30)]
-    fn test_firdecim_cccf_data_m3h7x30()
-    {
-        firdecim_cccf_test(3,
-                        &FIRDECIM_CCCF_DATA_M3H7X30_H,
-                        &FIRDECIM_CCCF_DATA_M3H7X30_X,
-                        &FIRDECIM_CCCF_DATA_M3H7X30_Y);
+    fn test_firdecim_cccf_data_m3h7x30() {
+        firdecim_cccf_test(
+            3,
+            &FIRDECIM_CCCF_DATA_M3H7X30_H,
+            &FIRDECIM_CCCF_DATA_M3H7X30_X,
+            &FIRDECIM_CCCF_DATA_M3H7X30_Y,
+        );
     }
     #[test]
     #[autotest_annotate(autotest_firdecim_cccf_data_M4h13x40)]
-    fn test_firdecim_cccf_data_m4h13x40()
-    {
-        firdecim_cccf_test(4,
-                        &FIRDECIM_CCCF_DATA_M4H13X40_H,
-                        &FIRDECIM_CCCF_DATA_M4H13X40_X,
-                        &FIRDECIM_CCCF_DATA_M4H13X40_Y);
+    fn test_firdecim_cccf_data_m4h13x40() {
+        firdecim_cccf_test(
+            4,
+            &FIRDECIM_CCCF_DATA_M4H13X40_H,
+            &FIRDECIM_CCCF_DATA_M4H13X40_X,
+            &FIRDECIM_CCCF_DATA_M4H13X40_Y,
+        );
     }
     #[test]
     #[autotest_annotate(autotest_firdecim_cccf_data_M5h23x50)]
-    fn test_firdecim_cccf_data_m5h23x50()
-    {
-        firdecim_cccf_test(5,
-                        &FIRDECIM_CCCF_DATA_M5H23X50_H,
-                        &FIRDECIM_CCCF_DATA_M5H23X50_X,
-                        &FIRDECIM_CCCF_DATA_M5H23X50_Y);
+    fn test_firdecim_cccf_data_m5h23x50() {
+        firdecim_cccf_test(
+            5,
+            &FIRDECIM_CCCF_DATA_M5H23X50_H,
+            &FIRDECIM_CCCF_DATA_M5H23X50_X,
+            &FIRDECIM_CCCF_DATA_M5H23X50_Y,
+        );
     }
 }

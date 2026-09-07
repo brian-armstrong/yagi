@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
-use crate::fft::{Fft, Direction};
+use crate::fft::{Direction, Fft};
+use num_complex::{Complex32, ComplexFloat};
 use num_traits::Zero;
-use num_complex::{ComplexFloat, Complex32};
 
 pub trait FromComplex32 {
     fn from_complex32(c: Complex32) -> Self;
@@ -68,11 +68,7 @@ where
 
         // compute FFT of filter coefficients and copy to internal H array
         for i in 0..2 * q.n {
-            q.time_buf[i] = if i < q.h_len {
-                Complex32::from(q.h[i].clone())
-            } else {
-                Complex32::zero()
-            };
+            q.time_buf[i] = if i < q.h_len { Complex32::from(q.h[i].clone()) } else { Complex32::zero() };
         }
         q.fft.run(&mut q.time_buf, &mut q.freq_buf);
         q.h_freq.copy_from_slice(&q.freq_buf);
@@ -97,7 +93,7 @@ where
     }
 
     pub fn get_scale(&self) -> Coeff {
-        self.scale * (2.0 * self.n as f32).into() 
+        self.scale * (2.0 * self.n as f32).into()
     }
 
     pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
@@ -227,7 +223,7 @@ mod tests {
 
         // compute output in blocks of size 'n'
         for i in 0..num_blocks {
-            q.execute(&x[i*n..(i+1)*n], &mut y_test[i*n..(i+1)*n]).unwrap();
+            q.execute(&x[i * n..(i + 1) * n], &mut y_test[i * n..(i + 1) * n]).unwrap();
         }
 
         // compare results
@@ -255,7 +251,7 @@ mod tests {
 
         // compute output in blocks of size 'n'
         for i in 0..num_blocks {
-            q.execute(&x[i*n..(i+1)*n], &mut y_test[i*n..(i+1)*n]).unwrap();
+            q.execute(&x[i * n..(i + 1) * n], &mut y_test[i * n..(i + 1) * n]).unwrap();
         }
 
         // compare results
@@ -284,7 +280,7 @@ mod tests {
 
         // compute output in blocks of size 'n'
         for i in 0..num_blocks {
-            q.execute(&x[i*n..(i+1)*n], &mut y_test[i*n..(i+1)*n]).unwrap();
+            q.execute(&x[i * n..(i + 1) * n], &mut y_test[i * n..(i + 1) * n]).unwrap();
         }
 
         // compare results
@@ -297,120 +293,72 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_fftfilt_rrrf_data_h4x256)]
     fn test_fftfilt_rrrf_data_h4x256() {
-        fftfilt_rrrf_test(
-            &FFTFILT_RRRF_DATA_H4X256_H,
-            &FFTFILT_RRRF_DATA_H4X256_X,
-            &FFTFILT_RRRF_DATA_H4X256_Y
-        );
+        fftfilt_rrrf_test(&FFTFILT_RRRF_DATA_H4X256_H, &FFTFILT_RRRF_DATA_H4X256_X, &FFTFILT_RRRF_DATA_H4X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_rrrf_data_h7x256)]
     fn test_fftfilt_rrrf_data_h7x256() {
-        fftfilt_rrrf_test(
-            &FFTFILT_RRRF_DATA_H7X256_H,
-            &FFTFILT_RRRF_DATA_H7X256_X,
-            &FFTFILT_RRRF_DATA_H7X256_Y
-        );
+        fftfilt_rrrf_test(&FFTFILT_RRRF_DATA_H7X256_H, &FFTFILT_RRRF_DATA_H7X256_X, &FFTFILT_RRRF_DATA_H7X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_rrrf_data_h13x256)]
     fn test_fftfilt_rrrf_data_h13x256() {
-        fftfilt_rrrf_test(
-            &FFTFILT_RRRF_DATA_H13X256_H,
-            &FFTFILT_RRRF_DATA_H13X256_X,
-            &FFTFILT_RRRF_DATA_H13X256_Y
-        );
+        fftfilt_rrrf_test(&FFTFILT_RRRF_DATA_H13X256_H, &FFTFILT_RRRF_DATA_H13X256_X, &FFTFILT_RRRF_DATA_H13X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_rrrf_data_h23x256)]
     fn test_fftfilt_rrrf_data_h23x256() {
-        fftfilt_rrrf_test(
-            &FFTFILT_RRRF_DATA_H23X256_H,
-            &FFTFILT_RRRF_DATA_H23X256_X,
-            &FFTFILT_RRRF_DATA_H23X256_Y
-        );
+        fftfilt_rrrf_test(&FFTFILT_RRRF_DATA_H23X256_H, &FFTFILT_RRRF_DATA_H23X256_X, &FFTFILT_RRRF_DATA_H23X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_crcf_data_h4x256)]
     fn test_fftfilt_crcf_data_h4x256() {
-        fftfilt_crcf_test(
-            &FFTFILT_CRCF_DATA_H4X256_H,
-            &FFTFILT_CRCF_DATA_H4X256_X,
-            &FFTFILT_CRCF_DATA_H4X256_Y
-        );
+        fftfilt_crcf_test(&FFTFILT_CRCF_DATA_H4X256_H, &FFTFILT_CRCF_DATA_H4X256_X, &FFTFILT_CRCF_DATA_H4X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_crcf_data_h7x256)]
     fn test_fftfilt_crcf_data_h7x256() {
-        fftfilt_crcf_test(
-            &FFTFILT_CRCF_DATA_H7X256_H,
-            &FFTFILT_CRCF_DATA_H7X256_X,
-            &FFTFILT_CRCF_DATA_H7X256_Y
-        );
+        fftfilt_crcf_test(&FFTFILT_CRCF_DATA_H7X256_H, &FFTFILT_CRCF_DATA_H7X256_X, &FFTFILT_CRCF_DATA_H7X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_crcf_data_h13x256)]
     fn test_fftfilt_crcf_data_h13x256() {
-        fftfilt_crcf_test(
-            &FFTFILT_CRCF_DATA_H13X256_H,
-            &FFTFILT_CRCF_DATA_H13X256_X,
-            &FFTFILT_CRCF_DATA_H13X256_Y
-        );
+        fftfilt_crcf_test(&FFTFILT_CRCF_DATA_H13X256_H, &FFTFILT_CRCF_DATA_H13X256_X, &FFTFILT_CRCF_DATA_H13X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_crcf_data_h23x256)]
     fn test_fftfilt_crcf_data_h23x256() {
-        fftfilt_crcf_test(
-            &FFTFILT_CRCF_DATA_H23X256_H,
-            &FFTFILT_CRCF_DATA_H23X256_X,
-            &FFTFILT_CRCF_DATA_H23X256_Y
-        );
+        fftfilt_crcf_test(&FFTFILT_CRCF_DATA_H23X256_H, &FFTFILT_CRCF_DATA_H23X256_X, &FFTFILT_CRCF_DATA_H23X256_Y);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_fftfilt_cccf_data_h4x256)]
     fn test_fftfilt_cccf_data_h4x256() {
-        fftfilt_cccf_test(
-            &FFTFILT_CCCF_DATA_H4X256_H,
-            &FFTFILT_CCCF_DATA_H4X256_X,
-            &FFTFILT_CCCF_DATA_H4X256_Y
-        );
+        fftfilt_cccf_test(&FFTFILT_CCCF_DATA_H4X256_H, &FFTFILT_CCCF_DATA_H4X256_X, &FFTFILT_CCCF_DATA_H4X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_cccf_data_h7x256)]
     fn test_fftfilt_cccf_data_h7x256() {
-        fftfilt_cccf_test(
-            &FFTFILT_CCCF_DATA_H7X256_H,
-            &FFTFILT_CCCF_DATA_H7X256_X,
-            &FFTFILT_CCCF_DATA_H7X256_Y
-        );
+        fftfilt_cccf_test(&FFTFILT_CCCF_DATA_H7X256_H, &FFTFILT_CCCF_DATA_H7X256_X, &FFTFILT_CCCF_DATA_H7X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_cccf_data_h13x256)]
     fn test_fftfilt_cccf_data_h13x256() {
-        fftfilt_cccf_test(
-            &FFTFILT_CCCF_DATA_H13X256_H,
-            &FFTFILT_CCCF_DATA_H13X256_X,
-            &FFTFILT_CCCF_DATA_H13X256_Y
-        );
+        fftfilt_cccf_test(&FFTFILT_CCCF_DATA_H13X256_H, &FFTFILT_CCCF_DATA_H13X256_X, &FFTFILT_CCCF_DATA_H13X256_Y);
     }
 
     #[test]
     #[autotest_annotate(autotest_fftfilt_cccf_data_h23x256)]
     fn test_fftfilt_cccf_data_h23x256() {
-        fftfilt_cccf_test(
-            &FFTFILT_CCCF_DATA_H23X256_H,
-            &FFTFILT_CCCF_DATA_H23X256_X,
-            &FFTFILT_CCCF_DATA_H23X256_Y
-        );
+        fftfilt_cccf_test(&FFTFILT_CCCF_DATA_H23X256_H, &FFTFILT_CCCF_DATA_H23X256_X, &FFTFILT_CCCF_DATA_H23X256_Y);
     }
 }

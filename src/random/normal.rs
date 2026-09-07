@@ -1,7 +1,7 @@
-use std::f32::consts::PI;
+use libm::erff;
 use num_complex::Complex;
 use rand::Rng;
-use libm::erff;
+use std::f32::consts::PI;
 
 use crate::error::{Error, Result};
 
@@ -70,9 +70,9 @@ pub fn randnf_cdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_randnf)]

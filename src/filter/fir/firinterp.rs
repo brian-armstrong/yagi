@@ -1,9 +1,9 @@
 use crate::buffer::Window;
-use crate::error::{Error, Result};
 use crate::dotprod::DotProd;
+use crate::error::{Error, Result};
 use crate::filter;
-use std::f32::consts::PI;
 use num_complex::ComplexFloat;
+use std::f32::consts::PI;
 
 /// Finite impulse response (FIR) interpolator
 #[derive(Clone, Debug)]
@@ -22,19 +22,19 @@ where
     [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new interpolator from external coefficients
-    /// 
+    ///
     /// If the input filter length is not a multiple of the interpolation
     /// factor, the object internally pads the coefficients with zeros
     /// to compensate.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `interp` - interpolation factor
     /// * `h` - filter coefficients
     /// * `h_len` - filter length
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new interpolator
     pub fn new(interp: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
         if interp < 2 {
@@ -56,25 +56,19 @@ where
         let w = Window::new(h_sub_len)?;
         let bank = filter::FirPfbBank::new(interp, &h_padded, h_len_padded)?;
 
-        Ok(Self {
-            h_sub_len,
-            interpolation_factor: interp,
-            w,
-            bank,
-            block_scratch: Vec::new(),
-        })
+        Ok(Self { h_sub_len, interpolation_factor: interp, w, bank, block_scratch: Vec::new() })
     }
 
     /// Create a new interpolator from a Kaiser prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `interp` - interpolation factor
     /// * `m` - filter delay
     /// * `as_` - stop-band attenuation \[dB\]
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new interpolator
     pub fn new_kaiser(interp: usize, m: usize, as_: f32) -> Result<Self> {
         if interp < 2 {
@@ -96,19 +90,25 @@ where
     }
 
     /// Create a new interpolator from a filter prototype
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `filter_type` - filter type
     /// * `interp` - interpolation factor
     /// * `m` - filter delay (symbols)
     /// * `beta` - excess bandwidth factor
     /// * `dt` - fractional sample delay
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new interpolator
-    pub fn new_prototype(filter_type: filter::FirFilterShape, interp: usize, m: usize, beta: f32, dt: f32) -> Result<Self> {
+    pub fn new_prototype(
+        filter_type: filter::FirFilterShape,
+        interp: usize,
+        m: usize,
+        beta: f32,
+        dt: f32,
+    ) -> Result<Self> {
         if interp < 2 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
         }
@@ -130,13 +130,13 @@ where
     }
 
     /// Create a new linear interpolator
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `interp` - interpolation factor
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new linear interpolator
     pub fn new_linear(interp: usize) -> Result<Self> {
         if interp < 1 {
@@ -153,12 +153,12 @@ where
     }
 
     /// Create a new window interpolator
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `interp` - interpolation factor
     /// * `m` - filter semi-length
-    /// 
+    ///
     /// # Returns
     ///
     /// A new window interpolator
@@ -185,36 +185,36 @@ where
     }
 
     /// Get the interpolation rate
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The interpolation rate
     pub fn get_interp_rate(&self) -> usize {
         self.interpolation_factor
     }
 
     /// Get the sub-filter length (length of each poly-phase filter)
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The sub-filter length
     pub fn get_sub_len(&self) -> usize {
         self.h_sub_len
     }
 
     /// Set the output scaling for interpolator
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `scale` - scaling factor to apply to each output sample
     pub fn set_scale(&mut self, scale: Coeff) -> () {
         self.bank.set_scale(scale)
     }
 
     /// Get the output scaling for interpolator
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The output scaling factor
     pub fn get_scale(&self) -> Coeff {
         self.bank.get_scale()
@@ -222,9 +222,9 @@ where
 
     /// Execute the interpolator on a single input sample and write the
     /// corresponding output samples
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `x` - input sample
     /// * `y` - output samples (size: `interp` x 1)
     pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<()> {
@@ -246,13 +246,12 @@ where
     ///
     /// Returns the number of output samples written, `n * interp`.
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let num_output = x.len().checked_mul(self.interpolation_factor)
+        let num_output = x
+            .len()
+            .checked_mul(self.interpolation_factor)
             .ok_or_else(|| Error::Range("interpolator output length overflow".into()))?;
         if y.len() < num_output {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), num_output,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), num_output,)));
         }
 
         let block_len = x.len().saturating_sub(self.h_sub_len - 1);
@@ -274,9 +273,9 @@ where
     }
 
     /// Execute the interpolator with zero-valued input (e.g. flush internal state)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `y` - output samples (size: `interp` x 1)
     pub fn flush(&mut self, y: &mut [T]) -> Result<()> {
         self.execute(T::zero(), y)
@@ -286,9 +285,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_firinterp_rrrf_common)]
@@ -307,6 +306,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firinterp_rrrf_generic)]
     fn test_firinterp_rrrf_generic() {
+        #[rustfmt::skip]
         let h: [f32; 9] = [
             -0.2762293319046737,
              1.4757679031218007,
@@ -324,6 +324,7 @@ mod tests {
 
         let x = [1.0, -1.0, 1.0, 1.0];
         let mut y = [0.0; 16];
+        #[rustfmt::skip]
         let test: [f32; 16] = [
             -0.2762293319046737,
              1.4757679031218007,
@@ -346,7 +347,7 @@ mod tests {
         let tol = 1e-6;
 
         for i in 0..4 {
-            interp.execute(x[i], &mut y[i*m..(i+1)*m]).unwrap();
+            interp.execute(x[i], &mut y[i * m..(i + 1) * m]).unwrap();
         }
 
         for i in 0..16 {
@@ -358,6 +359,7 @@ mod tests {
     #[autotest_annotate(autotest_firinterp_crcf_generic)]
     fn test_firinterp_crcf_generic() {
         // h = [0, 0.25, 0.5, 0.75, 1.0, 0.75, 0.5, 0.25, 0];
+        #[rustfmt::skip]
         let h: [f32; 9] = [
             -0.7393353832652201,
              0.1909821993029451,
@@ -374,17 +376,19 @@ mod tests {
         let mut interp = FirInterpolationFilter::<Complex32, f32>::new(m, &h, h.len()).unwrap();
 
         //  x = [1+j*0.2, -0.2+j*1.3, 0.5+j*0.3, 1.1-j*0.2]
+        #[rustfmt::skip]
         let x: [Complex32; 4] = [
             Complex32::new( 1.0000e+00,  2.0000e-01),
             Complex32::new(-2.0000e-01,  1.3000e+00),
             Complex32::new( 5.0000e-01,  3.0000e-01),
             Complex32::new( 1.1000e+00, -2.0000e-01)
         ];
-            
+
         let mut y = [Complex32::new(0.0, 0.0); 16];
 
         // z = [x(1) 0 0 0 x(2) 0 0 0 x(3) 0 0 0 x(4) 0 0 0];
         // test = filter(h,1,z)
+        #[rustfmt::skip]
         let test: [Complex32; 16] = [
             Complex32::new(-0.7393353832652201, -0.1478670766530440),
             Complex32::new( 0.1909821993029451,  0.0381964398605890),
@@ -407,7 +411,7 @@ mod tests {
         let tol = 1e-6;
 
         for i in 0..4 {
-            interp.execute(x[i], &mut y[i*m..(i+1)*m]).unwrap();
+            interp.execute(x[i], &mut y[i * m..(i + 1) * m]).unwrap();
         }
 
         for i in 0..16 {
@@ -424,7 +428,7 @@ mod tests {
         // create input buffer of symbols to interpolate
         let num_symbols = k + 16;
         let mut x = vec![Complex32::new(0.0, 0.0); num_symbols]; // input symbols
-        let mut y = vec![Complex32::new(0.0, 0.0); m];           // output interp buffer
+        let mut y = vec![Complex32::new(0.0, 0.0); m]; // output interp buffer
 
         for i in 0..num_symbols {
             x[i] = Complex32::from_polar(1.0, 0.7 * i as f32);
@@ -504,9 +508,7 @@ mod tests {
         reference.set_scale(0.37);
         let mut block = reference.clone();
 
-        let x: Vec<_> = (0..257)
-            .map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos()))
-            .collect();
+        let x: Vec<_> = (0..257).map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos())).collect();
         let mut expected = vec![Complex32::new(0.0, 0.0); 5 * x.len()];
         let mut actual = vec![Complex32::new(0.0, 0.0); 5 * x.len()];
 
@@ -516,10 +518,8 @@ mod tests {
 
         let mut offset = 0;
         for &len in &[1, 7, 31, 3, 64, 151] {
-            let written = block.execute_block(
-                &x[offset..offset + len],
-                &mut actual[5 * offset..5 * (offset + len)],
-            ).unwrap();
+            let written =
+                block.execute_block(&x[offset..offset + len], &mut actual[5 * offset..5 * (offset + len)]).unwrap();
             assert_eq!(written, 5 * len);
             offset += len;
         }

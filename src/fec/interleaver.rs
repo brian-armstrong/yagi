@@ -7,10 +7,10 @@
 /// structured interleaver object
 #[derive(Clone, Debug)]
 pub struct Interleaver {
-    n: usize,      // number of bytes
-    rows: usize,   // row dimension
-    cols: usize,   // col dimension
-    depth: usize,  // interleaving depth (number of permutations)
+    n: usize,     // number of bytes
+    rows: usize,  // row dimension
+    cols: usize,  // col dimension
+    depth: usize, // interleaving depth (number of permutations)
 }
 
 impl Interleaver {
@@ -451,9 +451,9 @@ mod tests {
         assert_eq!(
             y,
             [
-                43, 20, 59, 28, 13, 36, 29, 44, 45, 52, 61, 60, 15, 4, 31, 12, 47, 22, 63, 30, 1,
-                38, 17, 46, 33, 54, 49, 62, 3, 6, 19, 14, 35, 24, 51, 32, 5, 40, 21, 48, 37, 56,
-                53, 0, 7, 8, 23, 16, 39, 26, 55, 34, 9, 42, 25, 50, 41, 58, 57, 2, 11, 10, 27, 18
+                43, 20, 59, 28, 13, 36, 29, 44, 45, 52, 61, 60, 15, 4, 31, 12, 47, 22, 63, 30, 1, 38, 17, 46, 33, 54,
+                49, 62, 3, 6, 19, 14, 35, 24, 51, 32, 5, 40, 21, 48, 37, 56, 53, 0, 7, 8, 23, 16, 39, 26, 55, 34, 9,
+                42, 25, 50, 41, 58, 57, 2, 11, 10, 27, 18
             ]
         );
     }
@@ -495,7 +495,6 @@ mod tests {
         // full interleaving (depth 4). last stage uses mask 0x33
         assert_eq!(y, [0x92, 0xe7, 0x5c, 0xe1, 0x96, 0x03, 0x3c, 0x0f, 0xfe, 0xa5, 0x30, 0x29, 0xf0, 0x4b, 0x5a, 0xcd]);
     }
-
 
     #[test]
     fn test_interleaver_permutation_is_bijection() {

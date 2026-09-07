@@ -148,8 +148,7 @@ impl QPacketSymbolizer {
     ///  payload :   unencoded payload bytes
     ///  symbols :   encoded payload symbol indices [size: symbol_len]
     pub fn encode(&mut self, payload: &[u8], symbols: &mut [u8]) -> Result<()> {
-        self.packetizer
-            .encode(payload, &mut self.payload_enc[..self.byte_len])?;
+        self.packetizer.encode(payload, &mut self.payload_enc[..self.byte_len])?;
 
         self.to_symbols(symbols)
     }
@@ -167,12 +166,8 @@ impl QPacketSymbolizer {
 
     /// repack the encoded payload into 'bps'-bit symbols
     fn to_symbols(&self, symbols: &mut [u8]) -> Result<()> {
-        let num_written = repack_bytes(
-            &self.payload_enc[..self.byte_len],
-            8,
-            &mut symbols[..self.symbol_len],
-            self.bits_per_symbol,
-        )?;
+        let num_written =
+            repack_bytes(&self.payload_enc[..self.byte_len], 8, &mut symbols[..self.symbol_len], self.bits_per_symbol)?;
 
         if num_written != self.symbol_len {
             return Err(Error::Config(format!(
@@ -193,12 +188,8 @@ impl QPacketSymbolizer {
     pub fn decode(&mut self, symbols: &[u8], payload: &mut [u8]) -> Result<bool> {
         // unpack symbols into the encoded payload
         let packed_len = self.packed_len();
-        let num_written = repack_bytes(
-            &symbols[..self.symbol_len],
-            self.bits_per_symbol,
-            &mut self.payload_enc[..packed_len],
-            8,
-        )?;
+        let num_written =
+            repack_bytes(&symbols[..self.symbol_len], self.bits_per_symbol, &mut self.payload_enc[..packed_len], 8)?;
 
         if num_written != packed_len {
             return Err(Error::Config(format!(
@@ -207,8 +198,7 @@ impl QPacketSymbolizer {
             )));
         }
 
-        self.packetizer
-            .decode(&self.payload_enc[..self.byte_len], payload)
+        self.packetizer.decode(&self.payload_enc[..self.byte_len], payload)
     }
 
     /// decode packet from soft-decision bits
@@ -229,14 +219,7 @@ mod tests {
     use test_macro::autotest_annotate;
 
     fn symbolizer(payload_len: usize, bps: usize) -> QPacketSymbolizer {
-        QPacketSymbolizer::new(
-            payload_len,
-            CrcScheme::Crc32,
-            FecScheme::Hamming128,
-            FecScheme::None,
-            bps,
-        )
-        .unwrap()
+        QPacketSymbolizer::new(payload_len, CrcScheme::Crc32, FecScheme::Hamming128, FecScheme::None, bps).unwrap()
     }
 
     #[test]
@@ -258,14 +241,7 @@ mod tests {
     #[test]
     fn test_symbolizer_invalid_bps() {
         for bps in [0usize, 9] {
-            assert!(QPacketSymbolizer::new(
-                16,
-                CrcScheme::Crc32,
-                FecScheme::None,
-                FecScheme::None,
-                bps
-            )
-            .is_err());
+            assert!(QPacketSymbolizer::new(16, CrcScheme::Crc32, FecScheme::None, FecScheme::None, bps).is_err());
         }
     }
 
@@ -284,12 +260,7 @@ mod tests {
                 // unpacking recovers at least the payload, and at most one byte
                 // more, so the padding can never swallow a payload byte
                 assert!(s.packed_len() >= s.byte_len(), "{} {}", payload_len, bps);
-                assert!(
-                    s.packed_len() <= s.byte_len() + 1,
-                    "{} {}",
-                    payload_len,
-                    bps
-                );
+                assert!(s.packed_len() <= s.byte_len() + 1, "{} {}", payload_len, bps);
             }
         }
     }
@@ -301,8 +272,7 @@ mod tests {
             for bps in 1..=8 {
                 let mut s = symbolizer(payload_len, bps);
 
-                let payload_tx: Vec<u8> =
-                    (0..payload_len).map(|i| (i * 37 + 11) as u8).collect();
+                let payload_tx: Vec<u8> = (0..payload_len).map(|i| (i * 37 + 11) as u8).collect();
                 let mut symbols = vec![0u8; s.symbol_len()];
                 s.encode(&payload_tx, &mut symbols).unwrap();
 
@@ -352,9 +322,7 @@ mod tests {
             }
 
             let mut payload_rx = vec![0u8; 32];
-            let crc_pass = s
-                .decode_soft(&soft[..s.soft_len()], &mut payload_rx)
-                .unwrap();
+            let crc_pass = s.decode_soft(&soft[..s.soft_len()], &mut payload_rx).unwrap();
 
             assert!(crc_pass, "bps {}", bps);
             assert_eq!(payload_tx, payload_rx, "bps {}", bps);
@@ -369,8 +337,7 @@ mod tests {
         bits_per_symbol: usize,
     ) {
         // create and configure packet encoder/decoder object
-        let mut q =
-            QPacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol).unwrap();
+        let mut q = QPacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol).unwrap();
 
         // initialize payload
         let mut rng = rand::thread_rng();

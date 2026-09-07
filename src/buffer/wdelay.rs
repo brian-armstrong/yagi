@@ -9,11 +9,7 @@ pub struct WDelay<T> {
 
 impl<T: Default + Clone + Copy> WDelay<T> {
     pub fn create(delay: usize) -> Result<Self> {
-        let mut wdelay = WDelay {
-            v: vec![T::default(); delay + 1],
-            delay,
-            read_index: 0,
-        };
+        let mut wdelay = WDelay { v: vec![T::default(); delay + 1], delay, read_index: 0 };
 
         wdelay.reset();
         Ok(wdelay)
@@ -59,9 +55,9 @@ impl<T: Default + Clone + Copy> WDelay<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex;
     use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
 
     #[test]
     #[autotest_annotate(autotest_wdelayf)]

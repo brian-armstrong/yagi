@@ -1,9 +1,9 @@
 // Hierarchical SIMD reduction functions
 
 use num_complex::Complex;
-use std::simd::{f32x4, simd_swizzle};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-use std::simd::{f32x8, f32x16};
+use std::simd::{f32x16, f32x8};
+use std::simd::{f32x4, simd_swizzle};
 
 // 128-bit (SSE and others, not arch-specific)
 #[inline]

@@ -10,16 +10,10 @@ pub fn pack_array(src: &mut [u8], k: usize, b: usize, sym_in: u8) -> Result<()> 
 
     // validate input
     if k >= 8 * n {
-        return Err(Error::Range(format!(
-            "pack_array(), bit index {} exceeds array length {}",
-            k,
-            8 * n
-        )));
+        return Err(Error::Range(format!("pack_array(), bit index {} exceeds array length {}", k, 8 * n)));
     }
     if b > 8 {
-        return Err(Error::Range(
-            "pack_array(), symbol size cannot exceed 8 bits".into(),
-        ));
+        return Err(Error::Range("pack_array(), symbol size cannot exceed 8 bits".into()));
     }
 
     // find base index
@@ -71,16 +65,10 @@ pub fn unpack_array(src: &[u8], k: usize, b: usize) -> Result<u8> {
 
     // validate input
     if k >= 8 * n {
-        return Err(Error::Range(format!(
-            "unpack_array(), bit index {} exceeds array length {}",
-            k,
-            8 * n
-        )));
+        return Err(Error::Range(format!("unpack_array(), bit index {} exceeds array length {}", k, 8 * n)));
     }
     if b > 8 {
-        return Err(Error::Range(
-            "unpack_array(), symbol size cannot exceed 8 bits".into(),
-        ));
+        return Err(Error::Range("unpack_array(), symbol size cannot exceed 8 bits".into()));
     }
 
     // find base index
@@ -99,11 +87,7 @@ pub fn unpack_array(src: &[u8], k: usize, b: usize) -> Result<u8> {
 
         // shift then mask
         let sym_0 = src[i0] & mask_0;
-        let sym_1 = if i0 == n - 1 {
-            0x00
-        } else {
-            (src[i0 + 1] >> (8 - n1)) & mask_1
-        };
+        let sym_1 = if i0 == n - 1 { 0x00 } else { (src[i0 + 1] >> (8 - n1)) & mask_1 };
 
         // concatenate output symbols
         (sym_0 << n1) | sym_1
@@ -190,12 +174,7 @@ pub fn unpack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
 ///   sym_out     : output symbols array
 ///   sym_out_bps : number of bits per output symbol
 /// Returns the number of output symbols written
-pub fn repack_bytes(
-    sym_in: &[u8],
-    sym_in_bps: usize,
-    sym_out: &mut [u8],
-    sym_out_bps: usize,
-) -> Result<usize> {
+pub fn repack_bytes(sym_in: &[u8], sym_in_bps: usize, sym_out: &mut [u8], sym_out_bps: usize) -> Result<usize> {
     let sym_in_len = sym_in.len();
     let sym_out_len = sym_out.len();
 
@@ -255,7 +234,6 @@ pub fn repack_bytes(
 
     Ok(i_out)
 }
-
 
 // Constants for lookup tables
 
@@ -318,10 +296,7 @@ pub fn count_bit_errors(s1: u32, s2: u32) -> u32 {
 
 /// Counts the number of different bits between two arrays of symbols
 pub fn count_bit_errors_array(msg0: &[u8], msg1: &[u8]) -> u32 {
-    msg0.iter()
-        .zip(msg1.iter())
-        .map(|(&a, &b)| (a ^ b).count_ones() as u32)
-        .sum()
+    msg0.iter().zip(msg1.iter()).map(|(&a, &b)| (a ^ b).count_ones() as u32).sum()
 }
 
 /// Print string of bits to standard output
@@ -343,23 +318,22 @@ pub fn reverse_8(x: u32) -> u32 {
 
 /// Reverse integer with 16 bits of data
 pub fn reverse_16(x: u32) -> u32 {
-    ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 8) |
-    (REVERSE_BYTE_GENTAB[(x >> 8) as usize] as u32)
+    ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 8) | (REVERSE_BYTE_GENTAB[(x >> 8) as usize] as u32)
 }
 
 /// Reverse integer with 24 bits of data
 pub fn reverse_24(x: u32) -> u32 {
-    ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 16) |
-    ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 8) |
-    (REVERSE_BYTE_GENTAB[((x >> 16) & 0xff) as usize] as u32)
+    ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 16)
+        | ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 8)
+        | (REVERSE_BYTE_GENTAB[((x >> 16) & 0xff) as usize] as u32)
 }
 
 /// Reverse integer with 32 bits of data
 pub fn reverse_32(x: u32) -> u32 {
-    ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 24) |
-    ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 16) |
-    ((REVERSE_BYTE_GENTAB[((x >> 16) & 0xff) as usize] as u32) << 8) |
-    (REVERSE_BYTE_GENTAB[(x >> 24) as usize] as u32)
+    ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 24)
+        | ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 16)
+        | ((REVERSE_BYTE_GENTAB[((x >> 16) & 0xff) as usize] as u32) << 8)
+        | (REVERSE_BYTE_GENTAB[(x >> 24) as usize] as u32)
 }
 
 pub fn count_leading_zeros(x: u32) -> u32 {
@@ -466,37 +440,37 @@ mod tests {
 
         assert_eq!(count_leading_zeros(0x00100000), 11);
         assert_eq!(count_leading_zeros(0x00200000), 10);
-        assert_eq!(count_leading_zeros(0x00400000),  9);
-        assert_eq!(count_leading_zeros(0x00800000),  8);
+        assert_eq!(count_leading_zeros(0x00400000), 9);
+        assert_eq!(count_leading_zeros(0x00800000), 8);
 
-        assert_eq!(count_leading_zeros(0x01000000),  7);
-        assert_eq!(count_leading_zeros(0x02000000),  6);
-        assert_eq!(count_leading_zeros(0x04000000),  5);
-        assert_eq!(count_leading_zeros(0x08000000),  4);
+        assert_eq!(count_leading_zeros(0x01000000), 7);
+        assert_eq!(count_leading_zeros(0x02000000), 6);
+        assert_eq!(count_leading_zeros(0x04000000), 5);
+        assert_eq!(count_leading_zeros(0x08000000), 4);
 
-        assert_eq!(count_leading_zeros(0x10000000),  3);
-        assert_eq!(count_leading_zeros(0x20000000),  2);
-        assert_eq!(count_leading_zeros(0x40000000),  1);
-        assert_eq!(count_leading_zeros(0x80000000),  0);
+        assert_eq!(count_leading_zeros(0x10000000), 3);
+        assert_eq!(count_leading_zeros(0x20000000), 2);
+        assert_eq!(count_leading_zeros(0x40000000), 1);
+        assert_eq!(count_leading_zeros(0x80000000), 0);
     }
 
     #[test]
     #[autotest_annotate(autotest_msb_index)]
     fn test_msb_index() {
         // NOTE: this test assumes a 4-byte integer
-        assert_eq!(msb_index(0x00000000),  0);
+        assert_eq!(msb_index(0x00000000), 0);
 
-        assert_eq!(msb_index(0x00000001),  1);
-        assert_eq!(msb_index(0x00000002),  2);
-        assert_eq!(msb_index(0x00000004),  3);
-        assert_eq!(msb_index(0x00000008),  4);
+        assert_eq!(msb_index(0x00000001), 1);
+        assert_eq!(msb_index(0x00000002), 2);
+        assert_eq!(msb_index(0x00000004), 3);
+        assert_eq!(msb_index(0x00000008), 4);
 
-        assert_eq!(msb_index(0x00000010),  5);
-        assert_eq!(msb_index(0x00000020),  6);
-        assert_eq!(msb_index(0x00000040),  7);
-        assert_eq!(msb_index(0x00000080),  8);
+        assert_eq!(msb_index(0x00000010), 5);
+        assert_eq!(msb_index(0x00000020), 6);
+        assert_eq!(msb_index(0x00000040), 7);
+        assert_eq!(msb_index(0x00000080), 8);
 
-        assert_eq!(msb_index(0x00000100),  9);
+        assert_eq!(msb_index(0x00000100), 9);
         assert_eq!(msb_index(0x00000200), 10);
         assert_eq!(msb_index(0x00000400), 11);
         assert_eq!(msb_index(0x00000800), 12);

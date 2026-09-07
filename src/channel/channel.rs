@@ -24,30 +24,30 @@ const MAX_MULTIPATH_LEN: usize = 1000;
 #[derive(Debug, Clone)]
 pub struct Channel {
     // additive white Gauss noise
-    enabled_awgn: bool,          // AWGN enabled?
-    gamma: f32,                  // channel gain
-    nstd: f32,                   // noise standard deviation
-    noise_floor: f32,            // noise floor density [dB]
-    snr: f32,                    // signal-to-noise ratio [dB]
+    enabled_awgn: bool, // AWGN enabled?
+    gamma: f32,         // channel gain
+    nstd: f32,          // noise standard deviation
+    noise_floor: f32,   // noise floor density [dB]
+    snr: f32,           // signal-to-noise ratio [dB]
 
     // carrier offset
-    enabled_carrier: bool,       // carrier offset enabled?
-    dphi: f32,                   // carrier frequency offset [radians/sample]
-    phi: f32,                    // carrier phase offset [radians]
-    nco: Osc,                    // oscillator
+    enabled_carrier: bool, // carrier offset enabled?
+    dphi: f32,             // carrier frequency offset [radians/sample]
+    phi: f32,              // carrier phase offset [radians]
+    nco: Osc,              // oscillator
 
     // multi-path channel
-    enabled_multipath: bool,     // enable multi-path channel filter?
+    enabled_multipath: bool,                         // enable multi-path channel filter?
     channel_filter: FirFilter<Complex32, Complex32>, // multi-path channel filter
-    h: Vec<Complex32>,           // multi-path channel filter coefficients
+    h: Vec<Complex32>,                               // multi-path channel filter coefficients
 
     // shadowing channel
-    enabled_shadowing: bool,     // enable shadowing?
+    enabled_shadowing: bool,                       // enable shadowing?
     shadowing_filter: Option<IirFilter<f32, f32>>, // shadowing filter object
-    shadowing_std: f32,          // shadowing standard deviation
-    shadowing_fd: f32,           // shadowing Doppler frequency
+    shadowing_std: f32,                            // shadowing standard deviation
+    shadowing_fd: f32,                             // shadowing Doppler frequency
 
-    noise: NoiseSource,          // Gaussian source for AWGN and shadowing
+    noise: NoiseSource, // Gaussian source for AWGN and shadowing
 }
 
 impl Channel {
@@ -145,14 +145,10 @@ impl Channel {
     /// * `h` - channel coefficients
     pub fn add_multipath(&mut self, h: &[Complex32]) -> Result<()> {
         if h.len() == 0 {
-            return Err(Error::Mode(
-                "channel_add_multipath(), filter length is zero".into(),
-            ));
+            return Err(Error::Mode("channel_add_multipath(), filter length is zero".into()));
         }
         if h.len() > MAX_MULTIPATH_LEN {
-            return Err(Error::Mode(
-                "channel_add_multipath(), filter length exceeds maximum".into(),
-            ));
+            return Err(Error::Mode("channel_add_multipath(), filter length exceeds maximum".into()));
         }
 
         // enable module
@@ -173,14 +169,10 @@ impl Channel {
     /// * `h_len` - number of channel coefficients
     pub fn add_multipath_random(&mut self, h_len: usize) -> Result<()> {
         if h_len == 0 {
-            return Err(Error::Mode(
-                "channel_add_multipath_random(), filter length is zero".into(),
-            ));
+            return Err(Error::Mode("channel_add_multipath_random(), filter length is zero".into()));
         }
         if h_len > MAX_MULTIPATH_LEN {
-            return Err(Error::Mode(
-                "channel_add_multipath_random(), filter length exceeds maximum".into(),
-            ));
+            return Err(Error::Mode("channel_add_multipath_random(), filter length exceeds maximum".into()));
         }
 
         // enable module
@@ -210,19 +202,13 @@ impl Channel {
     /// * `fd` - Doppler frequency, `fd` in (0, 0.5)
     pub fn add_shadowing(&mut self, sigma: f32, fd: f32) -> Result<()> {
         if self.enabled_shadowing {
-            return Err(Error::Mode(
-                "channel_add_shadowing(), shadowing already enabled".into(),
-            ));
+            return Err(Error::Mode("channel_add_shadowing(), shadowing already enabled".into()));
         }
         if sigma <= 0.0 {
-            return Err(Error::Mode(
-                "channel_add_shadowing(), standard deviation less than or equal to zero".into(),
-            ));
+            return Err(Error::Mode("channel_add_shadowing(), standard deviation less than or equal to zero".into()));
         }
         if fd <= 0.0 || fd >= 0.5 {
-            return Err(Error::Mode(
-                "channel_add_shadowing(), Doppler frequency must be in (0,0.5)".into(),
-            ));
+            return Err(Error::Mode("channel_add_shadowing(), Doppler frequency must be in (0,0.5)".into()));
         }
 
         // enable module
@@ -260,11 +246,7 @@ impl Channel {
         // apply shadowing if enabled
         if self.enabled_shadowing {
             let n = self.noise.randnf() * self.shadowing_std;
-            let mut g = self
-                .shadowing_filter
-                .as_mut()
-                .expect("filter exists when shadowing is enabled")
-                .execute(n);
+            let mut g = self.shadowing_filter.as_mut().expect("filter exists when shadowing is enabled").execute(n);
             g /= self.shadowing_fd * 6.9;
             g = 10.0f32.powf(g / 20.0);
             r *= g;
@@ -294,9 +276,7 @@ impl Channel {
     /// * `y` - output array, same length as `x`
     pub fn execute_block(&mut self, x: &[Complex32], y: &mut [Complex32]) -> Result<()> {
         if x.len() != y.len() {
-            return Err(Error::Config(
-                "channel_execute_block(), input and output lengths must match".into(),
-            ));
+            return Err(Error::Config("channel_execute_block(), input and output lengths must match".into()));
         }
         // apply channel effects on each input sample
         for (x_i, y_i) in x.iter().zip(y.iter_mut()) {
@@ -330,10 +310,7 @@ mod tests {
         (0..n)
             .map(|i| {
                 let t = i as f32;
-                Complex32::new(
-                    (0.3 * t + 0.01 * t * t).cos(),
-                    (0.17 * t - 0.02 * t * t).sin(),
-                )
+                Complex32::new((0.3 * t + 0.01 * t * t).cos(), (0.17 * t - 0.02 * t * t).sin())
             })
             .collect()
     }
@@ -486,10 +463,7 @@ mod tests {
             let d: Vec<f32> = g.windows(2).map(|w| w[1] - w[0]).collect();
             (d.iter().map(|v| v * v).sum::<f32>() / d.len() as f32).sqrt()
         };
-        assert!(
-            step < 0.5 * spread,
-            "shadowing should be slow: step rms {step} vs spread {spread}"
-        );
+        assert!(step < 0.5 * spread, "shadowing should be slow: step rms {step} vs spread {spread}");
     }
 
     #[test]
@@ -518,11 +492,7 @@ mod tests {
 
     #[test]
     fn test_channel_reset_restores_initial_state() {
-        let h = [
-            Complex32::new(0.8, 0.1),
-            Complex32::new(-0.4, 0.25),
-            Complex32::new(0.15, -0.05),
-        ];
+        let h = [Complex32::new(0.8, 0.1), Complex32::new(-0.4, 0.25), Complex32::new(0.15, -0.05)];
         let x = test_signal(32);
         let mut y0 = vec![Complex32::new(0.0, 0.0); x.len()];
         let mut y1 = vec![Complex32::new(0.0, 0.0); x.len()];

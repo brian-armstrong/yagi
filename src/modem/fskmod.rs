@@ -1,15 +1,15 @@
-use std::f32::consts::PI;
-use num_complex::Complex32;
 use crate::error::{Error, Result};
 use crate::nco::{Osc, OscScheme};
+use num_complex::Complex32;
+use std::f32::consts::PI;
 
 #[derive(Clone, Debug)]
 pub struct Fskmod {
-    k: usize,              // samples per symbol
-    bandwidth: f32,        // filter bandwidth parameter
-    m_size: usize,         // constellation size (M)
-    m2: f32,              // (M-1)/2
-    oscillator: Osc,       // nco
+    k: usize,        // samples per symbol
+    bandwidth: f32,  // filter bandwidth parameter
+    m_size: usize,   // constellation size (M)
+    m2: f32,         // (M-1)/2
+    oscillator: Osc, // nco
 }
 
 impl Fskmod {
@@ -28,13 +28,7 @@ impl Fskmod {
         let m_size = 1 << m;
         let m2 = 0.5 * (m_size - 1) as f32;
 
-        let mut q = Self {
-            k,
-            bandwidth,
-            m_size,
-            m2,
-            oscillator: Osc::new(OscScheme::Vco),
-        };
+        let mut q = Self { k, bandwidth, m_size, m2, oscillator: Osc::new(OscScheme::Vco) };
 
         q.reset()?;
         Ok(q)
@@ -48,15 +42,13 @@ impl Fskmod {
     pub fn modulate(&mut self, s: usize, y: &mut [Complex32]) -> Result<()> {
         // Validate input
         if s >= self.m_size {
-            return Err(Error::Range(format!(
-                "input symbol ({}) exceeds maximum ({})",
-                s, self.m_size
-            )));
+            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", s, self.m_size)));
         }
         if y.len() != self.k {
             return Err(Error::Range(format!(
                 "output buffer length ({}) must match samples/symbol ({})",
-                y.len(), self.k
+                y.len(),
+                self.k
             )));
         }
 
@@ -70,7 +62,7 @@ impl Fskmod {
         for i in 0..self.k {
             // Compute complex output
             y[i] = self.oscillator.cexp();
-            
+
             // Step oscillator
             self.oscillator.step();
         }
@@ -121,9 +113,9 @@ mod tests {
     #[autotest_annotate(autotest_fskmod_copy)]
     fn test_fskmod_copy() -> Result<()> {
         // options
-        let m = 3;        // bits per symbol
-        let k = 200;      // samples per symbol
-        let bw = 0.2345;  // occupied bandwidth
+        let m = 3; // bits per symbol
+        let k = 200; // samples per symbol
+        let bw = 0.2345; // occupied bandwidth
 
         // create modulator/demodulator pair
         let mut mod_orig = Fskmod::new(m, k, bw)?;
@@ -155,5 +147,4 @@ mod tests {
 
         Ok(())
     }
-
 }

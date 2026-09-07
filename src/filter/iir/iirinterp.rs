@@ -1,13 +1,13 @@
-use crate::filter::iir::iirfilt::IirFilter;
-use crate::filter::iir::design::{IirFilterShape, IirBandType, IirFormat};
-use crate::error::{Error, Result};
-use num_complex::{ComplexFloat, Complex32};
 use crate::dotprod::DotProd;
+use crate::error::{Error, Result};
+use crate::filter::iir::design::{IirBandType, IirFilterShape, IirFormat};
+use crate::filter::iir::iirfilt::IirFilter;
+use num_complex::{Complex32, ComplexFloat};
 
 #[derive(Debug, Clone)]
 pub struct IirInterpolationFilter<T, Coeff = T> {
-    m: usize,     // interpolation factor
-    iirfilt: IirFilter<T, Coeff>,  // filter object
+    m: usize,                     // interpolation factor
+    iirfilt: IirFilter<T, Coeff>, // filter object
 }
 
 impl<T, Coeff> IirInterpolationFilter<T, Coeff>
@@ -38,10 +38,10 @@ where
             IirBandType::Lowpass,
             IirFormat::SecondOrderSections,
             order,
-            0.5 / (m as f32),  // fc
-            0.0,               // f0
-            0.1,               // pass-band ripple
-            60.0,              // stop-band attenuation
+            0.5 / (m as f32), // fc
+            0.0,              // f0
+            0.1,              // pass-band ripple
+            60.0,             // stop-band attenuation
         )
     }
 
@@ -123,14 +123,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use crate::random::randnf;
-    use crate::math::WindowType;
     use crate::fft::spgram::Spgram;
     use crate::filter::FirFilterShape;
-    use crate::modem::modem::ModulationScheme;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
     use crate::framing::symstreamr::SymStreamR;
+    use crate::math::WindowType;
+    use crate::modem::modem::ModulationScheme;
+    use crate::random::randnf;
+    use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
+    use test_macro::autotest_annotate;
 
     fn test_iirinterp_crcf(_method: &str, interp_factor: usize, order: usize) {
         // options
@@ -144,14 +144,10 @@ mod tests {
         let mut interp = IirInterpolationFilter::<Complex32, f32>::new_default(interp_factor, order).unwrap();
 
         // create and configure objects
-        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft/2, nfft/4).unwrap();
-        let mut gen = SymStreamR::new_linear(
-            FirFilterShape::Kaiser,
-            bw * interp_factor as f32,
-            25,
-            0.2,
-            ModulationScheme::Qpsk
-        ).unwrap();
+        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
+        let mut gen =
+            SymStreamR::new_linear(FirFilterShape::Kaiser, bw * interp_factor as f32, 25, 0.2, ModulationScheme::Qpsk)
+                .unwrap();
         gen.set_gain((bw as f32).sqrt());
 
         // generate samples and push through spgram object
@@ -171,6 +167,7 @@ mod tests {
 
         // verify result
         let psd = q.get_psd();
+        #[rustfmt::skip]
         let regions = vec![
             PsdRegion{ fmin: -0.5,    fmax: -0.6*bw, pmin: 0.0,     pmax: -as_+tol, test_lo: false, test_hi: true },
             PsdRegion{ fmin: -0.4*bw, fmax: 0.4*bw,  pmin: 0.0-tol, pmax: 0.0+tol, test_lo: true, test_hi: true },
@@ -182,15 +179,21 @@ mod tests {
     // baseline tests using create_kaiser() method
     #[test]
     #[autotest_annotate(autotest_iirinterp_crcf_M2_O9)]
-    fn test_iirinterp_crcf_m2_o9() { test_iirinterp_crcf("baseline", 2, 9); }
+    fn test_iirinterp_crcf_m2_o9() {
+        test_iirinterp_crcf("baseline", 2, 9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_iirinterp_crcf_M3_O9)]
-    fn test_iirinterp_crcf_m3_o9() { test_iirinterp_crcf("baseline", 3, 9); }
+    fn test_iirinterp_crcf_m3_o9() {
+        test_iirinterp_crcf("baseline", 3, 9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_iirinterp_crcf_M4_O9)]
-    fn test_iirinterp_crcf_m4_o9() { test_iirinterp_crcf("baseline", 4, 9); }
+    fn test_iirinterp_crcf_m4_o9() {
+        test_iirinterp_crcf("baseline", 4, 9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_iirinterp_copy)]

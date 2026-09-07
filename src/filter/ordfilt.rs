@@ -1,5 +1,5 @@
-use crate::error::{Error, Result};
 use crate::buffer::Window;
+use crate::error::{Error, Result};
 use std::cmp::Ordering;
 
 #[derive(Clone, Debug)]
@@ -68,8 +68,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use crate::random::randnf;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_ordfilt_copy)]

@@ -1,7 +1,7 @@
-use crate::error::{Error, Result};
-use crate::dotprod::DotProd;
-use crate::filter::FirPfbFilter;
 use crate::buffer::Window;
+use crate::dotprod::DotProd;
+use crate::error::{Error, Result};
+use crate::filter::FirPfbFilter;
 
 use num_complex::ComplexFloat;
 
@@ -37,16 +37,7 @@ where
         let w = Window::new(nmax + 1)?;
         let pfb = FirPfbFilter::default(npfb, m)?;
 
-        let mut q = Self {
-            nmax,
-            m,
-            npfb,
-            delay: 0.0,
-            w,
-            pfb,
-            w_index: nmax - 1,
-            f_index: 0,
-        };
+        let mut q = Self { nmax, m, npfb, delay: 0.0, w, pfb, w_index: nmax - 1, f_index: 0 };
 
         q.reset();
         Ok(q)
@@ -73,8 +64,7 @@ where
             return Err(Error::Config("delay cannot be negative".into()));
         }
         if delay > self.nmax as f32 {
-            return Err(Error::Config(format!("delay ({}) cannot exceed maximum ({})",
-                                             delay, self.nmax)));
+            return Err(Error::Config(format!("delay ({}) cannot exceed maximum ({})", delay, self.nmax)));
         }
 
         let offset = self.nmax as f32 - delay;
@@ -150,13 +140,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use num_complex::Complex32;
     use approx::assert_abs_diff_eq;
+    use num_complex::Complex32;
+    use test_macro::autotest_annotate;
 
     fn testbench_fdelay_rrrf(nmax: usize, m: usize, npfb: usize, delay: f32) {
         let tol = 0.01f32;
-        let num_samples = nmax + 2 * m;  // number of samples to run
+        let num_samples = nmax + 2 * m; // number of samples to run
 
         // create delay object and split delay between set and adjust methods
         let mut q = Fdelay::<f32, f32>::new(nmax, m, npfb).unwrap();
@@ -194,43 +184,63 @@ mod tests {
     // nominal delays
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_0)]
-    fn test_fdelay_rrrf_0() { testbench_fdelay_rrrf(200, 12, 64,   0.0    ); }
+    fn test_fdelay_rrrf_0() {
+        testbench_fdelay_rrrf(200, 12, 64, 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_1)]
-    fn test_fdelay_rrrf_1() { testbench_fdelay_rrrf(200, 12, 64,   0.0001 ); }
+    fn test_fdelay_rrrf_1() {
+        testbench_fdelay_rrrf(200, 12, 64, 0.0001);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_2)]
-    fn test_fdelay_rrrf_2() { testbench_fdelay_rrrf(200, 12, 64,   0.1    ); }
+    fn test_fdelay_rrrf_2() {
+        testbench_fdelay_rrrf(200, 12, 64, 0.1);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_3)]
-    fn test_fdelay_rrrf_3() { testbench_fdelay_rrrf(200, 12, 64,   0.9    ); }
+    fn test_fdelay_rrrf_3() {
+        testbench_fdelay_rrrf(200, 12, 64, 0.9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_4)]
-    fn test_fdelay_rrrf_4() { testbench_fdelay_rrrf(200, 12, 64,   0.9999 ); }
+    fn test_fdelay_rrrf_4() {
+        testbench_fdelay_rrrf(200, 12, 64, 0.9999);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_5)]
-    fn test_fdelay_rrrf_5() { testbench_fdelay_rrrf(200, 12, 64,  16.99   ); }
+    fn test_fdelay_rrrf_5() {
+        testbench_fdelay_rrrf(200, 12, 64, 16.99);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_6)]
-    fn test_fdelay_rrrf_6() { testbench_fdelay_rrrf(200, 12, 64,  17.00   ); }
+    fn test_fdelay_rrrf_6() {
+        testbench_fdelay_rrrf(200, 12, 64, 17.00);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_7)]
-    fn test_fdelay_rrrf_7() { testbench_fdelay_rrrf(200, 12, 64,  17.01   ); }
+    fn test_fdelay_rrrf_7() {
+        testbench_fdelay_rrrf(200, 12, 64, 17.01);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_8)]
-    fn test_fdelay_rrrf_8() { testbench_fdelay_rrrf(200, 12, 64, 199.9    ); }
+    fn test_fdelay_rrrf_8() {
+        testbench_fdelay_rrrf(200, 12, 64, 199.9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_9)]
-    fn test_fdelay_rrrf_9() { testbench_fdelay_rrrf(200, 12, 64, 200.0    ); }
+    fn test_fdelay_rrrf_9() {
+        testbench_fdelay_rrrf(200, 12, 64, 200.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_fdelay_rrrf_config)]
@@ -296,9 +306,7 @@ mod tests {
         reference.set_delay(5.375).unwrap();
         block.set_delay(5.375).unwrap();
 
-        let x: Vec<_> = (0..257)
-            .map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos()))
-            .collect();
+        let x: Vec<_> = (0..257).map(|i| Complex32::new((0.13 * i as f32).sin(), (0.07 * i as f32).cos())).collect();
         let mut expected = vec![Complex32::new(0.0, 0.0); x.len()];
         let mut actual = vec![Complex32::new(0.0, 0.0); x.len()];
 
@@ -309,10 +317,7 @@ mod tests {
 
         let mut offset = 0;
         for &len in &[1, 7, 31, 3, 64, 151] {
-            block.execute_block(
-                &x[offset..offset + len],
-                &mut actual[offset..offset + len],
-            ).unwrap();
+            block.execute_block(&x[offset..offset + len], &mut actual[offset..offset + len]).unwrap();
             offset += len;
         }
 

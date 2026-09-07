@@ -17,7 +17,6 @@ use crate::math::{poly_expandbinomial_pm, poly_expandroots, polyf_findroots};
 use num_complex::Complex32;
 use std::f32::consts::PI;
 
-
 //
 // iir (infinite impulse response) filter design
 //
@@ -53,7 +52,6 @@ pub enum IirFormat {
     SecondOrderSections,
 }
 
-
 /// Sorts array _z of complex numbers into complex conjugate pairs to
 /// within a tolerance. Conjugate pairs are ordered by increasing real
 /// component with the negative imaginary element first. All pure-real
@@ -67,9 +65,9 @@ pub enum IirFormat {
 ///      10 - j*3        10 + j*3
 ///       3 + j*0         3 + j*0
 ///      -3 + j*4         5 + j*0
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `z` - complex array (size _n)
 /// * `n` - number of elements in _z
 /// * `tol` - tolerance for finding complex pairs
@@ -91,8 +89,8 @@ fn find_conjugate_pairs(z: &[Complex32], n: usize, tol: f32, p: &mut [Complex32]
         if paired[i] || z[i].im.abs() < tol {
             continue;
         }
-        
-        for j in i+1..n {
+
+        for j in i + 1..n {
             // ignore value if already paired, or if imaginary
             // component is less than tolerance
             if j == i || paired[j] || z[j].im.abs() < tol {
@@ -139,7 +137,6 @@ fn find_conjugate_pairs(z: &[Complex32], n: usize, tol: f32, p: &mut [Complex32]
     //    value
     find_conjugate_pairs_cleanup(p, n, num_pairs)
 }
-    
 
 /// post-process cleanup used with liquid_cplxpair
 ///
@@ -151,7 +148,7 @@ fn find_conjugate_pairs(z: &[Complex32], n: usize, tol: f32, p: &mut [Complex32]
 ///  * pure-real elements are ordered by increasing value
 ///
 /// # Arguments
-/// 
+///
 /// * `p` - pre-processed complex array [size: _n x 1]
 /// * `n` - array length
 /// * `num_pairs` - number of complex conjugate pairs
@@ -159,73 +156,69 @@ fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize)
     // force pairs to be perfect conjugates with
     // negative imaginary component first
     for i in 0..num_pairs {
-        p[2*i+0] = if p[2*i+1].im < 0.0 { p[2*i+1] } else { p[2*i+1].conj() };
-        p[2*i+1] = p[2*i+0].conj();
+        p[2 * i + 0] = if p[2 * i + 1].im < 0.0 { p[2 * i + 1] } else { p[2 * i + 1].conj() };
+        p[2 * i + 1] = p[2 * i + 0].conj();
     }
 
     // sort conjugate pairs
     for i in 0..num_pairs {
-        for j in (i+1..num_pairs).rev() {
-            if p[2*(j-1)].re > p[2*j].re {
+        for j in (i + 1..num_pairs).rev() {
+            if p[2 * (j - 1)].re > p[2 * j].re {
                 // swap pairs
-                let temp = p[2*(j-1)];    
-                p[2*(j-1)] = p[2*j];
-                p[2*j] = temp;
+                let temp = p[2 * (j - 1)];
+                p[2 * (j - 1)] = p[2 * j];
+                p[2 * j] = temp;
 
-                let temp = p[2*(j-1)+1];
-                p[2*(j-1)+1] = p[2*j+1];
-                p[2*j+1] = temp;
+                let temp = p[2 * (j - 1) + 1];
+                p[2 * (j - 1) + 1] = p[2 * j + 1];
+                p[2 * j + 1] = temp;
             }
         }
     }
 
     // sort pure-real elements
-    for i in 2*num_pairs..n {   
-        for j in (i+1..n).rev() {
-            if p[j-1].re > p[j].re {
-                let temp = p[j-1];
-                p[j-1] = p[j];
+    for i in 2 * num_pairs..n {
+        for j in (i + 1..n).rev() {
+            if p[j - 1].re > p[j].re {
+                let temp = p[j - 1];
+                p[j - 1] = p[j];
                 p[j] = temp;
             }
         }
-    }   
+    }
 
     Ok(())
 }
 
 /// Compute frequency pre-warping factor.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `btype` - band type (e.g. `IirBandType::Lowpass`)
 /// * `fc` - low-pass cutoff frequency
 /// * `f0` - center frequency (band-pass|stop cases only)
-/// 
+///
 /// # Returns
-/// 
+///
 /// Frequency pre-warping factor
 pub fn iir_design_freqprewarp(btype: IirBandType, fc: f32, f0: f32) -> f32 {
     // See [Constantinides:1967]
     match btype {
         IirBandType::Lowpass => (PI * fc).tan(),
         IirBandType::Highpass => -(PI * fc).cos() / (PI * fc).sin(),
-        IirBandType::Bandpass => {
-            ((2.0 * PI * fc).cos() - (2.0 * PI * f0).cos()) / (2.0 * PI * fc).sin()
-        }
-        IirBandType::Bandstop => {
-            (2.0 * PI * fc).sin() / ((2.0 * PI * fc).cos() - (2.0 * PI * f0).cos())
-        }
+        IirBandType::Bandpass => ((2.0 * PI * fc).cos() - (2.0 * PI * f0).cos()) / (2.0 * PI * fc).sin(),
+        IirBandType::Bandstop => (2.0 * PI * fc).sin() / ((2.0 * PI * fc).cos() - (2.0 * PI * f0).cos()),
     }
 }
 
 /// convert analog zeros, poles, gain to digital zeros, poles gain
-/// 
+///
 /// The filter order is characterized by the number of analog
 /// poles.  The analog filter may have up to pa.len() zeros.
 /// The number of digital zeros and poles is equal to pa.len().
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `za` - analog zeros
 /// * `pa` - analog poles
 /// * `ka` - nominal gain (NOTE: this does not necessarily carry over from analog gain)
@@ -283,9 +276,9 @@ pub fn iir_design_bilinear_a2d(
 /// H(z) =   --------------------------------------
 ///          ad[0] + ad[1]*z^-1 + ... + ad[nb]*z^-m
 /// </pre>
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `b` - numerator array, [size: _b_order+1]
 /// * `b_order` - polynomial order of _b
 /// * `a` - denominator array, [size: _a_order+1]
@@ -323,9 +316,7 @@ pub fn iir_design_bilinear_z(
     // multiply denominator by ((1-1/z)/(1+1/z))^na and expand
     for i in 0..na {
         // expand the polynomial (1+x)^i * (1-x)^(_a_order-i)
-        poly_expandbinomial_pm(a_order,
-                               a_order-i,
-                               &mut poly_1pz);
+        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz);
 
         // accumulate polynomial coefficients
         for j in 0..na {
@@ -340,9 +331,7 @@ pub fn iir_design_bilinear_z(
     mk = Complex32::new(1.0, 0.0);
     for i in 0..nb {
         // expand the polynomial (1+x)^i * (1-x)^(_a_order-i)
-        poly_expandbinomial_pm(a_order,
-                               a_order-i,
-                               &mut poly_1pz);  
+        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz);
 
         // accumulate polynomial coefficients
         for j in 0..na {
@@ -364,9 +353,9 @@ pub fn iir_design_bilinear_z(
 }
 
 /// convert discrete z/p/k form to transfer function form
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `zd` - digital zeros (length: _n)
 /// * `pd` - digital poles (length: _n)
 /// * `n` - filter order
@@ -386,26 +375,26 @@ pub fn iir_design_d2tf(
     // expand poles
     poly_expandroots(pd, n, &mut q);
     for i in 0..=n {
-        a[i] = q[n-i].re;
-    }   
+        a[i] = q[n - i].re;
+    }
 
     // expand zeros
     poly_expandroots(zd, n, &mut q);
     for i in 0..=n {
-        b[i] = (q[n-i] * k).re;
+        b[i] = (q[n - i] * k).re;
     }
 
     Ok(())
 }
 
 /// convert discrete z/p/k form to second-order sections form
-/// 
+///
 /// L is the number of sections in the cascade:
 ///      r = n % 2
 ///      L = (n - r) / 2;
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `zd` - digital zeros (length: n)
 /// * `pd` - digital poles (length: n)
 /// * `n` - number of poles, zeros
@@ -422,7 +411,7 @@ pub fn iir_design_d2sos(
 ) -> Result<()> {
     let tol = 1e-6f32;
 
-    // find/group complex conjugate pairs (zeros)   
+    // find/group complex conjugate pairs (zeros)
     let mut zp = vec![Complex32::new(0.0, 0.0); n];
     if find_conjugate_pairs(zd, n, tol, &mut zp).is_err() {
         return Err(Error::Internal("could not associate complex pairs (zeros)".into()));
@@ -432,56 +421,56 @@ pub fn iir_design_d2sos(
     let mut pp = vec![Complex32::new(0.0, 0.0); n];
     if find_conjugate_pairs(pd, n, tol, &mut pp).is_err() {
         return Err(Error::Internal("could not associate complex pairs (poles)".into()));
-    }   
+    }
 
     // _n = 2*L + r
-    let r = n % 2;        // odd/even order
-    let l = (n - r) / 2;    // filter semi-length
+    let r = n % 2; // odd/even order
+    let l = (n - r) / 2; // filter semi-length
 
     for i in 0..l {
-        let p0 = -pp[2*i+0];
-        let p1 = -pp[2*i+1];
+        let p0 = -pp[2 * i + 0];
+        let p1 = -pp[2 * i + 1];
 
-        let z0 = -zp[2*i+0];
-        let z1 = -zp[2*i+1];
+        let z0 = -zp[2 * i + 0];
+        let z1 = -zp[2 * i + 1];
 
         // expand complex pole pairs
-        a[3*i+0] = 1.0;
-        a[3*i+1] = (p0 + p1).re;
-        a[3*i+2] = (p0 * p1).re;
+        a[3 * i + 0] = 1.0;
+        a[3 * i + 1] = (p0 + p1).re;
+        a[3 * i + 2] = (p0 * p1).re;
 
         // expand complex zero pairs
-        b[3*i+0] = 1.0;
-        b[3*i+1] = (z0 + z1).re;
-        b[3*i+2] = (z0 * z1).re;
+        b[3 * i + 0] = 1.0;
+        b[3 * i + 1] = (z0 + z1).re;
+        b[3 * i + 2] = (z0 * z1).re;
     }
 
     // add remaining zero/pole pair if order is odd
     if r == 1 {
-        let p0 = -pp[n-1];
-        let z0 = -zp[n-1];
+        let p0 = -pp[n - 1];
+        let z0 = -zp[n - 1];
 
         // expand complex pole pair
-        a[3*l+0] = 1.0;
-        a[3*l+1] = p0.re;
-        a[3*l+2] = 0.0;
+        a[3 * l + 0] = 1.0;
+        a[3 * l + 1] = p0.re;
+        a[3 * l + 2] = 0.0;
 
         // expand complex zero pair
-        b[3*l+0] = 1.0;
-        b[3*l+1] = z0.re;
-        b[3*l+2] = 0.0;
+        b[3 * l + 0] = 1.0;
+        b[3 * l + 1] = z0.re;
+        b[3 * l + 2] = 0.0;
     }
 
     // distribute gain equally amongst all feed-forward coefficients
-    let k   = k.re;
+    let k = k.re;
     let sgn = if k < 0.0 { -1.0 } else { 1.0 };
-    let g   = (k * sgn).powf(1.0 / (l+r) as f32);
+    let g = (k * sgn).powf(1.0 / (l + r) as f32);
 
     // adjust gain of first element
-    for i in 0..l+r {
-        b[3*i+0] *= g;
-        b[3*i+1] *= g;
-        b[3*i+2] *= g;
+    for i in 0..l + r {
+        b[3 * i + 0] *= g;
+        b[3 * i + 1] *= g;
+        b[3 * i + 2] *= g;
     }
 
     // apply sign to first section (handle case where gain is negative)
@@ -493,9 +482,9 @@ pub fn iir_design_d2sos(
 }
 
 /// digital z/p/k low-pass to high-pass transformation
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `zd` - digital zeros (low-pass prototype)
 /// * `pd` - digital poles (low-pass prototype)
 /// * `n` - low-pass filter order
@@ -517,9 +506,9 @@ pub fn iir_design_lp2hp(
 }
 
 /// digital z/p/k low-pass to band-pass transformation
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `zd` - digital zeros (low-pass prototype)
 /// * `pd` - digital poles (low-pass prototype)
 /// * `n` - low-pass filter order
@@ -534,26 +523,26 @@ pub fn iir_design_lp2bp(
     zdt: &mut [Complex32],
     pdt: &mut [Complex32],
 ) -> Result<()> {
-    let c0 = (2.0 * PI * f0).cos(); 
+    let c0 = (2.0 * PI * f0).cos();
 
     // transform zeros, poles using quadratic formula
     for i in 0..n {
         let t0 = 1.0 + zd[i];
-        zdt[2*i+0] = 0.5 * (c0 * t0 + (c0*c0*t0*t0 - 4.0 * zd[i]).sqrt());
-        zdt[2*i+1] = 0.5 * (c0 * t0 - (c0*c0*t0*t0 - 4.0 * zd[i]).sqrt());
+        zdt[2 * i + 0] = 0.5 * (c0 * t0 + (c0 * c0 * t0 * t0 - 4.0 * zd[i]).sqrt());
+        zdt[2 * i + 1] = 0.5 * (c0 * t0 - (c0 * c0 * t0 * t0 - 4.0 * zd[i]).sqrt());
 
         let t0 = 1.0 + pd[i];
-        pdt[2*i+0] = 0.5 * (c0 * t0 + (c0*c0*t0*t0 - 4.0 * pd[i]).sqrt());
-        pdt[2*i+1] = 0.5 * (c0 * t0 - (c0*c0*t0*t0 - 4.0 * pd[i]).sqrt());
+        pdt[2 * i + 0] = 0.5 * (c0 * t0 + (c0 * c0 * t0 * t0 - 4.0 * pd[i]).sqrt());
+        pdt[2 * i + 1] = 0.5 * (c0 * t0 - (c0 * c0 * t0 * t0 - 4.0 * pd[i]).sqrt());
     }
 
     Ok(())
 }
 
 /// IIR filter design template
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `ftype` - filter type (e.g. IirFilterShape::Butter)
 /// * `btype` - band type (e.g. IirBandType::Bandpass)
 /// * `format` - coefficients format (e.g. IirFormat::Sos)
@@ -596,13 +585,13 @@ pub fn iir_design(
     let mut order = n;
 
     // analog poles/zeros/gain
-    let mut pa = vec![Complex32::new(0.0, 0.0); order];  // analog poles
-    let mut za = vec![Complex32::new(0.0, 0.0); order];  // analog zeros
-    let mut ka = Complex32::new(0.0, 0.0);               // analog gain
-    let k0;                                              // nominal digital gain
+    let mut pa = vec![Complex32::new(0.0, 0.0); order]; // analog poles
+    let mut za = vec![Complex32::new(0.0, 0.0); order]; // analog zeros
+    let mut ka = Complex32::new(0.0, 0.0); // analog gain
+    let k0; // nominal digital gain
 
     // derived values
-    let r = n % 2;        // odd/even filter order
+    let r = n % 2; // odd/even filter order
 
     // compute zeros and poles of analog prototype
     match ftype {
@@ -612,15 +601,19 @@ pub fn iir_design(
             if iir_design_butter_analog(order, &mut za, &mut pa, &mut ka).is_err() {
                 return Err(Error::Internal("could not design analog filter (butterworth)".into()));
             }
-        },
+        }
         IirFilterShape::Cheby1 => {
             // Cheby-I filter design : no zeros, n poles, pass-band ripple
             let epsilon = (10.0f32.powf(ap / 10.0) - 1.0).sqrt();
-            k0 = if r == 1 { Complex32::new(1.0, 0.0) } else { Complex32::new(1.0 / (1.0 + epsilon * epsilon).sqrt(), 0.0) };
+            k0 = if r == 1 {
+                Complex32::new(1.0, 0.0)
+            } else {
+                Complex32::new(1.0 / (1.0 + epsilon * epsilon).sqrt(), 0.0)
+            };
             if iir_design_cheby1_analog(order, epsilon, &mut za, &mut pa, &mut ka).is_err() {
                 return Err(Error::Internal("could not design analog filter (cheby1)".into()));
             }
-        },
+        }
         IirFilterShape::Cheby2 => {
             // Cheby-II filter design : n-r zeros, n poles, stop-band ripple
             let epsilon = 10.0f32.powf(-as_ / 20.0);
@@ -628,18 +621,18 @@ pub fn iir_design(
             if iir_design_cheby2_analog(order, epsilon, &mut za, &mut pa, &mut ka).is_err() {
                 return Err(Error::Internal("could not design analog filter (cheby2)".into()));
             }
-        },
+        }
         IirFilterShape::Ellip => {
             // elliptic filter design : n-r zeros, n poles, pass/stop-band ripple
             let gp = 10.0f32.powf(-ap / 20.0);
             let gs = 10.0f32.powf(-as_ / 20.0);
-            let ep = (1.0 / (gp*gp) - 1.0).sqrt();
-            let es = (1.0 / (gs*gs) - 1.0).sqrt();
-            k0 = if r == 1 { Complex32::new(1.0, 0.0) } else { Complex32::new(1.0 / (1.0 + ep*ep).sqrt(), 0.0) };
+            let ep = (1.0 / (gp * gp) - 1.0).sqrt();
+            let es = (1.0 / (gs * gs) - 1.0).sqrt();
+            k0 = if r == 1 { Complex32::new(1.0, 0.0) } else { Complex32::new(1.0 / (1.0 + ep * ep).sqrt(), 0.0) };
             if iir_design_ellip_analog(order, ep, es, &mut za, &mut pa, &mut ka).is_err() {
                 return Err(Error::Internal("could not design analog filter (elliptic)".into()));
             }
-        },
+        }
         IirFilterShape::Bessel => {
             // Bessel filter design : no zeros, n poles
             k0 = Complex32::new(1.0, 0.0);
@@ -651,8 +644,8 @@ pub fn iir_design(
 
     // complex digital poles/zeros/gain
     // NOTE: allocated double the filter order to cover band-pass, band-stop cases
-    let mut zd = vec![Complex32::new(0.0, 0.0); 2*order];
-    let mut pd = vec![Complex32::new(0.0, 0.0); 2*order];
+    let mut zd = vec![Complex32::new(0.0, 0.0); 2 * order];
+    let mut pd = vec![Complex32::new(0.0, 0.0); 2 * order];
     let mut kd = Complex32::new(0.0, 0.0);
 
     let m = iir_design_freqprewarp(btype, fc, f0);
@@ -663,8 +656,8 @@ pub fn iir_design(
 
     // negate zeros, poles for high-pass and band-stop cases
     if btype == IirBandType::Highpass || btype == IirBandType::Bandstop {
-        let mut pd_tmp = vec![Complex32::new(0.0, 0.0); 2*order];
-        let mut zd_tmp = vec![Complex32::new(0.0, 0.0); 2*order];
+        let mut pd_tmp = vec![Complex32::new(0.0, 0.0); 2 * order];
+        let mut zd_tmp = vec![Complex32::new(0.0, 0.0); 2 * order];
 
         if iir_design_lp2hp(&zd, &pd, order, &mut zd_tmp, &mut pd_tmp).is_err() {
             return Err(Error::Internal("could not perform high-pass transformation".into()));
@@ -674,11 +667,11 @@ pub fn iir_design(
         pd.copy_from_slice(&pd_tmp);
     }
 
-    // transform zeros, poles in band-pass, band-stop cases 
+    // transform zeros, poles in band-pass, band-stop cases
     // NOTE: this also doubles the filter order
     if btype == IirBandType::Bandpass || btype == IirBandType::Bandstop {
-        let mut zd1 = vec![Complex32::new(0.0, 0.0); 2*n];
-        let mut pd1 = vec![Complex32::new(0.0, 0.0); 2*n];
+        let mut zd1 = vec![Complex32::new(0.0, 0.0); 2 * n];
+        let mut pd1 = vec![Complex32::new(0.0, 0.0); 2 * n];
 
         // run zeros, poles low-pass -> band-pass transform
         if iir_design_lp2bp(&zd, &pd, order, f0, &mut zd1, &mut pd1).is_err() {
@@ -692,7 +685,7 @@ pub fn iir_design(
         // update parameters; filter order doubles which changes the
         // number of second-order sections and forces there to never
         // be any remainder (r=0 always).
-        order = 2*order;
+        order = 2 * order;
     }
 
     if format == IirFormat::TransferFunction {
@@ -717,36 +710,32 @@ pub fn iir_design(
 }
 
 /// Checks stability of iir filter
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `b` - feed-forward coefficients [size: n x 1]
 /// * `a` - feed-back coefficients [size: n x 1]
 /// * `n` - number of coefficients
-/// 
+///
 /// # Returns
-/// 
+///
 /// `true` if the filter is stable, `false` otherwise
-pub fn iir_design_is_stable(
-    _b: &[f32],
-    a: &[f32],
-    n: usize,
-) -> Result<bool> {
+pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
     if n < 2 {
         return Err(Error::Config("filter order too low".into()));
     }
 
     let mut a_hat = vec![0.0; n];
     for i in 0..n {
-        a_hat[i] = a[n-i-1];
+        a_hat[i] = a[n - i - 1];
     }
 
-    let mut roots = vec![Complex32::new(0.0, 0.0); n-1];
+    let mut roots = vec![Complex32::new(0.0, 0.0); n - 1];
     if polyf_findroots(&a_hat, n, &mut roots).is_err() {
         return Err(Error::Internal("could not find roots of polynomial".into()));
     }
 
-    for i in 0..n-1 {
+    for i in 0..n - 1 {
         if roots[i].norm() > 1.0 {
             return Ok(false);
         }
@@ -756,32 +745,32 @@ pub fn iir_design_is_stable(
 }
 
 /// Compute group delay for an IIR filter
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `b` - filter coefficients array (numerator), [size: nb x 1]
 /// * `nb` - filter length (numerator)
 /// * `a` - filter coefficients array (denominator), [size: na x 1]
 /// * `na` - filter length (denominator)
 /// * `fc` - frequency at which delay is evaluated (-0.5 < fc < 0.5)
-/// 
+///
 /// # Returns
-/// 
+///
 /// Group delay at the specified frequency
 pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
     // validate input
     if b.is_empty() {
         return Err(Error::Config("iir_group_delay(), numerator length must be greater than zero".to_string()));
-    }   
+    }
     if a.is_empty() {
         return Err(Error::Config("iir_group_delay(), denominator length must be greater than zero".to_string()));
-    }   
+    }
     if fc < -0.5 || fc > 0.5 {
         return Err(Error::Config("iir_group_delay(), _fc must be in [-0.5,0.5]".to_string()));
-    }   
+    }
 
     // compute c = conv(b,fliplr(a))
-    //         c(z) = b(z)*a(1/z)*z^(-_na)  
+    //         c(z) = b(z)*a(1/z)*z^(-_na)
     let nc = a.len() + b.len() - 1;
     let mut c = vec![0.0; nc];
 
@@ -792,15 +781,15 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
         }
     }
 
-    // compute 
+    // compute
     //      sum(c[i] * exp(j 2 pi fc i) * i)
     //      --------------------------------
     //      sum(c[i] * exp(j 2 pi fc i))
     let mut t0 = Complex32::new(0.0, 0.0);
-    let mut t1 = Complex32::new(0.0, 0.0);    
+    let mut t1 = Complex32::new(0.0, 0.0);
     let mut c0: Complex32;
     for i in 0..nc {
-        c0  = c[i] * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+        c0 = c[i] * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
         t0 += c0 * i as f32;
         t1 += c0;
     }
@@ -815,20 +804,19 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
     Ok((t0 / t1).re - (a.len() - 1) as f32)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
     use crate::filter::iir::iirfilt::IirFilter;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_iirfilt};
+    use crate::utility::test_helpers::{validate_psd_iirfilt, PsdRegion};
+    use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_iirdes_cplxpair_n6)]
     fn test_iirdes_cplxpair_n6() {
         let tol = 1e-8f32;
-    
+
         let r = [
             Complex32::new(0.980066577841242, 0.198669330795061),
             Complex32::new(5.000000000000000, 0.000000000000000),
@@ -837,9 +825,9 @@ mod tests {
             Complex32::new(0.300000000000000, 0.000000000000000),
             Complex32::new(-0.416146836547142, -0.909297426825682),
         ];
-    
+
         let mut p = [Complex32::new(0.0, 0.0); 6];
-    
+
         let ptest = [
             Complex32::new(-0.416146836547142, -0.909297426825682),
             Complex32::new(-0.416146836547142, 0.909297426825682),
@@ -848,22 +836,22 @@ mod tests {
             Complex32::new(0.300000000000000, 0.000000000000000),
             Complex32::new(5.000000000000000, 0.000000000000000),
         ];
-    
+
         // compute complex pairs
         find_conjugate_pairs(&r, 6, 1e-6f32, &mut p).unwrap();
-    
+
         // run test
         for i in 0..6 {
             assert_abs_diff_eq!(p[i].re, ptest[i].re, epsilon = tol);
             assert_abs_diff_eq!(p[i].im, ptest[i].im, epsilon = tol);
         }
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirdes_cplxpair_n20)]
     fn test_iirdes_cplxpair_n20() {
         let tol = 1e-8f32;
-    
+
         let r = [
             Complex32::new(-0.340396183901119, 1.109902927794652),
             Complex32::new(1.148964416793990, 0.000000000000000),
@@ -886,9 +874,9 @@ mod tests {
             Complex32::new(1.013685316242435, 0.000000000000000),
             Complex32::new(-0.089598596934739, 0.000000000000000),
         ];
-    
+
         let mut p = [Complex32::new(0.0, 0.0); 20];
-    
+
         let ptest = [
             Complex32::new(-0.485244526317243, -0.452251520655749),
             Complex32::new(-0.485244526317243, 0.452251520655749),
@@ -911,79 +899,63 @@ mod tests {
             Complex32::new(1.013685316242435, 0.000000000000000),
             Complex32::new(1.148964416793990, 0.000000000000000),
         ];
-    
+
         // compute complex pairs
         find_conjugate_pairs(&r, 20, 1e-6f32, &mut p).unwrap();
-    
+
         // run test
         for i in 0..20 {
             assert_abs_diff_eq!(p[i].re, ptest[i].re, epsilon = tol);
             assert_abs_diff_eq!(p[i].im, ptest[i].im, epsilon = tol);
         }
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirdes_dzpk2sosf)]
     fn test_iirdes_dzpk2sosf() {
         const N: usize = 4;
         let fc = 0.25f32;
-    
+
         let mut za = vec![Complex32::new(0.0, 0.0); N];
         let mut pa = vec![Complex32::new(0.0, 0.0); N];
         let mut ka = Complex32::new(0.0, 0.0);
         crate::filter::iir::design::iir_design_butter_analog(N, &mut za, &mut pa, &mut ka).unwrap();
-    
+
         let mut zd = [Complex32::new(0.0, 0.0); N];
         let mut pd = [Complex32::new(0.0, 0.0); N];
         let mut kd = Complex32::new(0.0, 0.0);
         let m = 1.0 / (std::f32::consts::PI * fc).tan();
         crate::filter::iir::design::iir_design_bilinear_a2d(&za, &pa, ka, m, &mut zd, &mut pd, &mut kd).unwrap();
-    
+
         let l = if N % 2 == 1 { (N + 1) / 2 } else { N / 2 };
         let mut b = vec![0.0f32; 3 * l];
         let mut a = vec![0.0f32; 3 * l];
-    
+
         iir_design_d2sos(&zd, &pd, N, kd, &mut b, &mut a).unwrap();
 
         // TODO there are no tests here
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirdes_isstable_n2_yes)]
     fn test_iirdes_isstable_n2_yes() {
         // initialize pre-determined coefficient array
         // for 2^nd-order low-pass Butterworth filter
         // with cutoff frequency 0.25
-        let a = [
-            1.0f32,
-            0.0f32,
-            0.171572875253810f32
-        ];
-        let b = [
-            0.292893218813452f32,
-            0.585786437626905f32,
-            0.292893218813452f32
-        ];
-    
+        let a = [1.0f32, 0.0f32, 0.171572875253810f32];
+        let b = [0.292893218813452f32, 0.585786437626905f32, 0.292893218813452f32];
+
         let stable = iir_design_is_stable(&b, &a, 3).unwrap();
         assert!(stable);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirdes_isstable_n2_no)]
     fn test_iirdes_isstable_n2_no() {
         // initialize unstable filter
-        let a = [
-            1.0f32,
-            0.0f32,
-            1.171572875253810f32
-        ];
-        let b = [
-            0.292893218813452f32,
-            0.585786437626905f32,
-            0.292893218813452f32
-        ];
-    
+        let a = [1.0f32, 0.0f32, 1.171572875253810f32];
+        let b = [0.292893218813452f32, 0.585786437626905f32, 0.292893218813452f32];
+
         let stable = iir_design_is_stable(&b, &a, 3).unwrap();
         assert!(!stable);
     }
@@ -998,14 +970,15 @@ mod tests {
             IirFilterShape::Butter,
             IirBandType::Lowpass,
             IirFormat::TransferFunction,
-            2,        // order
-            0.25f32,  // fc, normalized cut-off frequency
-            0.0f32,   // f0, center frequency (ignored for low-pass filter)
-            1.0f32,   // Ap, pass-band ripple (ignored for Butterworth)
-            40.0f32,  // As, stop-band attenuation (ignored for Butterworth)
+            2,       // order
+            0.25f32, // fc, normalized cut-off frequency
+            0.0f32,  // f0, center frequency (ignored for low-pass filter)
+            1.0f32,  // Ap, pass-band ripple (ignored for Butterworth)
+            40.0f32, // As, stop-band attenuation (ignored for Butterworth)
             &mut b,
-            &mut a
-        ).unwrap();
+            &mut a,
+        )
+        .unwrap();
 
         // initialize pre-determined coefficient array
         // for 2^nd-order low-pass Butterworth filter
@@ -1014,7 +987,7 @@ mod tests {
         let b_test = [0.292893218813452f32, 0.585786437626905f32, 0.292893218813452f32];
 
         // Ensure data are equal to within tolerance
-        let tol = 1e-6f32;  // error tolerance
+        let tol = 1e-6f32; // error tolerance
         for i in 0..3 {
             assert_abs_diff_eq!(b[i], b_test[i], epsilon = tol);
             assert_abs_diff_eq!(a[i], a_test[i], epsilon = tol);
@@ -1037,8 +1010,8 @@ mod tests {
     //   0           fc    fs            0.5
 
     fn test_iirdes_ellip_lowpass(n: usize, fc: f32, fs: f32, ap: f32, as_: f32) {
-        let tol = 1e-3;  // error tolerance [dB], yes, that's dB
-        let nfft = 800;    // number of points to evaluate
+        let tol = 1e-3; // error tolerance [dB], yes, that's dB
+        let nfft = 800; // number of points to evaluate
 
         // design filter from prototype
         let q = IirFilter::<f32, f32>::new_prototype(
@@ -1049,16 +1022,18 @@ mod tests {
             fc,
             0.0,
             ap,
-            as_
-        ).unwrap();
-        
+            as_,
+        )
+        .unwrap();
+
         let h0 = 0.0;
         let h1 = -ap;
         let h2 = -as_;
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: 0.0, fmax: fc, pmin: h1 - tol, pmax: h0 + tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: fs, fmax: 0.5, pmin: 0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: 0.0, fmax:  fc, pmin: h1 - tol, pmax: h0 + tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin:  fs, fmax: 0.5, pmin:      0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
@@ -1095,8 +1070,8 @@ mod tests {
     }
 
     fn test_iirdes_cheby1_lowpass(n: usize, fc: f32, fs: f32, ap: f32) {
-        let tol = 1e-3;  // error tolerance [dB], yes, that's dB
-        let nfft = 800;    // number of points to evaluate
+        let tol = 1e-3; // error tolerance [dB], yes, that's dB
+        let nfft = 800; // number of points to evaluate
 
         // design filter from prototype
         let q = IirFilter::<f32, f32>::new_prototype(
@@ -1107,16 +1082,18 @@ mod tests {
             fc,
             0.0,
             ap,
-            60.0
-        ).unwrap();
-        
+            60.0,
+        )
+        .unwrap();
+
         let h0 = 0.0;
         let h1 = -ap;
         let h2 = -60.0;
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: 0.0, fmax: fc, pmin: h1 - tol, pmax: h0 + tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: fs, fmax: 0.5, pmin: 0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: 0.0, fmax:  fc, pmin: h1 - tol, pmax: h0 + tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin:  fs, fmax: 0.5, pmin:      0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
@@ -1151,10 +1128,10 @@ mod tests {
     fn test_iirdes_cheby1_lowpass_4() {
         test_iirdes_cheby1_lowpass(15, 0.35, 0.38, 0.1);
     }
-    
+
     fn test_iirdes_cheby2_lowpass(n: usize, fp: f32, fc: f32, as_: f32) {
-        let tol = 1e-3;  // error tolerance [dB], yes, that's dB
-        let nfft = 800;    // number of points to evaluate
+        let tol = 1e-3; // error tolerance [dB], yes, that's dB
+        let nfft = 800; // number of points to evaluate
 
         // design filter from prototype
         let q = IirFilter::new_prototype(
@@ -1165,21 +1142,23 @@ mod tests {
             fc,
             0.0,
             0.1,
-            as_
-        ).unwrap();
-        
+            as_,
+        )
+        .unwrap();
+
         let h0 = 0.0;
         let h1 = -3.0;
         let h2 = -as_;
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: 0.0, fmax: fp, pmin: h1 - tol, pmax: h0 + tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: fc, fmax: 0.5, pmin: 0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: 0.0, fmax:  fp, pmin: h1 - tol, pmax: h0 + tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin:  fc, fmax: 0.5, pmin:      0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirdes_cheby2_lowpass_0)]
     fn test_iirdes_cheby2_lowpass_0() {
@@ -1211,8 +1190,8 @@ mod tests {
     }
 
     fn test_iirdes_butter_lowpass(n: usize, fc: f32, fs: f32) {
-        let tol = 1e-3;  // error tolerance [dB], yes, that's dB
-        let nfft = 800;    // number of points to evaluate
+        let tol = 1e-3; // error tolerance [dB], yes, that's dB
+        let nfft = 800; // number of points to evaluate
 
         // design filter from prototype
         let q = IirFilter::new_prototype(
@@ -1223,16 +1202,18 @@ mod tests {
             fc,
             0.0,
             1.0,
-            60.0
-        ).unwrap();
-        
+            60.0,
+        )
+        .unwrap();
+
         let h0 = 0.0;
         let h1 = -3.0;
         let h2 = -60.0;
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: 0.0, fmax: 0.98 * fc, pmin: h1 - tol, pmax: h0 + tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: fs, fmax: 0.5, pmin: 0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: 0.0, fmax: 0.98 * fc, pmin: h1 - tol, pmax: h0 + tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin:  fs, fmax:       0.5, pmin:      0.0, pmax: h2 + tol, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
@@ -1267,7 +1248,7 @@ mod tests {
     fn test_iirdes_butter_lowpass_4() {
         test_iirdes_butter_lowpass(15, 0.35, 0.41);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_iirdes_ellip_highpass)]
     fn test_iirdes_ellip_highpass() {
@@ -1275,7 +1256,7 @@ mod tests {
         let fc = 0.2;
         let ap = 0.1;
         let as_ = 60.0;
-        
+
         let tol = 1e-3;
         let nfft = 800;
 
@@ -1287,17 +1268,19 @@ mod tests {
             fc,
             0.0,
             ap,
-            as_
-        ).unwrap();
+            as_,
+        )
+        .unwrap();
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: -0.5, fmax: -fc, pmin: -ap - tol, pmax: tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: -0.184, fmax: 0.184, pmin: 0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: fc, fmax: 0.5, pmin: -ap - tol, pmax: tol, test_lo: true, test_hi: true },
+            PsdRegion { fmin:   -0.5, fmax:   -fc, pmin: -ap - tol, pmax:        tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin: -0.184, fmax: 0.184, pmin:       0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin:     fc, fmax:   0.5, pmin: -ap - tol, pmax:        tol, test_lo:  true, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
-    }   
+    }
 
     #[test]
     #[autotest_annotate(autotest_iirdes_ellip_bandpass)]
@@ -1319,15 +1302,17 @@ mod tests {
             fc,
             f0,
             ap,
-            as_
-        ).unwrap();
+            as_,
+        )
+        .unwrap();
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: -0.5, fmax: -0.396, pmin: 0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -0.388, fmax: -0.301, pmin: -ap - tol, pmax: tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: -0.293, fmax: 0.293, pmin: 0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: 0.301, fmax: 0.388, pmin: -ap - tol, pmax: tol, test_lo: true, test_hi: true },   
-            PsdRegion { fmin: 0.396, fmax: 0.5, pmin: 0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin:   -0.5, fmax: -0.396, pmin:       0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.388, fmax: -0.301, pmin: -ap - tol, pmax:        tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin: -0.293, fmax:  0.293, pmin:       0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin:  0.301, fmax:  0.388, pmin: -ap - tol, pmax:        tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin:  0.396, fmax:    0.5, pmin:       0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
@@ -1353,15 +1338,17 @@ mod tests {
             fc,
             f0,
             ap,
-            as_
-        ).unwrap();
+            as_,
+        )
+        .unwrap();
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: -0.5, fmax: -0.391, pmin: -ap - tol, pmax: tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: -0.387, fmax: -0.306, pmin: 0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -0.298, fmax: 0.298, pmin: -ap - tol, pmax: tol, test_lo: true, test_hi: true },
-            PsdRegion { fmin: 0.306, fmax: 0.387, pmin: 0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
-            PsdRegion { fmin: 0.391, fmax: 0.5, pmin: -ap - tol, pmax: tol, test_lo: true, test_hi: true },
+            PsdRegion { fmin:   -0.5, fmax: -0.391, pmin: -ap - tol, pmax:        tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin: -0.387, fmax: -0.306, pmin:       0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.298, fmax:  0.298, pmin: -ap - tol, pmax:        tol, test_lo:  true, test_hi: true },
+            PsdRegion { fmin:  0.306, fmax:  0.387, pmin:       0.0, pmax: -as_ + tol, test_lo: false, test_hi: true },
+            PsdRegion { fmin:  0.391, fmax:    0.5, pmin: -ap - tol, pmax:        tol, test_lo:  true, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
@@ -1382,13 +1369,15 @@ mod tests {
             fc,
             0.0,
             1.0,
-            60.0
-        ).unwrap();
+            60.0,
+        )
+        .unwrap();
 
+        #[rustfmt::skip]
         let regions = [
-            PsdRegion { fmin: -0.5, fmax: -0.305, pmin: 0.0, pmax: -60.0, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -0.095, fmax: 0.095, pmin: -3.0, pmax: 0.1, test_lo: true, test_hi: true },
-            PsdRegion { fmin: 0.305, fmax: 0.5, pmin: 0.0, pmax: -60.0, test_lo: false, test_hi: true },
+            PsdRegion { fmin:   -0.5, fmax: -0.305, pmin:  0.0, pmax: -60.0, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.095, fmax:  0.095, pmin: -3.0, pmax:   0.1, test_lo:  true, test_hi: true },
+            PsdRegion { fmin:  0.305, fmax:    0.5, pmin:  0.0, pmax: -60.0, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());

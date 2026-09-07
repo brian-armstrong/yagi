@@ -1,25 +1,25 @@
 use crate::error::{Error, Result};
+use crate::fft::{Direction, Fft};
 use crate::filter::fir::design::estimate_req_filter_transition_bandwidth;
 use crate::filter::fir::design::pm::{fir_design_pm, FirPmBandType, FirPmWeightType};
-use crate::fft::{Fft, Direction};
-use crate::optim::qs1dsearch::{Qs1dSearch, OptimDirection};
+use crate::optim::qs1dsearch::{OptimDirection, Qs1dSearch};
 
 use num_complex::Complex32;
 
 // Structured data type
 struct FirdespmHalfband {
     // top-level filter design parameters
-    m: usize,          // filter semi-length
-    h_len: usize,      // filter length, 4*m+1
-    ft: f32,           // desired transition band
-    h: Vec<f32>,       // resulting filter coefficients
+    m: usize,     // filter semi-length
+    h_len: usize, // filter length, 4*m+1
+    ft: f32,      // desired transition band
+    h: Vec<f32>,  // resulting filter coefficients
 
     // utility calculation
-    nfft: usize,                // transform size for analysis
-    buf_time: Vec<Complex32>,   // time buffer
-    buf_freq: Vec<Complex32>,   // frequency buffer
-    fft: Fft<f32>,              // transform object
-    n: usize,                   // number of points to evaluate
+    nfft: usize,                  // transform size for analysis
+    buf_time: Vec<Complex32>,     // time buffer
+    buf_freq: Vec<Complex32>,     // frequency buffer
+    fft: Fft<f32>,                // transform object
+    n: usize,                     // number of points to evaluate
     utility_error: Option<Error>, // unexpected error from optimizer callback
 }
 
@@ -46,7 +46,7 @@ impl FirdespmHalfband {
     }
 }
 
-fn firdespm_halfband_utility_result(gamma: f32, userdata: &mut FirdespmHalfband) -> Result<f32> {
+fn firdespm_halfband_utility_inner(gamma: f32, userdata: &mut FirdespmHalfband) -> Result<f32> {
     // design filter
     let f0 = 0.25 - 0.5 * userdata.ft * gamma;
     let f1 = 0.25 + 0.5 * userdata.ft;
@@ -65,11 +65,8 @@ fn firdespm_halfband_utility_result(gamma: f32, userdata: &mut FirdespmHalfband)
     }
     // copy coefficients to input buffer
     for i in 0..userdata.nfft {
-        userdata.buf_time[i] = if i < userdata.h_len {
-            Complex32::new(userdata.h[i], 0.0)
-        } else {
-            Complex32::new(0.0, 0.0)
-        };
+        userdata.buf_time[i] =
+            if i < userdata.h_len { Complex32::new(userdata.h[i], 0.0) } else { Complex32::new(0.0, 0.0) };
     }
     // compute transform
     userdata.fft.run(&mut userdata.buf_time, &mut userdata.buf_freq);
@@ -88,7 +85,7 @@ fn firdespm_halfband_utility_result(gamma: f32, userdata: &mut FirdespmHalfband)
 }
 
 fn firdespm_halfband_utility(gamma: f32, userdata: &mut FirdespmHalfband) -> f32 {
-    match firdespm_halfband_utility_result(gamma, userdata) {
+    match firdespm_halfband_utility_inner(gamma, userdata) {
         Ok(utility) => utility,
         Err(Error::NoConvergence(_)) => f32::INFINITY, // reject this candidate
         Err(error) => {
@@ -106,7 +103,7 @@ fn firdespm_halfband_utility(gamma: f32, userdata: &mut FirdespmHalfband) -> f32
 /// * `ft` : desired transition band
 ///
 /// # Returns
-/// 
+///
 /// A vec of filter coefficients
 pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
     // create and initialize object
@@ -114,10 +111,7 @@ pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
 
     // create and run search
     let gamma = {
-        let mut optim = Qs1dSearch::new(
-            |gamma| firdespm_halfband_utility(gamma, &mut q),
-            OptimDirection::Minimize,
-        );
+        let mut optim = Qs1dSearch::new(|gamma| firdespm_halfband_utility(gamma, &mut q), OptimDirection::Minimize);
         optim.init_bounds(1.0, 0.9)?;
         for _ in 0..32 {
             optim.step()?;
@@ -129,7 +123,7 @@ pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
         return Err(error);
     }
 
-    firdespm_halfband_utility_result(gamma, &mut q)?;
+    firdespm_halfband_utility_inner(gamma, &mut q)?;
 
     Ok(q.h)
 }
@@ -142,7 +136,7 @@ pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
 /// * `as_` : desired stop-band suppression
 ///
 /// # Returns
-/// 
+///
 /// A vec of filter coefficients
 pub fn fir_design_pm_halfband_stopband_attenuation(m: usize, as_: f32) -> Result<Vec<f32>> {
     // estimate transition band given other parameters
@@ -155,9 +149,9 @@ pub fn fir_design_pm_halfband_stopband_attenuation(m: usize, as_: f32) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use crate::filter::fir::design::estimate_req_filter_stopband_attenuation;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_signalf};
+    use crate::utility::test_helpers::{validate_psd_signalf, PsdRegion};
+    use test_macro::autotest_annotate;
 
     // test halfband filter design by specifying filter semi-length and transition bandwidth
     fn testbench_firdespm_halfband_ft(m: usize, ft: f32) {
@@ -170,6 +164,7 @@ mod tests {
         // verify resulting spectrum
         let f0 = 0.25 - 0.5 * ft;
         let f1 = 0.25 + 0.5 * ft;
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5, fmax: -f1, pmin: 0.0,  pmax: -as_, test_lo: false, test_hi: true },
             PsdRegion { fmin: -f0,  fmax:  f0, pmin: -0.1, pmax:  0.1, test_lo: true,  test_hi: true },
@@ -181,33 +176,49 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m2_ft400)]
-    fn test_firdespm_halfband_m2_ft400() { testbench_firdespm_halfband_ft( 3, 0.400); }
+    fn test_firdespm_halfband_m2_ft400() {
+        testbench_firdespm_halfband_ft(3, 0.400);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m4_ft400)]
-    fn test_firdespm_halfband_m4_ft400() { testbench_firdespm_halfband_ft( 4, 0.400); }
+    fn test_firdespm_halfband_m4_ft400() {
+        testbench_firdespm_halfband_ft(4, 0.400);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m4_ft200)]
-    fn test_firdespm_halfband_m4_ft200() { testbench_firdespm_halfband_ft( 4, 0.200); }
+    fn test_firdespm_halfband_m4_ft200() {
+        testbench_firdespm_halfband_ft(4, 0.200);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m10_ft200)]
-    fn test_firdespm_halfband_m10_ft200() { testbench_firdespm_halfband_ft(10, 0.200); }
+    fn test_firdespm_halfband_m10_ft200() {
+        testbench_firdespm_halfband_ft(10, 0.200);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m12_ft100)]
-    fn test_firdespm_halfband_m12_ft100() { testbench_firdespm_halfband_ft(12, 0.100); }
+    fn test_firdespm_halfband_m12_ft100() {
+        testbench_firdespm_halfband_ft(12, 0.100);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m20_ft050)]
-    fn test_firdespm_halfband_m20_ft050() { testbench_firdespm_halfband_ft(20, 0.050); }
+    fn test_firdespm_halfband_m20_ft050() {
+        testbench_firdespm_halfband_ft(20, 0.050);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m40_ft050)]
-    fn test_firdespm_halfband_m40_ft050() { testbench_firdespm_halfband_ft(40, 0.050); }
+    fn test_firdespm_halfband_m40_ft050() {
+        testbench_firdespm_halfband_ft(40, 0.050);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_halfband_m80_ft010)]
-    fn test_firdespm_halfband_m80_ft010() { testbench_firdespm_halfband_ft(80, 0.010); }
+    fn test_firdespm_halfband_m80_ft010() {
+        testbench_firdespm_halfband_ft(80, 0.010);
+    }
 }

@@ -90,7 +90,7 @@ impl Modem {
         }
         Ok(())
     }
-    
+
     fn arb_balance_iq(&mut self) -> Result<()> {
         let symbol_map = self.symbol_map.as_mut().unwrap();
         let mean = symbol_map.iter().sum::<Complex32>() / symbol_map.len() as f32;

@@ -104,8 +104,8 @@ pub fn randricekf_cdf(x: f32, k: f32, omega: f32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_randricekf)]

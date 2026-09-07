@@ -2,12 +2,12 @@ use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Apsk {
-    num_levels: usize,    // number of levels
-    p: &'static [usize],   // number of symbols per level
-    r: &'static [f32],    // radii of levels
+    num_levels: usize,        // number of levels
+    p: &'static [usize],      // number of symbols per level
+    r: &'static [f32],        // radii of levels
     r_slicer: &'static [f32], // slicer radii of levels
-    phi: &'static [f32],   // phase offset of levels
-    map: &'static [u8],   // symbol mapping (allocated)
+    phi: &'static [f32],      // phase offset of levels
+    map: &'static [u8],       // symbol mapping (allocated)
 }
 
 impl Modem {
@@ -176,9 +176,10 @@ const APSK16_P: [usize; 2] = [4, 12];
 const APSK16_R: [f32; 2] = [0.43246540, 1.12738252];
 const APSK16_PHI: [f32; 2] = [0.0, 0.0];
 const APSK16_R_SLICER: [f32; 1] = [0.77992396];
+#[rustfmt::skip]
 const APSK16_MAP: [u8; 16] = [
     11, 10, 8, 9, 12, 2, 7, 1,
-    14, 15, 5, 4, 13, 3, 6, 0
+    14, 15, 5, 4, 13, 3, 6, 0,
 ];
 const APSK16: ApskDef = ApskDef {
     modulation: ModulationScheme::Apsk16,
@@ -193,18 +194,15 @@ const APSK16: ApskDef = ApskDef {
 // APSK32(4,12,16)
 const APSK32_NUM_LEVELS: usize = 3;
 const APSK32_P: [usize; 3] = [4, 12, 16];
-const APSK32_R: [f32; 3] = [
-    0.27952856,
-    0.72980529,
-    1.25737989
-];
+const APSK32_R: [f32; 3] = [0.27952856, 0.72980529, 1.25737989];
 const APSK32_PHI: [f32; 3] = [0.0, 0.0, 0.0];
 const APSK32_R_SLICER: [f32; 2] = [0.504666925, 0.993592590];
+#[rustfmt::skip]
 const APSK32_MAP: [u8; 32] = [
     26,  25,  22,  23,  27,  11,  21,   9,
     13,   3,   7,   1,  12,  10,   8,  24,
     30,  31,  18,  17,  29,  15,  19,   5,
-    28,   0,  20,   2,  14,  16,   6,   4
+    28,   0,  20,   2,  14,  16,   6,   4,
 ];
 const APSK32: ApskDef = ApskDef {
     modulation: ModulationScheme::Apsk32,
@@ -219,18 +217,10 @@ const APSK32: ApskDef = ApskDef {
 // APSK64(4,14,20,26)
 const APSK64_NUM_LEVELS: usize = 4;
 const APSK64_P: [usize; 4] = [4, 14, 20, 26];
-const APSK64_R: [f32; 4] = [
-    0.18916586,
-    0.52466476,
-    0.88613129,
-    1.30529201
-];
+const APSK64_R: [f32; 4] = [0.18916586, 0.52466476, 0.88613129, 1.30529201];
 const APSK64_PHI: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
-const APSK64_R_SLICER: [f32; 3] = [
-    0.35691531,
-    0.70539802,
-    1.09571165
-];
+const APSK64_R_SLICER: [f32; 3] = [0.35691531, 0.70539802, 1.09571165];
+#[rustfmt::skip]
 const APSK64_MAP: [u8; 64] = [
     54,  53,  51,  52,    48,  49,  28,  50,
     55,  30,  11,  29,    47,  25,  27,  26,
@@ -239,7 +229,7 @@ const APSK64_MAP: [u8; 64] = [
     61,  62,  38,  63,    41,  40,  18,  39,
     60,  35,  37,  36,    42,  20,   4,  19,
     58,  33,   3,  15,    44,  22,   0,   7,
-    59,  34,  17,  16,    43,  21,   5,   6
+    59,  34,  17,  16,    43,  21,   5,   6,
 ];
 const APSK64: ApskDef = ApskDef {
     modulation: ModulationScheme::Apsk64,
@@ -254,20 +244,10 @@ const APSK64: ApskDef = ApskDef {
 // APSK128(8,18,24,36,42)
 const APSK128_NUM_LEVELS: usize = 5;
 const APSK128_P: [usize; 5] = [8, 18, 24, 36, 42];
-const APSK128_R: [f32; 5] = [
-    0.20241030,
-    0.46255755,
-    0.70972824,
-    0.99172282,
-    1.34806108
-];
+const APSK128_R: [f32; 5] = [0.20241030, 0.46255755, 0.70972824, 0.99172282, 1.34806108];
 const APSK128_PHI: [f32; 5] = [0.0, 0.0, 0.0, 0.0, 0.0];
-const APSK128_R_SLICER: [f32; 4] = [
-    0.33248392,
-    0.58614290,
-    0.85072553,
-    1.16989195
-];
+const APSK128_R_SLICER: [f32; 4] = [0.33248392, 0.58614290, 0.85072553, 1.16989195];
+#[rustfmt::skip]
 const APSK128_MAP: [u8; 128] = [
     112,  111,  108,  109,    102,  103,  106,  105,
     113,  110,  107,   71,    101,  104,   67,   66,
@@ -284,7 +264,7 @@ const APSK128_MAP: [u8; 128] = [
     118,   44,    7,    5,     96,   32,    0,   10,
      78,   45,    6,   22,     58,   30,   86,   12,
      80,   79,   25,   47,     57,   56,    9,   28,
-    119,   46,   24,   23,     95,   31,    8,   11
+    119,   46,   24,   23,     95,   31,    8,   11,
 ];
 const APSK128: ApskDef = ApskDef {
     modulation: ModulationScheme::Apsk128,
@@ -299,24 +279,10 @@ const APSK128: ApskDef = ApskDef {
 // APSK256(6,18,32,36,46,54,64)
 const APSK256_NUM_LEVELS: usize = 7;
 const APSK256_P: [usize; 7] = [6, 18, 32, 36, 46, 54, 64];
-const APSK256_R: [f32; 7] = [
-    0.19219166,
-    0.41951191,
-    0.60772800,
-    0.77572918,
-    0.94819963,
-    1.12150347,
-    1.31012368
-];
+const APSK256_R: [f32; 7] = [0.19219166, 0.41951191, 0.60772800, 0.77572918, 0.94819963, 1.12150347, 1.31012368];
 const APSK256_PHI: [f32; 7] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-const APSK256_R_SLICER: [f32; 6] = [
-    0.30585179,
-    0.51361996,
-    0.69172859,
-    0.86196440,
-    1.03485155,
-    1.21581364
-];
+const APSK256_R_SLICER: [f32; 6] = [0.30585179, 0.51361996, 0.69172859, 0.86196440, 1.03485155, 1.21581364];
+#[rustfmt::skip]
 const APSK256_MAP: [u8; 256] = [
     232,  231,  229,  230,    224,  225,  227,  226,
     216,  217,  219,  218,    164,  223,  221,  222,
@@ -349,7 +315,7 @@ const APSK256_MAP: [u8; 256] = [
     244,  182,   86,  130,     55,   21,   52,   51,
     204,  148,   62,  100,     25,    8,   28,   29,
     243,  181,   85,  129,      0,   22,   50,   20,
-    205,  149,   63,  101,     24,    9,   30,  103
+    205,  149,   63,  101,     24,    9,   30,  103,
 ];
 const APSK256: ApskDef = ApskDef {
     modulation: ModulationScheme::Apsk256,

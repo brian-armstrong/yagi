@@ -25,7 +25,7 @@ impl Modem {
         let gamma = 4.0;
 
         let llr = -2.0 * x.re * gamma;
-        let soft_bit = ((llr * 16.0 + 127.0)).clamp(0.0, 255.0) as u8;
+        let soft_bit = (llr * 16.0 + 127.0).clamp(0.0, 255.0) as u8;
         soft_bits[0] = soft_bit;
 
         let sym_out = if x.re > 0.0 { 0 } else { 1 };

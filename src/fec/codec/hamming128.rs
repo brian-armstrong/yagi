@@ -40,6 +40,7 @@ const S4: u32 = 0x01e1; // .... 0001 1110 0001
 const S8: u32 = 0x001f; // .... 0000 0001 1111
 
 // encoder look-up table
+#[rustfmt::skip]
 const ENC_GENTAB: [u16; 256] = [
     0x0000, 0x0111, 0x0c12, 0x0d03, 0x0414, 0x0505, 0x0806, 0x0917,
     0x0818, 0x0909, 0x040a, 0x051b, 0x0c0c, 0x0d1d, 0x001e, 0x010f,
@@ -128,9 +129,7 @@ pub(crate) fn decode_symbol(mut sym_enc: u16) -> u8 {
     //                0000 0000 1111     >  0x000f
     //                0000 1110 0000     >  0x00e0
     //                0010 0000 0000     >  0x0200
-    let sym_dec = ((sym_enc & 0x000f) |
-                   ((sym_enc & 0x00e0) >> 1) |
-                   ((sym_enc & 0x0200) >> 2)) as u8;
+    let sym_dec = ((sym_enc & 0x000f) | ((sym_enc & 0x00e0) >> 1) | ((sym_enc & 0x0200) >> 2)) as u8;
 
     sym_dec
 }
@@ -342,12 +341,7 @@ mod tests {
                 *bit = (nominal + noise).clamp(0, 255) as u8;
             }
 
-            assert_eq!(
-                soft_decode_symbol(&c_soft),
-                s,
-                "soft decode failed to recover symbol {:#04x} under noise",
-                s
-            );
+            assert_eq!(soft_decode_symbol(&c_soft), s, "soft decode failed to recover symbol {:#04x} under noise", s);
         }
     }
 
@@ -407,5 +401,4 @@ mod tests {
 
         assert_eq!(msg, decoded);
     }
-
 }

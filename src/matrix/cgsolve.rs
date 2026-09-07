@@ -1,7 +1,7 @@
-use std::slice;
 use num_traits::{Float, Zero};
+use std::slice;
 
-use crate::error::{Result, Error};
+use crate::error::{Error, Result};
 use crate::matrix::{matrix_mul, matrix_transpose_mul, FloatComplex};
 
 const DEBUG_CGSOLVE: bool = false;

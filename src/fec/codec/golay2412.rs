@@ -7,20 +7,18 @@
 //
 
 // P matrix [12 x 12]
-const P: [u32; 12] = [
-    0x08ed, 0x01db, 0x03b5, 0x0769, 0x0ed1, 0x0da3, 0x0b47, 0x068f, 0x0d1d, 0x0a3b, 0x0477, 0x0ffe,
-];
+const P: [u32; 12] = [0x08ed, 0x01db, 0x03b5, 0x0769, 0x0ed1, 0x0da3, 0x0b47, 0x068f, 0x0d1d, 0x0a3b, 0x0477, 0x0ffe];
 
 // generator matrix transposed [24 x 12]
 const GT: [u32; 24] = [
-    0x08ed, 0x01db, 0x03b5, 0x0769, 0x0ed1, 0x0da3, 0x0b47, 0x068f, 0x0d1d, 0x0a3b, 0x0477, 0x0ffe,
-    0x0800, 0x0400, 0x0200, 0x0100, 0x0080, 0x0040, 0x0020, 0x0010, 0x0008, 0x0004, 0x0002, 0x0001,
+    0x08ed, 0x01db, 0x03b5, 0x0769, 0x0ed1, 0x0da3, 0x0b47, 0x068f, 0x0d1d, 0x0a3b, 0x0477, 0x0ffe, 0x0800, 0x0400,
+    0x0200, 0x0100, 0x0080, 0x0040, 0x0020, 0x0010, 0x0008, 0x0004, 0x0002, 0x0001,
 ];
 
 // parity check matrix [12 x 24]
 const H: [u32; 12] = [
-    0x008008ed, 0x004001db, 0x002003b5, 0x00100769, 0x00080ed1, 0x00040da3, 0x00020b47, 0x0001068f,
-    0x00008d1d, 0x00004a3b, 0x00002477, 0x00001ffe,
+    0x008008ed, 0x004001db, 0x002003b5, 0x00100769, 0x00080ed1, 0x00040da3, 0x00020b47, 0x0001068f, 0x00008d1d,
+    0x00004a3b, 0x00002477, 0x00001ffe,
 ];
 
 // multiply input vector with parity check matrix, H
@@ -167,12 +165,8 @@ pub fn golay2412_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) 
     while i < dec_msg_len - r {
         // strip six input bytes (two encoded symbols)
         // pack six 8-bit symbols into two 24-bit symbols
-        let v0 = ((msg_enc[j] as u32) << 16)
-            | ((msg_enc[j + 1] as u32) << 8)
-            | (msg_enc[j + 2] as u32);
-        let v1 = ((msg_enc[j + 3] as u32) << 16)
-            | ((msg_enc[j + 4] as u32) << 8)
-            | (msg_enc[j + 5] as u32);
+        let v0 = ((msg_enc[j] as u32) << 16) | ((msg_enc[j + 1] as u32) << 8) | (msg_enc[j + 2] as u32);
+        let v1 = ((msg_enc[j + 3] as u32) << 16) | ((msg_enc[j + 4] as u32) << 8) | (msg_enc[j + 5] as u32);
 
         // decode each symbol into a 12-bit symbol
         let m0_hat = golay2412_decode_symbol(v0);
@@ -191,9 +185,7 @@ pub fn golay2412_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) 
     while i < dec_msg_len {
         // strip last input symbol (three bytes)
         // pack three 8-bit symbols into one 24-bit symbol
-        let v0 = ((msg_enc[j] as u32) << 16)
-            | ((msg_enc[j + 1] as u32) << 8)
-            | (msg_enc[j + 2] as u32);
+        let v0 = ((msg_enc[j] as u32) << 16) | ((msg_enc[j + 1] as u32) << 8) | (msg_enc[j + 2] as u32);
 
         // decode into a 12-bit symbol
         // retain last 8 bits of 12-bit symbol
@@ -359,6 +351,4 @@ mod tests {
             assert_eq!(msg, decoded, "block round trip failed for length {}", n);
         }
     }
-
-
 }

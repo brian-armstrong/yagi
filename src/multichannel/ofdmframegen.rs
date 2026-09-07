@@ -20,31 +20,31 @@ use num_complex::Complex32;
 /// spectral splatter at symbol boundaries.
 #[derive(Clone, Debug)]
 pub struct OfdmFrameGen {
-    num_subcarriers: usize,          // number of subcarriers
-    cp_len: usize,                   // cyclic prefix length
-    p: Vec<SubcarrierType>,          // subcarrier allocation
+    num_subcarriers: usize, // number of subcarriers
+    cp_len: usize,          // cyclic prefix length
+    p: Vec<SubcarrierType>, // subcarrier allocation
 
     // tapering/transition
-    taper_len: usize,                // number of samples in tapering window/overlap
-    taper: Vec<f32>,                 // tapering window
-    postfix: Vec<Complex32>,         // overlapping symbol buffer
+    taper_len: usize,        // number of samples in tapering window/overlap
+    taper: Vec<f32>,         // tapering window
+    postfix: Vec<Complex32>, // overlapping symbol buffer
 
     // constants
-    counts: SubcarrierCounts,        // number of null/pilot/data subcarriers
+    counts: SubcarrierCounts, // number of null/pilot/data subcarriers
 
     // scaling factors
     g_data: f32,
 
     // transform object
-    ifft: Fft<f32>,                  // ifft object
-    x_freq: Vec<Complex32>,          // frequency-domain buffer
-    x_time: Vec<Complex32>,          // time-domain buffer
+    ifft: Fft<f32>,         // ifft object
+    x_freq: Vec<Complex32>, // frequency-domain buffer
+    x_time: Vec<Complex32>, // time-domain buffer
 
     // PLCP short
-    s0_time: Vec<Complex32>,         // short sequence (time)
+    s0_time: Vec<Complex32>, // short sequence (time)
 
     // PLCP long
-    s1_time: Vec<Complex32>,         // long sequence (time)
+    s1_time: Vec<Complex32>, // long sequence (time)
 
     // pilot sequence
     ms_pilot: MSequence,
@@ -270,10 +270,7 @@ impl OfdmFrameGen {
     /// write tail to output, [size: taper_len]
     pub fn write_tail(&mut self, buffer: &mut [Complex32]) -> Result<()> {
         if buffer.len() != self.taper_len {
-            return Err(Error::Config(format!(
-                "ofdmframegen_writetail(), output must be {} samples",
-                self.taper_len
-            )));
+            return Err(Error::Config(format!("ofdmframegen_writetail(), output must be {} samples", self.taper_len)));
         }
 
         // write tail to output, applying tapering window
@@ -312,8 +309,7 @@ impl OfdmFrameGen {
         }
 
         // copy post-fix to output (first 'taper_len' samples of input symbol)
-        self.postfix
-            .copy_from_slice(&self.x_time[..self.taper_len]);
+        self.postfix.copy_from_slice(&self.x_time[..self.taper_len]);
     }
 }
 
@@ -399,23 +395,16 @@ mod tests {
     #[test]
     fn test_s0a_wrapping() {
         let m = 64;
-        for (cp_len, want) in [
-            (16usize, [32usize, 33, 34, 35]),
-            (32, [0, 1, 2, 3]),
-            (33, [62, 63, 0, 1]),
-            (34, [60, 61, 62, 63]),
-        ] {
+        for (cp_len, want) in
+            [(16usize, [32usize, 33, 34, 35]), (32, [0, 1, 2, 3]), (33, [62, 63, 0, 1]), (34, [60, 61, 62, 63])]
+        {
             let mut q = new_framegen(m, cp_len, 0, None).unwrap();
             let mut y = vec![Complex32::new(0.0, 0.0); m + cp_len];
             q.write_s0a(&mut y).unwrap();
 
             // s0_time is what write_s0a indexes. compare the first few samples.
             for (i, &k) in want.iter().enumerate() {
-                assert_eq!(
-                    y[i], q.s0_time[k],
-                    "cp_len={} sample {} should be s0[{}]",
-                    cp_len, i, k
-                );
+                assert_eq!(y[i], q.s0_time[k], "cp_len={} sample {} should be s0[{}]", cp_len, i, k);
             }
         }
     }
@@ -425,11 +414,7 @@ mod tests {
         for taper_len in [1usize, 2, 4, 8, 16] {
             let q = new_framegen(64, 16, taper_len, None).unwrap();
             for i in 0..taper_len {
-                assert_abs_diff_eq!(
-                    q.taper[i] + q.taper[taper_len - i - 1],
-                    1.0,
-                    epsilon = 1e-6
-                );
+                assert_abs_diff_eq!(q.taper[i] + q.taper[taper_len - i - 1], 1.0, epsilon = 1e-6);
             }
             for i in 1..taper_len {
                 assert!(q.taper[i] > q.taper[i - 1], "taper not increasing");

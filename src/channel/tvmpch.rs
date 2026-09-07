@@ -26,11 +26,11 @@ pub struct Tvmpch {
     h: Vec<Complex32>,    // filter coefficients, time-reversed
     w: Window<Complex32>, // internal buffer
 
-    std: f32,             // innovation scale
-    alpha: f32,           // AR pole: how much of the previous tap is retained
-    beta: f32,            // innovation weight (the normalized coherence time)
+    std: f32,   // innovation scale
+    alpha: f32, // AR pole: how much of the previous tap is retained
+    beta: f32,  // innovation weight (the normalized coherence time)
 
-    noise: NoiseSource,   // Gaussian source driving the taps
+    noise: NoiseSource, // Gaussian source driving the taps
 }
 
 impl Tvmpch {
@@ -44,19 +44,13 @@ impl Tvmpch {
     pub fn new(n: usize, std: f32, tau: f32) -> Result<Self> {
         // validate input
         if n < 1 {
-            return Err(Error::Config(
-                "tvmpch_create(), filter length must be greater than one".into(),
-            ));
+            return Err(Error::Config("tvmpch_create(), filter length must be greater than one".into()));
         }
         if std < 0.0 {
-            return Err(Error::Config(
-                "tvmpch_create(), standard deviation must be positive".into(),
-            ));
+            return Err(Error::Config("tvmpch_create(), standard deviation must be positive".into()));
         }
         if tau <= 0.0 || tau > 1.0 {
-            return Err(Error::Config(
-                "tvmpch_create(), coherence time must be in (0,1]".into(),
-            ));
+            return Err(Error::Config("tvmpch_create(), coherence time must be in (0,1]".into()));
         }
 
         let beta = tau;
@@ -96,8 +90,7 @@ impl Tvmpch {
         let n = self.h.len();
         for i in 0..n - 1 {
             let v = Complex32::new(self.noise.randnf(), self.noise.randnf());
-            self.h[i] = self.h[i] * self.alpha
-                + v * self.beta * self.std * std::f32::consts::FRAC_1_SQRT_2;
+            self.h[i] = self.h[i] * self.alpha + v * self.beta * self.std * std::f32::consts::FRAC_1_SQRT_2;
         }
 
         // push sample into window buffer
@@ -123,9 +116,7 @@ impl Tvmpch {
     /// * `y` - output array, same length as `x`
     pub fn execute_block(&mut self, x: &[Complex32], y: &mut [Complex32]) -> Result<()> {
         if x.len() != y.len() {
-            return Err(Error::Config(
-                "tvmpch_execute_block(), input and output lengths must match".into(),
-            ));
+            return Err(Error::Config("tvmpch_execute_block(), input and output lengths must match".into()));
         }
         for (x_i, y_i) in x.iter().zip(y.iter_mut()) {
             *y_i = self.execute_one(*x_i);
@@ -171,9 +162,7 @@ mod tests {
         // with one coefficient there is nothing to fade. the lone tap is the
         // pinned direct path, so the channel is transparent
         let mut q = Tvmpch::new_seeded(1, 1.0, 0.5, 1).unwrap();
-        let x: Vec<Complex32> = (0..32)
-            .map(|i| Complex32::new(i as f32, -(i as f32)))
-            .collect();
+        let x: Vec<Complex32> = (0..32).map(|i| Complex32::new(i as f32, -(i as f32))).collect();
         let mut y = vec![Complex32::new(0.0, 0.0); x.len()];
         q.execute_block(&x, &mut y).unwrap();
         assert_eq!(x, y);
@@ -184,9 +173,8 @@ mod tests {
         // std=0 kills the innovations, so the taps stay at their initial state.
         let n = 8;
         let mut q = Tvmpch::new_seeded(n, 0.0, 0.1, 2).unwrap();
-        let x: Vec<Complex32> = (0..64)
-            .map(|i| Complex32::new((0.3 * i as f32).cos(), (0.2 * i as f32).sin()))
-            .collect();
+        let x: Vec<Complex32> =
+            (0..64).map(|i| Complex32::new((0.3 * i as f32).cos(), (0.2 * i as f32).sin())).collect();
         let mut y = vec![Complex32::new(0.0, 0.0); x.len()];
         q.execute_block(&x, &mut y).unwrap();
 
@@ -206,17 +194,13 @@ mod tests {
         let h = q.get_coefficients();
         assert_eq!(h[0], Complex32::new(1.0, 0.0));
         // and the fading taps have actually moved
-        assert!(
-            h[1..].iter().any(|v| v.norm() > 1e-3),
-            "expected the echo taps to have faded in"
-        );
+        assert!(h[1..].iter().any(|v| v.norm() > 1e-3), "expected the echo taps to have faded in");
     }
 
     #[test]
     fn test_tvmpch_seeded_is_reproducible() {
-        let x: Vec<Complex32> = (0..120)
-            .map(|i| Complex32::new((0.1 * i as f32).cos(), (0.05 * i as f32).sin()))
-            .collect();
+        let x: Vec<Complex32> =
+            (0..120).map(|i| Complex32::new((0.1 * i as f32).cos(), (0.05 * i as f32).sin())).collect();
 
         let mut q0 = Tvmpch::new_seeded(31, 0.1, 0.05, 9).unwrap();
         let mut q1 = Tvmpch::new_seeded(31, 0.1, 0.05, 9).unwrap();

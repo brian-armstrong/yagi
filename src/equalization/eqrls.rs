@@ -1,8 +1,7 @@
-use crate::error::{Error, Result};
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
+use crate::error::{Error, Result};
 use crate::matrix::{matrix_access, matrix_access_mut, matrix_mul, FloatComplex};
-
 
 #[derive(Clone, Debug)]
 pub struct Eqrls<T> {
@@ -14,12 +13,12 @@ pub struct Eqrls<T> {
     w1: Vec<T>,    // weights [px1]
     p0: Vec<T>,    // recursion matrix [pxp]
     p1: Vec<T>,    // recursion matrix [pxp]
-    g: Vec<T>,      // gain vector [px1]
-    xp0: Vec<T>,    // [1xp]
-    zeta: T,         // constant
-    gxl: Vec<T>,    // [pxp]
-    gxlp0: Vec<T>,  // [pxp]
-    n: usize,       // input counter
+    g: Vec<T>,     // gain vector [px1]
+    xp0: Vec<T>,   // [1xp]
+    zeta: T,       // constant
+    gxl: Vec<T>,   // [pxp]
+    gxlp0: Vec<T>, // [pxp]
+    n: usize,      // input counter
     buffer: Window<T>,
 }
 
@@ -120,7 +119,8 @@ where
         self.zeta = self.xp0.iter().zip(x).map(|(&xp, &xi)| xp * xi.conj()).sum::<T>() + self.lambda.into();
 
         for r in 0..self.p {
-            self.g[r] = (0..self.p).map(|c| matrix_access(&self.p0, self.p, self.p, r, c) * x[c].conj()).sum::<T>() / self.zeta;
+            self.g[r] =
+                (0..self.p).map(|c| matrix_access(&self.p0, self.p, self.p, r, c) * x[c].conj()).sum::<T>() / self.zeta;
         }
 
         for r in 0..self.p {
@@ -179,11 +179,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use crate::filter::FirFilter;
     use crate::random::randnf;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
+    #[rustfmt::skip]
     const EQRLS_RRRF_AUTOTEST_DATA_SEQUENCE: [f32; 64] = [
         -1.0, -1.0,  1.0, -1.0,  1.0, -1.0,  1.0, -1.0, 
         -1.0,  1.0,  1.0, -1.0, -1.0,  1.0, -1.0,  1.0, 
@@ -199,18 +200,18 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_eqrls_rrrf_01)]
     fn test_eqrls_rrrf_01() {
-        let tol = 1e-2f32;        // error tolerance
+        let tol = 1e-2f32; // error tolerance
 
         // fixed parameters (do not change)
-        let h_len = 4;   // channel filter length
-        let p = 6;       // equalizer order
-        let n = 64;      // number of symbols to observe
+        let h_len = 4; // channel filter length
+        let p = 6; // equalizer order
+        let n = 64; // number of symbols to observe
 
         // bookkeeping variables
-        let mut y = vec![0.0f32; n];         // received data sequence (filtered by channel)
-        //let mut d_hat = vec![0.0f32; n];   // recovered data sequence
-        let mut h = vec![0.0f32; h_len];     // channel filter coefficients
-        let mut w = vec![0.0f32; p];         // equalizer filter coefficients
+        let mut y = vec![0.0f32; n]; // received data sequence (filtered by channel)
+                                     //let mut d_hat = vec![0.0f32; n];   // recovered data sequence
+        let mut h = vec![0.0f32; h_len]; // channel filter coefficients
+        let mut w = vec![0.0f32; p]; // equalizer filter coefficients
 
         // create equalizer
         let mut eq = Eqrls::<f32>::new(None, p).unwrap();

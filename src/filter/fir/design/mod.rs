@@ -2,8 +2,8 @@ mod fnyquist;
 mod gmsk;
 mod hm3;
 mod kaiser;
-mod pm_halfband;
 mod pm;
+mod pm_halfband;
 mod rcos;
 mod rkaiser;
 mod rrcos;
@@ -12,8 +12,8 @@ pub use fnyquist::*;
 pub use gmsk::*;
 pub use hm3::*;
 pub use kaiser::*;
-pub use pm_halfband::*;
 pub use pm::*;
+pub use pm_halfband::*;
 pub use rcos::*;
 pub use rkaiser::*;
 pub use rrcos::*;
@@ -40,7 +40,6 @@ use num_complex::{Complex32, Complex64, ComplexFloat};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FirFilterShape {
     // Nyquist filter prototypes
-
     /// Nyquist Kaiser filter
     Kaiser,
     /// Parks-McClellan filter
@@ -55,7 +54,6 @@ pub enum FirFilterShape {
     Farcsech,
 
     // Root Nyquist filter prototypes
-
     /// Root-Nyquist Kaiser (approximate optimum)
     Arkaiser,
     /// Root-Nyquist Kaiser (true optimum)
@@ -108,7 +106,7 @@ const FILTER_INFO: [FilterInfo; 15] = [
 /// * `s`      : filter name
 ///
 /// # Returns
-/// 
+///
 /// A `FirFilterType` matching the filter name
 impl FirFilterShape {
     pub fn from_str(s: &str) -> Result<FirFilterShape> {
@@ -121,9 +119,7 @@ impl FirFilterShape {
     }
 }
 
-
 const USE_KAISER_REQ_FILTER_LEN_ESTIMATE: bool = true;
-
 
 /// estimate required filter length given transition bandwidth and
 /// stop-band attenuation
@@ -133,7 +129,7 @@ const USE_KAISER_REQ_FILTER_LEN_ESTIMATE: bool = true;
 /// * `as_`    : stopband suppression level \[dB\] (as_ > 0)
 ///
 /// # Returns
-/// 
+///
 /// Filter length
 pub fn estimate_req_filter_len(df: f32, as_: f32) -> Result<usize> {
     if df <= 0.0 || df > 0.5 {
@@ -156,14 +152,14 @@ pub fn estimate_req_filter_len(df: f32, as_: f32) -> Result<usize> {
 /// * `n`      : filter length
 ///
 /// # Returns
-/// 
+///
 /// Stop-band attenuation \[dB\]
 pub fn estimate_req_filter_stopband_attenuation(df: f32, n: usize) -> Result<f32> {
     // run search for stop-band attenuation which gives these results
-    let mut as0 = 0.01;    // lower bound
-    let mut as1 = 200.0;   // upper bound
-    let mut as_hat = 0.0;  // stop-band attenuation estimate
-    let mut n_hat;         // filter length estimate
+    let mut as0 = 0.01; // lower bound
+    let mut as1 = 200.0; // upper bound
+    let mut as_hat = 0.0; // stop-band attenuation estimate
+    let mut n_hat; // filter length estimate
 
     for _ in 0..20 {
         // bisect limits
@@ -188,14 +184,14 @@ pub fn estimate_req_filter_stopband_attenuation(df: f32, n: usize) -> Result<f32
 /// * `n`      : filter length
 ///
 /// # Returns
-/// 
+///
 /// Transition bandwidth
 pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f32> {
     // run search for transition bandwidth which gives these results
-    let mut df0 = 1e-3;    // lower bound
-    let mut df1 = 0.499;   // upper bound
-    let mut df_hat = 0.0;  // transition bandwidth estimate
-    let mut n_hat;         // filter length estimate
+    let mut df0 = 1e-3; // lower bound
+    let mut df1 = 0.499; // upper bound
+    let mut df_hat = 0.0; // transition bandwidth estimate
+    let mut n_hat; // filter length estimate
 
     for _ in 0..20 {
         // bisect limits
@@ -213,7 +209,7 @@ pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f3
         }
     }
     Ok(df_hat)
-}   
+}
 
 /// estimate required filter length given transition bandwidth and
 /// stop-band attenuation
@@ -223,7 +219,7 @@ pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f3
 /// * `as_`    : stop-band attenuation \[dB\] (as_ > 0)
 ///
 /// # Returns
-/// 
+///
 /// Filter length
 pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
     // [Vaidyanathan:1993]
@@ -232,7 +228,7 @@ pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
     }
     if as_ <= 0.0 {
         return Err(Error::Config("stopband attenuation must be greater than zero".into()));
-    }   
+    }
     let h_len = (as_ - 7.95) / (14.26 * df);
     Ok(h_len)
 }
@@ -245,7 +241,7 @@ pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
 /// * `as_`    : stop-band attenuation \[dB\] (as_ > 0)
 ///
 /// # Returns
-/// 
+///
 /// Filter length
 pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
     // [Herrmann:1973]
@@ -264,7 +260,7 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
     let as_ = as_ + 7.4;
 
     // compute delta_1, delta_2
-    let d1 = 10.0f32.powf(-as_/20.0);
+    let d1 = 10.0f32.powf(-as_ / 20.0);
     let d2 = d1;
 
     // compute log of delta_1, delta_2
@@ -272,8 +268,7 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
     let t2 = d2.log10();
 
     // compute D_infinity(delta_1, delta_2)
-    let dinf = (0.005309 * t1 * t1 + 0.07114 * t1 - 0.4761) * t2 -
-               (0.002660 * t1 * t1 + 0.59410 * t1 + 0.4278);
+    let dinf = (0.005309 * t1 * t1 + 0.07114 * t1 - 0.4761) * t2 - (0.002660 * t1 * t1 + 0.59410 * t1 + 0.4278);
 
     // compute f(delta_1, delta_2)
     let f = 11.012 + 0.51244 * (t1 - t2);
@@ -282,7 +277,6 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
     let h_len = (dinf - f * df * df) / df + 1.0;
     Ok(h_len)
 }
-
 
 /// Design FIR filter using generic window/taper method
 ///
@@ -293,7 +287,7 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
 /// * `arg`    : window-specific argument, if required
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f32) -> Result<Vec<f32>> {
     // validate input
@@ -331,10 +325,9 @@ pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f3
 /// * `as_`    : stop-band attenuation \[dB\], as_ > 0
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
-
     // validate inputs
     if m < 1 || m > 1000 {
         return Err(Error::Config(format!("filter semi-length ({}) out of range [1,1000]", m)));
@@ -346,7 +339,7 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
         return Err(Error::Config("stop-band attenuation must be greater than zero".into()));
     }
 
-    let mut h = vec![0.0; 2*m+1];
+    let mut h = vec![0.0; 2 * m + 1];
 
     // choose kaiser beta parameter (approximate)
     let beta = kaiser::kaiser_beta_stopband_attenuation(as_);
@@ -387,7 +380,7 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_prototype(ftype: FirFilterShape, k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute filter parameters
@@ -402,51 +395,25 @@ pub fn fir_design_prototype(ftype: FirFilterShape, k: usize, m: usize, beta: f32
         }
         FirFilterShape::Pm => {
             // Parks-McClellan algorithm parameters
-            let bands = [0.0, fc-0.5*df, fc, fc, fc+0.5*df, 0.5];
+            let bands = [0.0, fc - 0.5 * df, fc, fc, fc + 0.5 * df, 0.5];
             let des = [k as f32, 0.5 * k as f32, 0.0];
             let weights = [1.0, 1.0, 1.0];
             let wtype = [pm::FirPmWeightType::Flat, pm::FirPmWeightType::Flat, pm::FirPmWeightType::Flat];
             pm::fir_design_pm(h_len, 3, &bands, &des, Some(&weights), Some(&wtype), pm::FirPmBandType::Bandpass)
         }
-        FirFilterShape::Rcos => {
-            rcos::fir_design_rcos(k, m, beta, dt)
-        }
-        FirFilterShape::Fexp => {
-            fnyquist::fir_design_fexp(k, m, beta, dt)
-        }
-        FirFilterShape::Fsech => {
-            fnyquist::fir_design_fsech(k, m, beta, dt)
-        }
-        FirFilterShape::Farcsech => {
-            fnyquist::fir_design_farcsech(k, m, beta, dt)
-        }
-        FirFilterShape::Arkaiser => {
-            rkaiser::fir_design_arkaiser(k, m, beta, dt)
-        }
-        FirFilterShape::Rkaiser => {
-            rkaiser::fir_design_rkaiser(k, m, beta, dt)
-        }
-        FirFilterShape::Rrcos => {
-            rrcos::fir_design_rrcos(k, m, beta, dt)
-        }
-        FirFilterShape::Hm3 => {
-            hm3::fir_design_hm3(k, m, beta, dt)
-        }
-        FirFilterShape::Gmsktx => {
-            gmsk::fir_design_gmsktx(k, m, beta, dt)
-        }
-        FirFilterShape::Gmskrx => {
-            gmsk::fir_design_gmskrx(k, m, beta, dt)
-        }
-        FirFilterShape::Rfexp => {
-            fnyquist::fir_design_rfexp(k, m, beta, dt)
-        }
-        FirFilterShape::Rfsech => {
-            fnyquist::fir_design_rfsech(k, m, beta, dt)
-        }
-        FirFilterShape::Rfarcsech => {
-            fnyquist::fir_design_rfarcsech(k, m, beta, dt)
-        }
+        FirFilterShape::Rcos => rcos::fir_design_rcos(k, m, beta, dt),
+        FirFilterShape::Fexp => fnyquist::fir_design_fexp(k, m, beta, dt),
+        FirFilterShape::Fsech => fnyquist::fir_design_fsech(k, m, beta, dt),
+        FirFilterShape::Farcsech => fnyquist::fir_design_farcsech(k, m, beta, dt),
+        FirFilterShape::Arkaiser => rkaiser::fir_design_arkaiser(k, m, beta, dt),
+        FirFilterShape::Rkaiser => rkaiser::fir_design_rkaiser(k, m, beta, dt),
+        FirFilterShape::Rrcos => rrcos::fir_design_rrcos(k, m, beta, dt),
+        FirFilterShape::Hm3 => hm3::fir_design_hm3(k, m, beta, dt),
+        FirFilterShape::Gmsktx => gmsk::fir_design_gmsktx(k, m, beta, dt),
+        FirFilterShape::Gmskrx => gmsk::fir_design_gmskrx(k, m, beta, dt),
+        FirFilterShape::Rfexp => fnyquist::fir_design_rfexp(k, m, beta, dt),
+        FirFilterShape::Rfsech => fnyquist::fir_design_rfsech(k, m, beta, dt),
+        FirFilterShape::Rfarcsech => fnyquist::fir_design_rfarcsech(k, m, beta, dt),
     }
 }
 
@@ -459,7 +426,7 @@ pub fn fir_design_prototype(ftype: FirFilterShape, k: usize, m: usize, beta: f32
 /// * `theta`  : LoS component angle of arrival
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f32>> {
     let beta = 4.0;
@@ -490,7 +457,7 @@ pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f
 /// * `lag`    : auto-correlation lag (samples)
 ///
 /// # Returns
-/// 
+///
 /// Auto-correlation value
 pub fn filter_autocorr(h: &[f32], lag: isize) -> f32 {
     // auto-correlation is even symmetric
@@ -517,7 +484,7 @@ pub fn filter_autocorr(h: &[f32], lag: isize) -> f32 {
 /// * `lag`    : cross-correlation lag (samples)
 ///
 /// # Returns
-/// 
+///
 /// Cross-correlation value
 pub fn filter_crosscorr(h: &[f32], g: &[f32], lag: isize) -> f32 {
     // cross-correlation is odd symmetric
@@ -534,7 +501,6 @@ pub fn filter_crosscorr(h: &[f32], g: &[f32], lag: isize) -> f32 {
 
     let ig = if lag < 0 { -lag } else { 0 };
     let ih = if lag > 0 { lag } else { 0 };
-
 
     // compute length of overlap
     //     condition 1:             condition 2:          condition 3:
@@ -566,21 +532,21 @@ pub fn filter_crosscorr(h: &[f32], g: &[f32], lag: isize) -> f32 {
 /// * `m`      : filter delay (symbols)
 ///
 /// # Returns
-/// 
+///
 /// A tuple of ISI RMS and maximum
 pub fn filter_isi(h: &[f32], k: usize, m: usize) -> (f32, f32) {
     let rxx0 = filter_autocorr(h, 0);
     let mut isi_rms = 0.0;
     let mut isi_max = 0.0;
-    for i in 1..2*m {
-        let e = filter_autocorr(h, (i*k) as isize) / rxx0;
+    for i in 1..2 * m {
+        let e = filter_autocorr(h, (i * k) as isize) / rxx0;
         let e = e.abs();
-        isi_rms += e*e;
+        isi_rms += e * e;
         if i == 1 || e > isi_max {
             isi_max = e;
         }
     }
-    ((isi_rms / (2*m) as f32).sqrt(), isi_max)
+    ((isi_rms / (2 * m) as f32).sqrt(), isi_max)
 }
 
 /// Compute relative out-of-band energy
@@ -591,7 +557,7 @@ pub fn filter_isi(h: &[f32], k: usize, m: usize) -> (f32, f32) {
 /// * `nfft`   : fft size
 ///
 /// # Returns
-/// 
+///
 /// Relative out-of-band energy
 pub fn filter_energy(h: &[f32], fc: f32, nfft: usize) -> Result<f32> {
     if fc < 0.0 || fc > 0.5 {
@@ -633,7 +599,7 @@ pub fn filter_energy(h: &[f32], fc: f32, nfft: usize) -> Result<f32> {
 /// * `fc`     : center frequency for analysis, -0.5 <= fc <= 0.5
 ///
 /// # Returns
-/// 
+///
 /// A frequency response value
 pub fn freqrespf(h: &[f32], fc: f32) -> Result<Complex32> {
     freqresponse(h, fc)
@@ -647,7 +613,7 @@ pub fn freqrespf(h: &[f32], fc: f32) -> Result<Complex32> {
 /// * `fc`     : center frequency for analysis, -0.5 <= fc <= 0.5
 ///
 /// # Returns
-/// 
+///
 /// A frequency response value
 pub fn freqrespcf(h: &[Complex32], fc: f32) -> Result<Complex32> {
     freqresponse(h, fc)
@@ -661,9 +627,12 @@ pub fn freqrespcf(h: &[Complex32], fc: f32) -> Result<Complex32> {
 /// * `fc`     : center frequency for analysis, -0.5 <= fc <= 0.5
 ///
 /// # Returns
-/// 
+///
 /// A frequency response value
-pub fn freqresponse<T: ComplexFloat>(h: &[T], fc: f32) -> Result<Complex32> where Complex32: From<T> {
+pub fn freqresponse<T: ComplexFloat>(h: &[T], fc: f32) -> Result<Complex32>
+where
+    Complex32: From<T>,
+{
     let mut h_res = Complex32::new(0.0, 0.0);
     let fc = fc as f64;
     for i in 0..h.len() {
@@ -682,7 +651,7 @@ pub fn freqresponse<T: ComplexFloat>(h: &[T], fc: f32) -> Result<Complex32> wher
 /// * `fc`     : frequency at which delay is evaluated (-0.5 < fc < 0.5)
 ///
 /// # Returns
-/// 
+///
 /// Group delay value
 pub fn fir_group_delay(h: &[f32], fc: f32) -> Result<f32> {
     // validate input
@@ -709,9 +678,9 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
-    use crate::math::windows::WindowType;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_signalf};
     use crate::fft::{fft_run, Direction};
+    use crate::math::windows::WindowType;
+    use crate::utility::test_helpers::{validate_psd_signalf, PsdRegion};
 
     fn test_harness_matched_filter(
         filter_type: FirFilterShape,
@@ -738,6 +707,7 @@ mod tests {
         assert!(20.0 * isi_rms.log10() < tol_isi);
 
         // verify spectrum response
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.50, fmax: -0.35, pmin:  0.0,  pmax: tol_as, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.20, fmax:  0.20, pmin: -1.0,  pmax: 1.0,    test_lo: true,  test_hi: true },
@@ -770,8 +740,8 @@ mod tests {
     #[autotest_annotate(autotest_liquid_firdes_dcblock)]
     fn test_liquid_firdes_dcblock() {
         // options
-        let m: usize = 20;      // filter semi-length
-        let as_: f32 = 60.0;    // stop-band suppression/pass-band ripple
+        let m: usize = 20; // filter semi-length
+        let as_: f32 = 60.0; // stop-band suppression/pass-band ripple
 
         // Create filter
         let h = fir_design_notch(m, 0.0, as_).unwrap();
@@ -789,19 +759,19 @@ mod tests {
 
         // evaluate at several points
         let tol = 2.0 * 10f32.powf(-as_ / 20.0); // generous
-        assert_abs_diff_eq!(buf_freq[0].norm(),            0.0, epsilon = tol);   // notch at DC
-        assert_abs_diff_eq!(buf_freq[nfft / 4].norm(),     1.0, epsilon = tol);   // pass at  Fs/4
-        assert_abs_diff_eq!(buf_freq[2 * nfft / 4].norm(), 1.0, epsilon = tol);   // pass at  Fs/2
-        assert_abs_diff_eq!(buf_freq[3 * nfft / 4].norm(), 1.0, epsilon = tol);   // pass at -Fs/4
+        assert_abs_diff_eq!(buf_freq[0].norm(), 0.0, epsilon = tol); // notch at DC
+        assert_abs_diff_eq!(buf_freq[nfft / 4].norm(), 1.0, epsilon = tol); // pass at  Fs/4
+        assert_abs_diff_eq!(buf_freq[2 * nfft / 4].norm(), 1.0, epsilon = tol); // pass at  Fs/2
+        assert_abs_diff_eq!(buf_freq[3 * nfft / 4].norm(), 1.0, epsilon = tol); // pass at -Fs/4
     }
 
     #[test]
     #[autotest_annotate(autotest_liquid_firdes_notch)]
     fn test_liquid_firdes_notch() {
         // options
-        let m: usize = 20;      // filter semi-length
-        let as_: f32 = 60.0;    // stop-band suppression/pass-band ripple
-        let f0: f32 = 0.2;      // notch frequency (must be greater than zero here)
+        let m: usize = 20; // filter semi-length
+        let as_: f32 = 60.0; // stop-band suppression/pass-band ripple
+        let f0: f32 = 0.2; // notch frequency (must be greater than zero here)
 
         // Create filter
         let h = fir_design_notch(m, f0, as_).unwrap();
@@ -819,14 +789,14 @@ mod tests {
 
         // indices to evaluate
         let i0 = (f0 * nfft as f32).round() as usize; // positive
-        let i1 = nfft - i0;                           // negative
+        let i1 = nfft - i0; // negative
 
         // evaluate at several points
         let tol = 2.0 * 10f32.powf(-as_ / 20.0); // generous
-        assert_abs_diff_eq!(buf_freq[i0].norm(), 0.0, epsilon = tol);   // notch at +f0
-        assert_abs_diff_eq!(buf_freq[i1].norm(), 0.0, epsilon = tol);   // notch at -f0
-        assert_abs_diff_eq!(buf_freq[0].norm(), 1.0, epsilon = tol);    // pass at  0
-        assert_abs_diff_eq!(buf_freq[nfft/2].norm(), 1.0, epsilon = tol); // pass at  Fs/2
+        assert_abs_diff_eq!(buf_freq[i0].norm(), 0.0, epsilon = tol); // notch at +f0
+        assert_abs_diff_eq!(buf_freq[i1].norm(), 0.0, epsilon = tol); // notch at -f0
+        assert_abs_diff_eq!(buf_freq[0].norm(), 1.0, epsilon = tol); // pass at  0
+        assert_abs_diff_eq!(buf_freq[nfft / 2].norm(), 1.0, epsilon = tol); // pass at  Fs/2
     }
 
     #[test]
@@ -856,22 +826,22 @@ mod tests {
     fn test_liquid_firdes_config() {
         // Check that estimate methods return zero for invalid configs
         assert!(estimate_req_filter_len(-0.1, 60.0).is_err()); // invalid transition band
-        assert!(estimate_req_filter_len(0.0, 60.0).is_err());  // invalid transition band
-        assert!(estimate_req_filter_len(0.6, 60.0).is_err());  // invalid transition band
-        assert!(estimate_req_filter_len(0.2, -1.0).is_err());  // invalid stop-band suppression
-        assert!(estimate_req_filter_len(0.2, 0.0).is_err());   // invalid stop-band suppression
+        assert!(estimate_req_filter_len(0.0, 60.0).is_err()); // invalid transition band
+        assert!(estimate_req_filter_len(0.6, 60.0).is_err()); // invalid transition band
+        assert!(estimate_req_filter_len(0.2, -1.0).is_err()); // invalid stop-band suppression
+        assert!(estimate_req_filter_len(0.2, 0.0).is_err()); // invalid stop-band suppression
 
         assert!(estimate_req_filter_len_kaiser(-0.1, 60.0).is_err()); // invalid transition band
-        assert!(estimate_req_filter_len_kaiser(0.0, 60.0).is_err());  // invalid transition band
-        assert!(estimate_req_filter_len_kaiser(0.6, 60.0).is_err());  // invalid transition band
-        assert!(estimate_req_filter_len_kaiser(0.2, -1.0).is_err());  // invalid stop-band suppression
-        assert!(estimate_req_filter_len_kaiser(0.2, 0.0).is_err());   // invalid stop-band suppression
+        assert!(estimate_req_filter_len_kaiser(0.0, 60.0).is_err()); // invalid transition band
+        assert!(estimate_req_filter_len_kaiser(0.6, 60.0).is_err()); // invalid transition band
+        assert!(estimate_req_filter_len_kaiser(0.2, -1.0).is_err()); // invalid stop-band suppression
+        assert!(estimate_req_filter_len_kaiser(0.2, 0.0).is_err()); // invalid stop-band suppression
 
         assert!(estimate_req_filter_len_herrmann(-0.1, 60.0).is_err()); // invalid transition band
-        assert!(estimate_req_filter_len_herrmann(0.0, 60.0).is_err());  // invalid transition band
-        assert!(estimate_req_filter_len_herrmann(0.6, 60.0).is_err());  // invalid transition band
-        assert!(estimate_req_filter_len_herrmann(0.2, -1.0).is_err());  // invalid stop-band suppression
-        assert!(estimate_req_filter_len_herrmann(0.2, 0.0).is_err());   // invalid stop-band suppression
+        assert!(estimate_req_filter_len_herrmann(0.0, 60.0).is_err()); // invalid transition band
+        assert!(estimate_req_filter_len_herrmann(0.6, 60.0).is_err()); // invalid transition band
+        assert!(estimate_req_filter_len_herrmann(0.2, -1.0).is_err()); // invalid stop-band suppression
+        assert!(estimate_req_filter_len_herrmann(0.2, 0.0).is_err()); // invalid stop-band suppression
 
         let m = 4;
         let h_len = 2 * m + 1;
@@ -951,6 +921,7 @@ mod tests {
         let bw = 1.0 / k as f32;
         let f0 = 0.45 * bw * (1.0 - beta);
         let f1 = 0.55 * bw * (1.0 + beta);
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5, fmax: -f1, pmin: 0.0,  pmax: -as_, test_lo: false, test_hi: true },
             PsdRegion { fmin: -f0,  fmax: f0,  pmin: -1.0, pmax: 1.0,  test_lo: true,  test_hi: true },
@@ -961,39 +932,57 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_kaiser)]
-    fn test_firdes_prototype_kaiser() { testbench_firdes_prototype("kaiser", 4, 12, 0.3, 60.0); }
+    fn test_firdes_prototype_kaiser() {
+        testbench_firdes_prototype("kaiser", 4, 12, 0.3, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_pm)]
-    fn test_firdes_prototype_pm() { testbench_firdes_prototype("pm", 4, 12, 0.3, 80.0); }
+    fn test_firdes_prototype_pm() {
+        testbench_firdes_prototype("pm", 4, 12, 0.3, 80.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_rcos)]
-    fn test_firdes_prototype_rcos() { testbench_firdes_prototype("rcos", 4, 12, 0.3, 60.0); }
+    fn test_firdes_prototype_rcos() {
+        testbench_firdes_prototype("rcos", 4, 12, 0.3, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_fexp)]
-    fn test_firdes_prototype_fexp() { testbench_firdes_prototype("fexp", 4, 12, 0.3, 40.0); }
+    fn test_firdes_prototype_fexp() {
+        testbench_firdes_prototype("fexp", 4, 12, 0.3, 40.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_fsech)]
-    fn test_firdes_prototype_fsech() { testbench_firdes_prototype("fsech", 4, 12, 0.3, 60.0); }
+    fn test_firdes_prototype_fsech() {
+        testbench_firdes_prototype("fsech", 4, 12, 0.3, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_farcsech)]
-    fn test_firdes_prototype_farcsech() { testbench_firdes_prototype("farcsech", 4, 12, 0.3, 40.0); }
+    fn test_firdes_prototype_farcsech() {
+        testbench_firdes_prototype("farcsech", 4, 12, 0.3, 40.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_arkaiser)]
-    fn test_firdes_prototype_arkaiser() { testbench_firdes_prototype("arkaiser", 4, 12, 0.3, 90.0); }
+    fn test_firdes_prototype_arkaiser() {
+        testbench_firdes_prototype("arkaiser", 4, 12, 0.3, 90.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_rkaiser)]
-    fn test_firdes_prototype_rkaiser() { testbench_firdes_prototype("rkaiser", 4, 12, 0.3, 90.0); }
+    fn test_firdes_prototype_rkaiser() {
+        testbench_firdes_prototype("rkaiser", 4, 12, 0.3, 90.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_rrcos)]
-    fn test_firdes_prototype_rrcos() { testbench_firdes_prototype("rrcos", 4, 12, 0.3, 45.0); }
+    fn test_firdes_prototype_rrcos() {
+        testbench_firdes_prototype("rrcos", 4, 12, 0.3, 45.0);
+    }
 
     #[test]
     fn test_firdes_prototype_rrcos_zero_beta() {
@@ -1009,19 +998,27 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_hm3)]
-    fn test_firdes_prototype_hm3() { testbench_firdes_prototype("hm3", 4, 12, 0.3, 100.0); }
+    fn test_firdes_prototype_hm3() {
+        testbench_firdes_prototype("hm3", 4, 12, 0.3, 100.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_rfexp)]
-    fn test_firdes_prototype_rfexp() { testbench_firdes_prototype("rfexp", 4, 12, 0.3, 30.0); }
+    fn test_firdes_prototype_rfexp() {
+        testbench_firdes_prototype("rfexp", 4, 12, 0.3, 30.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_rfsech)]
-    fn test_firdes_prototype_rfsech() { testbench_firdes_prototype("rfsech", 4, 12, 0.3, 40.0); }
+    fn test_firdes_prototype_rfsech() {
+        testbench_firdes_prototype("rfsech", 4, 12, 0.3, 40.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdes_prototype_rfarcsech)]
-    fn test_firdes_prototype_rfarcsech() { testbench_firdes_prototype("rfarcsech", 4, 12, 0.3, 30.0); }
+    fn test_firdes_prototype_rfarcsech() {
+        testbench_firdes_prototype("rfarcsech", 4, 12, 0.3, 30.0);
+    }
 
     // ignore gmsk filters as these weren't designed for flat pass-band responses
     // #[test]
@@ -1036,13 +1033,14 @@ mod tests {
     #[autotest_annotate(autotest_firdes_doppler)]
     fn test_firdes_doppler() {
         // design filter
-        let fd: f32 = 0.2;  // Normalized Doppler frequency
-        let k: f32 = 10.0;  // Rice fading factor
-        let theta: f32 = 0.0;  // LoS component angle of arrival
-        let h_len: usize = 161;  // filter length
+        let fd: f32 = 0.2; // Normalized Doppler frequency
+        let k: f32 = 10.0; // Rice fading factor
+        let theta: f32 = 0.0; // LoS component angle of arrival
+        let h_len: usize = 161; // filter length
         let h = fir_design_doppler(h_len, fd, k, theta).unwrap();
 
         // verify resulting spectrum
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.5,   fmax: -0.25,  pmin:  0.0, pmax:  0.0, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.205, fmax: -0.195, pmin: 30.0, pmax: 40.0, test_lo: true,  test_hi: true },
@@ -1108,7 +1106,10 @@ mod tests {
             let fc = (i as f32) / (nfft as f32) + if i >= nfft / 2 { -1.0 } else { 0.0 };
             let h_freq = freqrespcf(&h, fc).unwrap();
 
-            println!("i: {}, buf_freq[i]: {:?} + {:?}j, H: {:?} + {:?}j", i, buf_freq[i].re, buf_freq[i].im, h_freq.re, h_freq.im);
+            println!(
+                "i: {}, buf_freq[i]: {:?} + {:?}j, H: {:?} + {:?}j",
+                i, buf_freq[i].re, buf_freq[i].im, h_freq.re, h_freq.im
+            );
             assert_abs_diff_eq!(buf_freq[i].re, h_freq.re, epsilon = tol);
             assert_abs_diff_eq!(buf_freq[i].im, h_freq.im, epsilon = tol);
         }
@@ -1122,6 +1123,7 @@ mod tests {
 
         // input vectors
         let x_len = 16;
+        #[rustfmt::skip]
         let x: [f32; 16] = [
             0.25887000,   0.11752000,   0.67812000,  -1.02480000, 
             1.46750000,  -0.67462000,   0.93029000,   0.98751000, 
@@ -1130,6 +1132,7 @@ mod tests {
         ];
 
         let y_len = 8;
+        #[rustfmt::skip]
         let y: [f32; 8] = [
             -1.15920000,  -1.57390000,   0.65239000,  -0.54542000, 
             -0.97277000,   0.99115000,  -0.76247000,  -1.08210000
@@ -1138,13 +1141,14 @@ mod tests {
         // derived values
         let rxy_len = x_len + y_len - 1;
         let mut rxy = vec![0.0; rxy_len];
+        #[rustfmt::skip]
         let rxy_test: [f32; 23] = [
             -0.28013000,  -0.32455000,  -0.56685000,   0.45660000, 
             -0.39008000,  -1.95950000,   1.25850000,  -3.35780000, 
             -1.85760000,   1.07920000,  -5.31760000,  -2.18630000, 
             -2.05850000,  -3.52450000,  -0.90010000,  -4.55350000, 
             -4.17770000,  -1.09920000,  -5.13670000,  -1.76270000, 
-            1.96850000,  -2.13700000,  -1.83370000
+             1.96850000,  -2.13700000,  -1.83370000
         ];
 
         // corr(x,y)
@@ -1159,15 +1163,16 @@ mod tests {
         // derived values
         let ryx_len = x_len + y_len - 1;
         let mut ryx = vec![0.0; ryx_len];
+        #[rustfmt::skip]
         let ryx_test: [f32; 23] = [
             -1.83370000,  -2.13700000,   1.96850000,  -1.76270000, 
             -5.13670000,  -1.09920000,  -4.17770000,  -4.55350000, 
             -0.90010000,  -3.52450000,  -2.05850000,  -2.18630000, 
             -5.31760000,   1.07920000,  -1.85760000,  -3.35780000, 
-            1.25850000,  -1.95950000,  -0.39008000,   0.45660000, 
+             1.25850000,  -1.95950000,  -0.39008000,   0.45660000, 
             -0.56685000,  -0.32455000,  -0.28013000
         ];
-            
+
         // corr(y,x)
         for i in 0..ryx_len {
             let lag = i as isize - x_len as isize + 1;
@@ -1177,5 +1182,4 @@ mod tests {
             assert_abs_diff_eq!(ryx[i], ryx_test[i], epsilon = tol);
         }
     }
-
 }

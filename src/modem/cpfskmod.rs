@@ -1,9 +1,9 @@
 // continuous phase frequency-shift keying modulator
 
-use std::f32::consts::PI;
-use num_complex::Complex32;
 use crate::error::{Error, Result};
-use crate::filter::{FirInterpolationFilter, fir_design_gmsktx};
+use crate::filter::{fir_design_gmsktx, FirInterpolationFilter};
+use num_complex::Complex32;
+use std::f32::consts::PI;
 
 /// CPFSK filter type
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,23 +21,23 @@ pub enum CpfskFilterType {
 /// Continuous-phase frequency-shift keying modulator
 #[derive(Clone, Debug)]
 pub struct Cpfskmod {
-    bps: usize,              // bits per symbol
-    k: usize,                // samples per symbol
-    beta: f32,               // filter bandwidth parameter
-    h: f32,                  // modulation index
+    bps: usize, // bits per symbol
+    k: usize,   // samples per symbol
+    beta: f32,  // filter bandwidth parameter
+    h: f32,     // modulation index
     filter_type: CpfskFilterType,
-    m_size: usize,           // constellation size (M = 2^bps)
-    symbol_delay: usize,     // transmit filter delay [symbols]
+    m_size: usize,       // constellation size (M = 2^bps)
+    symbol_delay: usize, // transmit filter delay [symbols]
 
     // pulse-shaping filter
     interp: FirInterpolationFilter<f32, f32>,
 
     // phase integrator
-    phase_interp: Vec<f32>,  // phase interpolation buffer
-    b0: f32,                 // integrator coefficients
+    phase_interp: Vec<f32>, // phase interpolation buffer
+    b0: f32,                // integrator coefficients
     b1: f32,
     a1: f32,
-    v0: f32,                 // integrator state
+    v0: f32, // integrator state
     v1: f32,
 }
 
@@ -52,14 +52,7 @@ impl Cpfskmod {
     /// * `m` - filter delay (symbols), m > 0
     /// * `beta` - filter bandwidth parameter, 0 < beta <= 1
     /// * `filter_type` - filter type (e.g. CpfskFilterType::Square)
-    pub fn new(
-        bps: usize,
-        h: f32,
-        k: usize,
-        m: usize,
-        beta: f32,
-        filter_type: CpfskFilterType,
-    ) -> Result<Self> {
+    pub fn new(bps: usize, h: f32, k: usize, m: usize, beta: f32, filter_type: CpfskFilterType) -> Result<Self> {
         // validate input
         if bps == 0 {
             return Err(Error::Config("bits/symbol must be greater than 0".into()));
@@ -86,6 +79,7 @@ impl Cpfskmod {
                 (0.0, 1.0, k, 1)
             }
             CpfskFilterType::RcosFull => {
+                // rcos full
                 (0.5, 0.5, k, 1)
             }
             CpfskFilterType::RcosPartial => {
@@ -93,6 +87,7 @@ impl Cpfskmod {
                 (0.5, 0.5, 3 * k, 2)
             }
             CpfskFilterType::Gmsk => {
+                // gmsk
                 (0.5, 0.5, 2 * k * m + k + 1, m + 1)
             }
         };
@@ -195,15 +190,13 @@ impl Cpfskmod {
     /// * `y` - output sample array [size: k x 1]
     pub fn modulate(&mut self, s: usize, y: &mut [Complex32]) -> Result<()> {
         if s >= self.m_size {
-            return Err(Error::Range(format!(
-                "input symbol ({}) exceeds maximum ({})",
-                s, self.m_size
-            )));
+            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", s, self.m_size)));
         }
         if y.len() < self.k {
             return Err(Error::Range(format!(
                 "output buffer length ({}) must be at least samples/symbol ({})",
-                y.len(), self.k
+                y.len(),
+                self.k
             )));
         }
 
@@ -235,13 +228,7 @@ impl Cpfskmod {
 }
 
 /// Design transmit filter for CPFSK modulator
-fn cpfskmod_firdes(
-    k: usize,
-    m: usize,
-    beta: f32,
-    filter_type: CpfskFilterType,
-    ht_len: usize,
-) -> Result<Vec<f32>> {
+fn cpfskmod_firdes(k: usize, m: usize, beta: f32, filter_type: CpfskFilterType, ht_len: usize) -> Result<Vec<f32>> {
     let mut ht = vec![0.0; ht_len];
 
     match filter_type {

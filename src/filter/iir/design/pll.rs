@@ -23,9 +23,9 @@ pub fn iir_design_pll_active_lag(w: f32, zeta: f32, k: f32, b: &mut [f32; 3], a:
         return Err(Error::Config("gain must be greater than 0".into()));
     }
 
-    let wn = w;                  // natural frequency
-    let t1 = k / (wn * wn);      // 
-    let t2 = 2.0 * zeta / wn - 1.0 / k;   //
+    let wn = w; // natural frequency
+    let t1 = k / (wn * wn); //
+    let t2 = 2.0 * zeta / wn - 1.0 / k; //
 
     b[0] = 2.0 * k * (1.0 + t2 / 2.0);
     b[1] = 2.0 * k * 2.0;
@@ -62,9 +62,9 @@ pub fn iir_design_pll_active_pi(w: f32, zeta: f32, k: f32, b: &mut [f32; 3], a: 
     }
 
     // loop filter (active lag)
-    let wn = w;          // natural frequency
-    let t1 = k / (wn * wn);  //
-    let t2 = 2.0 * zeta / wn;  //
+    let wn = w; // natural frequency
+    let t1 = k / (wn * wn); //
+    let t2 = 2.0 * zeta / wn; //
 
     b[0] = 2.0 * k * (1.0 + t2 / 2.0);
     b[1] = 2.0 * k * 2.0;

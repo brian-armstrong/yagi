@@ -1,6 +1,6 @@
-use std::f32::consts::PI;
-use crate::math::bessel::*;
 use crate::error::{Error, Result};
+use crate::math::bessel::*;
+use std::f32::consts::PI;
 
 /// Enum for window types
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -136,8 +136,10 @@ pub fn blackman_harris7(i: usize, wlen: usize) -> Result<f32> {
     let a6 = 0.00001;
     let t = 2.0 * PI * i as f32 / (wlen - 1) as f32;
 
-    Ok(a0 - a1 * t.cos() + a2 * (2.0 * t).cos() - a3 * (3.0 * t).cos()
-        + a4 * (4.0 * t).cos() - a5 * (5.0 * t).cos() + a6 * (6.0 * t).cos())
+    Ok(
+        a0 - a1 * t.cos() + a2 * (2.0 * t).cos() - a3 * (3.0 * t).cos() + a4 * (4.0 * t).cos() - a5 * (5.0 * t).cos()
+            + a6 * (6.0 * t).cos(),
+    )
 }
 
 pub fn flat_top(i: usize, wlen: usize) -> Result<f32> {
@@ -176,7 +178,9 @@ pub fn rcos_taper(i: usize, wlen: usize, t: usize) -> Result<f32> {
         return Err(Error::Value("Raised-cosine taper window: sample index must not exceed window length".to_string()));
     }
     if t > wlen / 2 {
-        return Err(Error::Value("Raised-cosine taper window: taper length cannot exceed half window length".to_string()));
+        return Err(Error::Value(
+            "Raised-cosine taper window: taper length cannot exceed half window length".to_string(),
+        ));
     }
 
     let i = if i > wlen - t - 1 { wlen - i - 1 } else { i };
@@ -255,10 +259,10 @@ pub fn kbd_window(wlen: usize, beta: f32) -> Result<Vec<f32>> {
 mod tests {
     use super::*;
 
-    use crate::fft::{Fft, Direction};
+    use crate::fft::{Direction, Fft};
+    use approx::assert_abs_diff_eq;
     use num_complex::Complex;
     use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
 
     fn window_testbench(window_type: WindowType, n: usize, arg: f32) {
         let mut w = vec![0.0; n];

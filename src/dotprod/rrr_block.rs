@@ -1,16 +1,14 @@
 use super::{DotProdBlockKernel, DotProdBlockPlan};
 
-use std::simd::f32x4;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use std::simd::f32x16;
+use std::simd::f32x4;
 
-use super::reduce::reduce_sum_sse_f32x4;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use super::reduce::reduce_sum_avx512_f32x16;
+use super::reduce::reduce_sum_sse_f32x4;
 
-pub(super) fn plan_dotprod_rrr_block_f32x4(
-    len: usize,
-) -> Option<DotProdBlockPlan<[f32], f32, f32>> {
+pub(super) fn plan_dotprod_rrr_block_f32x4(len: usize) -> Option<DotProdBlockPlan<[f32], f32, f32>> {
     let padded_len = len.next_multiple_of(4);
     let executor = match padded_len {
         4 => dotprod_rrr_block_f32x4::<4> as DotProdBlockKernel<[f32], f32, f32>,
@@ -24,26 +22,17 @@ pub(super) fn plan_dotprod_rrr_block_f32x4(
         _ => return None,
     };
 
-    Some(DotProdBlockPlan::new(
-        len,
-        padded_len,
-        padded_len,
-        4,
-        executor,
-        repack_rrr,
-    ))
+    Some(DotProdBlockPlan::new(len, padded_len, padded_len, 4, executor, repack_rrr))
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub(super) fn plan_dotprod_rrr_block_avx512(
-    len: usize,
-) -> Option<DotProdBlockPlan<[f32], f32, f32>> {
+pub(super) fn plan_dotprod_rrr_block_avx512(len: usize) -> Option<DotProdBlockPlan<[f32], f32, f32>> {
     let padded_len = len.next_multiple_of(16);
     let executor = match padded_len {
-         48 => dotprod_rrr_block_avx512_register::<48> as DotProdBlockKernel<[f32], f32, f32>,
-         64 => dotprod_rrr_block_avx512_register::<64>,
-         80 => dotprod_rrr_block_avx512_register::<80>,
-         96 => dotprod_rrr_block_avx512_register::<96>,
+        48 => dotprod_rrr_block_avx512_register::<48> as DotProdBlockKernel<[f32], f32, f32>,
+        64 => dotprod_rrr_block_avx512_register::<64>,
+        80 => dotprod_rrr_block_avx512_register::<80>,
+        96 => dotprod_rrr_block_avx512_register::<96>,
         112 => dotprod_rrr_block_avx512_register::<112>,
         128 => dotprod_rrr_block_avx512_register::<128>,
         144 => dotprod_rrr_block_avx512_register::<144>,
@@ -57,14 +46,7 @@ pub(super) fn plan_dotprod_rrr_block_avx512(
         272.. => dotprod_rrr_block_avx512_memory,
         _ => return None,
     };
-    Some(DotProdBlockPlan::new(
-        len,
-        padded_len,
-        padded_len,
-        4,
-        executor,
-        repack_rrr,
-    ))
+    Some(DotProdBlockPlan::new(len, padded_len, padded_len, 4, executor, repack_rrr))
 }
 
 fn repack_rrr(h: &[f32], padded_len: usize, packed: &mut [f32]) {
@@ -74,11 +56,7 @@ fn repack_rrr(h: &[f32], padded_len: usize, packed: &mut [f32]) {
     packed[h.len()..].fill(0.0);
 }
 
-unsafe fn dotprod_rrr_block_f32x4<const N: usize>(
-    x: &[f32],
-    h: &[f32],
-    y: &mut [f32],
-) -> usize {
+unsafe fn dotprod_rrr_block_f32x4<const N: usize>(x: &[f32], h: &[f32], y: &mut [f32]) -> usize {
     // this const block can load up to 32 coefficients across 8 simd registers
     // it will then process 4 outputs at a time in the loop below
 
@@ -92,7 +70,6 @@ unsafe fn dotprod_rrr_block_f32x4<const N: usize>(
     std::hint::assert_unchecked(h.len() == N);
     std::hint::assert_unchecked(x.len() >= bulk_outputs + N - 1);
     std::hint::assert_unchecked(y.len() >= bulk_outputs);
-
 
     // load all coefficients into registers. if const N is shorter than the
     // full set of 8 below (32 coeffs), some of these will disappear in the
@@ -131,18 +108,10 @@ unsafe fn dotprod_rrr_block_f32x4<const N: usize>(
         macro_rules! accumulate {
             ($threshold:literal, $offset:literal, $coeff:ident) => {
                 if N > $threshold {
-                    a0 += f32x4::from_array(
-                        *(xp.add(i + $offset) as *const [f32; 4]),
-                    ) * $coeff;
-                    a1 += f32x4::from_array(
-                        *(xp.add(i + $offset + 1) as *const [f32; 4]),
-                    ) * $coeff;
-                    a2 += f32x4::from_array(
-                        *(xp.add(i + $offset + 2) as *const [f32; 4]),
-                    ) * $coeff;
-                    a3 += f32x4::from_array(
-                        *(xp.add(i + $offset + 3) as *const [f32; 4]),
-                    ) * $coeff;
+                    a0 += f32x4::from_array(*(xp.add(i + $offset) as *const [f32; 4])) * $coeff;
+                    a1 += f32x4::from_array(*(xp.add(i + $offset + 1) as *const [f32; 4])) * $coeff;
+                    a2 += f32x4::from_array(*(xp.add(i + $offset + 2) as *const [f32; 4])) * $coeff;
+                    a3 += f32x4::from_array(*(xp.add(i + $offset + 3) as *const [f32; 4])) * $coeff;
                 }
             };
         }
@@ -171,11 +140,7 @@ unsafe fn dotprod_rrr_block_f32x4<const N: usize>(
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[target_feature(enable = "avx512f")]
-unsafe fn dotprod_rrr_block_avx512_register<const N: usize>(
-    x: &[f32],
-    h: &[f32],
-    y: &mut [f32],
-) -> usize {
+unsafe fn dotprod_rrr_block_avx512_register<const N: usize>(x: &[f32], h: &[f32], y: &mut [f32]) -> usize {
     // this is just a larger version of `dotprod_rrr_block_f32x4`
     // instead of 32 (8x4) coefficients in register, we get 256 (16x16)
     // but we still handle 4 outputs at a time
@@ -230,18 +195,10 @@ unsafe fn dotprod_rrr_block_avx512_register<const N: usize>(
         macro_rules! accumulate {
             ($threshold:literal, $offset:literal, $coeff:ident) => {
                 if N > $threshold {
-                    a0 += f32x16::from_array(
-                        *(xp.add(i + $offset) as *const [f32; 16]),
-                    ) * $coeff;
-                    a1 += f32x16::from_array(
-                        *(xp.add(i + $offset + 1) as *const [f32; 16]),
-                    ) * $coeff;
-                    a2 += f32x16::from_array(
-                        *(xp.add(i + $offset + 2) as *const [f32; 16]),
-                    ) * $coeff;
-                    a3 += f32x16::from_array(
-                        *(xp.add(i + $offset + 3) as *const [f32; 16]),
-                    ) * $coeff;
+                    a0 += f32x16::from_array(*(xp.add(i + $offset) as *const [f32; 16])) * $coeff;
+                    a1 += f32x16::from_array(*(xp.add(i + $offset + 1) as *const [f32; 16])) * $coeff;
+                    a2 += f32x16::from_array(*(xp.add(i + $offset + 2) as *const [f32; 16])) * $coeff;
+                    a3 += f32x16::from_array(*(xp.add(i + $offset + 3) as *const [f32; 16])) * $coeff;
                 }
             };
         }
@@ -274,11 +231,7 @@ unsafe fn dotprod_rrr_block_avx512_register<const N: usize>(
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[target_feature(enable = "avx512f")]
-unsafe fn dotprod_rrr_block_avx512_memory(
-    x: &[f32],
-    h: &[f32],
-    y: &mut [f32],
-) -> usize {
+unsafe fn dotprod_rrr_block_avx512_memory(x: &[f32], h: &[f32], y: &mut [f32]) -> usize {
     // this kernel loads the coefficients from memory every 4 inputs
     // it's not const on length, so one size fits all
     // less efficient, but it also won't spill registers
@@ -310,18 +263,10 @@ unsafe fn dotprod_rrr_block_avx512_memory(
             ($offset:expr) => {{
                 let offset = $offset;
                 let h = f32x16::from_array(*(hp.add(offset) as *const [f32; 16]));
-                a0 += f32x16::from_array(
-                    *(xp.add(i + offset) as *const [f32; 16]),
-                ) * h;
-                a1 += f32x16::from_array(
-                    *(xp.add(i + offset + 1) as *const [f32; 16]),
-                ) * h;
-                a2 += f32x16::from_array(
-                    *(xp.add(i + offset + 2) as *const [f32; 16]),
-                ) * h;
-                a3 += f32x16::from_array(
-                    *(xp.add(i + offset + 3) as *const [f32; 16]),
-                ) * h;
+                a0 += f32x16::from_array(*(xp.add(i + offset) as *const [f32; 16])) * h;
+                a1 += f32x16::from_array(*(xp.add(i + offset + 1) as *const [f32; 16])) * h;
+                a2 += f32x16::from_array(*(xp.add(i + offset + 2) as *const [f32; 16])) * h;
+                a3 += f32x16::from_array(*(xp.add(i + offset + 3) as *const [f32; 16])) * h;
             }};
         }
 

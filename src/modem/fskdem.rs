@@ -1,17 +1,17 @@
-use num_complex::Complex32;
 use crate::error::{Error, Result};
-use crate::fft::{Fft, Direction};
+use crate::fft::{Direction, Fft};
+use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
 pub struct Fskdem {
-    k: usize,             // samples per symbol
-    m_size: usize,        // constellation size (M)
-    k_size: usize,       // FFT size (K)
-    buf_time: Vec<Complex32>,  // FFT input buffer
-    buf_freq: Vec<Complex32>,  // FFT output buffer
+    k: usize,                 // samples per symbol
+    m_size: usize,            // constellation size (M)
+    k_size: usize,            // FFT size (K)
+    buf_time: Vec<Complex32>, // FFT input buffer
+    buf_freq: Vec<Complex32>, // FFT output buffer
     fft: Fft<f32>,            // FFT object
-    demod_map: Vec<usize>,  // demodulation map
-    s_demod: usize,      // demodulated symbol (used for frequency error)
+    demod_map: Vec<usize>,    // demodulation map
+    s_demod: usize,           // demodulated symbol (used for frequency error)
 }
 
 impl Fskdem {
@@ -57,17 +57,13 @@ impl Fskdem {
         for i in 0..m_size {
             let freq = ((i as f32) - m2) * bandwidth / m2;
             let idx = freq * k_size as f32;
-            let index = if idx < 0.0 {
-                (idx + k_size as f32).round() as usize
-            } else {
-                idx.round() as usize
-            };
+            let index = if idx < 0.0 { (idx + k_size as f32).round() as usize } else { idx.round() as usize };
             demod_map[i] = index;
         }
 
         // Check for uniqueness
         for i in 1..m_size {
-            if demod_map[i] == demod_map[i-1] {
+            if demod_map[i] == demod_map[i - 1] {
                 return Err(Error::Config("demod map is not unique; consider increasing bandwidth".into()));
             }
         }
@@ -76,16 +72,7 @@ impl Fskdem {
         let buf_freq = vec![Complex32::new(0.0, 0.0); k_size];
         let fft = Fft::new(k_size, Direction::Forward);
 
-        let mut q = Self {
-            k,
-            m_size,
-            k_size,
-            buf_time,
-            buf_freq,
-            fft,
-            demod_map,
-            s_demod: 0,
-        };
+        let mut q = Self { k, m_size, k_size, buf_time, buf_freq, fft, demod_map, s_demod: 0 };
 
         q.reset()?;
         Ok(q)
@@ -127,9 +114,9 @@ impl Fskdem {
 
     pub fn get_frequency_error(&self) -> f32 {
         // Get index of peak bin
-        let vm = self.buf_freq[(self.s_demod + self.k_size - 1) % self.k_size].norm();  // previous
-        let v0 = self.buf_freq[self.s_demod].norm();                                     // peak
-        let vp = self.buf_freq[(self.s_demod + 1) % self.k_size].norm();                // post
+        let vm = self.buf_freq[(self.s_demod + self.k_size - 1) % self.k_size].norm(); // previous
+        let v0 = self.buf_freq[self.s_demod].norm(); // peak
+        let vp = self.buf_freq[(self.s_demod + 1) % self.k_size].norm(); // post
 
         // Compute derivative
         (vp - vm) / v0
@@ -137,10 +124,7 @@ impl Fskdem {
 
     pub fn get_symbol_energy(&self, s: usize, range: usize) -> Result<f32> {
         if s >= self.m_size {
-            return Err(Error::Range(format!(
-                "input symbol ({}) exceeds maximum ({})",
-                s, self.m_size
-            )));
+            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", s, self.m_size)));
         }
 
         let range = range.min(self.k_size);
@@ -164,8 +148,9 @@ impl Fskdem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modem::fskmod::Fskmod;
+    use crate::random::randnf;
     use test_macro::autotest_annotate;
-    use crate::{modem::fskmod::Fskmod, random::randnf};
 
     #[test]
     fn test_fskdem_create() {
@@ -224,92 +209,132 @@ mod tests {
     // AUTOTESTS: basic properties: M=2^m, k = 2*M, bandwidth = 0.25
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M2)]
-    fn test_fskmodem_norm_m2() -> Result<()> { fskmodem_test_mod_demod(1, 4, 0.25) }
+    fn test_fskmodem_norm_m2() -> Result<()> {
+        fskmodem_test_mod_demod(1, 4, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M4)]
-    fn test_fskmodem_norm_m4() -> Result<()> { fskmodem_test_mod_demod(2, 8, 0.25) }
+    fn test_fskmodem_norm_m4() -> Result<()> {
+        fskmodem_test_mod_demod(2, 8, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M8)]
-    fn test_fskmodem_norm_m8() -> Result<()> { fskmodem_test_mod_demod(3, 16, 0.25) }
+    fn test_fskmodem_norm_m8() -> Result<()> {
+        fskmodem_test_mod_demod(3, 16, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M16)]
-    fn test_fskmodem_norm_m16() -> Result<()> { fskmodem_test_mod_demod(4, 32, 0.25) }
+    fn test_fskmodem_norm_m16() -> Result<()> {
+        fskmodem_test_mod_demod(4, 32, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M32)]
-    fn test_fskmodem_norm_m32() -> Result<()> { fskmodem_test_mod_demod(5, 64, 0.25) }
+    fn test_fskmodem_norm_m32() -> Result<()> {
+        fskmodem_test_mod_demod(5, 64, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M64)]
-    fn test_fskmodem_norm_m64() -> Result<()> { fskmodem_test_mod_demod(6, 128, 0.25) }
+    fn test_fskmodem_norm_m64() -> Result<()> {
+        fskmodem_test_mod_demod(6, 128, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M128)]
-    fn test_fskmodem_norm_m128() -> Result<()> { fskmodem_test_mod_demod(7, 256, 0.25) }
+    fn test_fskmodem_norm_m128() -> Result<()> {
+        fskmodem_test_mod_demod(7, 256, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M256)]
-    fn test_fskmodem_norm_m256() -> Result<()> { fskmodem_test_mod_demod(8, 512, 0.25) }
+    fn test_fskmodem_norm_m256() -> Result<()> {
+        fskmodem_test_mod_demod(8, 512, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M512)]
-    fn test_fskmodem_norm_m512() -> Result<()> { fskmodem_test_mod_demod(9, 1024, 0.25) }
+    fn test_fskmodem_norm_m512() -> Result<()> {
+        fskmodem_test_mod_demod(9, 1024, 0.25)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_norm_M1024)]
-    fn test_fskmodem_norm_m1024() -> Result<()> { fskmodem_test_mod_demod(10, 2048, 0.25) }
+    fn test_fskmodem_norm_m1024() -> Result<()> {
+        fskmodem_test_mod_demod(10, 2048, 0.25)
+    }
 
     // AUTOTESTS: obscure properties: M=2^m, k not relative to M, bandwidth basically irrational
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M2)]
-    fn test_fskmodem_misc_m2() -> Result<()> { fskmodem_test_mod_demod(1, 5, 0.3721451) }
+    fn test_fskmodem_misc_m2() -> Result<()> {
+        fskmodem_test_mod_demod(1, 5, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M4)]
-    fn test_fskmodem_misc_m4() -> Result<()> { fskmodem_test_mod_demod(2, 10, 0.3721451) }
+    fn test_fskmodem_misc_m4() -> Result<()> {
+        fskmodem_test_mod_demod(2, 10, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M8)]
-    fn test_fskmodem_misc_m8() -> Result<()> { fskmodem_test_mod_demod(3, 20, 0.3721451) }
+    fn test_fskmodem_misc_m8() -> Result<()> {
+        fskmodem_test_mod_demod(3, 20, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M16)]
-    fn test_fskmodem_misc_m16() -> Result<()> { fskmodem_test_mod_demod(4, 30, 0.3721451) }
+    fn test_fskmodem_misc_m16() -> Result<()> {
+        fskmodem_test_mod_demod(4, 30, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M32)]
-    fn test_fskmodem_misc_m32() -> Result<()> { fskmodem_test_mod_demod(5, 60, 0.3721451) }
+    fn test_fskmodem_misc_m32() -> Result<()> {
+        fskmodem_test_mod_demod(5, 60, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M64)]
-    fn test_fskmodem_misc_m64() -> Result<()> { fskmodem_test_mod_demod(6, 100, 0.3721451) }
+    fn test_fskmodem_misc_m64() -> Result<()> {
+        fskmodem_test_mod_demod(6, 100, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M128)]
-    fn test_fskmodem_misc_m128() -> Result<()> { fskmodem_test_mod_demod(7, 200, 0.3721451) }
+    fn test_fskmodem_misc_m128() -> Result<()> {
+        fskmodem_test_mod_demod(7, 200, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M256)]
-    fn test_fskmodem_misc_m256() -> Result<()> { fskmodem_test_mod_demod(8, 500, 0.3721451) }
+    fn test_fskmodem_misc_m256() -> Result<()> {
+        fskmodem_test_mod_demod(8, 500, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M512)]
-    fn test_fskmodem_misc_m512() -> Result<()> { fskmodem_test_mod_demod(9, 1000, 0.3721451) }
+    fn test_fskmodem_misc_m512() -> Result<()> {
+        fskmodem_test_mod_demod(9, 1000, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskmodem_misc_M1024)]
-    fn test_fskmodem_misc_m1024() -> Result<()> { fskmodem_test_mod_demod(10, 2000, 0.3721451) }
+    fn test_fskmodem_misc_m1024() -> Result<()> {
+        fskmodem_test_mod_demod(10, 2000, 0.3721451)
+    }
 
     #[test]
     #[autotest_annotate(autotest_fskdem_copy)]
     fn test_fskdem_copy() -> Result<()> {
         // options
-        let m = 3;        // bits per symbol
-        let k = 200;      // samples per symbol
-        let bw = 0.2345;  // occupied bandwidth
+        let m = 3; // bits per symbol
+        let k = 200; // samples per symbol
+        let bw = 0.2345; // occupied bandwidth
 
         // create modulator/demodulator pair
         let mut dem_orig = Fskdem::new(m, k, bw)?;

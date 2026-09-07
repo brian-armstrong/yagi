@@ -1,7 +1,7 @@
-use crate::error::{Error, Result};
 use crate::dotprod::DotProd;
-use crate::filter::resampler::resamp2::{Resamp2, Resamp2Coeff};
+use crate::error::{Error, Result};
 use crate::filter;
+use crate::filter::resampler::resamp2::{Resamp2, Resamp2Coeff};
 
 use num_complex::ComplexFloat;
 
@@ -74,11 +74,7 @@ where
         let mut f0 = q.f0;
         let as_ = q.as_ + 5.0;
         for i in 0..q.num_stages {
-            fc = if i == 1 {
-                (0.5 - fc) / 2.0
-            } else {
-                0.5 * fc
-            };
+            fc = if i == 1 { (0.5 - fc) / 2.0 } else { 0.5 * fc };
             f0 = 0.5 * f0;
             let ft = 2.0 * (0.25 - fc);
 
@@ -280,21 +276,20 @@ where
         if self.type_ == ResampType::Decim && x.len() % self.rate != 0 {
             return Err(Error::Config(format!(
                 "decimation input length ({}) must be a multiple of the rate ({})",
-                x.len(), self.rate,
+                x.len(),
+                self.rate,
             )));
         }
 
         let required_output = match self.type_ {
-            ResampType::Interp => x.len().checked_mul(self.rate).ok_or_else(|| {
-                Error::Range("interpolation output length overflow".into())
-            })?,
+            ResampType::Interp => x
+                .len()
+                .checked_mul(self.rate)
+                .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?,
             ResampType::Decim => x.len() / self.rate,
         };
         if y.len() < required_output {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), required_output,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), required_output,)));
         }
 
         if self.num_stages == 0 {
@@ -376,10 +371,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::random::randnf;
+    use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
     use approx::assert_abs_diff_eq;
-    use test_macro::autotest_annotate;
     use num_complex::Complex32;
-    use crate::{random::randnf, utility::test_helpers::{validate_psd_signal, PsdRegion}};
+    use test_macro::autotest_annotate;
 
     fn testbench_msresamp2_crcf_interp(num_stages: usize, fc: f32, as_: f32) {
         // create and configure objects
@@ -395,7 +391,7 @@ mod tests {
             num_blocks += 1;
         }
         let mut buf = vec![Complex32::new(0.0, 0.0); buf_len];
-        
+
         for i in 0..num_blocks {
             let x = if i == 0 { Complex32::new(1.0, 0.0) } else { Complex32::new(0.0, 0.0) };
 
@@ -412,10 +408,11 @@ mod tests {
         // verify result
         let f0 = fc / m as f32;
         let f1 = 1.0 / m as f32 - f0;
+        #[rustfmt::skip]
         let regions = vec![
-            PsdRegion { fmin: -0.5, fmax: -f1, pmin: 0.0, pmax: -as_, test_lo: false, test_hi: true },
-            PsdRegion { fmin: -f0, fmax: f0, pmin: -0.1, pmax: 0.1, test_lo: true, test_hi: true },
-            PsdRegion { fmin: f1, fmax: 0.5, pmin: 0.0, pmax: -as_, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -0.5, fmax: -f1, pmin:  0.0, pmax: -as_, test_lo: false, test_hi: true },
+            PsdRegion { fmin: -f0,  fmax: f0,  pmin: -0.1, pmax:  0.1, test_lo: true,  test_hi: true },
+            PsdRegion { fmin: f1,   fmax: 0.5, pmin:  0.0, pmax: -as_, test_lo: false, test_hi: true },
         ];
 
         assert!(validate_psd_signal(&buf, &regions).unwrap());
@@ -423,47 +420,69 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_01)]
-    fn test_msresamp2_crcf_interp_01() { testbench_msresamp2_crcf_interp(1, 0.25, 60.0); }
+    fn test_msresamp2_crcf_interp_01() {
+        testbench_msresamp2_crcf_interp(1, 0.25, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_02)]
-    fn test_msresamp2_crcf_interp_02() { testbench_msresamp2_crcf_interp(2, 0.25, 60.0); }
+    fn test_msresamp2_crcf_interp_02() {
+        testbench_msresamp2_crcf_interp(2, 0.25, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_03)]
-    fn test_msresamp2_crcf_interp_03() { testbench_msresamp2_crcf_interp(3, 0.25, 60.0); }
+    fn test_msresamp2_crcf_interp_03() {
+        testbench_msresamp2_crcf_interp(3, 0.25, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_04)]
-    fn test_msresamp2_crcf_interp_04() { testbench_msresamp2_crcf_interp(4, 0.25, 60.0); }
+    fn test_msresamp2_crcf_interp_04() {
+        testbench_msresamp2_crcf_interp(4, 0.25, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_05)]
-    fn test_msresamp2_crcf_interp_05() { testbench_msresamp2_crcf_interp(1, 0.45, 60.0); }
+    fn test_msresamp2_crcf_interp_05() {
+        testbench_msresamp2_crcf_interp(1, 0.45, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_06)]
-    fn test_msresamp2_crcf_interp_06() { testbench_msresamp2_crcf_interp(2, 0.45, 60.0); }
+    fn test_msresamp2_crcf_interp_06() {
+        testbench_msresamp2_crcf_interp(2, 0.45, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_07)]
-    fn test_msresamp2_crcf_interp_07() { testbench_msresamp2_crcf_interp(3, 0.45, 60.0); }
+    fn test_msresamp2_crcf_interp_07() {
+        testbench_msresamp2_crcf_interp(3, 0.45, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_08)]
-    fn test_msresamp2_crcf_interp_08() { testbench_msresamp2_crcf_interp(4, 0.45, 60.0); }
+    fn test_msresamp2_crcf_interp_08() {
+        testbench_msresamp2_crcf_interp(4, 0.45, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_09)]
-    fn test_msresamp2_crcf_interp_09() { testbench_msresamp2_crcf_interp(3, 0.45, 80.0); }
+    fn test_msresamp2_crcf_interp_09() {
+        testbench_msresamp2_crcf_interp(3, 0.45, 80.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_10)]
-    fn test_msresamp2_crcf_interp_10() { testbench_msresamp2_crcf_interp(3, 0.45, 90.0); }
+    fn test_msresamp2_crcf_interp_10() {
+        testbench_msresamp2_crcf_interp(3, 0.45, 90.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_msresamp2_crcf_interp_11)]
-    fn test_msresamp2_crcf_interp_11() { testbench_msresamp2_crcf_interp(3, 0.45, 100.0); }
+    fn test_msresamp2_crcf_interp_11() {
+        testbench_msresamp2_crcf_interp(3, 0.45, 100.0);
+    }
 
     // #[test]
     // fn test_msresamp2_crcf_interp_12() { testbench_msresamp2_crcf_interp(3, 0.45, 120.0); }
@@ -473,13 +492,7 @@ mod tests {
     fn test_msresamp2_copy() {
         // create original resampler
         let num_stages = 4;
-        let mut q0 = MsResamp2::<Complex32, f32>::new(
-            ResampType::Interp,
-            num_stages,
-            0.4,
-            0.0,
-            60.0
-        ).unwrap();
+        let mut q0 = MsResamp2::<Complex32, f32>::new(ResampType::Interp, num_stages, 0.4, 0.0, 60.0).unwrap();
 
         // allocate buffers for output
         let m = 1 << num_stages; // interpolation factor
@@ -615,8 +628,14 @@ mod tests {
         for &type_ in &[ResampType::Interp, ResampType::Decim] {
             let num_stages = 3;
             let rate = 1usize << num_stages;
-            let n_in = match type_ { ResampType::Interp => 4, ResampType::Decim => 4 * rate };
-            let n_out = match type_ { ResampType::Interp => n_in * rate, ResampType::Decim => n_in / rate };
+            let n_in = match type_ {
+                ResampType::Interp => 4,
+                ResampType::Decim => 4 * rate,
+            };
+            let n_out = match type_ {
+                ResampType::Interp => n_in * rate,
+                ResampType::Decim => n_in / rate,
+            };
             let mut q = MsResamp2::<Complex32, f32>::new(type_, num_stages, 0.4, 0.0, 60.0).unwrap();
             let mut q_ref = q.clone();
             let x: Vec<Complex32> = (0..n_in).map(|_| Complex32::new(randnf(), randnf())).collect();

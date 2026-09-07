@@ -1,8 +1,8 @@
 // Root-Nyquist Kaiser filter design.
 
 use crate::error::{Error, Result};
-use crate::filter::fir::design::{estimate_req_filter_stopband_attenuation, filter_isi};
 use crate::filter::fir::design::kaiser::fir_design_kaiser;
+use crate::filter::fir::design::{estimate_req_filter_stopband_attenuation, filter_isi};
 
 /// Design frequency-shifted root-Nyquist filter based on the Kaiser-windowed sinc.
 ///
@@ -13,7 +13,7 @@ use crate::filter::fir::design::kaiser::fir_design_kaiser;
 /// * `dt`     : filter fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// A vec of filter coefficients
 pub fn fir_design_rkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // validate input
@@ -46,7 +46,7 @@ pub fn fir_design_rkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<
 /// * `dt`     : filter fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// A vec of filter coefficients
 pub fn fir_design_arkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // validate input
@@ -76,11 +76,11 @@ pub fn fir_design_arkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec
     }
 
     // compute filter design parameters
-    let n = 2 * k * m + 1;                                        // filter length
-    let kf = k as f32;                                            // samples/symbol (float)
-    let del = beta * rho_hat / kf;                                // transition bandwidth
-    let as_ = estimate_req_filter_stopband_attenuation(del, n)?;  // stop-band suppression
-    let fc = 0.5 * (1.0 + beta * (1.0 - rho_hat)) / kf;           // filter cutoff
+    let n = 2 * k * m + 1; // filter length
+    let kf = k as f32; // samples/symbol (float)
+    let del = beta * rho_hat / kf; // transition bandwidth
+    let as_ = estimate_req_filter_stopband_attenuation(del, n)?; // stop-band suppression
+    let fc = 0.5 * (1.0 + beta * (1.0 - rho_hat)) / kf; // filter cutoff
 
     // compute filter coefficients
     let mut h = fir_design_kaiser(n, fc, as_, dt)?;
@@ -102,7 +102,7 @@ pub fn fir_design_arkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec
 /// * `beta`   : filter excess bandwidth factor (0,1)
 ///
 /// # Returns
-/// 
+///
 /// Bandwidth adjustment factor
 fn rkaiser_approximate_rho(m: usize, beta: f32) -> f32 {
     if m < 1 {
@@ -112,6 +112,7 @@ fn rkaiser_approximate_rho(m: usize, beta: f32) -> f32 {
     }
 
     // compute bandwidth adjustment estimate
+    #[rustfmt::skip]
     let (c0, c1, c2) = match m {
         1 =>  (0.75749731, 0.06134303, -0.08729663),
         2 =>  (0.81151861, 0.07437658, -0.01427088),
@@ -135,7 +136,7 @@ fn rkaiser_approximate_rho(m: usize, beta: f32) -> f32 {
         20 => (0.95281708, 0.05637607, -0.00304790),
         21 => (0.95536256, 0.05575880, -0.00312988),
         22 => (0.95754206, 0.05426060, -0.00385945),
-        _ => (0.056873 * (m as f32 + 1e-3).ln() + 0.781388, 0.05426, -0.00386),
+        _ =>  (0.056873 * (m as f32 + 1e-3).ln() + 0.781388, 0.05426, -0.00386),
     };
 
     let b = beta.ln();
@@ -146,14 +147,7 @@ fn rkaiser_approximate_rho(m: usize, beta: f32) -> f32 {
 }
 
 #[cfg(not(feature = "liquid-quirks"))]
-fn fir_design_rkaiser_bounded(
-    k: usize,
-    m: usize,
-    beta: f32,
-    dt: f32,
-    rho_hat: f32,
-    h: &mut [f32],
-) -> Result<f32> {
+fn fir_design_rkaiser_bounded(k: usize, m: usize, beta: f32, dt: f32, rho_hat: f32, h: &mut [f32]) -> Result<f32> {
     // algorithm:
     //  1. choose three initial points [x0, x1, x2] where x0 < x1 < x2
     //  2. bisect [x0, x1] and [x1, x2] to obtain xa and xb
@@ -163,8 +157,8 @@ fn fir_design_rkaiser_bounded(
 
     // initial bandwidth adjustment bounds
     let mut x0 = 0.5 * rho_hat; // lower bound
-    let mut x1 = rho_hat;       // midpoint: use initial estimate
-    let mut x2 = 1.0;           // upper bound
+    let mut x1 = rho_hat; // midpoint: use initial estimate
+    let mut x2 = 1.0; // upper bound
 
     // evaluate performance (ISI) at each bandwidth adjustment
     let y0 = fir_design_rkaiser_internal_isi(k, m, beta, dt, x0, h)?;
@@ -228,9 +222,9 @@ fn fir_design_rkaiser_bounded(
 /// * `beta`   : filter excess bandwidth factor (0,1)
 /// * `dt`     : filter fractional sample delay
 /// * `h`      : resulting filter [size: 2*k*m+1]
-/// 
+///
 /// # Returns
-/// 
+///
 /// Bandwidth adjustment factor
 fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut [f32]) -> Result<f32> {
     // algorithm:
@@ -254,8 +248,8 @@ fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut 
     // run parabolic search to find bandwidth adjustment x_hat which
     // minimizes the inter-symbol interference of the filter
     let pmax = 14;
-    let mut dx = 0.2;    // bounding size
-    let tol = 1e-6;      // tolerance
+    let mut dx = 0.2; // bounding size
+    let tol = 1e-6; // tolerance
 
     for p in 0..pmax {
         // choose boundary points
@@ -274,10 +268,12 @@ fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut 
         }
 
         // compute minimum of quadratic function
+        #[rustfmt::skip]
         let ta = y0 * (x1 * x1 - x2 * x2) +
                  y1 * (x2 * x2 - x0 * x0) +
                  y2 * (x0 * x0 - x1 * x1);
 
+        #[rustfmt::skip]
         let tb = y0 * (x1 - x2) +
                  y1 * (x2 - x0) +
                  y2 * (x0 - x1);
@@ -288,7 +284,7 @@ fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut 
         // ensure x_hat is within boundary (this will fail if y1 > y0 || y1 > y2)
         if x_hat < x0 || x_hat > x2 {
             // when this fires at p == 0, rho_opt is still rho_hat and the search has
-            // contributed nothing 
+            // contributed nothing
             if p == 0 {
                 rho_opt = fir_design_rkaiser_bounded(k, m, beta, dt, rho_hat, h)?;
             }
@@ -330,7 +326,7 @@ fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut 
 /// * `h`      : filter buffer [size: 2*k*m+1]
 ///
 /// # Returns
-/// 
+///
 /// RMS of ISI
 fn fir_design_rkaiser_internal_isi(k: usize, m: usize, beta: f32, dt: f32, rho: f32, h: &mut [f32]) -> Result<f32> {
     // validate input
@@ -338,10 +334,10 @@ fn fir_design_rkaiser_internal_isi(k: usize, m: usize, beta: f32, dt: f32, rho: 
         return Err(Error::Config(format!("rho must be in [0,1], got {}", rho)));
     }
 
-    let n = 2 * k * m + 1;                   // filter length
-    let kf = k as f32;                       // samples/symbol (float)
-    let del = beta * rho / kf;               // transition bandwidth
-    let as_ = estimate_req_filter_stopband_attenuation(del, n)?;  // stop-band suppression
+    let n = 2 * k * m + 1; // filter length
+    let kf = k as f32; // samples/symbol (float)
+    let del = beta * rho / kf; // transition bandwidth
+    let as_ = estimate_req_filter_stopband_attenuation(del, n)?; // stop-band suppression
     let fc = 0.5 * (1.0 + beta * (1.0 - rho)) / kf; // filter cutoff
 
     // compute filter
@@ -364,20 +360,20 @@ mod tests {
     #[autotest_annotate(autotest_liquid_rkaiser_config)]
     fn test_liquid_rkaiser_config() {
         // Testing liquid_firdes_rkaiser
-        assert!(fir_design_rkaiser(0, 12, 0.2, 0.0).is_err());  // k too small
-        assert!(fir_design_rkaiser(2, 0, 0.2, 0.0).is_err());   // m too small
+        assert!(fir_design_rkaiser(0, 12, 0.2, 0.0).is_err()); // k too small
+        assert!(fir_design_rkaiser(2, 0, 0.2, 0.0).is_err()); // m too small
         assert!(fir_design_rkaiser(2, 12, -0.7, 0.0).is_err()); // beta too small
-        assert!(fir_design_rkaiser(2, 12, 2.7, 0.0).is_err());  // beta too large
+        assert!(fir_design_rkaiser(2, 12, 2.7, 0.0).is_err()); // beta too large
         assert!(fir_design_rkaiser(2, 12, 0.2, -2.0).is_err()); // dt too small
-        assert!(fir_design_rkaiser(2, 12, 0.2, 3.0).is_err());  // dt too large
+        assert!(fir_design_rkaiser(2, 12, 0.2, 3.0).is_err()); // dt too large
 
         // Testing liquid_firdes_arkaiser
-        assert!(fir_design_arkaiser(0, 12, 0.2, 0.0).is_err());  // k too small
-        assert!(fir_design_arkaiser(2, 0, 0.2, 0.0).is_err());   // m too small
+        assert!(fir_design_arkaiser(0, 12, 0.2, 0.0).is_err()); // k too small
+        assert!(fir_design_arkaiser(2, 0, 0.2, 0.0).is_err()); // m too small
         assert!(fir_design_arkaiser(2, 12, -0.7, 0.0).is_err()); // beta too small
-        assert!(fir_design_arkaiser(2, 12, 2.7, 0.0).is_err());  // beta too large
+        assert!(fir_design_arkaiser(2, 12, 2.7, 0.0).is_err()); // beta too large
         assert!(fir_design_arkaiser(2, 12, 0.2, -2.0).is_err()); // dt too small
-        assert!(fir_design_arkaiser(2, 12, 0.2, 3.0).is_err());  // dt too large
+        assert!(fir_design_arkaiser(2, 12, 0.2, 3.0).is_err()); // dt too large
     }
 
     #[test]
@@ -392,14 +388,7 @@ mod tests {
 
         let rho_hat = rkaiser_approximate_rho(m, beta);
         let mut h_approx = vec![0.0; 2 * k * m + 1];
-        let isi_approx = fir_design_rkaiser_internal_isi(
-            k,
-            m,
-            beta,
-            dt,
-            rho_hat,
-            &mut h_approx,
-        ).unwrap();
+        let isi_approx = fir_design_rkaiser_internal_isi(k, m, beta, dt, rho_hat, &mut h_approx).unwrap();
 
         assert!(isi_approx > 0.03);
         if cfg!(feature = "liquid-quirks") {
@@ -415,5 +404,4 @@ mod tests {
         assert!(fir_design_arkaiser(2, 3, 0.2, 0.75).is_ok());
         assert!(fir_design_rkaiser(2, 3, 0.2, -0.75).is_ok());
     }
-
 }

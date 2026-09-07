@@ -26,5 +26,4 @@ mod tests {
         pass_decode(&encoded, &mut decoded);
         assert_eq!(decoded, msg);
     }
-
 }

@@ -6,10 +6,10 @@
 //
 // The equalizer variant can be enabled by setting GMSKDEM_USE_EQUALIZER to true.
 
-use crate::error::{Error, Result};
 use crate::equalization::eqlms::Eqlms;
-use crate::filter::{FirFilterShape, FirFilter};
+use crate::error::{Error, Result};
 use crate::filter::fir_design_prototype;
+use crate::filter::{FirFilter, FirFilterShape};
 use num_complex::Complex32;
 
 // Set to true to use adaptive equalizer instead of fixed matched filter.
@@ -28,12 +28,12 @@ enum FilterState {
 /// GMSK demodulator
 #[derive(Clone, Debug)]
 pub struct GmskDem {
-    k: usize,                // samples/symbol
-    m: usize,                // symbol delay
-    bt: f32,                 // bandwidth/time product
-    k_inv: f32,              // 1/k (for equalizer training)
+    k: usize,   // samples/symbol
+    m: usize,   // symbol delay
+    bt: f32,    // bandwidth/time product
+    k_inv: f32, // 1/k (for equalizer training)
     filter: FilterState,
-    x_prime: Complex32,      // received signal state
+    x_prime: Complex32, // received signal state
     num_symbols_demod: u64,
 }
 
@@ -47,19 +47,13 @@ impl GmskDem {
     /// * `bt` - bandwidth-time product (must be in (0, 1))
     pub fn new(k: usize, m: usize, bt: f32) -> Result<Self> {
         if k < 2 {
-            return Err(Error::Config(
-                "samples/symbol must be at least 2".into(),
-            ));
+            return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
         if m < 1 {
-            return Err(Error::Config(
-                "symbol delay must be at least 1".into(),
-            ));
+            return Err(Error::Config("symbol delay must be at least 1".into()));
         }
         if bt <= 0.0 || bt >= 1.0 {
-            return Err(Error::Config(
-                "bandwidth/time product must be in (0, 1)".into(),
-            ));
+            return Err(Error::Config("bandwidth/time product must be in (0, 1)".into()));
         }
 
         let filter = if GMSKDEM_USE_EQUALIZER {
@@ -71,15 +65,8 @@ impl GmskDem {
             FilterState::Fir(FirFilter::new(&h)?)
         };
 
-        let mut q = Self {
-            k,
-            m,
-            bt,
-            k_inv: 1.0 / k as f32,
-            filter,
-            x_prime: Complex32::new(0.0, 0.0),
-            num_symbols_demod: 0,
-        };
+        let mut q =
+            Self { k, m, bt, k_inv: 1.0 / k as f32, filter, x_prime: Complex32::new(0.0, 0.0), num_symbols_demod: 0 };
 
         q.reset();
         Ok(q)
@@ -121,18 +108,12 @@ impl GmskDem {
     /// Only effective when using equalizer mode.
     pub fn set_eq_bw(&mut self, bw: f32) -> Result<()> {
         if bw < 0.0 || bw > 0.5 {
-            return Err(Error::Config(
-                "bandwidth must be in [0, 0.5]".into(),
-            ));
+            return Err(Error::Config("bandwidth must be in [0, 0.5]".into()));
         }
 
         match &mut self.filter {
             FilterState::Equalizer(eq) => eq.set_bw(bw),
-            FilterState::Fir(_) => {
-                Err(Error::Config(
-                    "equalizer is disabled".into(),
-                ))
-            }
+            FilterState::Fir(_) => Err(Error::Config("equalizer is disabled".into())),
         }
     }
 
@@ -160,11 +141,7 @@ impl GmskDem {
     /// Demodulated symbol (0 or 1)
     pub fn demodulate(&mut self, x: &[Complex32]) -> Result<u8> {
         if x.len() < self.k {
-            return Err(Error::Config(format!(
-                "input buffer too small: {} < {}",
-                x.len(),
-                self.k
-            )));
+            return Err(Error::Config(format!("input buffer too small: {} < {}", x.len(), self.k)));
         }
 
         self.num_symbols_demod += 1;

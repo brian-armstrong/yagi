@@ -17,6 +17,7 @@ pub struct ConvParams {
 }
 
 // r1/2, K=7, dfree=10
+#[rustfmt::skip]
 pub const CONV_V27: ConvParams = ConvParams {
     rate: 2,
     order: 7,
@@ -24,6 +25,7 @@ pub const CONV_V27: ConvParams = ConvParams {
 };
 
 // r1/2, K=9, dfree=12
+#[rustfmt::skip]
 pub const CONV_V29: ConvParams = ConvParams {
     rate: 2,
     order: 9,
@@ -31,6 +33,7 @@ pub const CONV_V29: ConvParams = ConvParams {
 };
 
 // r1/3, K=9, dfree=18
+#[rustfmt::skip]
 pub const CONV_V39: ConvParams = ConvParams {
     rate: 3,
     order: 9,
@@ -38,6 +41,7 @@ pub const CONV_V39: ConvParams = ConvParams {
 };
 
 // r1/6, K=15, dfree<=57 (Heller 1968)
+#[rustfmt::skip]
 pub const CONV_V615: ConvParams = ConvParams {
     rate: 6,
     order: 15,
@@ -48,60 +52,84 @@ pub const CONV_V615: ConvParams = ConvParams {
 // of period entries, row-major, where a true entry means "transmit this bit"
 
 // 2/3-rate K=7 punctured convolutional code
-pub const PMATRIX_V27P23: [&[bool]; 2] = [&[true, true], &[true, false]];
+#[rustfmt::skip]
+pub const PMATRIX_V27P23: [&[bool]; 2] = [
+    &[true, true],
+    &[true, false]
+];
 
 // 3/4-rate K=7 punctured convolutional code
-pub const PMATRIX_V27P34: [&[bool]; 2] = [&[true, true, false], &[true, false, true]];
+#[rustfmt::skip]
+pub const PMATRIX_V27P34: [&[bool]; 2] = [
+    &[true, true, false],
+    &[true, false, true]
+];
 
 // 4/5-rate K=7 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V27P45: [&[bool]; 2] = [
     &[true, true, true, true],
     &[true, false, false, false],
 ];
 
 // 5/6-rate K=7 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V27P56: [&[bool]; 2] = [
     &[true, true, false, true, false],
     &[true, false, true, false, true],
 ];
 
 // 6/7-rate K=7 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V27P67: [&[bool]; 2] = [
     &[true, true, true, false, true, false],
     &[true, false, false, true, false, true],
 ];
 
 // 7/8-rate K=7 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V27P78: [&[bool]; 2] = [
     &[true, true, true, true, false, true, false],
     &[true, false, false, false, true, false, true],
 ];
 
 // 2/3-rate K=9 punctured convolutional code
-pub const PMATRIX_V29P23: [&[bool]; 2] = [&[true, true], &[true, false]];
+#[rustfmt::skip]
+pub const PMATRIX_V29P23: [&[bool]; 2] = [
+    &[true, true],
+    &[true, false]
+];
 
 // 3/4-rate K=9 punctured convolutional code
-pub const PMATRIX_V29P34: [&[bool]; 2] = [&[true, true, true], &[true, false, false]];
+#[rustfmt::skip]
+pub const PMATRIX_V29P34: [&[bool]; 2] = [
+    &[true, true, true],
+    &[true, false, false]
+];
 
 // 4/5-rate K=9 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V29P45: [&[bool]; 2] = [
     &[true, true, false, true],
     &[true, false, true, false],
 ];
 
 // 5/6-rate K=9 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V29P56: [&[bool]; 2] = [
     &[true, false, true, true, false],
     &[true, true, false, false, true],
 ];
 
 // 6/7-rate K=9 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V29P67: [&[bool]; 2] = [
     &[true, true, false, true, true, false],
     &[true, false, true, false, false, true],
 ];
 
 // 7/8-rate K=9 punctured convolutional code
+#[rustfmt::skip]
 pub const PMATRIX_V29P78: [&[bool]; 2] = [
     &[true, true, false, true, false, true, true],
     &[true, false, true, false, true, false, false],

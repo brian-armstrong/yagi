@@ -52,11 +52,7 @@ impl Limiter {
         // hard limit the gain
         let magnitude = x.abs();
         let hold_magnitude = self.peak_hold.execute(magnitude);
-        let peak_min_gain = if hold_magnitude <= self.limit {
-            1.0
-        } else {
-            self.limit / hold_magnitude
-        };
+        let peak_min_gain = if hold_magnitude <= self.limit { 1.0 } else { self.limit / hold_magnitude };
 
         // exponential release
         let decay = (peak_min_gain - self.last_release) * self.release_scale;

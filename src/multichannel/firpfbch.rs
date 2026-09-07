@@ -87,17 +87,7 @@ where
             ChannelizerType::Synthesizer => Fft::new(num_channels, Direction::Backward),
         };
 
-        let mut q = Self { 
-            channelizer_type,
-            num_channels,
-            p,
-            dp,
-            w,
-            filter_index: 0,
-            fft,
-            x,
-            x_out,
-        };
+        let mut q = Self { channelizer_type, num_channels, p, dp, w, filter_index: 0, fft, x, x_out };
 
         q.reset();
         Ok(q)
@@ -316,15 +306,30 @@ mod tests {
         assert!(FirPfbChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 0, 12, 60.0).is_err());
         assert!(FirPfbChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 0, 60.0).is_err());
 
-        assert!(
-            FirPfbChannelizer::<Complex32>::new_rnyquist(ChannelizerType::Analyzer, 0, 12, 0.2, filter::FirFilterShape::Arkaiser).is_err()
-        );
-        assert!(
-            FirPfbChannelizer::<Complex32>::new_rnyquist(ChannelizerType::Analyzer, 76, 0, 0.2, filter::FirFilterShape::Arkaiser).is_err()
-        );
-        assert!(
-            FirPfbChannelizer::<Complex32>::new_rnyquist(ChannelizerType::Analyzer, 76, 12, 77.0, filter::FirFilterShape::Arkaiser).is_err()
-        ); // invalid filter excess bandwidth
+        assert!(FirPfbChannelizer::<Complex32>::new_rnyquist(
+            ChannelizerType::Analyzer,
+            0,
+            12,
+            0.2,
+            filter::FirFilterShape::Arkaiser
+        )
+        .is_err());
+        assert!(FirPfbChannelizer::<Complex32>::new_rnyquist(
+            ChannelizerType::Analyzer,
+            76,
+            0,
+            0.2,
+            filter::FirFilterShape::Arkaiser
+        )
+        .is_err());
+        assert!(FirPfbChannelizer::<Complex32>::new_rnyquist(
+            ChannelizerType::Analyzer,
+            76,
+            12,
+            77.0,
+            filter::FirFilterShape::Arkaiser
+        )
+        .is_err()); // invalid filter excess bandwidth
 
         // create proper object and test configurations
         let q = FirPfbChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 12, 60.0).unwrap();
@@ -434,7 +439,8 @@ mod tests {
         let mut f = FirFilter::<Complex32, f32>::new(&h).unwrap();
 
         // create filterbank channelizer object
-        let mut q = FirPfbChannelizer::<Complex32, f32>::new(ChannelizerType::Synthesizer, num_channels, p, &h).unwrap();
+        let mut q =
+            FirPfbChannelizer::<Complex32, f32>::new(ChannelizerType::Synthesizer, num_channels, p, &h).unwrap();
 
         let mut y_input = vec![vec![Complex32::new(0.0, 0.0); num_channels]; num_symbols];
         let mut y0 = vec![Complex32::new(0.0, 0.0); num_samples];
@@ -512,16 +518,12 @@ mod tests {
         let mut h = vec![Complex32::new(0.0, 0.0); h_len];
         let mut ms = MSequence::create_default(6).unwrap();
         for i in 0..h_len {
-            h[i] = Complex32::new(
-                ms.generate_symbol(2) as f32 - 1.5,
-                ms.generate_symbol(2) as f32 - 1.5,
-            );
+            h[i] = Complex32::new(ms.generate_symbol(2) as f32 - 1.5, ms.generate_symbol(2) as f32 - 1.5);
         }
 
         // create filterbank object with complex coefficients
-        let mut q = FirPfbChannelizer::<Complex32, Complex32>::new(
-            ChannelizerType::Analyzer, num_channels, p, &h
-        ).unwrap();
+        let mut q =
+            FirPfbChannelizer::<Complex32, Complex32>::new(ChannelizerType::Analyzer, num_channels, p, &h).unwrap();
 
         // create filter object
         let mut f = FirFilter::<Complex32, Complex32>::new(&h).unwrap();

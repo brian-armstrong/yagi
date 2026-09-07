@@ -1,7 +1,7 @@
 use crate::modem::modem::*;
 
-
 // UIllinois logo
+#[rustfmt::skip]
 pub(super) const MODEM_ARB_UI64: [Complex32; 64] = [
     Complex32::new( 9.9563e-01,  1.4970e+00), Complex32::new( 7.9767e-01,  1.4970e+00),
     Complex32::new( 5.9971e-01,  1.4970e+00), Complex32::new( 3.9884e-01,  1.4970e+00),

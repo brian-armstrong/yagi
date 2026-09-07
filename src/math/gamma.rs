@@ -232,6 +232,7 @@ mod tests {
     #[autotest_annotate(autotest_factorial)]
     fn test_factorial() {
         const EPSILON: f32 = 1e-3;
+        #[rustfmt::skip]
         let test_vectors = [
             (0, 1.0),
             (1, 1.0),
@@ -246,5 +247,4 @@ mod tests {
             assert_abs_diff_eq!(factorialf(n), expected, epsilon = EPSILON);
         }
     }
-
 }

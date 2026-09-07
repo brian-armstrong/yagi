@@ -1,10 +1,10 @@
-use crate::error::{Error, Result};
-use crate::dotprod::{DotProd, DotProduct};
-use crate::filter;
 use crate::buffer::Window;
+use crate::dotprod::{DotProd, DotProduct};
+use crate::error::{Error, Result};
+use crate::filter;
 use std::f32::consts::PI;
 
-use num_complex::{ComplexFloat, Complex32};
+use num_complex::{Complex32, ComplexFloat};
 
 pub trait Resamp2Coeff {
     fn for_halfband(halfband: f32, t: f32, f0: f32) -> Self;
@@ -65,21 +65,14 @@ where
         let h1_len = 2 * m;
         let mut h1 = vec![Coeff::zero(); h1_len];
         for (i, h1i) in h1.iter_mut().enumerate() {
-            *h1i = h[h_len - 2*i - 2];
+            *h1i = h[h_len - 2 * i - 2];
         }
 
         let w0 = Window::new(2 * m)?;
         let w1 = Window::new(2 * m)?;
 
-        let mut q = Self {
-            m,
-            dp: DotProduct::new(&h1)?,
-            w0,
-            w1,
-            decim_phase: Vec::new(),
-            scale: Coeff::one(),
-            toggle: false,
-        };
+        let mut q =
+            Self { m, dp: DotProduct::new(&h1)?, w0, w1, decim_phase: Vec::new(), scale: Coeff::one(), toggle: false };
 
         q.reset();
         Ok(q)
@@ -194,13 +187,9 @@ where
     ///
     /// Returns the number of output samples written, `2 * x.len()`.
     pub fn filter_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n_out = x.len().checked_mul(2)
-            .ok_or_else(|| Error::Range("filter output length overflow".into()))?;
+        let n_out = x.len().checked_mul(2).ok_or_else(|| Error::Range("filter output length overflow".into()))?;
         if y.len() < n_out {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), n_out,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
         }
         for (i, &xi) in x.iter().enumerate() {
             let (y0, y1) = self.filter_execute(xi)?;
@@ -222,10 +211,7 @@ where
         let n = x.len() / 2;
         let n_out = 2 * n;
         if y.len() < n_out {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), n_out,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
         }
         for i in 0..n {
             self.analyzer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
@@ -245,10 +231,7 @@ where
         let n = x.len() / 2;
         let n_out = 2 * n;
         if y.len() < n_out {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), n_out,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
         }
         for i in 0..n {
             self.synthesizer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
@@ -267,10 +250,7 @@ where
     pub fn decim_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         let n = x.len() / 2;
         if y.len() < n {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), n,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n,)));
         }
 
         self.reserve_decim_block(x.len());
@@ -300,10 +280,7 @@ where
 
         // the first `m` samples of the odd branch are fetched from w0, not x
         let prefix_len = n.min(m);
-        for (yi, &odd) in y[..prefix_len]
-            .iter_mut()
-            .zip(&self.w0.read()[m..m + prefix_len])
-        {
+        for (yi, &odd) in y[..prefix_len].iter_mut().zip(&self.w0.read()[m..m + prefix_len]) {
             *yi = (*yi + odd) * scale;
         }
 
@@ -330,13 +307,10 @@ where
     ///
     /// Returns the number of output samples written, `2 * x.len()`.
     pub fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n_out = x.len().checked_mul(2)
-            .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
+        let n_out =
+            x.len().checked_mul(2).ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
         if y.len() < n_out {
-            return Err(Error::Config(format!(
-                "output length ({}) must be at least {}",
-                y.len(), n_out,
-            )));
+            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
         }
 
         let m = self.m;
@@ -371,32 +345,33 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_signal};
     use crate::random::randnf;
+    use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
+    use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     use num_complex::Complex32;
 
     #[test]
     #[autotest_annotate(autotest_resamp2_analysis)]
     fn test_resamp2_analysis() {
-        let m = 5;       // filter semi-length (actual length: 4*m+1)
-        let n = 37;      // number of input samples
-        let as_ = 60.0;  // stop-band attenuation [dB]
+        let m = 5; // filter semi-length (actual length: 4*m+1)
+        let n = 37; // number of input samples
+        let as_ = 60.0; // stop-band attenuation [dB]
         let f0 = 0.0739; // low frequency signal
         let f1 = -0.1387; // high frequency signal (+pi)
-        let tol = 1e-3;  // error tolerance
+        let tol = 1e-3; // error tolerance
 
         // allocate memory for data arrays
-        let mut x = vec![Complex32::new(0.0, 0.0); 2*n+2*m+1]; // input signal (with delay)
-        let mut y0 = vec![Complex32::new(0.0, 0.0); n];        // low-pass output
-        let mut y1 = vec![Complex32::new(0.0, 0.0); n];        // high-pass output
+        let mut x = vec![Complex32::new(0.0, 0.0); 2 * n + 2 * m + 1]; // input signal (with delay)
+        let mut y0 = vec![Complex32::new(0.0, 0.0); n]; // low-pass output
+        let mut y1 = vec![Complex32::new(0.0, 0.0); n]; // high-pass output
 
         // generate the baseband signal
-        for i in 0..(2*n+2*m+1) {
-            x[i] = if i < 2*n {
-                Complex32::new(0.0, f0 * i as f32).exp() + Complex32::new(0.0, (std::f32::consts::PI + f1) * i as f32).exp()
+        for i in 0..(2 * n + 2 * m + 1) {
+            x[i] = if i < 2 * n {
+                Complex32::new(0.0, f0 * i as f32).exp()
+                    + Complex32::new(0.0, (std::f32::consts::PI + f1) * i as f32).exp()
             } else {
                 Complex32::new(0.0, 0.0)
             };
@@ -408,40 +383,40 @@ mod tests {
         // run half-band decimation
         let mut y_hat = [Complex32::new(0.0, 0.0); 2];
         for i in 0..n {
-            q.analyzer_execute(&x[2*i..2*i+2], &mut y_hat).unwrap();
+            q.analyzer_execute(&x[2 * i..2 * i + 2], &mut y_hat).unwrap();
             y0[i] = y_hat[0];
             y1[i] = y_hat[1];
         }
 
         // validate output
-        for i in m..(n-m) {
-            assert_abs_diff_eq!(y0[i+m].re, (2.0 * f0 * (i as f32 + 0.5)).cos(), epsilon = tol);
-            assert_abs_diff_eq!(y0[i+m].im, (2.0 * f0 * (i as f32 + 0.5)).sin(), epsilon = tol);
+        for i in m..(n - m) {
+            assert_abs_diff_eq!(y0[i + m].re, (2.0 * f0 * (i as f32 + 0.5)).cos(), epsilon = tol);
+            assert_abs_diff_eq!(y0[i + m].im, (2.0 * f0 * (i as f32 + 0.5)).sin(), epsilon = tol);
 
-            assert_abs_diff_eq!(y1[i+m].re, (2.0 * f1 * (i as f32 + 0.5)).cos(), epsilon = tol);
-            assert_abs_diff_eq!(y1[i+m].im, (2.0 * f1 * (i as f32 + 0.5)).sin(), epsilon = tol);
+            assert_abs_diff_eq!(y1[i + m].re, (2.0 * f1 * (i as f32 + 0.5)).cos(), epsilon = tol);
+            assert_abs_diff_eq!(y1[i + m].im, (2.0 * f1 * (i as f32 + 0.5)).sin(), epsilon = tol);
         }
     }
 
     #[test]
     #[autotest_annotate(autotest_resamp2_synthesis)]
     fn test_resamp2_synthesis() {
-        let m = 5;       // filter semi-length (actual length: 4*m+1)
-        let n = 37;      // number of input samples
-        let as_ = 60.0;  // stop-band attenuation [dB]
+        let m = 5; // filter semi-length (actual length: 4*m+1)
+        let n = 37; // number of input samples
+        let as_ = 60.0; // stop-band attenuation [dB]
         let f0 = 0.0739; // low frequency signal
         let f1 = -0.1387; // high frequency signal (+pi)
-        let tol = 3e-3;  // error tolerance
+        let tol = 3e-3; // error tolerance
 
         // allocate memory for data arrays
-        let mut x0 = vec![Complex32::new(0.0, 0.0); n+2*m+1]; // input signal (with delay)
-        let mut x1 = vec![Complex32::new(0.0, 0.0); n+2*m+1]; // input signal (with delay)
-        let mut y = vec![Complex32::new(0.0, 0.0); 2*n];      // synthesized output
+        let mut x0 = vec![Complex32::new(0.0, 0.0); n + 2 * m + 1]; // input signal (with delay)
+        let mut x1 = vec![Complex32::new(0.0, 0.0); n + 2 * m + 1]; // input signal (with delay)
+        let mut y = vec![Complex32::new(0.0, 0.0); 2 * n]; // synthesized output
 
         // generate the baseband signals
-        for i in 0..(n+2*m+1) {
-            x0[i] = if i < 2*n { Complex32::new(0.0, f0 * i as f32).exp() } else { Complex32::new(0.0, 0.0) };
-            x1[i] = if i < 2*n { Complex32::new(0.0, f1 * i as f32).exp() } else { Complex32::new(0.0, 0.0) };
+        for i in 0..(n + 2 * m + 1) {
+            x0[i] = if i < 2 * n { Complex32::new(0.0, f0 * i as f32).exp() } else { Complex32::new(0.0, 0.0) };
+            x1[i] = if i < 2 * n { Complex32::new(0.0, f1 * i as f32).exp() } else { Complex32::new(0.0, 0.0) };
         }
 
         // create the half-band resampler, with a specified stopband attenuation level
@@ -452,13 +427,21 @@ mod tests {
         for i in 0..n {
             x_hat[0] = x0[i];
             x_hat[1] = x1[i];
-            q.synthesizer_execute(&x_hat, &mut y[2*i..2*i+2]).unwrap();
+            q.synthesizer_execute(&x_hat, &mut y[2 * i..2 * i + 2]).unwrap();
         }
 
         // validate output
-        for i in m..(n-2*m) {
-            assert_abs_diff_eq!(y[i+2*m].re, (0.5 * f0 * i as f32).cos() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).cos(), epsilon = tol);
-            assert_abs_diff_eq!(y[i+2*m].im, (0.5 * f0 * i as f32).sin() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).sin(), epsilon = tol);
+        for i in m..(n - 2 * m) {
+            assert_abs_diff_eq!(
+                y[i + 2 * m].re,
+                (0.5 * f0 * i as f32).cos() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).cos(),
+                epsilon = tol
+            );
+            assert_abs_diff_eq!(
+                y[i + 2 * m].im,
+                (0.5 * f0 * i as f32).sin() + ((std::f32::consts::PI + 0.5 * f1) * i as f32).sin(),
+                epsilon = tol
+            );
         }
     }
 
@@ -471,9 +454,9 @@ mod tests {
 
         // get impulse response
         let h_len = 4 * m + 1;
-        let mut h_0 = vec![Complex32::new(0.0, 0.0); h_len];   // low-frequency response
-        let mut h_1 = vec![Complex32::new(0.0, 0.0); h_len];   // high-frequency response
-        
+        let mut h_0 = vec![Complex32::new(0.0, 0.0); h_len]; // low-frequency response
+        let mut h_1 = vec![Complex32::new(0.0, 0.0); h_len]; // high-frequency response
+
         for i in 0..h_len {
             let input = if i == 0 { Complex32::new(1.0, 0.0) } else { Complex32::new(0.0, 0.0) };
             let (y0, y1) = q.filter_execute(input).unwrap();
@@ -485,48 +468,62 @@ mod tests {
         let ft = filter::estimate_req_filter_transition_bandwidth(as_, h_len).unwrap() * 1.1;
 
         // verify low-pass frequency response
+        #[rustfmt::skip]
         let regions_h0 = vec![
             PsdRegion { fmin: -0.5,           fmax: -0.25 - ft/2.0, pmin: 0.0,  pmax: -as_ + tol, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.25 + ft/2.0, fmax:  0.25 - ft/2.0, pmin: -1.0, pmax: 1.0,        test_lo: true,  test_hi: true },
             PsdRegion { fmin:  0.25 + ft/2.0, fmax:  0.5,           pmin: 0.0,  pmax: -as_ + tol, test_lo: false, test_hi: true },
         ];
-        
+
         assert!(validate_psd_signal(&h_0, &regions_h0).unwrap());
 
         // verify high-pass frequency response
+        #[rustfmt::skip]
         let regions_h1 = vec![
             PsdRegion { fmin: -0.5,           fmax: -0.25 - ft/2.0, pmin: -1.0, pmax: 1.0,        test_lo: true,  test_hi: true },
             PsdRegion { fmin: -0.25 + ft/2.0, fmax:  0.25 - ft/2.0, pmin: 0.0,  pmax: -as_ + tol, test_lo: false, test_hi: true },
             PsdRegion { fmin:  0.25 + ft/2.0, fmax:  0.5,           pmin: -1.0, pmax: 1.0,        test_lo: true,  test_hi: true },
         ];
-        
+
         assert!(validate_psd_signal(&h_1, &regions_h1).unwrap());
     }
 
     // test different configurations
     #[test]
     #[autotest_annotate(autotest_resamp2_crcf_filter_0)]
-    fn test_resamp2_crcf_filter_0() { testbench_resamp2_crcf_filter(4, 60.0); }
+    fn test_resamp2_crcf_filter_0() {
+        testbench_resamp2_crcf_filter(4, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp2_crcf_filter_1)]
-    fn test_resamp2_crcf_filter_1() { testbench_resamp2_crcf_filter(7, 60.0); }
+    fn test_resamp2_crcf_filter_1() {
+        testbench_resamp2_crcf_filter(7, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp2_crcf_filter_2)]
-    fn test_resamp2_crcf_filter_2() { testbench_resamp2_crcf_filter(12, 60.0); }
+    fn test_resamp2_crcf_filter_2() {
+        testbench_resamp2_crcf_filter(12, 60.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp2_crcf_filter_3)]
-    fn test_resamp2_crcf_filter_3() { testbench_resamp2_crcf_filter(15, 80.0); }
+    fn test_resamp2_crcf_filter_3() {
+        testbench_resamp2_crcf_filter(15, 80.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp2_crcf_filter_4)]
-    fn test_resamp2_crcf_filter_4() { testbench_resamp2_crcf_filter(15, 100.0); }
+    fn test_resamp2_crcf_filter_4() {
+        testbench_resamp2_crcf_filter(15, 100.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp2_crcf_filter_5)]
-    fn test_resamp2_crcf_filter_5() { testbench_resamp2_crcf_filter(15, 120.0); }
+    fn test_resamp2_crcf_filter_5() {
+        testbench_resamp2_crcf_filter(15, 120.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_resamp2_config)]
@@ -663,9 +660,7 @@ mod tests {
 
             let mut offset = 0usize;
             for n in [0, 1, m - 1, m, 2 * m - 1, 2 * m, 2 * m + 1, 73, 3] {
-                let x: Vec<_> = (0..2 * n)
-                    .map(|i| ((offset + i) as f32 * 0.17).sin())
-                    .collect();
+                let x: Vec<_> = (0..2 * n).map(|i| ((offset + i) as f32 * 0.17).sin()).collect();
                 offset += x.len();
 
                 let mut y_sample = vec![0.0; n];
@@ -729,9 +724,7 @@ mod tests {
 
             let mut offset = 0usize;
             for n in [0, 1, m - 1, m, 2 * m - 1, 2 * m, 2 * m + 1, 73, 3] {
-                let x: Vec<_> = (0..n)
-                    .map(|i| ((offset + i) as f32 * 0.17).sin())
-                    .collect();
+                let x: Vec<_> = (0..n).map(|i| ((offset + i) as f32 * 0.17).sin()).collect();
                 offset += x.len();
 
                 let mut y_sample = vec![0.0; 2 * n];

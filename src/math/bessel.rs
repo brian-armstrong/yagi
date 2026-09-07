@@ -1,5 +1,5 @@
-use std::f32;
 use crate::math::gamma;
+use std::f32;
 
 const NUM_BESSELI_ITERATIONS: usize = 64;
 const NUM_BESSELJ_ITERATIONS: usize = 128;
@@ -128,7 +128,7 @@ mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
-    
+
     #[test]
     #[autotest_annotate(autotest_lnbesselif)]
     fn test_lnbesselif() {
@@ -144,7 +144,7 @@ mod tests {
         assert_abs_diff_eq!(lnbesselif(1.9, 8.7), 6.49469148684252, epsilon = EPSILON);
         assert_abs_diff_eq!(lnbesselif(4.9, 0.01), -30.5795429642925, epsilon = EPSILON);
         assert_abs_diff_eq!(lnbesselif(7.4, 9.3), 4.33486237261960, epsilon = EPSILON);
-    
+
         // test large values of nu
         assert_abs_diff_eq!(lnbesselif(20.0, 3.0), -34.1194307343208, epsilon = EPSILON);
         assert_abs_diff_eq!(lnbesselif(30.0, 3.0), -62.4217845317278, epsilon = EPSILON);
@@ -155,9 +155,8 @@ mod tests {
         // assert_abs_diff_eq!(lnbesselif(40.0, 3.0), -94.0471931331690, epsilon = EPSILON);
         // assert_abs_diff_eq!(lnbesselif(80.0, 3.0), -241.208142562073, epsilon = EPSILON);
         // assert_abs_diff_eq!(lnbesselif(140.0, 3.0), -498.439222461430, epsilon = EPSILON);
-        
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_besselif)]
     fn test_besselif() {
@@ -169,7 +168,7 @@ mod tests {
         assert_abs_diff_eq!(besselif(0.0, 1.0), 1.26606587775201, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(0.0, 2.0), 2.27958530233607, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(0.0, 3.0), 4.88079258586503, epsilon = EPSILON);
-    
+
         assert_abs_diff_eq!(besselif(0.5, 0.0), 0.0, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(0.5, 0.1), 0.252733984600132, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(0.5, 0.2), 0.359208417583362, epsilon = EPSILON);
@@ -177,7 +176,7 @@ mod tests {
         assert_abs_diff_eq!(besselif(0.5, 1.0), 0.937674888245489, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(0.5, 2.0), 2.046236863089057, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(0.5, 3.0), 4.614822903407577, epsilon = EPSILON);
-    
+
         assert_abs_diff_eq!(besselif(1.3, 0.0), 0.0, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(1.3, 0.1), 0.017465030873157, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(1.3, 0.2), 0.043144293848607, epsilon = EPSILON);
@@ -186,7 +185,7 @@ mod tests {
         assert_abs_diff_eq!(besselif(1.3, 2.0), 1.290819215135879, epsilon = EPSILON);
         assert_abs_diff_eq!(besselif(1.3, 3.0), 3.450680420553085, epsilon = EPSILON);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_besseli0f)]
     fn test_besseli0f() {
@@ -199,7 +198,7 @@ mod tests {
         assert_abs_diff_eq!(besseli0f(2.0), 2.27958530233607, epsilon = EPSILON);
         assert_abs_diff_eq!(besseli0f(3.0), 4.88079258586503, epsilon = EPSILON);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_besseljf)]
     fn test_besseljf() {
@@ -214,7 +213,7 @@ mod tests {
         assert_abs_diff_eq!(besseljf(0.0, 4.0), -0.397149809863847, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(0.0, 6.0), 0.150645257250997, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(0.0, 8.0), 0.171650807137554, epsilon = EPSILON);
-    
+
         assert_abs_diff_eq!(besseljf(0.5, 0.0), 0.000000000000000, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(0.5, 0.1), 0.251892940326001, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(0.5, 0.2), 0.354450744211402, epsilon = EPSILON);
@@ -225,7 +224,7 @@ mod tests {
         assert_abs_diff_eq!(besseljf(0.5, 4.0), -0.301920513291637, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(0.5, 6.0), -0.091015409523068, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(0.5, 8.0), 0.279092808570990, epsilon = EPSILON);
-    
+
         assert_abs_diff_eq!(besseljf(1.7, 0.0), 0.000000000000000, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(1.7, 0.1), 0.003971976455203, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(1.7, 0.2), 0.012869169735073, epsilon = EPSILON);
@@ -237,7 +236,7 @@ mod tests {
         assert_abs_diff_eq!(besseljf(1.7, 6.0), -0.308175744215833, epsilon = EPSILON);
         assert_abs_diff_eq!(besseljf(1.7, 8.0), -0.001102600927987, epsilon = EPSILON);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_besselj0f)]
     fn test_besselj0f() {

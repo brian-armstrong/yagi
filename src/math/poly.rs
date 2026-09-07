@@ -2,7 +2,7 @@ use num_complex::{Complex, ComplexFloat};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
-use crate::matrix::{FloatComplex, matrix_access_mut, matrix_mul, matrix_trans, matrix_inv};
+use crate::matrix::{matrix_access_mut, matrix_inv, matrix_mul, matrix_trans, FloatComplex};
 
 /// Evaluate polynomial
 ///
@@ -45,7 +45,7 @@ where
 /// `Ok(())` on success, `Err(())` on failure
 pub fn poly_fit<T>(x: &[T], y: &[T], n: usize, p: &mut [T], k: usize) -> Result<()>
 where
-    T: FloatComplex
+    T: FloatComplex,
 {
     // TODO: Check input dimensions
 
@@ -80,7 +80,6 @@ where
     Ok(())
 }
 
-
 /// Expands the polynomial:
 ///  P_n(x) = (1+x)^n
 /// as
@@ -91,7 +90,7 @@ where
 /// * `n` - Polynomial order
 /// * `c` - Output polynomial coefficients (length: n+1)
 pub fn poly_expandbinomial<T>(n: usize, c: &mut [T]) -> ()
-where 
+where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + From<f32>,
 {
     if n == 0 {
@@ -107,8 +106,8 @@ where
 
     // Iterative polynomial multiplication
     for i in 0..n {
-        for j in (1..=i+1).rev() {
-            c[j] = c[j] + c[j-1];
+        for j in (1..=i + 1).rev() {
+            c[j] = c[j] + c[j - 1];
         }
     }
 }
@@ -124,7 +123,7 @@ where
 /// * `k` - Polynomial order (negative term)
 /// * `c` - Output polynomial coefficients (length: m+k+1)
 pub fn poly_expandbinomial_pm<T>(m: usize, k: usize, c: &mut [T]) -> ()
-where 
+where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + From<f32>,
 {
     let n = m + k;
@@ -142,15 +141,15 @@ where
 
     // Iterative polynomial multiplication (1+x)
     for i in 0..m {
-        for j in (1..=i+1).rev() {
-            c[j] = c[j] + c[j-1];
+        for j in (1..=i + 1).rev() {
+            c[j] = c[j] + c[j - 1];
         }
     }
 
     // Iterative polynomial multiplication (1-x)
     for i in m..n {
-        for j in (1..=i+1).rev() {
-            c[j] = c[j] - c[j-1];
+        for j in (1..=i + 1).rev() {
+            c[j] = c[j] - c[j - 1];
         }
     }
 }
@@ -160,7 +159,7 @@ where
 /// as
 ///  P_n(x) = p`[0]` + p`[1]`*x + ... + p`[n]`*x^n
 /// where r`[0]`,r`[1]`,...,r[n-1] are the roots of P_n(x)
-/// 
+///
 /// # Arguments
 ///
 /// * `r` - Roots of polynomial (length: n)
@@ -183,8 +182,8 @@ where
 
     // Iterative polynomial multiplication
     for i in 0..n {
-        for j in (1..=i+1).rev() {
-            p[j] = -r[i] * p[j] + p[j-1];
+        for j in (1..=i + 1).rev() {
+            p[j] = -r[i] * p[j] + p[j - 1];
         }
         p[0] = -r[i] * p[0];
     }
@@ -203,7 +202,12 @@ where
 /// * `p` - Output polynomial coefficients (length: n+1)
 pub fn poly_expandroots2<T>(a: &[T], b: &[T], n: usize, p: &mut [T]) -> ()
 where
-    T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Neg<Output = T> + std::ops::Div<Output = T> + From<f32>,
+    T: Copy
+        + std::ops::Mul<Output = T>
+        + std::ops::Add<Output = T>
+        + std::ops::Neg<Output = T>
+        + std::ops::Div<Output = T>
+        + From<f32>,
 {
     // Factor b[i] from each root : (x*b - a) = (x - a/b)*b
     let mut g = T::from(1.0);
@@ -252,7 +256,7 @@ where
 
     for i in 0..na {
         for j in 0..nb {
-            c[i+j] = c[i+j] + a[i] * b[j];
+            c[i + j] = c[i + j] + a[i] * b[j];
         }
     }
 }
@@ -271,7 +275,12 @@ where
 /// Interpolated value `y0`
 pub fn poly_interp_lagrange<T>(x: &[T], y: &[T], n: usize, x0: T) -> T
 where
-    T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + std::ops::Div<Output = T> + From<f32>,
+    T: Copy
+        + std::ops::Mul<Output = T>
+        + std::ops::Add<Output = T>
+        + std::ops::Sub<Output = T>
+        + std::ops::Div<Output = T>
+        + From<f32>,
 {
     let mut y0 = T::from(0.0);
 
@@ -303,7 +312,13 @@ where
 /// `Ok(())` on success, `Err(())` on failure
 pub fn poly_fit_lagrange<T>(x: &[T], y: &[T], n: usize, p: &mut [T]) -> ()
 where
-    T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + std::ops::Div<Output = T> + std::ops::Neg<Output = T> + From<f32>,
+    T: Copy
+        + std::ops::Mul<Output = T>
+        + std::ops::Add<Output = T>
+        + std::ops::Sub<Output = T>
+        + std::ops::Div<Output = T>
+        + std::ops::Neg<Output = T>
+        + From<f32>,
 {
     let k = n - 1;
     // Clear output array
@@ -346,7 +361,14 @@ where
 /// * `w` - Output barycentric weights [size: `n` x 1]
 pub fn poly_fit_lagrange_barycentric<T>(x: &[T], n: usize, w: &mut [T]) -> ()
 where
-    T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + std::ops::Div<Output = T> + std::ops::Neg<Output = T> + From<f32> + PartialEq,
+    T: Copy
+        + std::ops::Mul<Output = T>
+        + std::ops::Add<Output = T>
+        + std::ops::Sub<Output = T>
+        + std::ops::Div<Output = T>
+        + std::ops::Neg<Output = T>
+        + From<f32>
+        + PartialEq,
 {
     for j in 0..n {
         w[j] = T::from(1.0);
@@ -404,7 +426,6 @@ where
     t0 / t1
 }
 
-
 /// Finds the complex roots of the polynomial using the Durand-Kerner method
 ///
 /// # Arguments
@@ -416,11 +437,7 @@ where
 /// # Returns
 ///
 /// `Ok(())` on success, `Err(())` on failure
-pub fn poly_findroots_durandkerner(
-    p: &[f64],
-    k: usize,
-    roots: &mut [Complex<f64>],
-) -> Result<()> {
+pub fn poly_findroots_durandkerner(p: &[f64], k: usize, roots: &mut [Complex<f64>]) -> Result<()> {
     if k < 2 {
         return Err(Error::Range("order must be greater than 0".to_owned()));
     }
@@ -500,11 +517,7 @@ pub fn poly_findroots_durandkerner(
 /// # Returns
 ///
 /// `Ok(())` on success, `Err(())` on failure
-pub fn poly_findroots_bairstow(
-    p: &[f64],
-    k: usize,
-    roots: &mut [Complex<f64>],
-) -> Result<()> {
+pub fn poly_findroots_bairstow(p: &[f64], k: usize, roots: &mut [Complex<f64>]) -> Result<()> {
     let mut p0 = vec![0.0; k];
     let mut p1 = vec![0.0; k];
     let mut p_buf;
@@ -570,13 +583,7 @@ pub fn poly_findroots_bairstow(
 /// # Returns
 ///
 /// `Ok(())` on success, `Err(())` on failure
-fn poly_findroots_bairstow_recursion(
-    p: &[f64],
-    k: usize,
-    p1: &mut [f64],
-    u: &mut f64,
-    v: &mut f64,
-) -> Result<()> {
+fn poly_findroots_bairstow_recursion(p: &[f64], k: usize, p1: &mut [f64], u: &mut f64, v: &mut f64) -> Result<()> {
     if k < 3 {
         return Err(Error::Range(format!("invalid polynomial length: {}", k)));
     }
@@ -659,13 +666,7 @@ fn poly_findroots_bairstow_recursion(
 /// # Returns
 ///
 /// `Ok(())` on success, `Err(())` on failure
-fn poly_findroots_bairstow_persistent(
-    p: &[f64],
-    k: usize,
-    p1: &mut [f64],
-    u: &mut f64,
-    v: &mut f64,
-) -> Result<()> {
+fn poly_findroots_bairstow_persistent(p: &[f64], k: usize, p1: &mut [f64], u: &mut f64, v: &mut f64) -> Result<()> {
     let num_iterations_max = 10;
     for i in 0..num_iterations_max {
         if poly_findroots_bairstow_recursion(p, k, p1, u, v).is_ok() {
@@ -812,7 +813,7 @@ mod tests {
         let roots = [-2.0, -1.0, -4.0, 5.0, 3.0];
         let c_test = [120.0, 146.0, 1.0, -27.0, -1.0, 1.0];
         let n = 5;
-        let mut p = vec![0.0; n+1];
+        let mut p = vec![0.0; n + 1];
         let tol = 1e-3;
 
         poly_expandroots(&roots, n, &mut p);
@@ -828,24 +829,37 @@ mod tests {
     #[autotest_annotate(autotest_polyf_expandroots_11)]
     fn test_polyf_expandroots_11() {
         let roots = [-1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0, -9.0, -10.0, -11.0];
-        let c_test = [39916800.0, 120543840.0, 150917976.0, 105258076.0, 45995730.0, 13339535.0, 2637558.0, 357423.0, 32670.0, 1925.0, 66.0, 1.0];
+        let c_test = [
+            39916800.0,
+            120543840.0,
+            150917976.0,
+            105258076.0,
+            45995730.0,
+            13339535.0,
+            2637558.0,
+            357423.0,
+            32670.0,
+            1925.0,
+            66.0,
+            1.0,
+        ];
         let n = 11;
-        let mut p = vec![0.0; n+1];
+        let mut p = vec![0.0; n + 1];
         let tol = 1e-6f32;
 
         poly_expandroots(&roots, n, &mut p);
-        assert_abs_diff_eq!(p[0], c_test[0], epsilon = (tol*c_test[0]).abs());
-        assert_abs_diff_eq!(p[1], c_test[1], epsilon = (tol*c_test[1]).abs());
-        assert_abs_diff_eq!(p[2], c_test[2], epsilon = (tol*c_test[2]).abs());
-        assert_abs_diff_eq!(p[3], c_test[3], epsilon = (tol*c_test[3]).abs());
-        assert_abs_diff_eq!(p[4], c_test[4], epsilon = (tol*c_test[4]).abs());
-        assert_abs_diff_eq!(p[5], c_test[5], epsilon = (tol*c_test[5]).abs());
-        assert_abs_diff_eq!(p[6], c_test[6], epsilon = (tol*c_test[6]).abs());
-        assert_abs_diff_eq!(p[7], c_test[7], epsilon = (tol*c_test[7]).abs());
-        assert_abs_diff_eq!(p[8], c_test[8], epsilon = (tol*c_test[8]).abs());
-        assert_abs_diff_eq!(p[9], c_test[9], epsilon = (tol*c_test[9]).abs());
-        assert_abs_diff_eq!(p[10], c_test[10], epsilon = (tol*c_test[10]).abs());
-        assert_abs_diff_eq!(p[11], c_test[11], epsilon = (tol*c_test[11]).abs());
+        assert_abs_diff_eq!(p[0], c_test[0], epsilon = (tol * c_test[0]).abs());
+        assert_abs_diff_eq!(p[1], c_test[1], epsilon = (tol * c_test[1]).abs());
+        assert_abs_diff_eq!(p[2], c_test[2], epsilon = (tol * c_test[2]).abs());
+        assert_abs_diff_eq!(p[3], c_test[3], epsilon = (tol * c_test[3]).abs());
+        assert_abs_diff_eq!(p[4], c_test[4], epsilon = (tol * c_test[4]).abs());
+        assert_abs_diff_eq!(p[5], c_test[5], epsilon = (tol * c_test[5]).abs());
+        assert_abs_diff_eq!(p[6], c_test[6], epsilon = (tol * c_test[6]).abs());
+        assert_abs_diff_eq!(p[7], c_test[7], epsilon = (tol * c_test[7]).abs());
+        assert_abs_diff_eq!(p[8], c_test[8], epsilon = (tol * c_test[8]).abs());
+        assert_abs_diff_eq!(p[9], c_test[9], epsilon = (tol * c_test[9]).abs());
+        assert_abs_diff_eq!(p[10], c_test[10], epsilon = (tol * c_test[10]).abs());
+        assert_abs_diff_eq!(p[11], c_test[11], epsilon = (tol * c_test[11]).abs());
     }
 
     #[test]
@@ -854,16 +868,9 @@ mod tests {
         use num_complex::Complex32;
 
         let theta = 1.7f32;
-        let a = [
-            -Complex32::new(0.0, theta).exp(),
-            -Complex32::new(0.0, -theta).exp()
-        ];
+        let a = [-Complex32::new(0.0, theta).exp(), -Complex32::new(0.0, -theta).exp()];
         let mut c = vec![Complex32::new(0.0, 0.0); 3];
-        let c_test = [
-            Complex32::new(1.0, 0.0),
-            Complex32::new(2.0 * theta.cos(), 0.0),
-            Complex32::new(1.0, 0.0)
-        ];
+        let c_test = [Complex32::new(1.0, 0.0), Complex32::new(2.0 * theta.cos(), 0.0), Complex32::new(1.0, 0.0)];
         let tol = 1e-3f32;
 
         poly_expandroots(&a, 2, &mut c);
@@ -1011,10 +1018,7 @@ mod tests {
     fn test_polyf_findroots_complex() {
         // Complex roots
         let p = [3.0, 2.0, 1.0];
-        let r = [
-            Complex::new(-1.0, std::f32::consts::SQRT_2),
-            Complex::new(-1.0, -std::f32::consts::SQRT_2),
-        ];
+        let r = [Complex::new(-1.0, std::f32::consts::SQRT_2), Complex::new(-1.0, -std::f32::consts::SQRT_2)];
         polyf_findroots_testbench(&p, &r, 2, 1e-6);
     }
 
@@ -1065,7 +1069,7 @@ mod tests {
         ];
         polyf_findroots_testbench(&p, &r, 10, 4e-6);
     }
-    
+
     #[test]
     fn test_poly_val_f32() {
         let p = [1.0, -4.0, 6.0, 2.0];
@@ -1074,5 +1078,4 @@ mod tests {
         let y = poly_val(&p, k, x);
         assert_abs_diff_eq!(y, 97.0, epsilon = 1e-6);
     }
-
 }

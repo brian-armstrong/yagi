@@ -2,7 +2,7 @@ use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Ask {
-    alpha: f32,            // scaling factor to ensure unity energy
+    alpha: f32, // scaling factor to ensure unity energy
 }
 
 impl Modem {
@@ -66,5 +66,4 @@ impl Modem {
         self.r = x;
         Ok(sym_out)
     }
-
 }

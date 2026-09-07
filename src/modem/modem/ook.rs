@@ -17,11 +17,7 @@ impl Modem {
     }
 
     pub(super) fn demodulate_ook(&mut self, symbol_in: Complex32) -> Result<u32> {
-        let symbol_out = if symbol_in.re > FRAC_1_SQRT_2 {
-            0
-        } else {
-            1
-        };
+        let symbol_out = if symbol_in.re > FRAC_1_SQRT_2 { 0 } else { 1 };
         self.x_hat = self.modulate_ook(symbol_out)?;
         self.r = symbol_in;
         Ok(symbol_out)

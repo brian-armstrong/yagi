@@ -20,9 +20,7 @@ const QUANTIZER_MAX_BITS: usize = 32;
 /// values outside [-1,1] are clipped to the largest representable magnitude.
 pub fn quantize_adc(x: f32, num_bits: usize) -> Result<u32> {
     if num_bits > QUANTIZER_MAX_BITS {
-        return Err(Error::Range(
-            "quantize_adc(), maximum bits exceeded".into(),
-        ));
+        return Err(Error::Range("quantize_adc(), maximum bits exceeded".into()));
     }
 
     if num_bits == 0 {
@@ -58,9 +56,7 @@ pub fn quantize_adc(x: f32, num_bits: usize) -> Result<u32> {
 /// bits above num_bits are ignored.
 pub fn quantize_dac(s: u32, num_bits: usize) -> Result<f32> {
     if num_bits > QUANTIZER_MAX_BITS {
-        return Err(Error::Range(
-            "quantize_dac(), maximum bits exceeded".into(),
-        ));
+        return Err(Error::Range("quantize_dac(), maximum bits exceeded".into()));
     }
 
     if num_bits == 0 {
@@ -179,5 +175,3 @@ mod tests {
         }
     }
 }
-
-

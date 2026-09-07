@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::filter::{FirInterpolationFilter, FirFilterShape};
+use crate::filter::{FirFilterShape, FirInterpolationFilter};
 use crate::modem::modem::{Modem, ModulationScheme};
 use num_complex::Complex32;
 
@@ -21,13 +21,7 @@ impl SymStream {
         Self::new_linear(FirFilterShape::Arkaiser, 2, 7, 0.3, ModulationScheme::Qpsk)
     }
 
-    pub fn new_linear(
-        ftype: FirFilterShape,
-        k: usize,
-        m: usize,
-        beta: f32,
-        ms: ModulationScheme,
-    ) -> Result<Self> {
+    pub fn new_linear(ftype: FirFilterShape, k: usize, m: usize, beta: f32, ms: ModulationScheme) -> Result<Self> {
         if k < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
@@ -42,17 +36,7 @@ impl SymStream {
         let interp = FirInterpolationFilter::new_prototype(ftype, k, m, beta, 0.0)?;
         let buf = vec![Complex32::default(); k];
 
-        let mut q = Self {
-            filter_type: ftype,
-            k,
-            m,
-            beta,
-            modem: mod_,
-            gain: 1.0,
-            interp,
-            buf,
-            buf_index: 0,
-        };
+        let mut q = Self { filter_type: ftype, k, m, beta, modem: mod_, gain: 1.0, interp, buf, buf_index: 0 };
 
         q.reset();
         Ok(q)
@@ -124,10 +108,10 @@ impl SymStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use crate::utility::test_helpers::{PsdRegion, validate_psd_spectrum};
     use crate::fft::spgram::Spgram;
+    use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     fn testbench_symstreamcf_delay(k: usize, m: usize) {
         // create object and get expected delay
@@ -157,83 +141,123 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_00)]
-    fn test_symstreamcf_delay_00() { testbench_symstreamcf_delay(2, 4); }
+    fn test_symstreamcf_delay_00() {
+        testbench_symstreamcf_delay(2, 4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_01)]
-    fn test_symstreamcf_delay_01() { testbench_symstreamcf_delay(2, 5); }
+    fn test_symstreamcf_delay_01() {
+        testbench_symstreamcf_delay(2, 5);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_02)]
-    fn test_symstreamcf_delay_02() { testbench_symstreamcf_delay(2, 6); }
+    fn test_symstreamcf_delay_02() {
+        testbench_symstreamcf_delay(2, 6);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_03)]
-    fn test_symstreamcf_delay_03() { testbench_symstreamcf_delay(2, 7); }
+    fn test_symstreamcf_delay_03() {
+        testbench_symstreamcf_delay(2, 7);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_04)]
-    fn test_symstreamcf_delay_04() { testbench_symstreamcf_delay(2, 8); }
+    fn test_symstreamcf_delay_04() {
+        testbench_symstreamcf_delay(2, 8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_05)]
-    fn test_symstreamcf_delay_05() { testbench_symstreamcf_delay(2, 9); }
+    fn test_symstreamcf_delay_05() {
+        testbench_symstreamcf_delay(2, 9);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_06)]
-    fn test_symstreamcf_delay_06() { testbench_symstreamcf_delay(2, 10); }
+    fn test_symstreamcf_delay_06() {
+        testbench_symstreamcf_delay(2, 10);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_07)]
-    fn test_symstreamcf_delay_07() { testbench_symstreamcf_delay(2, 14); }
+    fn test_symstreamcf_delay_07() {
+        testbench_symstreamcf_delay(2, 14);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_08)]
-    fn test_symstreamcf_delay_08() { testbench_symstreamcf_delay(2, 20); }
+    fn test_symstreamcf_delay_08() {
+        testbench_symstreamcf_delay(2, 20);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_09)]
-    fn test_symstreamcf_delay_09() { testbench_symstreamcf_delay(2, 31); }
+    fn test_symstreamcf_delay_09() {
+        testbench_symstreamcf_delay(2, 31);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_10)]
-    fn test_symstreamcf_delay_10() { testbench_symstreamcf_delay(3, 12); }
+    fn test_symstreamcf_delay_10() {
+        testbench_symstreamcf_delay(3, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_11)]
-    fn test_symstreamcf_delay_11() { testbench_symstreamcf_delay(4, 12); }
+    fn test_symstreamcf_delay_11() {
+        testbench_symstreamcf_delay(4, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_12)]
-    fn test_symstreamcf_delay_12() { testbench_symstreamcf_delay(5, 12); }
+    fn test_symstreamcf_delay_12() {
+        testbench_symstreamcf_delay(5, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_13)]
-    fn test_symstreamcf_delay_13() { testbench_symstreamcf_delay(6, 12); }
+    fn test_symstreamcf_delay_13() {
+        testbench_symstreamcf_delay(6, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_14)]
-    fn test_symstreamcf_delay_14() { testbench_symstreamcf_delay(7, 12); }
+    fn test_symstreamcf_delay_14() {
+        testbench_symstreamcf_delay(7, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_15)]
-    fn test_symstreamcf_delay_15() { testbench_symstreamcf_delay(8, 12); }
+    fn test_symstreamcf_delay_15() {
+        testbench_symstreamcf_delay(8, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_16)]
-    fn test_symstreamcf_delay_16() { testbench_symstreamcf_delay(9, 12); }
+    fn test_symstreamcf_delay_16() {
+        testbench_symstreamcf_delay(9, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_17)]
-    fn test_symstreamcf_delay_17() { testbench_symstreamcf_delay(10, 12); }
+    fn test_symstreamcf_delay_17() {
+        testbench_symstreamcf_delay(10, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_18)]
-    fn test_symstreamcf_delay_18() { testbench_symstreamcf_delay(11, 12); }
+    fn test_symstreamcf_delay_18() {
+        testbench_symstreamcf_delay(11, 12);
+    }
 
     #[test]
     #[autotest_annotate(autotest_symstreamcf_delay_19)]
-    fn test_symstreamcf_delay_19() { testbench_symstreamcf_delay(12, 12); }
+    fn test_symstreamcf_delay_19() {
+        testbench_symstreamcf_delay(12, 12);
+    }
 
     fn testbench_symstreamcf_psd(k: usize, m: usize, beta: f32) {
         // create object
@@ -243,8 +267,8 @@ mod tests {
         gen.set_gain(1.0 / (k as f32).sqrt());
 
         // spectral periodogram options
-        let nfft = 2400;      // spectral periodogram FFT size
-        let num_samples = 192000 * k;   // number of samples
+        let nfft = 2400; // spectral periodogram FFT size
+        let num_samples = 192000 * k; // number of samples
 
         // create spectral periodogram
         let mut periodogram = Spgram::default(nfft).unwrap();
@@ -267,9 +291,10 @@ mod tests {
         // verify spectrum
         let f0 = 0.5 * (1.0 - beta) / k as f32;
         let f1 = 0.5 * (1.0 + beta) / k as f32;
+        #[rustfmt::skip]
         let regions = vec![
             PsdRegion {fmin: -0.5, fmax: -f1,  pmin:  0.0, pmax: -80.0, test_lo: false, test_hi: true},
-            PsdRegion {fmin: -f0,  fmax:  f0,  pmin: -1.0, pmax:  1.0, test_lo: true,  test_hi: true},
+            PsdRegion {fmin: -f0,  fmax:  f0,  pmin: -1.0, pmax:   1.0, test_lo: true,  test_hi: true},
             PsdRegion {fmin:  f1,  fmax:  0.5, pmin:  0.0, pmax: -80.0, test_lo: false, test_hi: true},
         ];
 
@@ -304,13 +329,8 @@ mod tests {
     #[autotest_annotate(autotest_symstreamcf_copy)]
     fn test_symstreamcf_copy() {
         // create objects
-        let mut gen_orig = SymStream::new_linear(
-            FirFilterShape::Arkaiser,
-            5,
-            17,
-            0.27,
-            ModulationScheme::Dpsk4
-        ).unwrap();
+        let mut gen_orig =
+            SymStream::new_linear(FirFilterShape::Arkaiser, 5, 17, 0.27, ModulationScheme::Dpsk4).unwrap();
 
         // allocate memory for buffers
         let buf_len = 1337;
@@ -334,5 +354,4 @@ mod tests {
 
         // objects are automatically destroyed when they go out of scope
     }
-
 }

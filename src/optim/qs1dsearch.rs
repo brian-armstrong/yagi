@@ -90,8 +90,8 @@ where
         self.u0 = (self.utility)(self.v0);
         self.vp = v + step;
         self.up = (self.utility)(self.vp);
-        if (self.direction == OptimDirection::Minimize && self.u0 < self.un && self.u0 < self.up) ||
-           (self.direction == OptimDirection::Maximize && self.u0 > self.un && self.u0 > self.up)
+        if (self.direction == OptimDirection::Minimize && self.u0 < self.un && self.u0 < self.up)
+            || (self.direction == OptimDirection::Maximize && self.u0 > self.un && self.u0 > self.up)
         {
             self.init = true;
             return Ok(());
@@ -119,8 +119,8 @@ where
             vp = v0 + step;
             up = (self.utility)(vp);
 
-            if (self.direction == OptimDirection::Minimize && u0 < un && u0 < up) ||
-               (self.direction == OptimDirection::Maximize && u0 > un && u0 > up)
+            if (self.direction == OptimDirection::Minimize && u0 < un && u0 < up)
+                || (self.direction == OptimDirection::Maximize && u0 > un && u0 > up)
             {
                 // skipped over optimum; set internal bounds and return
                 let swap = step < 0.0;
@@ -133,8 +133,8 @@ where
                 self.up = if swap { un } else { up };
                 self.init = true;
                 return Ok(());
-            } else if (self.direction == OptimDirection::Minimize && u0 >= un && up > u0) ||
-                      (self.direction == OptimDirection::Maximize && u0 <= un && up < u0)
+            } else if (self.direction == OptimDirection::Minimize && u0 >= un && up > u0)
+                || (self.direction == OptimDirection::Maximize && u0 <= un && up < u0)
             {
                 // clearly moving in wrong direction: exit early
                 break;
@@ -228,8 +228,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     fn qs1dsearch_umin(v: f32, v_opt: f32) -> f32 {
         let v = v - v_opt;

@@ -11,7 +11,6 @@ use super::FirFilterShape;
 //   [Beaulieu:2001]
 //   [Assalini:2004]
 
-
 /// Design flipped Nyquist/root-Nyquist filter
 ///
 /// # Arguments
@@ -23,7 +22,7 @@ use super::FirFilterShape;
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_fnyquist(
     ftype: FirFilterShape,
@@ -66,11 +65,7 @@ pub fn fir_design_fnyquist(
     // fractional sample delay if required
     for i in 0..h_len {
         let magnitude = if root { h_prime[i].sqrt() } else { h_prime[i] };
-        let bin = if i <= h_len / 2 {
-            i as f32
-        } else {
-            i as f32 - h_len as f32
-        };
+        let bin = if i <= h_len / 2 { i as f32 } else { i as f32 - h_len as f32 };
         let phase = 2.0 * std::f32::consts::PI * bin * dt / h_len as f32;
         h[i] = Complex32::from_polar(magnitude, phase);
     }
@@ -96,7 +91,7 @@ pub fn fir_design_fnyquist(
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_fexp(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
@@ -112,7 +107,7 @@ pub fn fir_design_fexp(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_rfexp(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
@@ -174,7 +169,7 @@ pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_fsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
@@ -190,7 +185,7 @@ pub fn fir_design_fsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_rfsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
@@ -237,7 +232,7 @@ pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f3
         } else {
             // stop band
             0.0
-        };  
+        };
     }
 
     Ok(())
@@ -252,7 +247,7 @@ pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f3
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_farcsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
@@ -268,7 +263,7 @@ pub fn fir_design_farcsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec
 /// * `dt`     : fractional sample delay
 ///
 /// # Returns
-/// 
+///
 /// Vec of filter coefficients
 pub fn fir_design_rfarcsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
@@ -281,7 +276,7 @@ pub fn fir_design_rfarcsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Ve
 /// * `z`      : input value
 ///
 /// # Returns
-/// 
+///
 /// hyperbolic arc-secant
 fn asechf(z: f32) -> f32 {
     if z <= 0.0 || z > 1.0 {
@@ -290,7 +285,7 @@ fn asechf(z: f32) -> f32 {
 
     let z_inv = 1.0 / z;
 
-    return ((z_inv - 1.0).sqrt() * (z_inv + 1.0).sqrt() + z_inv).ln()
+    return ((z_inv - 1.0).sqrt() * (z_inv + 1.0).sqrt() + z_inv).ln();
 }
 
 /// Flipped arccosh frequency response
@@ -334,7 +329,7 @@ pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut 
         } else {
             // stop band
             0.0
-        }   
+        }
     }
 
     Ok(())
@@ -384,11 +379,7 @@ mod tests {
                         continue;
                     }
 
-                    let bin = if i <= y0.len() / 2 {
-                        i as f32
-                    } else {
-                        i as f32 - y0.len() as f32
-                    };
+                    let bin = if i <= y0.len() / 2 { i as f32 } else { i as f32 - y0.len() as f32 };
                     let phase = 2.0 * std::f32::consts::PI * bin * dt / y0.len() as f32;
                     let expected = y0[i] * Complex32::from_polar(1.0, phase);
                     assert_abs_diff_eq!(y1[i].re, expected.re, epsilon = 1e-4);

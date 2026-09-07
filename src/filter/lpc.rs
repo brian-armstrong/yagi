@@ -53,8 +53,8 @@ pub fn levinson(r: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     // allocate arrays
     let mut a0 = vec![0.0; p + 1]; // temporary coefficients array, index [n]
     let mut a1 = vec![0.0; p + 1]; // temporary coefficients array, index [n-1]
-    let mut e = vec![0.0; p + 1];  // prediction error
-    let mut k = vec![0.0; p + 1];  // reflection coefficients
+    let mut e = vec![0.0; p + 1]; // prediction error
+    let mut k = vec![0.0; p + 1]; // reflection coefficients
 
     // initialize
     k[0] = 1.0;
@@ -89,17 +89,17 @@ pub fn levinson(r: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sequence::msequence::MSequence;
     use crate::filter::iir::IirFilter;
+    use crate::sequence::msequence::MSequence;
     use test_macro::autotest_annotate;
-    
+
     fn lpc_test_harness(n: usize, p: usize, fc: f32, tol: f32) -> Result<()> {
         // create filter
         let mut lowpass = IirFilter::<f32, f32>::new_lowpass(7, fc)?;
-    
+
         // allocate memory for arrays
-        let mut y = vec![0.0; n];    // input sequence (filtered noise)
-    
+        let mut y = vec![0.0; n]; // input sequence (filtered noise)
+
         // generate input signal (filtered noise)
         let mut ms = MSequence::create_default(15)?;
         for i in 0..n {
@@ -109,12 +109,12 @@ mod tests {
             // filter result
             y[i] = lowpass.execute(v);
         }
-    
+
         // compute lpc coefficients
         let (a_hat, _g_hat) = design_lpc(&y, p)?;
 
         // create linear prediction filter
-        let mut a_lpc = vec![0.0; p+1];
+        let mut a_lpc = vec![0.0; p + 1];
         let mut b_lpc = a_hat.iter().map(|&a| -a).collect::<Vec<f32>>();
         a_lpc[0] = 1.0;
         b_lpc[0] = 0.0;
@@ -135,45 +135,45 @@ mod tests {
             rmse += (s0 - s1) * (s0 - s1);
         }
         rmse = 10.0 * (rmse / n_error as f32).log10();
-    
+
         println!("lpc test: n={}, p={}, rmse={:.2e} (tol={:.2e})", n, p, rmse, tol);
-    
+
         // Check RMSE
         assert!(rmse < tol, "RMSE ({:.2e}) exceeds threshold ({:.2e})", rmse, tol);
-    
+
         Ok(())
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_lpc_p4)]
     fn test_lpc_p4() -> Result<()> {
         lpc_test_harness(200, 4, 0.020, -40.0)
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_lpc_p6)]
     fn test_lpc_p6() -> Result<()> {
         lpc_test_harness(400, 6, 0.028, -40.0)
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_lpc_p8)]
     fn test_lpc_p8() -> Result<()> {
         lpc_test_harness(600, 8, 0.035, -40.0)
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_lpc_p10)]
     fn test_lpc_p10() -> Result<()> {
         lpc_test_harness(800, 10, 0.050, -40.0)
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_lpc_p16)]
     fn test_lpc_p16() -> Result<()> {
         lpc_test_harness(1600, 16, 0.055, -40.0)
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_lpc_p32)]
     fn test_lpc_p32() -> Result<()> {

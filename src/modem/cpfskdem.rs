@@ -1,27 +1,27 @@
 // continuous phase frequency-shift keying demodulator
 
-use std::f32::consts::PI;
-use num_complex::Complex32;
+use super::cpfskmod::CpfskFilterType;
 use crate::error::{Error, Result};
 use crate::filter::{FirFilter, FirFilterShape};
-use super::cpfskmod::CpfskFilterType;
+use num_complex::Complex32;
+use std::f32::consts::PI;
 
 /// Continuous-phase frequency-shift keying demodulator
 #[derive(Clone, Debug)]
 pub struct Cpfskdem {
-    bps: usize,              // bits per symbol
-    k: usize,                // samples per symbol
-    beta: f32,               // filter bandwidth parameter
-    h: f32,                  // modulation index
+    bps: usize, // bits per symbol
+    k: usize,   // samples per symbol
+    beta: f32,  // filter bandwidth parameter
+    h: f32,     // modulation index
     filter_type: CpfskFilterType,
-    m_size: usize,           // constellation size (M = 2^bps)
-    symbol_delay: usize,     // receiver filter delay [symbols]
+    m_size: usize,       // constellation size (M = 2^bps)
+    symbol_delay: usize, // receiver filter delay [symbols]
 
     // matched filter
     mf: FirFilter<Complex32, f32>,
 
     // state variables
-    z_prime: Complex32,      // previous filtered sample
+    z_prime: Complex32, // previous filtered sample
 }
 
 impl Cpfskdem {
@@ -35,14 +35,7 @@ impl Cpfskdem {
     /// * `m` - filter delay (symbols), m > 0
     /// * `beta` - filter bandwidth parameter, 0 < beta <= 1
     /// * `filter_type` - filter type (e.g. CpfskFilterType::Square)
-    pub fn new(
-        bps: usize,
-        h: f32,
-        k: usize,
-        m: usize,
-        beta: f32,
-        filter_type: CpfskFilterType,
-    ) -> Result<Self> {
+    pub fn new(bps: usize, h: f32, k: usize, m: usize, beta: f32, filter_type: CpfskFilterType) -> Result<Self> {
         // validate input
         if bps == 0 {
             return Err(Error::Config("bits/symbol must be greater than 0".into()));
@@ -65,17 +58,7 @@ impl Cpfskdem {
         // create matched filter based on filter type (non-coherent demodulator)
         let (mf, symbol_delay, scale) = Self::create_matched_filter(k, m, beta, filter_type, m_size)?;
 
-        let mut q = Self {
-            bps,
-            k,
-            beta,
-            h,
-            filter_type,
-            m_size,
-            symbol_delay,
-            mf,
-            z_prime: Complex32::new(0.0, 0.0),
-        };
+        let mut q = Self { bps, k, beta, h, filter_type, m_size, symbol_delay, mf, z_prime: Complex32::new(0.0, 0.0) };
 
         q.mf.set_scale(scale);
         q.reset();
@@ -207,7 +190,8 @@ impl Cpfskdem {
         if y.len() < self.k {
             return Err(Error::Range(format!(
                 "input buffer length ({}) must be at least samples/symbol ({})",
-                y.len(), self.k
+                y.len(),
+                self.k
             )));
         }
 
@@ -240,10 +224,10 @@ impl Cpfskdem {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::cpfskmod::Cpfskmod;
-    use test_macro::autotest_annotate;
+    use super::*;
     use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_cpfskmodem_config)]
@@ -253,8 +237,8 @@ mod tests {
         assert!(Cpfskmod::new(1, 0.0, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // h (mod index) is out of range
         assert!(Cpfskmod::new(1, 0.5, 0, 12, 0.25, CpfskFilterType::Square).is_err()); // k is too small
         assert!(Cpfskmod::new(1, 0.5, 5, 12, 0.25, CpfskFilterType::Square).is_err()); // k is not even
-        assert!(Cpfskmod::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err());  // m is too small
-        assert!(Cpfskmod::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err());  // beta is too small
+        assert!(Cpfskmod::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err()); // m is too small
+        assert!(Cpfskmod::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err()); // beta is too small
         assert!(Cpfskmod::new(1, 0.5, 4, 12, 7.22, CpfskFilterType::Square).is_err()); // beta is too large
 
         // test creating invalid demodulator objects
@@ -262,8 +246,8 @@ mod tests {
         assert!(Cpfskdem::new(1, 0.0, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // h (mod index) is out of range
         assert!(Cpfskdem::new(1, 0.5, 0, 12, 0.25, CpfskFilterType::Square).is_err()); // k is too small
         assert!(Cpfskdem::new(1, 0.5, 5, 12, 0.25, CpfskFilterType::Square).is_err()); // k is not even
-        assert!(Cpfskdem::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err());  // m is too small
-        assert!(Cpfskdem::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err());  // beta is too small
+        assert!(Cpfskdem::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err()); // m is too small
+        assert!(Cpfskdem::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err()); // beta is too small
         assert!(Cpfskdem::new(1, 0.5, 4, 12, 7.22, CpfskFilterType::Square).is_err()); // beta is too large
 
         // create modulator object and check configuration
@@ -338,10 +322,7 @@ mod tests {
     }
 
     /// Helper function for mod/demod testing
-    fn cpfskmodem_test_mod_demod(
-        mut mod_: Cpfskmod,
-        mut dem: Cpfskdem,
-    ) {
+    fn cpfskmodem_test_mod_demod(mut mod_: Cpfskmod, mut dem: Cpfskdem) {
         let delay = mod_.get_delay() + dem.get_delay();
         let k = mod_.get_samples_per_symbol();
         let bps = mod_.get_bits_per_symbol();
@@ -366,21 +347,19 @@ mod tests {
 
         // count errors
         for i in delay..num_symbols {
-            assert_eq!(sym_in[i - delay], sym_out[i],
+            assert_eq!(
+                sym_in[i - delay],
+                sym_out[i],
                 "symbol mismatch at index {}: expected {}, got {}",
-                i, sym_in[i - delay], sym_out[i]);
+                i,
+                sym_in[i - delay],
+                sym_out[i]
+            );
         }
     }
 
     /// Helper function to create mod/dem pair and test
-    fn cpfskmodem_test_harness(
-        bps: usize,
-        h: f32,
-        k: usize,
-        m: usize,
-        beta: f32,
-        filter_type: CpfskFilterType,
-    ) {
+    fn cpfskmodem_test_harness(bps: usize, h: f32, k: usize, m: usize, beta: f32, filter_type: CpfskFilterType) {
         let mod_ = Cpfskmod::new(bps, h, k, m, beta, filter_type).unwrap();
         let dem = Cpfskdem::new(bps, h, k, m, beta, filter_type).unwrap();
 
@@ -540,7 +519,7 @@ mod tests {
     #[autotest_annotate(autotest_cpfskmodem_spectrum)]
     fn test_cpfskmodem_spectrum() {
         use crate::fft::spgram::Spgram;
-        use crate::utility::test_helpers::{PsdRegion, validate_psd_spgramcf};
+        use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
         use rand::Rng;
 
         // create modulator
@@ -572,6 +551,7 @@ mod tests {
         }
 
         // verify spectrum
+        #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.50, fmax: -0.35, pmin: 0.0, pmax: -40.0, test_lo: false, test_hi: true },
             PsdRegion { fmin: -0.35, fmax: -0.20, pmin: 0.0, pmax: -20.0, test_lo: false, test_hi: true },

@@ -1,7 +1,6 @@
 use crate::error::{Error, Result};
-use crate::utility::bits::count_ones;
 use crate::sequence::msequence::MSequence;
-
+use crate::utility::bits::count_ones;
 
 /// binary sequence
 #[derive(Debug, Clone)]
@@ -19,12 +18,7 @@ impl BSequence {
         let num_bits_msb = if num_bits % 32 == 0 { 32 } else { num_bits % 32 };
         let bit_mask_msb = 1u32.checked_shl(num_bits_msb as u32).unwrap_or(0).wrapping_sub(1);
 
-        let mut bs = Self {
-            s: vec![0; s_len],
-            num_bits,
-            num_bits_msb,
-            bit_mask_msb,
-        };
+        let mut bs = Self { s: vec![0; s_len], num_bits, num_bits_msb, bit_mask_msb };
         bs.reset();
         bs
     }
@@ -46,8 +40,8 @@ impl BSequence {
         let mut a = vec![0u8; num_bytes];
         let mut b = vec![0u8; num_bytes];
 
-        a[num_bytes - 1] = 0xb8;  // 1011 1000
-        b[num_bytes - 1] = 0xb7;  // 1011 0111
+        a[num_bytes - 1] = 0xb8; // 1011 1000
+        b[num_bytes - 1] = 0xb7; // 1011 0111
 
         let mut n = 1;
         while n < num_bytes {
@@ -206,27 +200,27 @@ mod tests {
     fn test_bsequence_init() {
         // 1111 0000 1100 1010
         let v = [0xf0u8, 0xcau8];
-    
+
         // create and initialize sequence
         let mut q = BSequence::new(16);
         q.init(&v);
-    
+
         // run tests
         assert_eq!(q.index(15).unwrap(), 1);
         assert_eq!(q.index(14).unwrap(), 1);
         assert_eq!(q.index(13).unwrap(), 1);
         assert_eq!(q.index(12).unwrap(), 1);
-        
+
         assert_eq!(q.index(11).unwrap(), 0);
         assert_eq!(q.index(10).unwrap(), 0);
         assert_eq!(q.index(9).unwrap(), 0);
         assert_eq!(q.index(8).unwrap(), 0);
-        
+
         assert_eq!(q.index(7).unwrap(), 1);
         assert_eq!(q.index(6).unwrap(), 1);
         assert_eq!(q.index(5).unwrap(), 0);
         assert_eq!(q.index(4).unwrap(), 0);
-        
+
         assert_eq!(q.index(3).unwrap(), 1);
         assert_eq!(q.index(2).unwrap(), 0);
         assert_eq!(q.index(1).unwrap(), 1);
@@ -245,7 +239,6 @@ mod tests {
         assert_eq!(bs.get_length(), ms.get_length() as usize);
     }
 
-    
     #[test]
     #[autotest_annotate(autotest_bsequence_correlate)]
     fn test_bsequence_correlate() {
@@ -254,17 +247,17 @@ mod tests {
         // sim  :   1100 0100 0010 1011 (7 similar bits)
         let v0 = [0xf0u8, 0xcau8];
         let v1 = [0xcbu8, 0x1eu8];
-    
+
         // create and initialize sequences
         let mut q0 = BSequence::new(16);
         let mut q1 = BSequence::new(16);
         q0.init(&v0);
         q1.init(&v1);
-    
+
         // run tests
         assert_eq!(q0.correlate(&q1).unwrap(), 7);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_bsequence_add)]
     fn test_bsequence_add() {
@@ -273,39 +266,39 @@ mod tests {
         // sum  :   0011 1011 1101 0100
         let v0 = [0xf0u8, 0xcau8];
         let v1 = [0xcbu8, 0x1eu8];
-    
+
         // create and initialize sequences
         let mut q0 = BSequence::new(16);
         let mut q1 = BSequence::new(16);
         q0.init(&v0);
         q1.init(&v1);
-    
+
         // create result sequence
         let mut r = BSequence::new(16);
         q0.add(&q1, &mut r).unwrap();
-    
+
         // run tests
         assert_eq!(r.index(15).unwrap(), 0);
         assert_eq!(r.index(14).unwrap(), 0);
         assert_eq!(r.index(13).unwrap(), 1);
         assert_eq!(r.index(12).unwrap(), 1);
-        
+
         assert_eq!(r.index(11).unwrap(), 1);
         assert_eq!(r.index(10).unwrap(), 0);
         assert_eq!(r.index(9).unwrap(), 1);
         assert_eq!(r.index(8).unwrap(), 1);
-        
+
         assert_eq!(r.index(7).unwrap(), 1);
         assert_eq!(r.index(6).unwrap(), 1);
         assert_eq!(r.index(5).unwrap(), 0);
         assert_eq!(r.index(4).unwrap(), 1);
-        
+
         assert_eq!(r.index(3).unwrap(), 0);
         assert_eq!(r.index(2).unwrap(), 1);
         assert_eq!(r.index(1).unwrap(), 0);
         assert_eq!(r.index(0).unwrap(), 0);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_bsequence_mul)]
     fn test_bsequence_mul() {
@@ -314,53 +307,52 @@ mod tests {
         // prod :   1100 0000 0000 1010
         let v0 = [0xf0u8, 0xcau8];
         let v1 = [0xcbu8, 0x1eu8];
-    
+
         // create and initialize sequences
         let mut q0 = BSequence::new(16);
         let mut q1 = BSequence::new(16);
         q0.init(&v0);
         q1.init(&v1);
-    
+
         // create result sequence
         let mut r = BSequence::new(16);
         q0.mul(&q1, &mut r).unwrap();
-    
+
         // run tests
         assert_eq!(r.index(15).unwrap(), 1);
         assert_eq!(r.index(14).unwrap(), 1);
         assert_eq!(r.index(13).unwrap(), 0);
         assert_eq!(r.index(12).unwrap(), 0);
-        
+
         assert_eq!(r.index(11).unwrap(), 0);
         assert_eq!(r.index(10).unwrap(), 0);
         assert_eq!(r.index(9).unwrap(), 0);
         assert_eq!(r.index(8).unwrap(), 0);
-        
+
         assert_eq!(r.index(7).unwrap(), 0);
         assert_eq!(r.index(6).unwrap(), 0);
         assert_eq!(r.index(5).unwrap(), 0);
         assert_eq!(r.index(4).unwrap(), 0);
-        
+
         assert_eq!(r.index(3).unwrap(), 1);
         assert_eq!(r.index(2).unwrap(), 0);
         assert_eq!(r.index(1).unwrap(), 1);
         assert_eq!(r.index(0).unwrap(), 0);
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_bsequence_accumulate)]
     fn test_bsequence_accumulate() {
         // 1111 0000 1100 1010 (8 total bits)
         let v = [0xf0u8, 0xcau8];
-    
+
         // create and initialize sequence
         let mut q = BSequence::new(16);
         q.init(&v);
-    
+
         // run tests
         assert_eq!(q.accumulate(), 8);
     }
-
 
     fn complementary_codes_test(n: usize) {
         // create and initialize codes
@@ -391,29 +383,43 @@ mod tests {
 
     #[test]
     #[autotest_annotate(autotest_complementary_code_n8)]
-    fn test_complementary_code_n8() { complementary_codes_test(8); }
+    fn test_complementary_code_n8() {
+        complementary_codes_test(8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_complementary_code_n16)]
-    fn test_complementary_code_n16() { complementary_codes_test(16); }
+    fn test_complementary_code_n16() {
+        complementary_codes_test(16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_complementary_code_n32)]
-    fn test_complementary_code_n32() { complementary_codes_test(32); }
+    fn test_complementary_code_n32() {
+        complementary_codes_test(32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_complementary_code_n64)]
-    fn test_complementary_code_n64() { complementary_codes_test(64); }
+    fn test_complementary_code_n64() {
+        complementary_codes_test(64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_complementary_code_n128)]
-    fn test_complementary_code_n128() { complementary_codes_test(128); }
+    fn test_complementary_code_n128() {
+        complementary_codes_test(128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_complementary_code_n256)]
-    fn test_complementary_code_n256() { complementary_codes_test(256); }
+    fn test_complementary_code_n256() {
+        complementary_codes_test(256);
+    }
 
     #[test]
     #[autotest_annotate(autotest_complementary_code_n512)]
-    fn test_complementary_code_n512() { complementary_codes_test(512); }
+    fn test_complementary_code_n512() {
+        complementary_codes_test(512);
+    }
 }

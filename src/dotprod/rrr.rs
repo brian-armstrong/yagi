@@ -5,18 +5,18 @@ use super::DotProd;
 #[cfg(feature = "simd")]
 use std::simd::f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-use std::simd::{f32x8, f32x16, StdFloat};
+use std::simd::{f32x16, f32x8, StdFloat};
 #[cfg(feature = "simd")]
 use std::sync::OnceLock;
 
 #[cfg(feature = "simd")]
-use super::rrr_block::plan_dotprod_rrr_block_f32x4;
-#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-use super::rrr_block::plan_dotprod_rrr_block_avx512;
-#[cfg(feature = "simd")]
 use super::reduce::reduce_sum_sse_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 use super::reduce::{reduce_sum_avx2_f32x8, reduce_sum_avx512_f32x16};
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+use super::rrr_block::plan_dotprod_rrr_block_avx512;
+#[cfg(feature = "simd")]
+use super::rrr_block::plan_dotprod_rrr_block_f32x4;
 
 #[cfg(feature = "simd")]
 type DotProdRrrFn = unsafe fn(&[f32], &[f32]) -> f32;
@@ -152,7 +152,7 @@ unsafe fn dotprod_rrr_scalar(a: &[f32], b: &[f32]) -> f32 {
 #[cfg(feature = "simd")]
 unsafe fn dotprod_rrr_const_f32x4<const N: usize>(a: &[f32], b: &[f32]) -> f32 {
     // this method is const on N so that the loops below disappear
-    // SIMD uses this for various small N where this is small and fast 
+    // SIMD uses this for various small N where this is small and fast
     debug_assert_eq!(a.len(), N);
     debug_assert_eq!(b.len(), N);
     unsafe {
@@ -375,10 +375,10 @@ unsafe fn dotprod_rrr_avx512_f32x16_wide(a: &[f32], b: &[f32]) -> (f32, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_abs_diff_eq;
-    use test_macro::autotest_annotate;
     #[cfg(feature = "simd")]
     use crate::random::randnf;
+    use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     fn test_dotprod_rrr() {
@@ -402,13 +402,13 @@ mod tests {
         // AVX2: <16 scalar, <32 f32x4, >=32 f32x8 (processes 32 per iteration)
         // AVX-512: <16 scalar, <64 f32x4, >=64 f32x16 (processes 64 per iteration)
         let test_sizes = [
-            1, 2, 3, 4,           // tiny scalar
-            15, 16, 17,           // scalar/f32x4 boundary
-            31, 32, 33,           // f32x4/f32x8 boundary (AVX2)
-            63, 64, 65,           // f32x4/f32x16 boundary (AVX-512)
-            127, 128, 129,        // 2x f32x16 + cleanup
-            255, 256, 257,        // 4x f32x16 + cleanup
-            511, 512, 513,        // 8x f32x16 + cleanup
+            1, 2, 3, 4, // tiny scalar
+            15, 16, 17, // scalar/f32x4 boundary
+            31, 32, 33, // f32x4/f32x8 boundary (AVX2)
+            63, 64, 65, // f32x4/f32x16 boundary (AVX-512)
+            127, 128, 129, // 2x f32x16 + cleanup
+            255, 256, 257, // 4x f32x16 + cleanup
+            511, 512, 513, // 8x f32x16 + cleanup
         ];
 
         for &n in &test_sizes {

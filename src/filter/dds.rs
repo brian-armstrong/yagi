@@ -38,28 +38,16 @@ impl Dds {
     pub fn new(num_stages: usize, fc: f32, bw: f32, as_: f32) -> Result<Self> {
         // error checking
         if num_stages > 20 {
-            return Err(Error::Config(format!(
-                "number of stages {} exceeds reasonable maximum (20)",
-                num_stages
-            )));
+            return Err(Error::Config(format!("number of stages {} exceeds reasonable maximum (20)", num_stages)));
         }
         if fc > 0.5 || fc < -0.5 {
-            return Err(Error::Config(format!(
-                "frequency {} is out of range [-0.5,0.5]",
-                fc
-            )));
+            return Err(Error::Config(format!("frequency {} is out of range [-0.5,0.5]", fc)));
         }
         if bw <= 0.0 || bw >= 1.0 {
-            return Err(Error::Config(format!(
-                "bandwidth {} is out of range (0,1)",
-                bw
-            )));
+            return Err(Error::Config(format!("bandwidth {} is out of range (0,1)", bw)));
         }
         if as_ < 0.0 {
-            return Err(Error::Config(format!(
-                "stop-band suppression {} must be greater than zero",
-                as_
-            )));
+            return Err(Error::Config(format!("stop-band suppression {} must be greater than zero", as_)));
         }
 
         let rate = 1 << num_stages;
@@ -117,17 +105,7 @@ impl Dds {
         // TODO : ensure range is in [-pi,pi]
         ncox.set_frequency(2.0 * PI * (rate as f32) * fc);
 
-        Ok(Self {
-            num_stages,
-            rate,
-            halfband_resamp,
-            m: m_vec,
-            buffer0,
-            buffer1,
-            ncox,
-            zeta,
-            scale,
-        })
+        Ok(Self { num_stages, rate, halfband_resamp, m: m_vec, buffer0, buffer1, ncox, zeta, scale })
     }
 
     pub fn reset(&mut self) {
@@ -262,17 +240,12 @@ mod tests {
         let w = 0.36 * bw; // pulse bandwidth
         let h = fir_design_kaiser(h_len, w, as_, 0.0).unwrap();
         for i in 0..num_samples {
-            buf_0[i] = if i < h_len {
-                Complex32::new(2.0 * w * h[i], 0.0)
-            } else {
-                Complex32::new(0.0, 0.0)
-            };
+            buf_0[i] = if i < h_len { Complex32::new(2.0 * w * h[i], 0.0) } else { Complex32::new(0.0, 0.0) };
         }
 
         // run interpolation (up-conversion) stage
         for i in 0..num_samples {
-            q.interp_execute(buf_0[i], &mut buf_1[r * i..r * i + r])
-                .unwrap();
+            q.interp_execute(buf_0[i], &mut buf_1[r * i..r * i + r]).unwrap();
         }
 
         // clear DDS object

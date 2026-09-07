@@ -63,10 +63,8 @@ pub fn randuf_cdf(x: f32, a: f32, b: f32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
-
-
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_randf)]

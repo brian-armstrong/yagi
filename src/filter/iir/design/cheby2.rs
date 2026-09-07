@@ -4,12 +4,12 @@ use std::f64::consts::PI;
 
 use libm::{pow, sqrt};
 
-/// Compute analog zeros, poles, gain of low-pass Chebyshev Type II filter, grouping 
-/// complex conjugates together. If the filter order is odd, the single real pole 
+/// Compute analog zeros, poles, gain of low-pass Chebyshev Type II filter, grouping
+/// complex conjugates together. If the filter order is odd, the single real pole
 /// is at the end of the array.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `n` - filter order
 /// * `es` - epsilon, related to stop-band ripple
 /// * `za` - output analog zeros [length: 2*floor(_n/2)]
@@ -37,13 +37,13 @@ pub fn iir_design_cheby2_analog(
     let tp: f64 = pow(t0 + 1.0 / es_wide, 1.0 / n as f64);
     let tm: f64 = pow(t0 - 1.0 / es_wide, 1.0 / n as f64);
 
-    let b = 0.5 * (tp + tm);    // ellipse major axis
-    let a = 0.5 * (tp - tm);    // ellipse minor axis
+    let b = 0.5 * (tp + tm); // ellipse major axis
+    let a = 0.5 * (tp - tm); // ellipse minor axis
 
     // filter order variables
-    let r = n % 2;          // odd order?
-    let l = (n - r) / 2;    // half order
-    
+    let r = n % 2; // odd order?
+    let l = (n - r) / 2; // half order
+
     // compute poles
     for i in 0..l {
         let theta = (2 * (i + 1) + n - 1) as f64 * PI / (2 * n) as f64;

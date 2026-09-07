@@ -1,12 +1,13 @@
-use crate::{error::{Error, Result}, sequence::MSequence};
+use crate::error::{Error, Result};
+use crate::sequence::MSequence;
 use num_complex::Complex32;
-use std::f32::consts::{SQRT_2, FRAC_1_SQRT_2, PI};
+use std::f32::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
 
 mod apsk;
 mod arb;
-mod arb_v29;
 mod arb_opt;
 mod arb_ui;
+mod arb_v29;
 mod arb_vt;
 mod ask;
 mod bpsk;
@@ -16,8 +17,8 @@ mod pi4dqpsk;
 mod psk;
 mod qam;
 mod qpsk;
-mod sqam32;
 mod sqam128;
+mod sqam32;
 
 const MAX_MOD_BITS_PER_SYMBOL: usize = 8;
 const SOFTBIT_ERASURE: u8 = 127;
@@ -29,34 +30,52 @@ pub enum ModulationScheme {
     Unknown, // Unknown modulation scheme
 
     // Phase-shift keying (PSK)
-    Psk2,      Psk4,
-    Psk8,      Psk16,
-    Psk32,     Psk64,
-    Psk128,    Psk256,
+    Psk2,
+    Psk4,
+    Psk8,
+    Psk16,
+    Psk32,
+    Psk64,
+    Psk128,
+    Psk256,
 
     // Differential phase-shift keying (DPSK)
-    Dpsk2,     Dpsk4,
-    Dpsk8,     Dpsk16,
-    Dpsk32,    Dpsk64,
-    Dpsk128,   Dpsk256,
+    Dpsk2,
+    Dpsk4,
+    Dpsk8,
+    Dpsk16,
+    Dpsk32,
+    Dpsk64,
+    Dpsk128,
+    Dpsk256,
 
     // amplitude-shift keying
-    Ask2,      Ask4,
-    Ask8,      Ask16,
-    Ask32,     Ask64,
-    Ask128,    Ask256,
+    Ask2,
+    Ask4,
+    Ask8,
+    Ask16,
+    Ask32,
+    Ask64,
+    Ask128,
+    Ask256,
 
     // rectangular quadrature amplitude-shift keying (QAM)
     Qam4,
-    Qam8,      Qam16,
-    Qam32,     Qam64,
-    Qam128,    Qam256,
+    Qam8,
+    Qam16,
+    Qam32,
+    Qam64,
+    Qam128,
+    Qam256,
 
     // amplitude phase-shift keying (APSK)
     Apsk4,
-    Apsk8,     Apsk16,
-    Apsk32,    Apsk64,
-    Apsk128,   Apsk256,
+    Apsk8,
+    Apsk16,
+    Apsk32,
+    Apsk64,
+    Apsk128,
+    Apsk256,
 
     // specific modem types
     Bpsk,      // Specific: binary PSK
@@ -75,7 +94,7 @@ pub enum ModulationScheme {
     Pi4Dqpsk,  // pi/4 differential QPSK
 
     // arbitrary modem type
-    Arb        // arbitrary QAM
+    Arb, // arbitrary QAM
 }
 
 /// Number of modulation schemes, `Unknown` included
@@ -437,9 +456,9 @@ impl ModulationScheme {
 #[derive(Debug, Clone)]
 pub struct Modem {
     // common data
-    scheme: ModulationScheme,   // modulation scheme
-    bits_per_symbol: usize,       // bits per symbol (modulation depth)
-    constellation_size: usize,   // constellation size, M=2^m
+    scheme: ModulationScheme,  // modulation scheme
+    bits_per_symbol: usize,    // bits per symbol (modulation depth)
+    constellation_size: usize, // constellation size, M=2^m
 
     // Reference vector for demodulating linear arrays
     //
@@ -449,11 +468,11 @@ pub struct Modem {
     reference: Option<[f32; MAX_MOD_BITS_PER_SYMBOL]>,
 
     // modulation
-    symbol_map: Option<Vec<Complex32>>,     // complete symbol map
+    symbol_map: Option<Vec<Complex32>>, // complete symbol map
 
     // demodulation
-    r: Complex32,                // received state vector
-    x_hat: Complex32,            // estimated symbol (demodulator)
+    r: Complex32,     // received state vector
+    x_hat: Complex32, // estimated symbol (demodulator)
 
     // common data structure shared between specific modem types
     data: Option<ModemData>,
@@ -469,12 +488,11 @@ pub struct Modem {
 
     // soft demodulation
     // neighbors array
-    demod_soft_neighbors: Option<Vec<u8>>,   // array of nearest neighbors
-    demod_soft_p: u32,              // number of neighbors in array
+    demod_soft_neighbors: Option<Vec<u8>>, // array of nearest neighbors
+    demod_soft_p: u32,                     // number of neighbors in array
 
     randomizer: MSequence,
 }
-
 
 #[derive(Debug, Clone)]
 enum ModemData {
@@ -622,11 +640,7 @@ impl Modem {
         }
     }
 
-    fn demodulate_linear_array_ref(
-        &mut self,
-        v: f32,
-        m: usize
-    ) -> Result<(u32, f32)> {
+    fn demodulate_linear_array_ref(&mut self, v: f32, m: usize) -> Result<(u32, f32)> {
         let mut s = 0;
         let mut v = v;
         let ref_table = self.reference.as_ref().unwrap();
@@ -641,7 +655,7 @@ impl Modem {
             }
         }
         Ok((s, v))
-    }    
+    }
 
     fn demodulate_soft_table(&mut self, symbol_in: Complex32, soft_bits: &mut [u8]) -> Result<u32> {
         let symbol_out = (self.demodulate_func)(self, symbol_in)?;
@@ -649,7 +663,7 @@ impl Modem {
         let gamma = 1.2 * self.constellation_size as f32;
         let mut dmin_0 = vec![8.0; bps];
         let mut dmin_1 = vec![8.0; bps];
-        
+
         let d = ((symbol_in - self.x_hat) * (symbol_in - self.x_hat).conj()).re;
         for k in 0..bps {
             let bit = (symbol_out >> (bps - k - 1)) & 0x01;
@@ -837,7 +851,6 @@ impl Modem {
         }
         Ok(())
     }
-    
 }
 
 /// gray encoding
@@ -871,7 +884,10 @@ pub fn gray_decode(symbol_in: u32) -> u32 {
 pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
     // validate input
     if bps > MAX_MOD_BITS_PER_SYMBOL {
-        return Err(Error::Config(format!("pack_soft_bits(), bits/symbol exceeds maximum ({})", MAX_MOD_BITS_PER_SYMBOL)));
+        return Err(Error::Config(format!(
+            "pack_soft_bits(), bits/symbol exceeds maximum ({})",
+            MAX_MOD_BITS_PER_SYMBOL
+        )));
     }
 
     let mut s = 0;
@@ -889,15 +905,14 @@ pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
 pub fn unpack_soft_bits(sym_in: u32, bps: usize, soft_bits: &mut [u8]) -> Result<()> {
     // validate input
     if bps > MAX_MOD_BITS_PER_SYMBOL {
-        return Err(Error::Config(format!("unpack_soft_bits(), bits/symbol exceeds maximum ({})", MAX_MOD_BITS_PER_SYMBOL)));
+        return Err(Error::Config(format!(
+            "unpack_soft_bits(), bits/symbol exceeds maximum ({})",
+            MAX_MOD_BITS_PER_SYMBOL
+        )));
     }
 
     for i in 0..bps {
-        soft_bits[i as usize] = if (sym_in >> (bps - i - 1)) & 0x0001 != 0 {
-            SOFTBIT_1
-        } else {
-            SOFTBIT_0
-        };
+        soft_bits[i as usize] = if (sym_in >> (bps - i - 1)) & 0x0001 != 0 { SOFTBIT_1 } else { SOFTBIT_0 };
     }
     Ok(())
 }
@@ -905,9 +920,9 @@ pub fn unpack_soft_bits(sym_in: u32, bps: usize, soft_bits: &mut [u8]) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
     use approx::assert_abs_diff_eq;
-    
+    use test_macro::autotest_annotate;
+
     fn modemcf_test_mod_demod(ms: ModulationScheme) {
         // generate mod/demod
         let mut modem = Modem::new(ms).unwrap();
@@ -923,7 +938,7 @@ mod tests {
             assert_eq!(s, i as u32);
 
             assert_abs_diff_eq!(demod.get_demodulator_phase_error(), 0.0f32, epsilon = 1e-3);
-            
+
             assert_abs_diff_eq!(demod.get_demodulator_evm(), 0.0f32, epsilon = 1e-3);
 
             e += (x * x.conj()).re;
@@ -936,215 +951,319 @@ mod tests {
     // AUTOTESTS: generic PSK
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk2)]
-    fn test_mod_demod_psk2() { modemcf_test_mod_demod(ModulationScheme::Psk2); }
+    fn test_mod_demod_psk2() {
+        modemcf_test_mod_demod(ModulationScheme::Psk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk4)]
-    fn test_mod_demod_psk4() { modemcf_test_mod_demod(ModulationScheme::Psk4); }
+    fn test_mod_demod_psk4() {
+        modemcf_test_mod_demod(ModulationScheme::Psk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk8)]
-    fn test_mod_demod_psk8() { modemcf_test_mod_demod(ModulationScheme::Psk8); }
+    fn test_mod_demod_psk8() {
+        modemcf_test_mod_demod(ModulationScheme::Psk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk16)]
-    fn test_mod_demod_psk16() { modemcf_test_mod_demod(ModulationScheme::Psk16); }
+    fn test_mod_demod_psk16() {
+        modemcf_test_mod_demod(ModulationScheme::Psk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk32)]
-    fn test_mod_demod_psk32() { modemcf_test_mod_demod(ModulationScheme::Psk32); }
+    fn test_mod_demod_psk32() {
+        modemcf_test_mod_demod(ModulationScheme::Psk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk64)]
-    fn test_mod_demod_psk64() { modemcf_test_mod_demod(ModulationScheme::Psk64); }
+    fn test_mod_demod_psk64() {
+        modemcf_test_mod_demod(ModulationScheme::Psk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk128)]
-    fn test_mod_demod_psk128() { modemcf_test_mod_demod(ModulationScheme::Psk128); }
+    fn test_mod_demod_psk128() {
+        modemcf_test_mod_demod(ModulationScheme::Psk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_psk256)]
-    fn test_mod_demod_psk256() { modemcf_test_mod_demod(ModulationScheme::Psk256); }
+    fn test_mod_demod_psk256() {
+        modemcf_test_mod_demod(ModulationScheme::Psk256);
+    }
 
     // AUTOTESTS: generic DPSK
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk2)]
-    fn test_mod_demod_dpsk2() { modemcf_test_mod_demod(ModulationScheme::Dpsk2); }
+    fn test_mod_demod_dpsk2() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk4)]
-    fn test_mod_demod_dpsk4() { modemcf_test_mod_demod(ModulationScheme::Dpsk4); }
+    fn test_mod_demod_dpsk4() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk8)]
-    fn test_mod_demod_dpsk8() { modemcf_test_mod_demod(ModulationScheme::Dpsk8); }
+    fn test_mod_demod_dpsk8() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk16)]
-    fn test_mod_demod_dpsk16() { modemcf_test_mod_demod(ModulationScheme::Dpsk16); }
+    fn test_mod_demod_dpsk16() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk32)]
-    fn test_mod_demod_dpsk32() { modemcf_test_mod_demod(ModulationScheme::Dpsk32); }
+    fn test_mod_demod_dpsk32() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk64)]
-    fn test_mod_demod_dpsk64() { modemcf_test_mod_demod(ModulationScheme::Dpsk64); }
+    fn test_mod_demod_dpsk64() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk128)]
-    fn test_mod_demod_dpsk128() { modemcf_test_mod_demod(ModulationScheme::Dpsk128); }
+    fn test_mod_demod_dpsk128() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_dpsk256)]
-    fn test_mod_demod_dpsk256() { modemcf_test_mod_demod(ModulationScheme::Dpsk256); }
+    fn test_mod_demod_dpsk256() {
+        modemcf_test_mod_demod(ModulationScheme::Dpsk256);
+    }
 
     // AUTOTESTS: generic ASK
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask2)]
-    fn test_mod_demod_ask2() { modemcf_test_mod_demod(ModulationScheme::Ask2); }
+    fn test_mod_demod_ask2() {
+        modemcf_test_mod_demod(ModulationScheme::Ask2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask4)]
-    fn test_mod_demod_ask4() { modemcf_test_mod_demod(ModulationScheme::Ask4); }
+    fn test_mod_demod_ask4() {
+        modemcf_test_mod_demod(ModulationScheme::Ask4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask8)]
-    fn test_mod_demod_ask8() { modemcf_test_mod_demod(ModulationScheme::Ask8); }
+    fn test_mod_demod_ask8() {
+        modemcf_test_mod_demod(ModulationScheme::Ask8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask16)]
-    fn test_mod_demod_ask16() { modemcf_test_mod_demod(ModulationScheme::Ask16); }
+    fn test_mod_demod_ask16() {
+        modemcf_test_mod_demod(ModulationScheme::Ask16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask32)]
-    fn test_mod_demod_ask32() { modemcf_test_mod_demod(ModulationScheme::Ask32); }
+    fn test_mod_demod_ask32() {
+        modemcf_test_mod_demod(ModulationScheme::Ask32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask64)]
-    fn test_mod_demod_ask64() { modemcf_test_mod_demod(ModulationScheme::Ask64); }
+    fn test_mod_demod_ask64() {
+        modemcf_test_mod_demod(ModulationScheme::Ask64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask128)]
-    fn test_mod_demod_ask128() { modemcf_test_mod_demod(ModulationScheme::Ask128); }
+    fn test_mod_demod_ask128() {
+        modemcf_test_mod_demod(ModulationScheme::Ask128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ask256)]
-    fn test_mod_demod_ask256() { modemcf_test_mod_demod(ModulationScheme::Ask256); }
+    fn test_mod_demod_ask256() {
+        modemcf_test_mod_demod(ModulationScheme::Ask256);
+    }
 
     // AUTOTESTS: generic QAM
     #[test]
     #[autotest_annotate(autotest_mod_demod_qam4)]
-    fn test_mod_demod_qam4() { modemcf_test_mod_demod(ModulationScheme::Qam4); }
+    fn test_mod_demod_qam4() {
+        modemcf_test_mod_demod(ModulationScheme::Qam4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_qam8)]
-    fn test_mod_demod_qam8() { modemcf_test_mod_demod(ModulationScheme::Qam8); }
+    fn test_mod_demod_qam8() {
+        modemcf_test_mod_demod(ModulationScheme::Qam8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_qam16)]
-    fn test_mod_demod_qam16() { modemcf_test_mod_demod(ModulationScheme::Qam16); }
+    fn test_mod_demod_qam16() {
+        modemcf_test_mod_demod(ModulationScheme::Qam16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_qam32)]
-    fn test_mod_demod_qam32() { modemcf_test_mod_demod(ModulationScheme::Qam32); }
+    fn test_mod_demod_qam32() {
+        modemcf_test_mod_demod(ModulationScheme::Qam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_qam64)]
-    fn test_mod_demod_qam64() { modemcf_test_mod_demod(ModulationScheme::Qam64); }
+    fn test_mod_demod_qam64() {
+        modemcf_test_mod_demod(ModulationScheme::Qam64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_qam128)]
-    fn test_mod_demod_qam128() { modemcf_test_mod_demod(ModulationScheme::Qam128); }
+    fn test_mod_demod_qam128() {
+        modemcf_test_mod_demod(ModulationScheme::Qam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_qam256)]
-    fn test_mod_demod_qam256() { modemcf_test_mod_demod(ModulationScheme::Qam256); }
+    fn test_mod_demod_qam256() {
+        modemcf_test_mod_demod(ModulationScheme::Qam256);
+    }
 
     // AUTOTESTS: generic APSK (maps to specific APSK modems internally)
     #[test]
     #[autotest_annotate(autotest_mod_demod_apsk4)]
-    fn test_mod_demod_apsk4() { modemcf_test_mod_demod(ModulationScheme::Apsk4); }
+    fn test_mod_demod_apsk4() {
+        modemcf_test_mod_demod(ModulationScheme::Apsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_apsk8)]
-    fn test_mod_demod_apsk8() { modemcf_test_mod_demod(ModulationScheme::Apsk8); }
-    
+    fn test_mod_demod_apsk8() {
+        modemcf_test_mod_demod(ModulationScheme::Apsk8);
+    }
+
     #[test]
     #[autotest_annotate(autotest_mod_demod_apsk16)]
-    fn test_mod_demod_apsk16() { modemcf_test_mod_demod(ModulationScheme::Apsk16); }
+    fn test_mod_demod_apsk16() {
+        modemcf_test_mod_demod(ModulationScheme::Apsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_apsk32)]
-    fn test_mod_demod_apsk32() { modemcf_test_mod_demod(ModulationScheme::Apsk32); }
+    fn test_mod_demod_apsk32() {
+        modemcf_test_mod_demod(ModulationScheme::Apsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_apsk64)]
-    fn test_mod_demod_apsk64() { modemcf_test_mod_demod(ModulationScheme::Apsk64); }
+    fn test_mod_demod_apsk64() {
+        modemcf_test_mod_demod(ModulationScheme::Apsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_apsk128)]
-    fn test_mod_demod_apsk128() { modemcf_test_mod_demod(ModulationScheme::Apsk128); }
+    fn test_mod_demod_apsk128() {
+        modemcf_test_mod_demod(ModulationScheme::Apsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_apsk256)]
-    fn test_mod_demod_apsk256() { modemcf_test_mod_demod(ModulationScheme::Apsk256); }
+    fn test_mod_demod_apsk256() {
+        modemcf_test_mod_demod(ModulationScheme::Apsk256);
+    }
 
     // AUTOTESTS: Specific modems
     #[test]
     #[autotest_annotate(autotest_mod_demod_bpsk)]
-    fn test_mod_demod_bpsk() { modemcf_test_mod_demod(ModulationScheme::Bpsk); }
+    fn test_mod_demod_bpsk() {
+        modemcf_test_mod_demod(ModulationScheme::Bpsk);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_qpsk)]
-    fn test_mod_demod_qpsk() { modemcf_test_mod_demod(ModulationScheme::Qpsk); }
+    fn test_mod_demod_qpsk() {
+        modemcf_test_mod_demod(ModulationScheme::Qpsk);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_ook)]
-    fn test_mod_demod_ook() { modemcf_test_mod_demod(ModulationScheme::Ook); }
+    fn test_mod_demod_ook() {
+        modemcf_test_mod_demod(ModulationScheme::Ook);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_sqam32)]
-    fn test_mod_demod_sqam32() { modemcf_test_mod_demod(ModulationScheme::Sqam32); }
+    fn test_mod_demod_sqam32() {
+        modemcf_test_mod_demod(ModulationScheme::Sqam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_sqam128)]
-    fn test_mod_demod_sqam128() { modemcf_test_mod_demod(ModulationScheme::Sqam128); }
+    fn test_mod_demod_sqam128() {
+        modemcf_test_mod_demod(ModulationScheme::Sqam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_V29)]
-    fn test_mod_demod_v29() { modemcf_test_mod_demod(ModulationScheme::V29); }
+    fn test_mod_demod_v29() {
+        modemcf_test_mod_demod(ModulationScheme::V29);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_arb16opt)]
-    fn test_mod_demod_arb16opt() { modemcf_test_mod_demod(ModulationScheme::Arb16Opt); }
+    fn test_mod_demod_arb16opt() {
+        modemcf_test_mod_demod(ModulationScheme::Arb16Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_arb32opt)]
-    fn test_mod_demod_arb32opt() { modemcf_test_mod_demod(ModulationScheme::Arb32Opt); }
+    fn test_mod_demod_arb32opt() {
+        modemcf_test_mod_demod(ModulationScheme::Arb32Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_arb64opt)]
-    fn test_mod_demod_arb64opt() { modemcf_test_mod_demod(ModulationScheme::Arb64Opt); }
+    fn test_mod_demod_arb64opt() {
+        modemcf_test_mod_demod(ModulationScheme::Arb64Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_arb128opt)]
-    fn test_mod_demod_arb128opt() { modemcf_test_mod_demod(ModulationScheme::Arb128Opt); }
+    fn test_mod_demod_arb128opt() {
+        modemcf_test_mod_demod(ModulationScheme::Arb128Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_arb256opt)]
-    fn test_mod_demod_arb256opt() { modemcf_test_mod_demod(ModulationScheme::Arb256Opt); }
+    fn test_mod_demod_arb256opt() {
+        modemcf_test_mod_demod(ModulationScheme::Arb256Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_arb64vt)]
-    fn test_mod_demod_arb64vt() { modemcf_test_mod_demod(ModulationScheme::Arb64Vt); }
+    fn test_mod_demod_arb64vt() {
+        modemcf_test_mod_demod(ModulationScheme::Arb64Vt);
+    }
 
     #[test]
-    fn test_mod_demod_arb64ui() { modemcf_test_mod_demod(ModulationScheme::Arb64Ui); }
+    fn test_mod_demod_arb64ui() {
+        modemcf_test_mod_demod(ModulationScheme::Arb64Ui);
+    }
 
     #[test]
     #[autotest_annotate(autotest_mod_demod_pi4dqpsk)]
-    fn test_mod_demod_pi4dqpsk() { modemcf_test_mod_demod(ModulationScheme::Pi4Dqpsk); }
+    fn test_mod_demod_pi4dqpsk() {
+        modemcf_test_mod_demod(ModulationScheme::Pi4Dqpsk);
+    }
 
     fn modemcf_test_demodsoft(ms: ModulationScheme) {
         // generate mod/demod
@@ -1157,7 +1276,7 @@ mod tests {
         // run the test
         let m = 1 << bps;
         let mut soft_bits = vec![0u8; bps];
-        
+
         for i in 0..m {
             // modulate symbol
             let x = modulator.modulate(i).unwrap();
@@ -1181,215 +1300,319 @@ mod tests {
     // AUTOTESTS: generic PSK
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk2)]
-    fn test_demodsoft_psk2() { modemcf_test_demodsoft(ModulationScheme::Psk2); }
+    fn test_demodsoft_psk2() {
+        modemcf_test_demodsoft(ModulationScheme::Psk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk4)]
-    fn test_demodsoft_psk4() { modemcf_test_demodsoft(ModulationScheme::Psk4); }
+    fn test_demodsoft_psk4() {
+        modemcf_test_demodsoft(ModulationScheme::Psk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk8)]
-    fn test_demodsoft_psk8() { modemcf_test_demodsoft(ModulationScheme::Psk8); }
+    fn test_demodsoft_psk8() {
+        modemcf_test_demodsoft(ModulationScheme::Psk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk16)]
-    fn test_demodsoft_psk16() { modemcf_test_demodsoft(ModulationScheme::Psk16); }
+    fn test_demodsoft_psk16() {
+        modemcf_test_demodsoft(ModulationScheme::Psk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk32)]
-    fn test_demodsoft_psk32() { modemcf_test_demodsoft(ModulationScheme::Psk32); }
+    fn test_demodsoft_psk32() {
+        modemcf_test_demodsoft(ModulationScheme::Psk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk64)]
-    fn test_demodsoft_psk64() { modemcf_test_demodsoft(ModulationScheme::Psk64); }
+    fn test_demodsoft_psk64() {
+        modemcf_test_demodsoft(ModulationScheme::Psk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk128)]
-    fn test_demodsoft_psk128() { modemcf_test_demodsoft(ModulationScheme::Psk128); }
+    fn test_demodsoft_psk128() {
+        modemcf_test_demodsoft(ModulationScheme::Psk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_psk256)]
-    fn test_demodsoft_psk256() { modemcf_test_demodsoft(ModulationScheme::Psk256); }
+    fn test_demodsoft_psk256() {
+        modemcf_test_demodsoft(ModulationScheme::Psk256);
+    }
 
     // AUTOTESTS: generic DPSK
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk2)]
-    fn test_demodsoft_dpsk2() { modemcf_test_demodsoft(ModulationScheme::Dpsk2); }
+    fn test_demodsoft_dpsk2() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk4)]
-    fn test_demodsoft_dpsk4() { modemcf_test_demodsoft(ModulationScheme::Dpsk4); }
+    fn test_demodsoft_dpsk4() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk8)]
-    fn test_demodsoft_dpsk8() { modemcf_test_demodsoft(ModulationScheme::Dpsk8); }
+    fn test_demodsoft_dpsk8() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk16)]
-    fn test_demodsoft_dpsk16() { modemcf_test_demodsoft(ModulationScheme::Dpsk16); }
+    fn test_demodsoft_dpsk16() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk32)]
-    fn test_demodsoft_dpsk32() { modemcf_test_demodsoft(ModulationScheme::Dpsk32); }
+    fn test_demodsoft_dpsk32() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk64)]
-    fn test_demodsoft_dpsk64() { modemcf_test_demodsoft(ModulationScheme::Dpsk64); }
+    fn test_demodsoft_dpsk64() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk128)]
-    fn test_demodsoft_dpsk128() { modemcf_test_demodsoft(ModulationScheme::Dpsk128); }
+    fn test_demodsoft_dpsk128() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_dpsk256)]
-    fn test_demodsoft_dpsk256() { modemcf_test_demodsoft(ModulationScheme::Dpsk256); }
+    fn test_demodsoft_dpsk256() {
+        modemcf_test_demodsoft(ModulationScheme::Dpsk256);
+    }
 
     // AUTOTESTS: generic ASK
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask2)]
-    fn test_demodsoft_ask2() { modemcf_test_demodsoft(ModulationScheme::Ask2); }
+    fn test_demodsoft_ask2() {
+        modemcf_test_demodsoft(ModulationScheme::Ask2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask4)]
-    fn test_demodsoft_ask4() { modemcf_test_demodsoft(ModulationScheme::Ask4); }
+    fn test_demodsoft_ask4() {
+        modemcf_test_demodsoft(ModulationScheme::Ask4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask8)]
-    fn test_demodsoft_ask8() { modemcf_test_demodsoft(ModulationScheme::Ask8); }
+    fn test_demodsoft_ask8() {
+        modemcf_test_demodsoft(ModulationScheme::Ask8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask16)]
-    fn test_demodsoft_ask16() { modemcf_test_demodsoft(ModulationScheme::Ask16); }
+    fn test_demodsoft_ask16() {
+        modemcf_test_demodsoft(ModulationScheme::Ask16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask32)]
-    fn test_demodsoft_ask32() { modemcf_test_demodsoft(ModulationScheme::Ask32); }
+    fn test_demodsoft_ask32() {
+        modemcf_test_demodsoft(ModulationScheme::Ask32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask64)]
-    fn test_demodsoft_ask64() { modemcf_test_demodsoft(ModulationScheme::Ask64); }
+    fn test_demodsoft_ask64() {
+        modemcf_test_demodsoft(ModulationScheme::Ask64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask128)]
-    fn test_demodsoft_ask128() { modemcf_test_demodsoft(ModulationScheme::Ask128); }
+    fn test_demodsoft_ask128() {
+        modemcf_test_demodsoft(ModulationScheme::Ask128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ask256)]
-    fn test_demodsoft_ask256() { modemcf_test_demodsoft(ModulationScheme::Ask256); }
+    fn test_demodsoft_ask256() {
+        modemcf_test_demodsoft(ModulationScheme::Ask256);
+    }
 
     // AUTOTESTS: generic QAM
     #[test]
     #[autotest_annotate(autotest_demodsoft_qam4)]
-    fn test_demodsoft_qam4() { modemcf_test_demodsoft(ModulationScheme::Qam4); }
+    fn test_demodsoft_qam4() {
+        modemcf_test_demodsoft(ModulationScheme::Qam4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_qam8)]
-    fn test_demodsoft_qam8() { modemcf_test_demodsoft(ModulationScheme::Qam8); }
+    fn test_demodsoft_qam8() {
+        modemcf_test_demodsoft(ModulationScheme::Qam8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_qam16)]
-    fn test_demodsoft_qam16() { modemcf_test_demodsoft(ModulationScheme::Qam16); }
+    fn test_demodsoft_qam16() {
+        modemcf_test_demodsoft(ModulationScheme::Qam16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_qam32)]
-    fn test_demodsoft_qam32() { modemcf_test_demodsoft(ModulationScheme::Qam32); }
+    fn test_demodsoft_qam32() {
+        modemcf_test_demodsoft(ModulationScheme::Qam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_qam64)]
-    fn test_demodsoft_qam64() { modemcf_test_demodsoft(ModulationScheme::Qam64); }
+    fn test_demodsoft_qam64() {
+        modemcf_test_demodsoft(ModulationScheme::Qam64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_qam128)]
-    fn test_demodsoft_qam128() { modemcf_test_demodsoft(ModulationScheme::Qam128); }
+    fn test_demodsoft_qam128() {
+        modemcf_test_demodsoft(ModulationScheme::Qam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_qam256)]
-    fn test_demodsoft_qam256() { modemcf_test_demodsoft(ModulationScheme::Qam256); }
+    fn test_demodsoft_qam256() {
+        modemcf_test_demodsoft(ModulationScheme::Qam256);
+    }
 
     // AUTOTESTS: generic APSK (maps to specific APSK modems internally)
     #[test]
     #[autotest_annotate(autotest_demodsoft_apsk4)]
-    fn test_demodsoft_apsk4() { modemcf_test_demodsoft(ModulationScheme::Apsk4); }
+    fn test_demodsoft_apsk4() {
+        modemcf_test_demodsoft(ModulationScheme::Apsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_apsk8)]
-    fn test_demodsoft_apsk8() { modemcf_test_demodsoft(ModulationScheme::Apsk8); }
+    fn test_demodsoft_apsk8() {
+        modemcf_test_demodsoft(ModulationScheme::Apsk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_apsk16)]
-    fn test_demodsoft_apsk16() { modemcf_test_demodsoft(ModulationScheme::Apsk16); }
+    fn test_demodsoft_apsk16() {
+        modemcf_test_demodsoft(ModulationScheme::Apsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_apsk32)]
-    fn test_demodsoft_apsk32() { modemcf_test_demodsoft(ModulationScheme::Apsk32); }
+    fn test_demodsoft_apsk32() {
+        modemcf_test_demodsoft(ModulationScheme::Apsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_apsk64)]
-    fn test_demodsoft_apsk64() { modemcf_test_demodsoft(ModulationScheme::Apsk64); }
+    fn test_demodsoft_apsk64() {
+        modemcf_test_demodsoft(ModulationScheme::Apsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_apsk128)]
-    fn test_demodsoft_apsk128() { modemcf_test_demodsoft(ModulationScheme::Apsk128); }
+    fn test_demodsoft_apsk128() {
+        modemcf_test_demodsoft(ModulationScheme::Apsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_apsk256)]
-    fn test_demodsoft_apsk256() { modemcf_test_demodsoft(ModulationScheme::Apsk256); }
+    fn test_demodsoft_apsk256() {
+        modemcf_test_demodsoft(ModulationScheme::Apsk256);
+    }
 
     // AUTOTESTS: Specific modems
     #[test]
     #[autotest_annotate(autotest_demodsoft_bpsk)]
-    fn test_demodsoft_bpsk() { modemcf_test_demodsoft(ModulationScheme::Bpsk); }
+    fn test_demodsoft_bpsk() {
+        modemcf_test_demodsoft(ModulationScheme::Bpsk);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_qpsk)]
-    fn test_demodsoft_qpsk() { modemcf_test_demodsoft(ModulationScheme::Qpsk); }
+    fn test_demodsoft_qpsk() {
+        modemcf_test_demodsoft(ModulationScheme::Qpsk);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_ook)]
-    fn test_demodsoft_ook() { modemcf_test_demodsoft(ModulationScheme::Ook); }
+    fn test_demodsoft_ook() {
+        modemcf_test_demodsoft(ModulationScheme::Ook);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_sqam32)]
-    fn test_demodsoft_sqam32() { modemcf_test_demodsoft(ModulationScheme::Sqam32); }
+    fn test_demodsoft_sqam32() {
+        modemcf_test_demodsoft(ModulationScheme::Sqam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_sqam128)]
-    fn test_demodsoft_sqam128() { modemcf_test_demodsoft(ModulationScheme::Sqam128); }
+    fn test_demodsoft_sqam128() {
+        modemcf_test_demodsoft(ModulationScheme::Sqam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_V29)]
-    fn test_demodsoft_v29() { modemcf_test_demodsoft(ModulationScheme::V29); }
+    fn test_demodsoft_v29() {
+        modemcf_test_demodsoft(ModulationScheme::V29);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_arb16opt)]
-    fn test_demodsoft_arb16opt() { modemcf_test_demodsoft(ModulationScheme::Arb16Opt); }
+    fn test_demodsoft_arb16opt() {
+        modemcf_test_demodsoft(ModulationScheme::Arb16Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_arb32opt)]
-    fn test_demodsoft_arb32opt() { modemcf_test_demodsoft(ModulationScheme::Arb32Opt); }
+    fn test_demodsoft_arb32opt() {
+        modemcf_test_demodsoft(ModulationScheme::Arb32Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_arb64opt)]
-    fn test_demodsoft_arb64opt() { modemcf_test_demodsoft(ModulationScheme::Arb64Opt); }
+    fn test_demodsoft_arb64opt() {
+        modemcf_test_demodsoft(ModulationScheme::Arb64Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_arb128opt)]
-    fn test_demodsoft_arb128opt() { modemcf_test_demodsoft(ModulationScheme::Arb128Opt); }
+    fn test_demodsoft_arb128opt() {
+        modemcf_test_demodsoft(ModulationScheme::Arb128Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_arb256opt)]
-    fn test_demodsoft_arb256opt() { modemcf_test_demodsoft(ModulationScheme::Arb256Opt); }
+    fn test_demodsoft_arb256opt() {
+        modemcf_test_demodsoft(ModulationScheme::Arb256Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_arb64vt)]
-    fn test_demodsoft_arb64vt() { modemcf_test_demodsoft(ModulationScheme::Arb64Vt); }
+    fn test_demodsoft_arb64vt() {
+        modemcf_test_demodsoft(ModulationScheme::Arb64Vt);
+    }
 
     #[test]
-    fn test_demodsoft_arb64ui() { modemcf_test_demodsoft(ModulationScheme::Arb64Ui); }
+    fn test_demodsoft_arb64ui() {
+        modemcf_test_demodsoft(ModulationScheme::Arb64Ui);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodsoft_pi4dqpsk)]
-    fn test_demodsoft_pi4dqpsk() { modemcf_test_demodsoft(ModulationScheme::Pi4Dqpsk); }
+    fn test_demodsoft_pi4dqpsk() {
+        modemcf_test_demodsoft(ModulationScheme::Pi4Dqpsk);
+    }
 
     fn modemcf_test_demodstats(ms: ModulationScheme) {
         // generate mod/demod
@@ -1466,221 +1689,325 @@ mod tests {
     // AUTOTESTS: generic PSK
     #[test]
     #[autotest_annotate(autotest_demodstats_psk2)]
-    fn test_demodstats_psk2() { modemcf_test_demodstats(ModulationScheme::Psk2); }
+    fn test_demodstats_psk2() {
+        modemcf_test_demodstats(ModulationScheme::Psk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_psk4)]
-    fn test_demodstats_psk4() { modemcf_test_demodstats(ModulationScheme::Psk4); }
+    fn test_demodstats_psk4() {
+        modemcf_test_demodstats(ModulationScheme::Psk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_psk8)]
-    fn test_demodstats_psk8() { modemcf_test_demodstats(ModulationScheme::Psk8); }
+    fn test_demodstats_psk8() {
+        modemcf_test_demodstats(ModulationScheme::Psk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_psk16)]
-    fn test_demodstats_psk16() { modemcf_test_demodstats(ModulationScheme::Psk16); }
+    fn test_demodstats_psk16() {
+        modemcf_test_demodstats(ModulationScheme::Psk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_psk32)]
-    fn test_demodstats_psk32() { modemcf_test_demodstats(ModulationScheme::Psk32); }
+    fn test_demodstats_psk32() {
+        modemcf_test_demodstats(ModulationScheme::Psk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_psk64)]
-    fn test_demodstats_psk64() { modemcf_test_demodstats(ModulationScheme::Psk64); }
+    fn test_demodstats_psk64() {
+        modemcf_test_demodstats(ModulationScheme::Psk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_psk128)]
-    fn test_demodstats_psk128() { modemcf_test_demodstats(ModulationScheme::Psk128); }
+    fn test_demodstats_psk128() {
+        modemcf_test_demodstats(ModulationScheme::Psk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_psk256)]
-    fn test_demodstats_psk256() { modemcf_test_demodstats(ModulationScheme::Psk256); }
+    fn test_demodstats_psk256() {
+        modemcf_test_demodstats(ModulationScheme::Psk256);
+    }
 
     // AUTOTESTS: generic DPSK
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk2)]
-    fn test_demodstats_dpsk2() { modemcf_test_demodstats(ModulationScheme::Dpsk2); }
+    fn test_demodstats_dpsk2() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk4)]
-    fn test_demodstats_dpsk4() { modemcf_test_demodstats(ModulationScheme::Dpsk4); }
+    fn test_demodstats_dpsk4() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk8)]
-    fn test_demodstats_dpsk8() { modemcf_test_demodstats(ModulationScheme::Dpsk8); }
+    fn test_demodstats_dpsk8() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk16)]
-    fn test_demodstats_dpsk16() { modemcf_test_demodstats(ModulationScheme::Dpsk16); }
+    fn test_demodstats_dpsk16() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk32)]
-    fn test_demodstats_dpsk32() { modemcf_test_demodstats(ModulationScheme::Dpsk32); }
+    fn test_demodstats_dpsk32() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk64)]
-    fn test_demodstats_dpsk64() { modemcf_test_demodstats(ModulationScheme::Dpsk64); }
+    fn test_demodstats_dpsk64() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk128)]
-    fn test_demodstats_dpsk128() { modemcf_test_demodstats(ModulationScheme::Dpsk128); }
+    fn test_demodstats_dpsk128() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_dpsk256)]
-    fn test_demodstats_dpsk256() { modemcf_test_demodstats(ModulationScheme::Dpsk256); }
+    fn test_demodstats_dpsk256() {
+        modemcf_test_demodstats(ModulationScheme::Dpsk256);
+    }
 
     // AUTOTESTS: generic ASK
     #[test]
     #[autotest_annotate(autotest_demodstats_ask2)]
-    fn test_demodstats_ask2() { modemcf_test_demodstats(ModulationScheme::Ask2); }
+    fn test_demodstats_ask2() {
+        modemcf_test_demodstats(ModulationScheme::Ask2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_ask4)]
-    fn test_demodstats_ask4() { modemcf_test_demodstats(ModulationScheme::Ask4); }
+    fn test_demodstats_ask4() {
+        modemcf_test_demodstats(ModulationScheme::Ask4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_ask8)]
-    fn test_demodstats_ask8() { modemcf_test_demodstats(ModulationScheme::Ask8); }
+    fn test_demodstats_ask8() {
+        modemcf_test_demodstats(ModulationScheme::Ask8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_ask16)]
-    fn test_demodstats_ask16() { modemcf_test_demodstats(ModulationScheme::Ask16); }
+    fn test_demodstats_ask16() {
+        modemcf_test_demodstats(ModulationScheme::Ask16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_ask32)]
-    fn test_demodstats_ask32() { modemcf_test_demodstats(ModulationScheme::Ask32); }
+    fn test_demodstats_ask32() {
+        modemcf_test_demodstats(ModulationScheme::Ask32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_ask64)]
-    fn test_demodstats_ask64() { modemcf_test_demodstats(ModulationScheme::Ask64); }
+    fn test_demodstats_ask64() {
+        modemcf_test_demodstats(ModulationScheme::Ask64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_ask128)]
-    fn test_demodstats_ask128() { modemcf_test_demodstats(ModulationScheme::Ask128); }
+    fn test_demodstats_ask128() {
+        modemcf_test_demodstats(ModulationScheme::Ask128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_ask256)]
-    fn test_demodstats_ask256() { modemcf_test_demodstats(ModulationScheme::Ask256); }
+    fn test_demodstats_ask256() {
+        modemcf_test_demodstats(ModulationScheme::Ask256);
+    }
 
     // AUTOTESTS: generic QAM
     #[test]
     #[autotest_annotate(autotest_demodstats_qam4)]
-    fn test_demodstats_qam4() { modemcf_test_demodstats(ModulationScheme::Qam4); }
+    fn test_demodstats_qam4() {
+        modemcf_test_demodstats(ModulationScheme::Qam4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_qam8)]
-    fn test_demodstats_qam8() { modemcf_test_demodstats(ModulationScheme::Qam8); }
+    fn test_demodstats_qam8() {
+        modemcf_test_demodstats(ModulationScheme::Qam8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_qam16)]
-    fn test_demodstats_qam16() { modemcf_test_demodstats(ModulationScheme::Qam16); }
+    fn test_demodstats_qam16() {
+        modemcf_test_demodstats(ModulationScheme::Qam16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_qam32)]
-    fn test_demodstats_qam32() { modemcf_test_demodstats(ModulationScheme::Qam32); }
+    fn test_demodstats_qam32() {
+        modemcf_test_demodstats(ModulationScheme::Qam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_qam64)]
-    fn test_demodstats_qam64() { modemcf_test_demodstats(ModulationScheme::Qam64); }
+    fn test_demodstats_qam64() {
+        modemcf_test_demodstats(ModulationScheme::Qam64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_qam128)]
-    fn test_demodstats_qam128() { modemcf_test_demodstats(ModulationScheme::Qam128); }
+    fn test_demodstats_qam128() {
+        modemcf_test_demodstats(ModulationScheme::Qam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_qam256)]
-    fn test_demodstats_qam256() { modemcf_test_demodstats(ModulationScheme::Qam256); }
+    fn test_demodstats_qam256() {
+        modemcf_test_demodstats(ModulationScheme::Qam256);
+    }
 
     // AUTOTESTS: generic APSK (maps to specific APSK modems internally)
     #[test]
     #[autotest_annotate(autotest_demodstats_apsk4)]
-    fn test_demodstats_apsk4() { modemcf_test_demodstats(ModulationScheme::Apsk4); }
+    fn test_demodstats_apsk4() {
+        modemcf_test_demodstats(ModulationScheme::Apsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_apsk8)]
-    fn test_demodstats_apsk8() { modemcf_test_demodstats(ModulationScheme::Apsk8); }
+    fn test_demodstats_apsk8() {
+        modemcf_test_demodstats(ModulationScheme::Apsk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_apsk16)]
-    fn test_demodstats_apsk16() { modemcf_test_demodstats(ModulationScheme::Apsk16); }
+    fn test_demodstats_apsk16() {
+        modemcf_test_demodstats(ModulationScheme::Apsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_apsk32)]
-    fn test_demodstats_apsk32() { modemcf_test_demodstats(ModulationScheme::Apsk32); }
+    fn test_demodstats_apsk32() {
+        modemcf_test_demodstats(ModulationScheme::Apsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_apsk64)]
-    fn test_demodstats_apsk64() { modemcf_test_demodstats(ModulationScheme::Apsk64); }
+    fn test_demodstats_apsk64() {
+        modemcf_test_demodstats(ModulationScheme::Apsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_apsk128)]
-    fn test_demodstats_apsk128() { modemcf_test_demodstats(ModulationScheme::Apsk128); }
+    fn test_demodstats_apsk128() {
+        modemcf_test_demodstats(ModulationScheme::Apsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_apsk256)]
-    fn test_demodstats_apsk256() { modemcf_test_demodstats(ModulationScheme::Apsk256); }
+    fn test_demodstats_apsk256() {
+        modemcf_test_demodstats(ModulationScheme::Apsk256);
+    }
 
     // AUTOTESTS: Specific modems
     #[test]
     #[autotest_annotate(autotest_demodstats_bpsk)]
-    fn test_demodstats_bpsk() { modemcf_test_demodstats(ModulationScheme::Bpsk); }
+    fn test_demodstats_bpsk() {
+        modemcf_test_demodstats(ModulationScheme::Bpsk);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_qpsk)]
-    fn test_demodstats_qpsk() { modemcf_test_demodstats(ModulationScheme::Qpsk); }
-    
+    fn test_demodstats_qpsk() {
+        modemcf_test_demodstats(ModulationScheme::Qpsk);
+    }
+
     #[test]
     #[autotest_annotate(autotest_demodstats_ook)]
-    fn test_demodstats_ook() { modemcf_test_demodstats(ModulationScheme::Ook); }
+    fn test_demodstats_ook() {
+        modemcf_test_demodstats(ModulationScheme::Ook);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_sqam32)]
-    fn test_demodstats_sqam32() { modemcf_test_demodstats(ModulationScheme::Sqam32); }
+    fn test_demodstats_sqam32() {
+        modemcf_test_demodstats(ModulationScheme::Sqam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_sqam128)]
-    fn test_demodstats_sqam128() { modemcf_test_demodstats(ModulationScheme::Sqam128); }
+    fn test_demodstats_sqam128() {
+        modemcf_test_demodstats(ModulationScheme::Sqam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_V29)]
-    fn test_demodstats_v29() { modemcf_test_demodstats(ModulationScheme::V29); }
+    fn test_demodstats_v29() {
+        modemcf_test_demodstats(ModulationScheme::V29);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_arb16opt)]
-    fn test_demodstats_arb16opt() { modemcf_test_demodstats(ModulationScheme::Arb16Opt); }
+    fn test_demodstats_arb16opt() {
+        modemcf_test_demodstats(ModulationScheme::Arb16Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_arb32opt)]
-    fn test_demodstats_arb32opt() { modemcf_test_demodstats(ModulationScheme::Arb32Opt); }
-    
+    fn test_demodstats_arb32opt() {
+        modemcf_test_demodstats(ModulationScheme::Arb32Opt);
+    }
+
     #[test]
     #[autotest_annotate(autotest_demodstats_arb64opt)]
-    fn test_demodstats_arb64opt() { modemcf_test_demodstats(ModulationScheme::Arb64Opt); }
+    fn test_demodstats_arb64opt() {
+        modemcf_test_demodstats(ModulationScheme::Arb64Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_arb128opt)]
-    fn test_demodstats_arb128opt() { modemcf_test_demodstats(ModulationScheme::Arb128Opt); }
+    fn test_demodstats_arb128opt() {
+        modemcf_test_demodstats(ModulationScheme::Arb128Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_arb256opt)]
-    fn test_demodstats_arb256opt() { modemcf_test_demodstats(ModulationScheme::Arb256Opt); }
+    fn test_demodstats_arb256opt() {
+        modemcf_test_demodstats(ModulationScheme::Arb256Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_arb64vt)]
-    fn test_demodstats_arb64vt() { modemcf_test_demodstats(ModulationScheme::Arb64Vt); }
+    fn test_demodstats_arb64vt() {
+        modemcf_test_demodstats(ModulationScheme::Arb64Vt);
+    }
 
     #[test]
-    fn test_demodstats_arb64ui() { modemcf_test_demodstats(ModulationScheme::Arb64Ui); }
+    fn test_demodstats_arb64ui() {
+        modemcf_test_demodstats(ModulationScheme::Arb64Ui);
+    }
 
     #[test]
     #[autotest_annotate(autotest_demodstats_pi4dqpsk)]
-    fn test_demodstats_pi4dqpsk() { modemcf_test_demodstats(ModulationScheme::Pi4Dqpsk); }
+    fn test_demodstats_pi4dqpsk() {
+        modemcf_test_demodstats(ModulationScheme::Pi4Dqpsk);
+    }
 
     fn modemcf_test_copy(ms: ModulationScheme) {
         // create modem and randomize internal state
         let mut modem_0 = Modem::new(ms).unwrap();
         let m = 1 << modem_0.get_bps();
-        
+
         for _ in 0..10 {
             // modulate random symbol
             let _ = modem_0.modulate(rand::random::<u32>() % m);
@@ -1711,215 +2038,319 @@ mod tests {
     // AUTOTESTS: generic PSK
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk2)]
-    fn test_modem_copy_psk2() { modemcf_test_copy(ModulationScheme::Psk2); }
+    fn test_modem_copy_psk2() {
+        modemcf_test_copy(ModulationScheme::Psk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk4)]
-    fn test_modem_copy_psk4() { modemcf_test_copy(ModulationScheme::Psk4); }
+    fn test_modem_copy_psk4() {
+        modemcf_test_copy(ModulationScheme::Psk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk8)]
-    fn test_modem_copy_psk8() { modemcf_test_copy(ModulationScheme::Psk8); }
+    fn test_modem_copy_psk8() {
+        modemcf_test_copy(ModulationScheme::Psk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk16)]
-    fn test_modem_copy_psk16() { modemcf_test_copy(ModulationScheme::Psk16); }
+    fn test_modem_copy_psk16() {
+        modemcf_test_copy(ModulationScheme::Psk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk32)]
-    fn test_modem_copy_psk32() { modemcf_test_copy(ModulationScheme::Psk32); }
+    fn test_modem_copy_psk32() {
+        modemcf_test_copy(ModulationScheme::Psk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk64)]
-    fn test_modem_copy_psk64() { modemcf_test_copy(ModulationScheme::Psk64); }
+    fn test_modem_copy_psk64() {
+        modemcf_test_copy(ModulationScheme::Psk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk128)]
-    fn test_modem_copy_psk128() { modemcf_test_copy(ModulationScheme::Psk128); }
+    fn test_modem_copy_psk128() {
+        modemcf_test_copy(ModulationScheme::Psk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_psk256)]
-    fn test_modem_copy_psk256() { modemcf_test_copy(ModulationScheme::Psk256); }
+    fn test_modem_copy_psk256() {
+        modemcf_test_copy(ModulationScheme::Psk256);
+    }
 
     // AUTOTESTS: generic DPSK
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk2)]
-    fn test_modem_copy_dpsk2() { modemcf_test_copy(ModulationScheme::Dpsk2); }
+    fn test_modem_copy_dpsk2() {
+        modemcf_test_copy(ModulationScheme::Dpsk2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk4)]
-    fn test_modem_copy_dpsk4() { modemcf_test_copy(ModulationScheme::Dpsk4); }
+    fn test_modem_copy_dpsk4() {
+        modemcf_test_copy(ModulationScheme::Dpsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk8)]
-    fn test_modem_copy_dpsk8() { modemcf_test_copy(ModulationScheme::Dpsk8); }
+    fn test_modem_copy_dpsk8() {
+        modemcf_test_copy(ModulationScheme::Dpsk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk16)]
-    fn test_modem_copy_dpsk16() { modemcf_test_copy(ModulationScheme::Dpsk16); }
+    fn test_modem_copy_dpsk16() {
+        modemcf_test_copy(ModulationScheme::Dpsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk32)]
-    fn test_modem_copy_dpsk32() { modemcf_test_copy(ModulationScheme::Dpsk32); }
+    fn test_modem_copy_dpsk32() {
+        modemcf_test_copy(ModulationScheme::Dpsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk64)]
-    fn test_modem_copy_dpsk64() { modemcf_test_copy(ModulationScheme::Dpsk64); }
+    fn test_modem_copy_dpsk64() {
+        modemcf_test_copy(ModulationScheme::Dpsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk128)]
-    fn test_modem_copy_dpsk128() { modemcf_test_copy(ModulationScheme::Dpsk128); }
+    fn test_modem_copy_dpsk128() {
+        modemcf_test_copy(ModulationScheme::Dpsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_dpsk256)]
-    fn test_modem_copy_dpsk256() { modemcf_test_copy(ModulationScheme::Dpsk256); }
+    fn test_modem_copy_dpsk256() {
+        modemcf_test_copy(ModulationScheme::Dpsk256);
+    }
 
     // AUTOTESTS: generic ASK
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask2)]
-    fn test_modem_copy_ask2() { modemcf_test_copy(ModulationScheme::Ask2); }
+    fn test_modem_copy_ask2() {
+        modemcf_test_copy(ModulationScheme::Ask2);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask4)]
-    fn test_modem_copy_ask4() { modemcf_test_copy(ModulationScheme::Ask4); }
+    fn test_modem_copy_ask4() {
+        modemcf_test_copy(ModulationScheme::Ask4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask8)]
-    fn test_modem_copy_ask8() { modemcf_test_copy(ModulationScheme::Ask8); }
+    fn test_modem_copy_ask8() {
+        modemcf_test_copy(ModulationScheme::Ask8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask16)]
-    fn test_modem_copy_ask16() { modemcf_test_copy(ModulationScheme::Ask16); }
+    fn test_modem_copy_ask16() {
+        modemcf_test_copy(ModulationScheme::Ask16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask32)]
-    fn test_modem_copy_ask32() { modemcf_test_copy(ModulationScheme::Ask32); }
+    fn test_modem_copy_ask32() {
+        modemcf_test_copy(ModulationScheme::Ask32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask64)]
-    fn test_modem_copy_ask64() { modemcf_test_copy(ModulationScheme::Ask64); }
+    fn test_modem_copy_ask64() {
+        modemcf_test_copy(ModulationScheme::Ask64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask128)]
-    fn test_modem_copy_ask128() { modemcf_test_copy(ModulationScheme::Ask128); }
+    fn test_modem_copy_ask128() {
+        modemcf_test_copy(ModulationScheme::Ask128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ask256)]
-    fn test_modem_copy_ask256() { modemcf_test_copy(ModulationScheme::Ask256); }
+    fn test_modem_copy_ask256() {
+        modemcf_test_copy(ModulationScheme::Ask256);
+    }
 
     // AUTOTESTS: generic QAM
     #[test]
     #[autotest_annotate(autotest_modem_copy_qam4)]
-    fn test_modem_copy_qam4() { modemcf_test_copy(ModulationScheme::Qam4); }
+    fn test_modem_copy_qam4() {
+        modemcf_test_copy(ModulationScheme::Qam4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_qam8)]
-    fn test_modem_copy_qam8() { modemcf_test_copy(ModulationScheme::Qam8); }
+    fn test_modem_copy_qam8() {
+        modemcf_test_copy(ModulationScheme::Qam8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_qam16)]
-    fn test_modem_copy_qam16() { modemcf_test_copy(ModulationScheme::Qam16); }
+    fn test_modem_copy_qam16() {
+        modemcf_test_copy(ModulationScheme::Qam16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_qam32)]
-    fn test_modem_copy_qam32() { modemcf_test_copy(ModulationScheme::Qam32); }
+    fn test_modem_copy_qam32() {
+        modemcf_test_copy(ModulationScheme::Qam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_qam64)]
-    fn test_modem_copy_qam64() { modemcf_test_copy(ModulationScheme::Qam64); }
+    fn test_modem_copy_qam64() {
+        modemcf_test_copy(ModulationScheme::Qam64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_qam128)]
-    fn test_modem_copy_qam128() { modemcf_test_copy(ModulationScheme::Qam128); }
+    fn test_modem_copy_qam128() {
+        modemcf_test_copy(ModulationScheme::Qam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_qam256)]
-    fn test_modem_copy_qam256() { modemcf_test_copy(ModulationScheme::Qam256); }
+    fn test_modem_copy_qam256() {
+        modemcf_test_copy(ModulationScheme::Qam256);
+    }
 
     // AUTOTESTS: generic APSK (maps to specific APSK modems internally)
     #[test]
     #[autotest_annotate(autotest_modem_copy_apsk4)]
-    fn test_modem_copy_apsk4() { modemcf_test_copy(ModulationScheme::Apsk4); }
+    fn test_modem_copy_apsk4() {
+        modemcf_test_copy(ModulationScheme::Apsk4);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_apsk8)]
-    fn test_modem_copy_apsk8() { modemcf_test_copy(ModulationScheme::Apsk8); }
+    fn test_modem_copy_apsk8() {
+        modemcf_test_copy(ModulationScheme::Apsk8);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_apsk16)]
-    fn test_modem_copy_apsk16() { modemcf_test_copy(ModulationScheme::Apsk16); }
+    fn test_modem_copy_apsk16() {
+        modemcf_test_copy(ModulationScheme::Apsk16);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_apsk32)]
-    fn test_modem_copy_apsk32() { modemcf_test_copy(ModulationScheme::Apsk32); }
+    fn test_modem_copy_apsk32() {
+        modemcf_test_copy(ModulationScheme::Apsk32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_apsk64)]
-    fn test_modem_copy_apsk64() { modemcf_test_copy(ModulationScheme::Apsk64); }
+    fn test_modem_copy_apsk64() {
+        modemcf_test_copy(ModulationScheme::Apsk64);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_apsk128)]
-    fn test_modem_copy_apsk128() { modemcf_test_copy(ModulationScheme::Apsk128); }
+    fn test_modem_copy_apsk128() {
+        modemcf_test_copy(ModulationScheme::Apsk128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_apsk256)]
-    fn test_modem_copy_apsk256() { modemcf_test_copy(ModulationScheme::Apsk256); }
+    fn test_modem_copy_apsk256() {
+        modemcf_test_copy(ModulationScheme::Apsk256);
+    }
 
     // AUTOTESTS: Specific modems
     #[test]
     #[autotest_annotate(autotest_modem_copy_bpsk)]
-    fn test_modem_copy_bpsk() { modemcf_test_copy(ModulationScheme::Bpsk); }
+    fn test_modem_copy_bpsk() {
+        modemcf_test_copy(ModulationScheme::Bpsk);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_qpsk)]
-    fn test_modem_copy_qpsk() { modemcf_test_copy(ModulationScheme::Qpsk); }
+    fn test_modem_copy_qpsk() {
+        modemcf_test_copy(ModulationScheme::Qpsk);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_ook)]
-    fn test_modem_copy_ook() { modemcf_test_copy(ModulationScheme::Ook); }
+    fn test_modem_copy_ook() {
+        modemcf_test_copy(ModulationScheme::Ook);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_sqam32)]
-    fn test_modem_copy_sqam32() { modemcf_test_copy(ModulationScheme::Sqam32); }
+    fn test_modem_copy_sqam32() {
+        modemcf_test_copy(ModulationScheme::Sqam32);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_sqam128)]
-    fn test_modem_copy_sqam128() { modemcf_test_copy(ModulationScheme::Sqam128); }
+    fn test_modem_copy_sqam128() {
+        modemcf_test_copy(ModulationScheme::Sqam128);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_V29)]
-    fn test_modem_copy_v29() { modemcf_test_copy(ModulationScheme::V29); }
+    fn test_modem_copy_v29() {
+        modemcf_test_copy(ModulationScheme::V29);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_arb16opt)]
-    fn test_modem_copy_arb16opt() { modemcf_test_copy(ModulationScheme::Arb16Opt); }
+    fn test_modem_copy_arb16opt() {
+        modemcf_test_copy(ModulationScheme::Arb16Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_arb32opt)]
-    fn test_modem_copy_arb32opt() { modemcf_test_copy(ModulationScheme::Arb32Opt); }
+    fn test_modem_copy_arb32opt() {
+        modemcf_test_copy(ModulationScheme::Arb32Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_arb64opt)]
-    fn test_modem_copy_arb64opt() { modemcf_test_copy(ModulationScheme::Arb64Opt); }
+    fn test_modem_copy_arb64opt() {
+        modemcf_test_copy(ModulationScheme::Arb64Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_arb128opt)]
-    fn test_modem_copy_arb128opt() { modemcf_test_copy(ModulationScheme::Arb128Opt); }
+    fn test_modem_copy_arb128opt() {
+        modemcf_test_copy(ModulationScheme::Arb128Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_arb256opt)]
-    fn test_modem_copy_arb256opt() { modemcf_test_copy(ModulationScheme::Arb256Opt); }
+    fn test_modem_copy_arb256opt() {
+        modemcf_test_copy(ModulationScheme::Arb256Opt);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_arb64vt)]
-    fn test_modem_copy_arb64vt() { modemcf_test_copy(ModulationScheme::Arb64Vt); }
+    fn test_modem_copy_arb64vt() {
+        modemcf_test_copy(ModulationScheme::Arb64Vt);
+    }
 
     #[test]
-    fn test_modem_copy_arb64ui() { modemcf_test_copy(ModulationScheme::Arb64Ui); }
+    fn test_modem_copy_arb64ui() {
+        modemcf_test_copy(ModulationScheme::Arb64Ui);
+    }
 
     #[test]
     #[autotest_annotate(autotest_modem_copy_pi4dqpsk)]
-    fn test_modem_copy_pi4dqpsk() { modemcf_test_copy(ModulationScheme::Pi4Dqpsk); }
+    fn test_modem_copy_pi4dqpsk() {
+        modemcf_test_copy(ModulationScheme::Pi4Dqpsk);
+    }
 
     // (scheme, name, bps, psk, dpsk, ask, qam, apsk)
     const SCHEMES: &[(ModulationScheme, &str, usize, bool, bool, bool, bool, bool)] = &[
@@ -2012,18 +2443,8 @@ mod tests {
     #[test]
     fn test_modemcf_families_disjoint() {
         for &(scheme, ..) in SCHEMES {
-            let families = [
-                scheme.is_psk(),
-                scheme.is_dpsk(),
-                scheme.is_ask(),
-                scheme.is_qam(),
-                scheme.is_apsk(),
-            ];
-            assert!(
-                families.iter().filter(|&&b| b).count() <= 1,
-                "{:?} belongs to more than one family",
-                scheme
-            );
+            let families = [scheme.is_psk(), scheme.is_dpsk(), scheme.is_ask(), scheme.is_qam(), scheme.is_apsk()];
+            assert!(families.iter().filter(|&&b| b).count() <= 1, "{:?} belongs to more than one family", scheme);
         }
     }
 
@@ -2052,8 +2473,7 @@ mod tests {
             assert_eq!(ModulationScheme::from_str(ms.short_name()), ms);
         }
 
-        let tabled: std::collections::HashSet<_> =
-            SCHEMES.iter().map(|&(_, name, ..)| name).collect();
+        let tabled: std::collections::HashSet<_> = SCHEMES.iter().map(|&(_, name, ..)| name).collect();
         assert_eq!(seen, tabled, "SCHEMES and ALL disagree");
     }
 

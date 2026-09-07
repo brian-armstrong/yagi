@@ -193,8 +193,7 @@ impl QPacketModem {
         let bps = self.sym.bits_per_symbol();
         self.evm = 0.0;
         for i in 0..self.frame_len() {
-            self.mod_payload
-                .demodulate_soft(frame[i], &mut self.payload_soft[i * bps..(i + 1) * bps])?;
+            self.mod_payload.demodulate_soft(frame[i], &mut self.payload_soft[i * bps..(i + 1) * bps])?;
             self.accumulate_evm();
         }
         self.finish_evm();
@@ -209,8 +208,7 @@ impl QPacketModem {
     ///  symbol  :   input received symbol before demodulation
     pub fn push_soft_symbol(&mut self, symbol: Complex32) -> Result<bool> {
         let bps = self.sym.bits_per_symbol();
-        self.mod_payload
-            .demodulate_soft(symbol, &mut self.payload_soft[self.n..self.n + bps])?;
+        self.mod_payload.demodulate_soft(symbol, &mut self.payload_soft[self.n..self.n + bps])?;
         self.n += bps;
         Ok(self.n == self.sym.soft_bit_len())
     }
@@ -224,8 +222,7 @@ impl QPacketModem {
     pub fn finish_soft_decode(&mut self, payload: &mut [u8]) -> Result<bool> {
         if self.n != self.sym.soft_bit_len() {
             return Err(Error::Config(
-                "qpacketmodem finish_soft_decode(), insufficient number of symbols received"
-                    .into(),
+                "qpacketmodem finish_soft_decode(), insufficient number of symbols received".into(),
             ));
         }
         self.n = 0;
@@ -241,11 +238,7 @@ impl QPacketModem {
     /// the frame buffer must hold every symbol
     fn check_frame_len(&self, len: usize) -> Result<()> {
         if len < self.frame_len() {
-            return Err(Error::Config(format!(
-                "frame buffer too small: {} < {}",
-                len,
-                self.frame_len()
-            )));
+            return Err(Error::Config(format!("frame buffer too small: {} < {}", len, self.frame_len())));
         }
         Ok(())
     }
@@ -380,12 +373,7 @@ mod tests {
         let evm = q.demodulator_evm();
 
         // check EVM estimate; don't bother to check that the frame was recovered
-        assert!(
-            (-evm - snr_db).abs() < 0.5,
-            "EVM: {:.3} dB, SNR: {:.3} dB",
-            evm,
-            snr_db
-        );
+        assert!((-evm - snr_db).abs() < 0.5, "EVM: {:.3} dB, SNR: {:.3} dB", evm, snr_db);
     }
 
     #[test]

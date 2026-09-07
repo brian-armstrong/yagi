@@ -4,20 +4,20 @@
 // - ready to use
 
 pub mod bessel;
-pub mod gamma;
-pub mod windows;
-pub mod poly;
-pub mod modarith;
 pub mod complex;
+pub mod gamma;
+pub mod modarith;
+pub mod poly;
+pub mod windows;
 
 pub use self::bessel::*;
 pub use self::gamma::*;
-pub use self::windows::*;
-pub use self::poly::*;
 pub use self::modarith::*;
+pub use self::poly::*;
+pub use self::windows::*;
 
+use libm::{erfcf, erff};
 use std::f32::consts::{PI, SQRT_2};
-use libm::{erff, erfcf};
 
 use crate::error::{Error, Result};
 
@@ -70,7 +70,9 @@ pub fn sincf(x: f32) -> f32 {
 
 pub fn sincd(x: f64) -> f64 {
     if x.abs() < 0.01 {
-        (std::f64::consts::PI * x / 2.0).cos() * (std::f64::consts::PI * x / 4.0).cos() * (std::f64::consts::PI * x / 8.0).cos()
+        (std::f64::consts::PI * x / 2.0).cos()
+            * (std::f64::consts::PI * x / 4.0).cos()
+            * (std::f64::consts::PI * x / 8.0).cos()
     } else {
         (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x)
     }
@@ -137,11 +139,11 @@ mod tests {
         assert_abs_diff_eq!(qf(-3.0), 0.998650102, epsilon = tol);
         assert_abs_diff_eq!(qf(-2.0), 0.977249868, epsilon = tol);
         assert_abs_diff_eq!(qf(-1.0), 0.841344746, epsilon = tol);
-        assert_abs_diff_eq!(qf( 0.0), 0.5,         epsilon = tol);
-        assert_abs_diff_eq!(qf( 1.0), 0.158655254, epsilon = tol);
-        assert_abs_diff_eq!(qf( 2.0), 0.022750132, epsilon = tol);
-        assert_abs_diff_eq!(qf( 3.0), 0.001349898, epsilon = tol);
-        assert_abs_diff_eq!(qf( 4.0), 0.000031671, epsilon = tol);
+        assert_abs_diff_eq!(qf(0.0), 0.5, epsilon = tol);
+        assert_abs_diff_eq!(qf(1.0), 0.158655254, epsilon = tol);
+        assert_abs_diff_eq!(qf(2.0), 0.022750132, epsilon = tol);
+        assert_abs_diff_eq!(qf(3.0), 0.001349898, epsilon = tol);
+        assert_abs_diff_eq!(qf(4.0), 0.000031671, epsilon = tol);
     }
 
     #[test]
@@ -154,15 +156,15 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_nextpow2)]
     fn test_nextpow2() {
-        assert_eq!(nextpow2(1).unwrap(),  0);
-        assert_eq!(nextpow2(2).unwrap(),  1);
-        assert_eq!(nextpow2(3).unwrap(),  2);
-        assert_eq!(nextpow2(4).unwrap(),  2);
-        assert_eq!(nextpow2(5).unwrap(),  3);
-        assert_eq!(nextpow2(6).unwrap(),  3);
-        assert_eq!(nextpow2(7).unwrap(),  3);
-        assert_eq!(nextpow2(8).unwrap(),  3);
-        assert_eq!(nextpow2(9).unwrap(),  4);
+        assert_eq!(nextpow2(1).unwrap(), 0);
+        assert_eq!(nextpow2(2).unwrap(), 1);
+        assert_eq!(nextpow2(3).unwrap(), 2);
+        assert_eq!(nextpow2(4).unwrap(), 2);
+        assert_eq!(nextpow2(5).unwrap(), 3);
+        assert_eq!(nextpow2(6).unwrap(), 3);
+        assert_eq!(nextpow2(7).unwrap(), 3);
+        assert_eq!(nextpow2(8).unwrap(), 3);
+        assert_eq!(nextpow2(9).unwrap(), 4);
         assert_eq!(nextpow2(10).unwrap(), 4);
         assert_eq!(nextpow2(11).unwrap(), 4);
         assert_eq!(nextpow2(12).unwrap(), 4);
@@ -211,7 +213,7 @@ mod tests {
         assert!(nchoosek(4, 5).is_err());
         // assert!(std::panic::catch_unwind(|| lngammaf(-1.0)).is_err());
         assert!(gcd(12, 0).is_err());
-        assert!(gcd( 0,12).is_err());
-        assert!(gcd( 0, 0).is_err());
+        assert!(gcd(0, 12).is_err());
+        assert!(gcd(0, 0).is_err());
     }
 }

@@ -1,15 +1,15 @@
-use crate::error::{Error, Result};
-use crate::nco::{Osc, OscScheme};
-use crate::filter::{FirHilbertFilter, FirFilter};
 use crate::buffer::WDelay;
+use crate::error::{Error, Result};
+use crate::filter::{FirFilter, FirHilbertFilter};
+use crate::nco::{Osc, OscScheme};
 use num_complex::Complex32;
 
 /// Modulation types
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AmpmodemType {
-    Dsb,  // Double side-band
-    Usb,  // Upper side-band
-    Lsb,  // Lower side-band
+    Dsb, // Double side-band
+    Usb, // Upper side-band
+    Lsb, // Lower side-band
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -22,15 +22,15 @@ enum AmpmodemDemodType {
 
 #[derive(Debug, Clone)]
 pub struct Ampmodem {
-    mod_index: f32,              // modulation index
-    mod_type: AmpmodemType,      // modulation type (e.g. DSB)
-    suppressed_carrier: bool,    // suppressed carrier flag
-    m: usize,                    // filter semi-length for all objects
-    mixer: Osc,                  // mixer and phase-locked loop
-    dcblock: FirFilter<f32>,     // carrier suppression filter
-    hilbert: FirHilbertFilter,    // hilbert transform (single side-band)
-    lowpass: FirFilter<Complex32, f32>,     // low-pass filter for SSB PLL
-    delay: WDelay<Complex32>,          // delay buffer to align to low-pass filter delay
+    mod_index: f32,                     // modulation index
+    mod_type: AmpmodemType,             // modulation type (e.g. DSB)
+    suppressed_carrier: bool,           // suppressed carrier flag
+    m: usize,                           // filter semi-length for all objects
+    mixer: Osc,                         // mixer and phase-locked loop
+    dcblock: FirFilter<f32>,            // carrier suppression filter
+    hilbert: FirHilbertFilter,          // hilbert transform (single side-band)
+    lowpass: FirFilter<Complex32, f32>, // low-pass filter for SSB PLL
+    delay: WDelay<Complex32>,           // delay buffer to align to low-pass filter delay
     demod_type: AmpmodemDemodType,
     phase_error: f32,
 }
@@ -39,10 +39,7 @@ impl Ampmodem {
     pub fn new(mod_index: f32, mod_type: AmpmodemType, suppressed_carrier: bool) -> Result<Self> {
         // Validate input
         if mod_index <= 0.0 {
-            return Err(Error::Config(format!(
-                "modulation index {:.4e} must be greater than 0",
-                mod_index
-            )));
+            return Err(Error::Config(format!("modulation index {:.4e} must be greater than 0", mod_index)));
         }
 
         let m = 25;
@@ -93,11 +90,19 @@ impl Ampmodem {
     pub fn get_delay_demod(&self) -> usize {
         match self.mod_type {
             AmpmodemType::Dsb => {
-                if self.suppressed_carrier { 0 } else { 2 * self.m }
-            },
+                if self.suppressed_carrier {
+                    0
+                } else {
+                    2 * self.m
+                }
+            }
             AmpmodemType::Usb | AmpmodemType::Lsb => {
-                if self.suppressed_carrier { 2 * self.m } else { 4 * self.m }
-            },
+                if self.suppressed_carrier {
+                    2 * self.m
+                } else {
+                    4 * self.m
+                }
+            }
         }
     }
 
@@ -118,17 +123,16 @@ impl Ampmodem {
                     x_hat = x_hat.conj();
                 }
                 x_hat
-            },
+            }
         };
 
-        Ok(x_hat * self.mod_index + if self.suppressed_carrier { Complex32::new(0.0, 0.0) } else { Complex32::new(1.0, 0.0) })
+        Ok(x_hat * self.mod_index
+            + if self.suppressed_carrier { Complex32::new(0.0, 0.0) } else { Complex32::new(1.0, 0.0) })
     }
 
     pub fn modulate_block(&mut self, m: &[f32], s: &mut [Complex32]) -> Result<()> {
         if m.len() != s.len() {
-            return Err(Error::Range(
-                "input and output arrays must be same length".into()
-            ));
+            return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
         for (x, y) in m.iter().zip(s.iter_mut()) {
@@ -139,26 +143,16 @@ impl Ampmodem {
 
     pub fn demodulate(&mut self, y: Complex32) -> Result<f32> {
         match self.demod_type {
-            AmpmodemDemodType::DsbPllCarrier => {
-                self.demod_dsb_pll_carrier(y)
-            },
-            AmpmodemDemodType::DsbPllCostas => {
-                self.demod_dsb_pll_costas(y)
-            },
-            AmpmodemDemodType::DemodSsb => {
-                self.demod_ssb(y)
-            },
-            AmpmodemDemodType::DemodSsbPllCarrier => {
-                self.demod_ssb_pll_carrier(y)
-            },
+            AmpmodemDemodType::DsbPllCarrier => self.demod_dsb_pll_carrier(y),
+            AmpmodemDemodType::DsbPllCostas => self.demod_dsb_pll_costas(y),
+            AmpmodemDemodType::DemodSsb => self.demod_ssb(y),
+            AmpmodemDemodType::DemodSsbPllCarrier => self.demod_ssb_pll_carrier(y),
         }
     }
 
     pub fn demodulate_block(&mut self, y: &[Complex32], x: &mut [f32]) -> Result<()> {
         if y.len() != x.len() {
-            return Err(Error::Range(
-                "input and output arrays must be same length".into()
-            ));
+            return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
         for (y_val, x_val) in y.iter().zip(x.iter_mut()) {
@@ -209,7 +203,7 @@ impl Ampmodem {
 
         // step nco
         self.mixer.step();
-        
+
         // keep in-phase component
         Ok(v.re / self.mod_index)
     }
@@ -269,13 +263,13 @@ mod tests {
         dphi: f32,
         mut phi: f32,
     ) -> Result<()> {
-        use std::f32::consts::{PI, FRAC_1_SQRT_2};
-        use num_complex::Complex;
         use crate::buffer::WDelay;
         use crate::random::randnf;
-        
+        use num_complex::Complex;
+        use std::f32::consts::{FRAC_1_SQRT_2, PI};
+
         // options
-        let snr_db = 40.0;    // signal-to-noise ratio (set very high for testing)
+        let snr_db = 40.0; // signal-to-noise ratio (set very high for testing)
 
         // derived values
         let nstd = 10.0f32.powf(-snr_db / 20.0);
@@ -283,7 +277,7 @@ mod tests {
         // create mod/demod objects
         let mut mod_ = Ampmodem::new(mod_index, mod_type, suppressed_carrier)?;
         let mut demod = Ampmodem::new(mod_index, mod_type, suppressed_carrier)?;
-        
+
         // compute end-to-end delay
         let delay = mod_.get_delay_mod() + demod.get_delay_demod();
         let mut message_delay = WDelay::create(delay)?;
@@ -291,12 +285,12 @@ mod tests {
         // run trials
         let mut i = 0;
         let skip = 2400; // wait for PLL and filters to settle
-        let mut num_samples_compare = 0;   // number of samples compared
+        let mut num_samples_compare = 0; // number of samples compared
         let mut rmse_0 = 0.0;
-        let mut rmse_1 = 0.0;           // RMS error in phase and 180 out of phase
+        let mut rmse_1 = 0.0; // RMS error in phase and 180 out of phase
         let f0 = 1.0 / (1031.0f32).sqrt();
         let f1 = 1.0 / (1723.0f32).sqrt();
-        
+
         while num_samples_compare < 8000 {
             // generate original message signal
             let msg_in = 0.6 * (2.0 * PI * f0 * i as f32).cos() + 0.4 * (2.0 * PI * f1 * i as f32).cos();
@@ -306,20 +300,23 @@ mod tests {
             let x = mod_.modulate(msg_in)?;
 
             // add channel impairments
-            let y = x * Complex::new(phi.cos(), phi.sin()) +
-                nstd * Complex::new(randnf(), randnf()) * FRAC_1_SQRT_2;
+            let y = x * Complex::new(phi.cos(), phi.sin()) + nstd * Complex::new(randnf(), randnf()) * FRAC_1_SQRT_2;
 
             // update phase
             phi += dphi;
-            while phi > PI { phi -= 2.0 * PI; }
-            while phi < -PI { phi += 2.0 * PI; }
+            while phi > PI {
+                phi -= 2.0 * PI;
+            }
+            while phi < -PI {
+                phi += 2.0 * PI;
+            }
 
             // demodulate signal
             let msg_out = demod.demodulate(y)?;
 
             // compute error
             let msg_in = message_delay.read();
-            
+
             if i >= skip {
                 let e0 = msg_in - msg_out;
                 let e1 = msg_in + msg_out;
@@ -332,15 +329,11 @@ mod tests {
 
         // finally, check if test passed based on modulation type; for
         // double side-band suppressed carrier, we can have a 180 degree phase offset
-        rmse_0 = 10.0 * (rmse_0 / num_samples_compare as f32).log10();  // in-phase
-        rmse_1 = 10.0 * (rmse_1 / num_samples_compare as f32).log10();  // 180-degree out of phase
-        
-        let rmse = if mod_type == AmpmodemType::Dsb && suppressed_carrier {
-            rmse_0.min(rmse_1)
-        } else {
-            rmse_0
-        };
-        
+        rmse_0 = 10.0 * (rmse_0 / num_samples_compare as f32).log10(); // in-phase
+        rmse_1 = 10.0 * (rmse_1 / num_samples_compare as f32).log10(); // 180-degree out of phase
+
+        let rmse = if mod_type == AmpmodemType::Dsb && suppressed_carrier { rmse_0.min(rmse_1) } else { rmse_0 };
+
         assert!(rmse < -18.0);
         Ok(())
     }
@@ -380,5 +373,4 @@ mod tests {
     fn test_ampmodem_lsb_carrier_off() -> Result<()> {
         ampmodem_test_harness(0.8, AmpmodemType::Lsb, true, 0.00, 0.0)
     }
-
 }

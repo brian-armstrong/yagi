@@ -110,7 +110,8 @@ where
 
         // Back-substitution
         for pivot_c in 0..xc {
-            x[pivot_r * xc + pivot_c] = g * matrix_access(x, xr, xc, r, pivot_c) - matrix_access(x, xr, xc, pivot_r, pivot_c);
+            x[pivot_r * xc + pivot_c] =
+                g * matrix_access(x, xr, xc, r, pivot_c) - matrix_access(x, xr, xc, pivot_r, pivot_c);
         }
     }
 

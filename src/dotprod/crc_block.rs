@@ -2,13 +2,13 @@ use num_complex::Complex;
 
 use super::{DotProdBlockKernel, DotProdBlockPlan};
 
-use std::simd::f32x4;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use std::simd::f32x16;
+use std::simd::f32x4;
 
-use super::reduce::reduce_sum_complex_sse_f32x4;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use super::reduce::reduce_sum_complex_avx512_f32x16;
+use super::reduce::reduce_sum_complex_sse_f32x4;
 
 fn repack_real_coefficients(h: &[f32], padded_len: usize, packed: &mut [f32]) {
     // by duplicating each coefficient, we can avoid some extra work in the kernel
@@ -21,15 +21,13 @@ fn repack_real_coefficients(h: &[f32], padded_len: usize, packed: &mut [f32]) {
     packed[source_len..].fill(0.0);
 }
 
-pub(super) fn plan_dotprod_crc_block_f32x4(
-    len: usize,
-) -> Option<DotProdBlockPlan<[Complex<f32>], f32, Complex<f32>>> {
+pub(super) fn plan_dotprod_crc_block_f32x4(len: usize) -> Option<DotProdBlockPlan<[Complex<f32>], f32, Complex<f32>>> {
     let padded_len = len.next_multiple_of(2);
     let executor = match padded_len {
-         2 => dotprod_crc_block_f32x4::<2> as DotProdBlockKernel<[Complex<f32>], f32, Complex<f32>>,
-         4 => dotprod_crc_block_f32x4::<4>,
-         6 => dotprod_crc_block_f32x4::<6>,
-         8 => dotprod_crc_block_f32x4::<8>,
+        2 => dotprod_crc_block_f32x4::<2> as DotProdBlockKernel<[Complex<f32>], f32, Complex<f32>>,
+        4 => dotprod_crc_block_f32x4::<4>,
+        6 => dotprod_crc_block_f32x4::<6>,
+        8 => dotprod_crc_block_f32x4::<8>,
         10 => dotprod_crc_block_f32x4::<10>,
         12 => dotprod_crc_block_f32x4::<12>,
         14 => dotprod_crc_block_f32x4::<14>,
@@ -44,20 +42,11 @@ pub(super) fn plan_dotprod_crc_block_f32x4(
         32 => dotprod_crc_block_f32x4::<32>,
         _ => return None,
     };
-    Some(DotProdBlockPlan::new(
-        len,
-        padded_len * 2,
-        padded_len,
-        4,
-        executor,
-        repack_real_coefficients,
-    ))
+    Some(DotProdBlockPlan::new(len, padded_len * 2, padded_len, 4, executor, repack_real_coefficients))
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub(super) fn plan_dotprod_crc_block_avx512(
-    len: usize,
-) -> Option<DotProdBlockPlan<[Complex<f32>], f32, Complex<f32>>> {
+pub(super) fn plan_dotprod_crc_block_avx512(len: usize) -> Option<DotProdBlockPlan<[Complex<f32>], f32, Complex<f32>>> {
     let padded_len = len.next_multiple_of(8);
     let executor = match padded_len {
         16 => dotprod_crc_block_avx512_register::<16> as DotProdBlockKernel<[Complex<f32>], f32, Complex<f32>>,
@@ -78,21 +67,10 @@ pub(super) fn plan_dotprod_crc_block_avx512(
         136.. => dotprod_crc_block_avx512_memory,
         _ => return None,
     };
-    Some(DotProdBlockPlan::new(
-        len,
-        padded_len * 2,
-        padded_len,
-        4,
-        executor,
-        repack_real_coefficients,
-    ))
+    Some(DotProdBlockPlan::new(len, padded_len * 2, padded_len, 4, executor, repack_real_coefficients))
 }
 
-unsafe fn dotprod_crc_block_f32x4<const N: usize>(
-    x: &[Complex<f32>],
-    h: &[f32],
-    y: &mut [Complex<f32>],
-) -> usize {
+unsafe fn dotprod_crc_block_f32x4<const N: usize>(x: &[Complex<f32>], h: &[f32], y: &mut [Complex<f32>]) -> usize {
     // this is largely the same algorithm as `dotprod_rrr_block_f32x4`
     // for Complex<f32> x {x.re, x.im} and f32 h {h, h} (with duplication)
     // the dotprod y is {h * x.re, h * x.im}
@@ -151,18 +129,10 @@ unsafe fn dotprod_crc_block_f32x4<const N: usize>(
         macro_rules! accumulate {
             ($threshold:literal, $offset:literal, $coeff:ident) => {
                 if N > $threshold {
-                    a0 += f32x4::from_array(
-                        *(xp.add(base + $offset) as *const [f32; 4]),
-                    ) * $coeff;
-                    a1 += f32x4::from_array(
-                        *(xp.add(base + $offset + 2) as *const [f32; 4]),
-                    ) * $coeff;
-                    a2 += f32x4::from_array(
-                        *(xp.add(base + $offset + 4) as *const [f32; 4]),
-                    ) * $coeff;
-                    a3 += f32x4::from_array(
-                        *(xp.add(base + $offset + 6) as *const [f32; 4]),
-                    ) * $coeff;
+                    a0 += f32x4::from_array(*(xp.add(base + $offset) as *const [f32; 4])) * $coeff;
+                    a1 += f32x4::from_array(*(xp.add(base + $offset + 2) as *const [f32; 4])) * $coeff;
+                    a2 += f32x4::from_array(*(xp.add(base + $offset + 4) as *const [f32; 4])) * $coeff;
+                    a3 += f32x4::from_array(*(xp.add(base + $offset + 6) as *const [f32; 4])) * $coeff;
                 }
             };
         }
@@ -256,18 +226,10 @@ unsafe fn dotprod_crc_block_avx512_register<const N: usize>(
         macro_rules! accumulate {
             ($threshold:literal, $offset:literal, $coeff:ident) => {
                 if N > $threshold {
-                    a0 += f32x16::from_array(
-                        *(xp.add(base + $offset) as *const [f32; 16]),
-                    ) * $coeff;
-                    a1 += f32x16::from_array(
-                        *(xp.add(base + $offset + 2) as *const [f32; 16]),
-                    ) * $coeff;
-                    a2 += f32x16::from_array(
-                        *(xp.add(base + $offset + 4) as *const [f32; 16]),
-                    ) * $coeff;
-                    a3 += f32x16::from_array(
-                        *(xp.add(base + $offset + 6) as *const [f32; 16]),
-                    ) * $coeff;
+                    a0 += f32x16::from_array(*(xp.add(base + $offset) as *const [f32; 16])) * $coeff;
+                    a1 += f32x16::from_array(*(xp.add(base + $offset + 2) as *const [f32; 16])) * $coeff;
+                    a2 += f32x16::from_array(*(xp.add(base + $offset + 4) as *const [f32; 16])) * $coeff;
+                    a3 += f32x16::from_array(*(xp.add(base + $offset + 6) as *const [f32; 16])) * $coeff;
                 }
             };
         }
@@ -300,11 +262,7 @@ unsafe fn dotprod_crc_block_avx512_register<const N: usize>(
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[target_feature(enable = "avx512f")]
-unsafe fn dotprod_crc_block_avx512_memory(
-    x: &[Complex<f32>],
-    h: &[f32],
-    y: &mut [Complex<f32>],
-) -> usize {
+unsafe fn dotprod_crc_block_avx512_memory(x: &[Complex<f32>], h: &[f32], y: &mut [Complex<f32>]) -> usize {
     // see `dotprod_rrr_block_avx512_memory`
     // instead of keeping coefficients in register, load from memory every 4 outputs
     // handles multiple widths
@@ -339,18 +297,10 @@ unsafe fn dotprod_crc_block_avx512_memory(
             ($offset:expr) => {{
                 let offset = $offset;
                 let h = f32x16::from_array(*(hp.add(offset) as *const [f32; 16]));
-                a0 += f32x16::from_array(
-                    *(xp.add(base + offset) as *const [f32; 16]),
-                ) * h;
-                a1 += f32x16::from_array(
-                    *(xp.add(base + offset + 2) as *const [f32; 16]),
-                ) * h;
-                a2 += f32x16::from_array(
-                    *(xp.add(base + offset + 4) as *const [f32; 16]),
-                ) * h;
-                a3 += f32x16::from_array(
-                    *(xp.add(base + offset + 6) as *const [f32; 16]),
-                ) * h;
+                a0 += f32x16::from_array(*(xp.add(base + offset) as *const [f32; 16])) * h;
+                a1 += f32x16::from_array(*(xp.add(base + offset + 2) as *const [f32; 16])) * h;
+                a2 += f32x16::from_array(*(xp.add(base + offset + 4) as *const [f32; 16])) * h;
+                a3 += f32x16::from_array(*(xp.add(base + offset + 6) as *const [f32; 16])) * h;
             }};
         }
 

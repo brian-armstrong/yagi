@@ -4,17 +4,17 @@ use num_complex::Complex;
 
 use super::DotProd;
 
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+use std::simd::{f32x16, f32x8};
 #[cfg(feature = "simd")]
 use std::simd::{f32x4, simd_swizzle};
-#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-use std::simd::{f32x8, f32x16};
 #[cfg(feature = "simd")]
 use std::sync::OnceLock;
 
-#[cfg(feature = "simd")]
-use super::ccc_block::plan_dotprod_ccc_block_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 use super::ccc_block::plan_dotprod_ccc_block_avx512;
+#[cfg(feature = "simd")]
+use super::ccc_block::plan_dotprod_ccc_block_f32x4;
 #[cfg(feature = "simd")]
 use super::reduce::reduce_sum_sse_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
@@ -88,9 +88,7 @@ impl DotProd<Complex<f32>> for [Complex<f32>] {
     }
 
     #[cfg(feature = "simd")]
-    fn plan_block(
-        len: usize,
-    ) -> Option<super::DotProdBlockPlan<[Complex<f32>], Complex<f32>, Complex<f32>>> {
+    fn plan_block(len: usize) -> Option<super::DotProdBlockPlan<[Complex<f32>], Complex<f32>, Complex<f32>>> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         if (len == 8 || len >= 16) && is_x86_feature_detected!("avx512f") {
             if let Some(plan) = plan_dotprod_ccc_block_avx512(len) {
@@ -121,12 +119,9 @@ unsafe fn dotprod_ccc_scalar(a: &[Complex<f32>], b: &[Complex<f32>]) -> Complex<
 }
 
 #[cfg(feature = "simd")]
-unsafe fn dotprod_ccc_const_f32x4<const N: usize>(
-    a: &[Complex<f32>],
-    b: &[Complex<f32>],
-) -> Complex<f32> {
+unsafe fn dotprod_ccc_const_f32x4<const N: usize>(a: &[Complex<f32>], b: &[Complex<f32>]) -> Complex<f32> {
     // this method is const on N so that the loops below disappear
-    // SIMD uses this for various small N where this is small and fast 
+    // SIMD uses this for various small N where this is small and fast
     debug_assert_eq!(a.len(), N);
     debug_assert_eq!(b.len(), N);
     unsafe {
@@ -150,10 +145,7 @@ unsafe fn dotprod_ccc_const_f32x4<const N: usize>(
 
     let re = sum_re.to_array();
     let im = sum_im.to_array();
-    let mut result = Complex::new(
-        (re[0] + re[1]) + (re[2] + re[3]),
-        (im[0] + im[1]) + (im[2] + im[3]),
-    );
+    let mut result = Complex::new((re[0] + re[1]) + (re[2] + re[3]), (im[0] + im[1]) + (im[2] + im[3]));
     while i < N {
         result += a[i] * b[i];
         i += 1;
@@ -172,10 +164,7 @@ unsafe fn dotprod_ccc_128(a: &[Complex<f32>], b: &[Complex<f32>]) -> Complex<f32
 /// 4x-unrolled f32x4: 8 complex elements per iteration.
 #[cfg(feature = "simd")]
 #[inline]
-unsafe fn dotprod_ccc_sse_f32x4_wide(
-    a: &[Complex<f32>],
-    b: &[Complex<f32>],
-) -> (Complex<f32>, usize) {
+unsafe fn dotprod_ccc_sse_f32x4_wide(a: &[Complex<f32>], b: &[Complex<f32>]) -> (Complex<f32>, usize) {
     let chunks = a.len() / 8;
     if chunks == 0 {
         return (Complex::new(0.0, 0.0), 0);
@@ -238,10 +227,7 @@ unsafe fn dotprod_ccc_sse_f32x4_wide(
 /// Single f32x4: 2 complex elements per iteration
 #[cfg(feature = "simd")]
 #[inline]
-unsafe fn dotprod_ccc_sse_f32x4_narrow(
-    a: &[Complex<f32>],
-    b: &[Complex<f32>],
-) -> (Complex<f32>, usize) {
+unsafe fn dotprod_ccc_sse_f32x4_narrow(a: &[Complex<f32>], b: &[Complex<f32>]) -> (Complex<f32>, usize) {
     let chunks = a.len() / 2;
     if chunks == 0 {
         return (Complex::new(0.0, 0.0), 0);
@@ -281,10 +267,7 @@ pub(super) unsafe fn dotprod_ccc_avx2(a: &[Complex<f32>], b: &[Complex<f32>]) ->
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 #[target_feature(enable = "avx2")]
 #[inline]
-unsafe fn dotprod_ccc_avx2_f32x8_wide(
-    a: &[Complex<f32>],
-    b: &[Complex<f32>],
-) -> (Complex<f32>, usize) {
+unsafe fn dotprod_ccc_avx2_f32x8_wide(a: &[Complex<f32>], b: &[Complex<f32>]) -> (Complex<f32>, usize) {
     let chunks = a.len() / 16;
     if chunks == 0 {
         return (Complex::new(0.0, 0.0), 0);
@@ -348,10 +331,7 @@ unsafe fn dotprod_ccc_avx2_f32x8_wide(
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 #[target_feature(enable = "avx2")]
 #[inline]
-unsafe fn dotprod_ccc_avx2_f32x8_narrow(
-    a: &[Complex<f32>],
-    b: &[Complex<f32>],
-) -> (Complex<f32>, usize) {
+unsafe fn dotprod_ccc_avx2_f32x8_narrow(a: &[Complex<f32>], b: &[Complex<f32>]) -> (Complex<f32>, usize) {
     let chunks = a.len() / 4;
     if chunks == 0 {
         return (Complex::new(0.0, 0.0), 0);
@@ -387,24 +367,18 @@ pub(super) unsafe fn dotprod_ccc_avx512(a: &[Complex<f32>], b: &[Complex<f32>]) 
     s0 + s1 + dotprod_ccc_scalar(&a[n1..], &b[n1..])
 }
 
-
 /// 4x-unrolled f32x16: 32 complex elements per iteration.
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 #[target_feature(enable = "avx512f")]
 #[inline]
-unsafe fn dotprod_ccc_avx512_f32x16_wide(
-    a: &[Complex<f32>],
-    b: &[Complex<f32>],
-) -> (Complex<f32>, usize) {
+unsafe fn dotprod_ccc_avx512_f32x16_wide(a: &[Complex<f32>], b: &[Complex<f32>]) -> (Complex<f32>, usize) {
     let chunks = a.len() / 32;
     if chunks == 0 {
         return (Complex::new(0.0, 0.0), 0);
     }
 
-    let sign = f32x16::from_array([
-        1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0,
-        1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0,
-    ]);
+    let sign =
+        f32x16::from_array([1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0]);
 
     let mut sum_re0 = f32x16::splat(0.0);
     let mut sum_re1 = f32x16::splat(0.0);
@@ -454,19 +428,16 @@ unsafe fn dotprod_ccc_avx512_f32x16_wide(
     sum_im2 += sum_im3;
     sum_im0 += sum_im2;
 
-    let result = Complex::new(
-        reduce_sum_avx512_f32x16(sum_re0),
-        reduce_sum_avx512_f32x16(sum_im0),
-    );
+    let result = Complex::new(reduce_sum_avx512_f32x16(sum_re0), reduce_sum_avx512_f32x16(sum_im0));
     (result, chunks * 32)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_abs_diff_eq;
     #[cfg(feature = "simd")]
     use crate::random::crandnf;
+    use approx::assert_abs_diff_eq;
 
     type Cf32 = Complex<f32>;
 
@@ -558,22 +529,18 @@ mod tests {
         // AVX2: <8 scalar, <16 f32x4, >=16 f32x8 (processes 16 complex per iteration)
         // AVX-512: <8 scalar, <32 f32x4, >=32 f32x16 (processes 32 complex per iteration)
         let test_sizes = [
-            1, 2, 3, 4,           // tiny scalar
-            7, 8, 9,              // scalar/f32x4 boundary
-            15, 16, 17,           // f32x4/f32x8 boundary (AVX2)
-            31, 32, 33,           // f32x4/f32x16 boundary (AVX-512)
-            63, 64, 65,           // 2x f32x16 + cleanup
-            127, 128, 129,        // 4x f32x16 + cleanup
-            255, 256, 257,        // 8x f32x16 + cleanup
+            1, 2, 3, 4, // tiny scalar
+            7, 8, 9, // scalar/f32x4 boundary
+            15, 16, 17, // f32x4/f32x8 boundary (AVX2)
+            31, 32, 33, // f32x4/f32x16 boundary (AVX-512)
+            63, 64, 65, // 2x f32x16 + cleanup
+            127, 128, 129, // 4x f32x16 + cleanup
+            255, 256, 257, // 8x f32x16 + cleanup
         ];
 
         for &n in &test_sizes {
-            let a: Vec<Cf32> = (0..n)
-                .map(|i| Cf32::new((i as f32 * 0.1).sin(), (i as f32 * 0.15).cos()))
-                .collect();
-            let b: Vec<Cf32> = (0..n)
-                .map(|i| Cf32::new((i as f32 * 0.2).cos(), (i as f32 * 0.25).sin()))
-                .collect();
+            let a: Vec<Cf32> = (0..n).map(|i| Cf32::new((i as f32 * 0.1).sin(), (i as f32 * 0.15).cos())).collect();
+            let b: Vec<Cf32> = (0..n).map(|i| Cf32::new((i as f32 * 0.2).cos(), (i as f32 * 0.25).sin())).collect();
 
             let expected: Cf32 = a.iter().zip(b.iter()).map(|(&a, &b)| a * b).sum();
             let result = a.dotprod(&b);
@@ -594,7 +561,11 @@ mod tests {
             let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
             let x: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
 
-            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64)).sum();
+            let y_test: Cf64 = h
+                .iter()
+                .zip(x.iter())
+                .map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64))
+                .sum();
             let y_avx512 = unsafe { dotprod_ccc_avx512(&h, &x) };
 
             assert_abs_diff_eq!(y_avx512.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
@@ -613,7 +584,11 @@ mod tests {
             let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
             let x: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
 
-            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64)).sum();
+            let y_test: Cf64 = h
+                .iter()
+                .zip(x.iter())
+                .map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64))
+                .sum();
             let y_avx2 = unsafe { dotprod_ccc_avx2(&h, &x) };
 
             assert_abs_diff_eq!(y_avx2.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
@@ -628,7 +603,11 @@ mod tests {
             let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
             let x: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
 
-            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64)).sum();
+            let y_test: Cf64 = h
+                .iter()
+                .zip(x.iter())
+                .map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64))
+                .sum();
             let y_sse = unsafe { dotprod_ccc_128(&h, &x) };
 
             assert_abs_diff_eq!(y_sse.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
@@ -643,7 +622,11 @@ mod tests {
             let h: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
             let x: Vec<Cf32> = (0..n).map(|_| crandnf()).collect();
 
-            let y_test: Cf64 = h.iter().zip(x.iter()).map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64)).sum();
+            let y_test: Cf64 = h
+                .iter()
+                .zip(x.iter())
+                .map(|(&a, &b)| Cf64::new(a.re as f64, a.im as f64) * Cf64::new(b.re as f64, b.im as f64))
+                .sum();
             let y_scalar = unsafe { dotprod_ccc_scalar(&h, &x) };
 
             assert_abs_diff_eq!(y_scalar.re, y_test.re as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);

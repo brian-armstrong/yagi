@@ -135,16 +135,8 @@ mod tests {
             // every single-bit error is correctable
             for bit in 0..31 {
                 let rec = enc ^ (1 << bit);
-                assert_eq!(
-                    hamming3126_decode_symbol(rec),
-                    sym,
-                    "symbol {:#09x} failed with bit {} flipped",
-                    sym,
-                    bit
-                );
+                assert_eq!(hamming3126_decode_symbol(rec), sym, "symbol {:#09x} failed with bit {} flipped", sym, bit);
             }
         }
     }
-
-
 }

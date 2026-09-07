@@ -64,12 +64,7 @@ impl RsLayout {
         // mod(num_blocks*dec_block_len, dec_msg_len)
         let res_block_len = (num_blocks * dec_block_len) % dec_msg_len;
 
-        Self {
-            num_blocks,
-            dec_block_len,
-            enc_block_len,
-            res_block_len,
-        }
+        Self { num_blocks, dec_block_len, enc_block_len, res_block_len }
     }
 
     pub(crate) fn enc_msg_len(&self) -> usize {
@@ -123,14 +118,7 @@ impl ReedSolomon {
         debug_assert_eq!(kk, decoder.message_length());
 
         // allocate memory for arrays
-        Self {
-            encoder,
-            decoder,
-            nroots,
-            kk,
-            tblock: [0u8; RS_M8_NN],
-            decoded: [0u8; RS_M8_NN],
-        }
+        Self { encoder, decoder, nroots, kk, tblock: [0u8; RS_M8_NN], decoded: [0u8; RS_M8_NN] }
     }
 
     pub(crate) fn layout(&self, dec_msg_len: usize) -> RsLayout {
@@ -170,10 +158,7 @@ impl ReedSolomon {
             // final block leaves it at the wrong offset. move it out to the
             // fixed stride every block is read back at
             if block_size != layout.dec_block_len {
-                msg_enc.copy_within(
-                    n1 + block_size..n1 + block_size + self.nroots,
-                    n1 + layout.dec_block_len,
-                );
+                msg_enc.copy_within(n1 + block_size..n1 + block_size + self.nroots, n1 + layout.dec_block_len);
                 msg_enc[n1 + block_size..n1 + layout.dec_block_len].fill(0);
             }
 
@@ -191,7 +176,7 @@ impl ReedSolomon {
     /// decode block of data using Reed-Solomon decoder, returning the total
     /// number of byte errors corrected across all blocks
     ///
-    /// `Err` is only returned when the request is structurally malformed 
+    /// `Err` is only returned when the request is structurally malformed
     /// (wrong arguments or bad block). If the decoder detects that there are
     /// more errors than it can correct, this will actually return Ok(0) and
     /// leave the block uncorrected. This enables the Packetizer or other
@@ -200,12 +185,7 @@ impl ReedSolomon {
     ///  dec_msg_len    :   decoded message length (number of bytes)
     ///  msg_enc        :   encoded message
     ///  msg_dec        :   decoded message [size: 1 x dec_msg_len]
-    pub fn decode(
-        &mut self,
-        dec_msg_len: usize,
-        msg_enc: &[u8],
-        msg_dec: &mut [u8],
-    ) -> Result<usize> {
+    pub fn decode(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<usize> {
         // validate input
         if dec_msg_len == 0 {
             return Err(Error::Config("output length must be > 0".into()));
@@ -232,10 +212,7 @@ impl ReedSolomon {
             self.tblock[block_size..block_size + self.nroots]
                 .copy_from_slice(&enc[layout.dec_block_len..layout.dec_block_len + self.nroots]);
 
-            match self.decoder.decode(
-                &self.tblock[..block_size + self.nroots],
-                &mut self.decoded[..block_size],
-            ) {
+            match self.decoder.decode(&self.tblock[..block_size + self.nroots], &mut self.decoded[..block_size]) {
                 Ok(corrected) => {
                     total_corrected += corrected;
                     msg_dec[n0..n0 + block_size].copy_from_slice(&self.decoded[..block_size]);
@@ -361,15 +338,9 @@ mod tests {
                 .unwrap_or_else(|e| panic!("n={n}: uncorrectable block returned Err({e})"));
 
             // the buffer was written, not left at its fill value
-            assert!(
-                decoded.iter().any(|&b| b != 0xAA),
-                "n={n}: decode left the output untouched"
-            );
+            assert!(decoded.iter().any(|&b| b != 0xAA), "n={n}: decode left the output untouched");
             // and the failed block contributed nothing to the count
-            assert!(
-                corrected == 0,
-                "n={n}: reported {corrected} corrections on an uncorrectable block"
-            );
+            assert!(corrected == 0, "n={n}: reported {corrected} corrections on an uncorrectable block");
         }
     }
 

@@ -32,9 +32,7 @@ pub struct Vco {
 
 impl Vco {
     pub fn new() -> Self {
-        let mut vco = Vco {
-            vco_sintab: vec![VcoLut { value: 0.0, skew: 0.0 }; VCO_STATIC_LUT_SIZE],
-        };
+        let mut vco = Vco { vco_sintab: vec![VcoLut { value: 0.0, skew: 0.0 }; VCO_STATIC_LUT_SIZE] };
 
         let mut theta = 0;
         let d_theta = std::u32::MAX / VCO_STATIC_LUT_SIZE as u32;
@@ -54,12 +52,9 @@ impl Vco {
         let index_pi_2 = VCO_STATIC_LUT_QSIZE;
         let index_3_pi_2 = VCO_STATIC_LUT_QSIZE + VCO_STATIC_LUT_HSIZE;
         vco.vco_sintab[index_pi_2].value = 1.0;
-        vco.vco_sintab[index_pi_2].skew =
-            -vco.vco_sintab[index_pi_2 - 1].skew;
-        vco.vco_sintab[index_3_pi_2].value =
-            -vco.vco_sintab[index_pi_2].value;
-        vco.vco_sintab[index_3_pi_2].skew =
-            vco.vco_sintab[index_pi_2 - 1].skew;
+        vco.vco_sintab[index_pi_2].skew = -vco.vco_sintab[index_pi_2 - 1].skew;
+        vco.vco_sintab[index_3_pi_2].value = -vco.vco_sintab[index_pi_2].value;
+        vco.vco_sintab[index_3_pi_2].skew = vco.vco_sintab[index_pi_2 - 1].skew;
 
         // Mirror [0, PI/2] range to [PI/2, PI] range
 
@@ -104,7 +99,10 @@ impl Vco {
         let s_s = self.vco_sintab[index].skew;
         let c_v = self.vco_sintab[index_pi2].value;
         let c_s = self.vco_sintab[index_pi2].skew;
-        (s_v + vco_static_lut_theta_accum(theta) as f32 * s_s, c_v + vco_static_lut_theta_accum(theta_pi2) as f32 * c_s)
+        (
+            s_v + vco_static_lut_theta_accum(theta) as f32 * s_s,
+            c_v + vco_static_lut_theta_accum(theta_pi2) as f32 * c_s,
+        )
     }
 
     fn static_index(&self, theta: u32) -> usize {

@@ -2,7 +2,7 @@ use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Sqam32 {
-    map: Vec<Complex32>,  // 8-sample sub-map (first quadrant)
+    map: Vec<Complex32>, // 8-sample sub-map (first quadrant)
 }
 
 impl Modem {
@@ -48,7 +48,7 @@ impl Modem {
             3 => -symbol_in,
             _ => return Err(Error::Internal("invalid quadrant".into())),
         };
-        
+
         let mut dmin = f32::INFINITY;
         let mut s = 0;
         let symbol_map = if let Some(ModemData::Sqam32(sqam32)) = self.data.as_ref() {
@@ -73,6 +73,7 @@ impl Modem {
 }
 
 // 'square' 32-QAM (first quadrant)
+#[rustfmt::skip]
 const MODEM_ARB_SQAM32: [Complex32; 8] = [
       Complex32::new(0.22361000,  0.22361000),   Complex32::new(0.67082000,  0.22361000), 
       Complex32::new(0.67082000,  1.11800000),   Complex32::new(1.11800000,  0.22361000), 

@@ -1,13 +1,11 @@
 use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
-pub struct Direct {
-}
+pub struct Direct {}
 
 impl Direct {
     pub fn new() -> Self {
-        Direct {
-        }
+        Direct {}
     }
 
     pub fn sin(&self, theta: u32) -> f32 {

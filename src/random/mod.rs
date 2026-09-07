@@ -22,13 +22,12 @@ pub use ricek::*;
 pub use uniform::*;
 pub use weib::*;
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_macro::autotest_annotate;
-    use approx::assert_abs_diff_eq;
     use crate::error::Result;
+    use approx::assert_abs_diff_eq;
+    use test_macro::autotest_annotate;
 
     #[test]
     #[autotest_annotate(autotest_random_config)]
@@ -86,7 +85,7 @@ mod tests {
         bins[index] += 1.0;
         index
     }
-    
+
     fn support_histogram_normalize(bins: &mut [f32], num_bins: usize, num_trials: usize, vmin: f32, vmax: f32) -> f32 {
         let vstep = (vmax - vmin) / num_bins as f32;
         let area = num_trials as f32 * vstep;
@@ -95,12 +94,21 @@ mod tests {
         }
         area
     }
-    
-    fn support_histogram_validate(bins: &[f32], pdf: impl Fn(f32) -> Result<f32>, cdf: impl Fn(f32) -> Result<f32>, num_bins: usize, num_trials: usize, vmin: f32, vmax: f32, tol: f32) {
+
+    fn support_histogram_validate(
+        bins: &[f32],
+        pdf: impl Fn(f32) -> Result<f32>,
+        cdf: impl Fn(f32) -> Result<f32>,
+        num_bins: usize,
+        num_trials: usize,
+        vmin: f32,
+        vmax: f32,
+        tol: f32,
+    ) {
         const NUM_PDF_STEPS: usize = 20;
         let mut bins_normalized = bins.to_vec();
         support_histogram_normalize(&mut bins_normalized, num_bins, num_trials, vmin, vmax);
-    
+
         let vstep = (vmax - vmin) / num_bins as f32;
         for i in 0..num_bins {
             let mut pdf_avg = 0.0;
@@ -111,17 +119,17 @@ mod tests {
             // println!("bin {:?}, range: {:?}, normalized: {:?}, pdf_avg: {:?}", i, (vmin + i as f32 * vstep, vmin + (i + 1) as f32 * vstep), bins_normalized[i], pdf_avg);
             assert_abs_diff_eq!(bins_normalized[i], pdf_avg, epsilon = tol);
         }
-    
+
         let mut accum = cdf(vmin).unwrap();
         for i in 1..num_bins {
             let right = vmin + i as f32 * vstep;
-            accum += bins_normalized[i-1] * vstep;
+            accum += bins_normalized[i - 1] * vstep;
             // println!("accum: {:?}, cdf(right): {:?}", accum, cdf(right).unwrap());
             let cdf_val = cdf(right).unwrap();
             assert_abs_diff_eq!(accum, cdf_val, epsilon = tol);
         }
     }
-    
+
     #[test]
     #[autotest_annotate(autotest_distribution_randnf)]
     fn test_distribution_randnf() {
@@ -129,12 +137,12 @@ mod tests {
         let eta = 0.0;
         let sig = 1.0;
         let tol = 0.1;
-    
+
         let num_bins = 31;
         let mut bins = vec![0.0; num_bins];
         let vmin = -3.0;
         let vmax = 3.0;
-    
+
         // compute histogram
         for _ in 0..num_trials {
             let v = randnf() * sig + eta;
@@ -143,22 +151,22 @@ mod tests {
 
         let pdf = |v| randnf_pdf(v, eta, sig);
         let cdf = |v| randnf_cdf(v, eta, sig);
-    
+
         // validate distributions
         support_histogram_validate(&bins, pdf, cdf, num_bins, num_trials, vmin, vmax, tol);
     }
-    
+
     #[test]
     fn test_distribution_randexpf() {
         let num_trials = 10000000;
         let lambda = 1.3;
         let tol = 0.1;
-    
+
         let num_bins = 21;
         let mut bins = vec![0.0; num_bins];
         let vmin = -1.0;
         let vmax = 6.0;
-    
+
         // compute histogram
         for _ in 0..num_trials {
             let v = randexpf(lambda).unwrap();
@@ -167,7 +175,7 @@ mod tests {
 
         let pdf = |v| randexpf_pdf(v, lambda);
         let cdf = |v| randexpf_cdf(v, lambda);
-    
+
         // validate distributions
         support_histogram_validate(&bins, pdf, cdf, num_bins, num_trials, vmin, vmax, tol);
     }
@@ -192,7 +200,7 @@ mod tests {
 
         let pdf = |v| randgammaf_pdf(v, alpha, beta);
         let cdf = |v| randgammaf_cdf(v, alpha, beta);
-    
+
         // validate distributions
         support_histogram_validate(&bins, pdf, cdf, num_bins, num_trials, vmin, vmax, tol);
     }
@@ -217,7 +225,7 @@ mod tests {
 
     //     let pdf = |v| randnakmf_pdf(v, m, omega);
     //     let cdf = |v| randnakmf_cdf(v, m, omega);
-    
+
     //     // validate distributions
     //     support_histogram_validate(&bins, pdf, cdf, num_bins, num_trials, vmin, vmax, tol);
     // }
@@ -242,13 +250,13 @@ mod tests {
 
     //     let pdf = |v| randricekf_pdf(v, k, sigma);
     //     let cdf = |v| randricekf_cdf(v, k, sigma);
-    
+
     //     // validate distributions
     //     support_histogram_validate(&bins, pdf, cdf, num_bins, num_trials, vmin, vmax, tol);
     // }
 
     // #[test]
-    // fn test_distribution_randweibf() {  
+    // fn test_distribution_randweibf() {
     //     let num_trials = 1000000;
     //     let alpha = 1.0;
     //     let beta = 2.0;
@@ -268,7 +276,7 @@ mod tests {
 
     //     let pdf = |v| randweibf_pdf(v, alpha, beta, gamma);
     //     let cdf = |v| randweibf_cdf(v, alpha, beta, gamma);
-    
+
     //     // validate distributions
     //     support_histogram_validate(&bins, pdf, cdf, num_bins, num_trials, vmin, vmax, tol);
     // }
@@ -293,7 +301,7 @@ mod tests {
 
     //     let pdf = |v| randuf_pdf(v, a, b);
     //     let cdf = |v| randuf_cdf(v, a, b);
-    
+
     //     // validate distributions
     //     support_histogram_validate(&bins, pdf, cdf, num_bins, num_trials, vmin, vmax, tol);
     // }
