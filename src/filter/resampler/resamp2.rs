@@ -134,7 +134,7 @@ where
         let y1 = self.dp.execute(r);
 
         self.w0.push(Into::<T>::into(0.5) * x[1]);
-        let y0 = self.w0.index(self.m - 1)?.into();
+        let y0 = self.w0.index(self.m - 1)?;
 
         y[0] = (y1 + y0) * self.scale;
         y[1] = (y1 - y0) * self.scale;
@@ -264,7 +264,7 @@ where
         // by `m` samples. both branches are `n` samples long.
 
         // pack the even samples into a contiguous phase
-        for (i, pair) in x[..2 * n].chunks_exact(2).enumerate() {
+        for (i, pair) in x[..2 * n].as_chunks::<2>().0.iter().enumerate() {
             phase[i] = pair[0];
         }
 
@@ -286,7 +286,7 @@ where
 
         let direct_end = n.saturating_sub(m);
         let retain_start = n.saturating_sub(self.w0.len());
-        for (i, pair) in x[..2 * n].chunks_exact(2).enumerate() {
+        for (i, pair) in x[..2 * n].as_chunks::<2>().0.iter().enumerate() {
             if i < direct_end {
                 y[i + m] = (y[i + m] + pair[1]) * scale;
             }

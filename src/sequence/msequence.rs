@@ -53,7 +53,7 @@ impl MSequence {
     ///  g      :   generator polynomial, starting with most-significant bit
     ///  a      :   initial shift register state, default: 000...001
     pub fn new(m: u32, g: u32, a: u32) -> Result<Self> {
-        if m > MAX_MSEQUENCE_M || m < MIN_MSEQUENCE_M {
+        if !(MIN_MSEQUENCE_M..=MAX_MSEQUENCE_M).contains(&m) {
             return Err(Error::Config(format!("m ({}) not in range", m)));
         }
 

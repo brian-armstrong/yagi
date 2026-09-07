@@ -38,7 +38,7 @@ where
         }
 
         let bits = nextpow2(npfb as u32)? as usize;
-        if bits < 1 || bits > 16 {
+        if !(1..=16).contains(&bits) {
             return Err(Error::Config("number of filter banks must be in (2^0,2^16)".into()));
         }
 
@@ -79,7 +79,7 @@ where
         Self::new(rate, m, fc, as_, npfb)
     }
 
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.phase = 0;
         self.w.reset();
     }

@@ -300,8 +300,6 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
 
         let nindex = self.nlist[n].iter().position(|&x| x == m as u16).unwrap();
         self.nvals[n][nindex] = v;
-
-        ()
     }
 
     /// get element value at index (return zero if not set)
@@ -482,7 +480,7 @@ impl SMatrix<u8> {
 
     pub fn wrap_bools(v: &mut [u8]) {
         for i in 0..v.len() {
-            v[i] = v[i] % 2;
+            v[i] %= 2;
         }
     }
 }

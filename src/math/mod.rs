@@ -110,7 +110,7 @@ pub fn nchoosek(n: u32, k: u32) -> Result<f32> {
         let t1 = lngammaf((n - k) as f32 + 1.0);
         let t2 = lngammaf(k as f32 + 1.0);
 
-        return Ok((t0 - t1 - t2).exp().round() as f32);
+        return Ok((t0 - t1 - t2).exp().round());
     }
 
     // old method

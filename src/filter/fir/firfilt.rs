@@ -211,7 +211,7 @@ where
 impl ComplexNotch for f32 {
     fn notch(m: usize, as_: f32, f0: f32) -> Result<Vec<Self>> {
         let h = filter::fir_design_notch(m, f0, as_)?;
-        let h_c = h.iter().map(|&x| x.into()).collect::<Vec<f32>>();
+        let h_c = h.to_vec();
         Ok(h_c)
     }
 }
@@ -223,7 +223,7 @@ impl ComplexNotch for Complex32 {
         let mut h_c = h.iter().map(|&x| Complex32::new(x, 0.0)).collect::<Vec<Complex32>>();
         for (i, h_i) in h_c.iter_mut().enumerate() {
             let phi = 2.0 * PI * f0 * (i as f32 - m as f32);
-            *h_i = *h_i * Complex32::from_polar(1.0, phi);
+            *h_i *= Complex32::from_polar(1.0, phi);
         }
         Ok(h_c)
     }

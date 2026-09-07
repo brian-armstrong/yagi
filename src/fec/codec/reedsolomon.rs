@@ -52,10 +52,10 @@ impl RsLayout {
     // symbols.  Therefore, the final output length is 237 * 5 = 1185 symbols.
     pub(crate) fn new(dec_msg_len: usize, nroots: usize, kk: usize) -> Self {
         // compute the total number of blocks necessary: ceil(dec_msg_len / kk)
-        let num_blocks = (dec_msg_len + kk - 1) / kk;
+        let num_blocks = dec_msg_len.div_ceil(kk);
 
         // compute the decoded block length: ceil(dec_msg_len / num_blocks)
-        let dec_block_len = (dec_msg_len + num_blocks - 1) / num_blocks;
+        let dec_block_len = dec_msg_len.div_ceil(num_blocks);
 
         // compute the encoded block length: dec_block_len + nroots
         let enc_block_len = dec_block_len + nroots;

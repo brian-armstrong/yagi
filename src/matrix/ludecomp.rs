@@ -24,7 +24,7 @@ where
         for i in k..n {
             let mut l_ik = matrix_access(x, n, n, i, k);
             for t in 0..k {
-                l_ik = l_ik - matrix_access(l, n, n, i, t) * matrix_access(u, n, n, t, k);
+                l_ik -= matrix_access(l, n, n, i, t) * matrix_access(u, n, n, t, k);
             }
             matrix_access_mut(l, n, n, i, k, l_ik);
         }
@@ -37,7 +37,7 @@ where
 
             let mut u_kj = matrix_access(x, n, n, k, j);
             for t in 0..k {
-                u_kj = u_kj - matrix_access(l, n, n, k, t) * matrix_access(u, n, n, t, j);
+                u_kj -= matrix_access(l, n, n, k, t) * matrix_access(u, n, n, t, j);
             }
             u_kj = u_kj / matrix_access(l, n, n, k, k);
             matrix_access_mut(u, n, n, k, j, u_kj);
@@ -73,7 +73,7 @@ where
         for j in k..n {
             let mut u_kj = matrix_access(x, n, n, k, j);
             for t in 0..k {
-                u_kj = u_kj - matrix_access(l, n, n, k, t) * matrix_access(u, n, n, t, j);
+                u_kj -= matrix_access(l, n, n, k, t) * matrix_access(u, n, n, t, j);
             }
             matrix_access_mut(u, n, n, k, j, u_kj);
         }
@@ -87,7 +87,7 @@ where
 
             let mut l_ik = matrix_access(x, n, n, i, k);
             for t in 0..k {
-                l_ik = l_ik - matrix_access(l, n, n, i, t) * matrix_access(u, n, n, t, k);
+                l_ik -= matrix_access(l, n, n, i, t) * matrix_access(u, n, n, t, k);
             }
             l_ik = l_ik / matrix_access(u, n, n, k, k);
             matrix_access_mut(l, n, n, i, k, l_ik);

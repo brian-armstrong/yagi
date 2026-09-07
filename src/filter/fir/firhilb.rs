@@ -59,7 +59,7 @@ impl FirHilbertFilter {
         // resample, reverse direction
         let mut j = 0;
         for i in (1..h_len).step_by(2) {
-            hq[j] = h[h_len - i - 1].clone();
+            hq[j] = h[h_len - i - 1];
             j += 1;
         }
 
@@ -95,9 +95,9 @@ impl FirHilbertFilter {
     /// A complex-valued output sample
     pub fn r2c_execute(&mut self, x: f32) -> Result<Complex32> {
         let yi; // in-phase component
-        let yq; // quadrature component
 
-        if !self.toggle {
+        // quadrature component
+        let yq = if !self.toggle {
             // push sample into upper branch
             self.w0.push(x);
 
@@ -108,7 +108,7 @@ impl FirHilbertFilter {
             let r = self.w1.read();
 
             // execute dot product
-            yq = self.dpq.execute(r);
+            self.dpq.execute(r)
         } else {
             // push sample into lower branch
             self.w1.push(x);
@@ -120,8 +120,8 @@ impl FirHilbertFilter {
             let r = self.w0.read();
 
             // execute dot product
-            yq = self.dpq.execute(r);
-        }
+            self.dpq.execute(r)
+        };
 
         self.toggle = !self.toggle;
 
@@ -140,9 +140,8 @@ impl FirHilbertFilter {
     ///    (lower side-band retained, upper side-band retained)
     pub fn c2r_execute(&mut self, x: Complex32) -> Result<(f32, f32)> {
         let yi; // in-phase component
-        let yq;
 
-        if !self.toggle {
+        let yq = if !self.toggle {
             // push samples into appropriate buffers
             self.w0.push(x.re);
             self.w1.push(x.im);
@@ -152,7 +151,7 @@ impl FirHilbertFilter {
 
             // filter branch
             let r = self.w3.read();
-            yq = self.dpq.execute(r);
+            self.dpq.execute(r)
         } else {
             // push samples into appropriate buffers
             self.w2.push(x.re);
@@ -163,8 +162,8 @@ impl FirHilbertFilter {
 
             // filter branch
             let r = self.w1.read();
-            yq = self.dpq.execute(r);
-        }
+            self.dpq.execute(r)
+        };
 
         self.toggle = !self.toggle;
 
@@ -181,17 +180,14 @@ impl FirHilbertFilter {
     ///
     /// A complex-valued output sample
     pub fn decim_execute(&mut self, x: &[f32]) -> Result<Complex32> {
-        let yi; // in-phase component
-        let yq; // quadrature component
-
         // compute quadrature component (filter branch)
         self.w1.push(x[0]);
         let r = self.w1.read();
-        yq = self.dpq.execute(r);
+        let yq = self.dpq.execute(r);
 
-        // delay branch
+        // delay branch (in-phase component)
         self.w0.push(x[1]);
-        yi = self.w0.index(self.m - 1)?;
+        let yi = self.w0.index(self.m - 1)?;
 
         // set return value
         let v = Complex32::new(yi, yq);
@@ -227,11 +223,11 @@ impl FirHilbertFilter {
         let vq = if self.toggle { -x.im } else { x.im };
 
         // compute delay branch
-        self.w0.push(vq.into());
+        self.w0.push(vq);
         y[0] = self.w0.index(self.m - 1)?;
 
         // compute filter branch
-        self.w1.push(vi.into());
+        self.w1.push(vi);
         let r = self.w1.read();
         y[1] = self.dpq.execute(r);
 

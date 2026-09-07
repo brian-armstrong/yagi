@@ -329,7 +329,7 @@ pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f3
 /// Vec of filter coefficients
 pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
     // validate inputs
-    if m < 1 || m > 1000 {
+    if !(1..=1000).contains(&m) {
         return Err(Error::Config(format!("filter semi-length ({}) out of range [1,1000]", m)));
     }
     if f0 < -0.5 || f0 > 0.5 {
@@ -461,7 +461,7 @@ pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f
 /// Auto-correlation value
 pub fn filter_autocorr(h: &[f32], lag: isize) -> f32 {
     // auto-correlation is even symmetric
-    let lag = lag.abs() as usize;
+    let lag = lag.unsigned_abs();
 
     // lag outside of filter length is zero
     if lag >= h.len() {

@@ -60,7 +60,7 @@ where
         if window_len == 0 {
             return Err(Error::Config("window size must be greater than zero".into()));
         }
-        if wtype == WindowType::Kaiser && window_len % 2 != 0 {
+        if wtype == WindowType::Kaiser && !window_len.is_multiple_of(2) {
             return Err(Error::Config("KBD window length must be even".into()));
         }
         if delay == 0 {
@@ -109,7 +109,7 @@ where
                 WindowType::Kbd => windows::kbd(i, window_len, zeta)?,
                 _ => return Err(Error::Config("unknown window type".into())),
             };
-            spgram.w[i] = w.into();
+            spgram.w[i] = w;
             g += w * w;
         }
 
@@ -117,7 +117,7 @@ where
 
         // scale window and copy
         for i in 0..window_len {
-            spgram.w[i] = g * spgram.w[i];
+            spgram.w[i] *= g;
         }
 
         spgram.reset();
@@ -145,9 +145,7 @@ where
         self.num_transforms = 0;
         self.num_samples = 0;
 
-        for v in &mut self.psd {
-            *v = 0.0;
-        }
+        self.psd.fill(0.0);
     }
 
     /// reset the spgram object to its original state completely
@@ -274,7 +272,7 @@ where
         }
 
         // execute fft on _q->buf_time and store result in _q->buf_freq
-        self.fft.run(&mut self.buf_time, &mut self.buf_freq);
+        self.fft.run(&self.buf_time, &mut self.buf_freq);
 
         // accumulate output
         let nfft = self.nfft;

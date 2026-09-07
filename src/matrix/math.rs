@@ -96,7 +96,7 @@ where
         for c in 0..zc {
             let mut sum = T::default();
             for i in 0..xc {
-                sum = sum + matrix_access(x, xr, xc, r, i) * matrix_access(y, yr, yc, i, c);
+                sum += matrix_access(x, xr, xc, r, i) * matrix_access(y, yr, yc, i, c);
             }
             z[r * zc + c] = sum;
         }
@@ -185,7 +185,7 @@ where
     // Evaluate along the diagonal of U
     let mut det = T::default();
     for i in 0..n {
-        det = det * matrix_access(&u, n, n, i, i);
+        det *= matrix_access(&u, n, n, i, i);
     }
 
     Ok(det)
@@ -231,7 +231,7 @@ where
             let mut sum = T::default();
             for i in 0..n {
                 let prod = matrix_access(x, m, n, r, i) * matrix_access(x, m, n, c, i).conj();
-                sum = sum + prod;
+                sum += prod;
             }
             xxt[r * m + c] = sum;
         }
@@ -252,7 +252,7 @@ where
             let mut sum = T::default();
             for i in 0..m {
                 let prod = matrix_access(x, m, n, i, r).conj() * matrix_access(x, m, n, i, c);
-                sum = sum + prod;
+                sum += prod;
             }
             xtx[r * n + c] = sum;
         }
@@ -272,7 +272,7 @@ where
         for c in 0..m {
             let mut sum = T::default();
             for i in 0..n {
-                sum = sum + matrix_access(x, m, n, r, i) * matrix_access(x, m, n, c, i);
+                sum += matrix_access(x, m, n, r, i) * matrix_access(x, m, n, c, i);
             }
             xxh[r * m + c] = sum;
         }
@@ -292,7 +292,7 @@ where
         for c in 0..n {
             let mut sum = T::default();
             for i in 0..m {
-                sum = sum + matrix_access(x, m, n, i, r) * matrix_access(x, m, n, i, c);
+                sum += matrix_access(x, m, n, i, r) * matrix_access(x, m, n, i, c);
             }
             xhx[r * n + c] = sum;
         }

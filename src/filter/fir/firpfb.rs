@@ -475,7 +475,7 @@ where
     }
 
     /// Reset the internal history
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.w.reset();
     }
 
@@ -522,7 +522,7 @@ where
     /// # Arguments
     ///
     /// * `x` - input sample
-    pub fn push(&mut self, x: T) -> () {
+    pub fn push(&mut self, x: T) {
         self.w.push(x)
     }
 
@@ -531,7 +531,7 @@ where
     /// # Arguments
     ///
     /// * `x` - input samples
-    pub fn write(&mut self, x: &[T]) -> () {
+    pub fn write(&mut self, x: &[T]) {
         self.w.write(x)
     }
 

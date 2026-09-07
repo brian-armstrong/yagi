@@ -112,7 +112,7 @@ macro_rules! matrix_qrdecomp_gramschmidt {
                 for i in 0..n {
                     let ak = matrix_access(&e, n, n, i, k);
                     let ak2 = ak.abs();
-                    ek = ek + ak2 * ak2;
+                    ek += ak2 * ak2;
                 }
                 ek = ek.sqrt();
 

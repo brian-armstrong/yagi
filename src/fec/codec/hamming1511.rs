@@ -37,7 +37,7 @@ pub fn hamming1511_encode_symbol(sym_dec: u16) -> u16 {
 
     // encode symbol by inserting parity bits with data bits to
     // make a 15-bit symbol
-    let sym_enc = ((sym & 0x007f) << 0)
+    let sym_enc = (sym & 0x007f)
         | ((sym & 0x0380) << 1)
         | ((sym & 0x0400) << 2)
         | (p1 << 14)

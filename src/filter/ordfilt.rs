@@ -37,11 +37,11 @@ where
         self.buf.reset();
     }
 
-    pub fn push(&mut self, x: T) -> () {
+    pub fn push(&mut self, x: T) {
         self.buf.push(x);
     }
 
-    pub fn write(&mut self, x: &[T]) -> () {
+    pub fn write(&mut self, x: &[T]) {
         self.buf.write(x);
     }
 

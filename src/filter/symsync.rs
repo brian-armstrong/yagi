@@ -43,7 +43,7 @@ where
         if h_len == 0 {
             return Err(Error::Config("filter length must be greater than 0".into()));
         }
-        if (h_len - 1) % m != 0 {
+        if !(h_len - 1).is_multiple_of(m) {
             return Err(Error::Config("filter length must be of the form: h_len = m*k + 1".into()));
         }
 

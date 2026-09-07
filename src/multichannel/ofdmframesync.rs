@@ -194,7 +194,7 @@ impl DftEqGainState {
             self.gram[r * taps + r] += Complex32::new(ridge, 0.0);
         }
 
-        matrix_linsolve(&mut self.gram, taps, &self.rhs, &mut self.taps, Some(&mut self.solve_scratch))?;
+        matrix_linsolve(&self.gram, taps, &self.rhs, &mut self.taps, Some(&mut self.solve_scratch))?;
 
         gain.fill(Complex32::new(0.0, 0.0));
         for &k in &self.active {
@@ -990,7 +990,7 @@ impl OfdmFrameSync {
         symbols: &mut [Complex32],
     ) -> Result<OfdmFrameSyncBlockOutput> {
         let m = self.num_subcarriers();
-        if symbols.len() % m != 0 {
+        if !symbols.len().is_multiple_of(m) {
             return Err(Error::Config(format!(
                 "ofdmframesync_execute_symbols_into(), output length must be a multiple of {}",
                 m

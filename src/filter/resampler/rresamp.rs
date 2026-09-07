@@ -95,11 +95,11 @@ where
         Self::new_kaiser(interp, decim, m, bw, as_)
     }
 
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.pfb.reset()
     }
 
-    pub fn set_scale(&mut self, scale: Coeff) -> () {
+    pub fn set_scale(&mut self, scale: Coeff) {
         self.pfb.set_scale(scale)
     }
 
@@ -149,7 +149,7 @@ where
         max_blocks * input_block_size
     }
 
-    pub fn write(&mut self, buf: &[T]) -> () {
+    pub fn write(&mut self, buf: &[T]) {
         self.pfb.write(buf)
     }
 

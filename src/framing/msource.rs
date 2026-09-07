@@ -47,7 +47,7 @@ impl MSource {
         if m_channels < 2 {
             return Err(Error::Config("number of subcarriers must be at least 2".into()));
         }
-        if m_channels % 2 != 0 {
+        if !m_channels.is_multiple_of(2) {
             return Err(Error::Config("number of subcarriers must be even".into()));
         }
         if m == 0 {

@@ -18,7 +18,7 @@ impl Fskmod {
         if m == 0 {
             return Err(Error::Config("bits/symbol must be greater than 0".into()));
         }
-        if k < 2 || k > 2048 {
+        if !(2..=2048).contains(&k) {
             return Err(Error::Config("samples/symbol must be in [2^m, 2048]".into()));
         }
         if !(0.0..0.5).contains(&bandwidth) {

@@ -128,8 +128,6 @@ where
     }
 
     for c in 0..xc {
-        let tmp = x[r1 * xc + c];
-        x[r1 * xc + c] = x[r2 * xc + c];
-        x[r2 * xc + c] = tmp;
+        x.swap(r1 * xc + c, r2 * xc + c);
     }
 }

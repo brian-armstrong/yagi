@@ -51,7 +51,7 @@ pub fn hamming3126_encode_symbol(sym_dec: u32) -> u32 {
 
     // encode symbol by inserting parity bits with data bits to
     // make a 31-bit symbol
-    ((sym & 0x00007fff) << 0) //  ..00 0000 0000 0111 1111 1111 1111
+    (sym & 0x00007fff) //  ..00 0000 0000 0111 1111 1111 1111
         | ((sym & 0x003F8000) << 1) //  ..00 0011 1111 1000 0000 0000 0000
         | ((sym & 0x01C00000) << 2) //  ..01 1100 0000 0000 0000 0000 0000
         | ((sym & 0x02000000) << 3) //  ..10 0000 0000 0000 0000 0000 0000

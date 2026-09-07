@@ -176,7 +176,7 @@ impl QPacketModem {
         }
         self.finish_evm();
 
-        self.sym.decode(&mut self.payload_mod, payload)
+        self.sym.decode(&self.payload_mod, payload)
     }
 
     /// decode packet from modulated frame samples using soft-decision decoding,

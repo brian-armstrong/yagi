@@ -250,7 +250,7 @@ impl QSource {
         gain: f32,
         config: QSourceConfig,
     ) -> Result<Self> {
-        if m_channels < 2 || (m_channels % 2) != 0 {
+        if m_channels < 2 || !m_channels.is_multiple_of(2) {
             return Err(Error::Config("invalid channelizer size; must be even and greater than 1".into()));
         }
         if m == 0 {

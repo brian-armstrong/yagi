@@ -156,8 +156,8 @@ fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize)
     // force pairs to be perfect conjugates with
     // negative imaginary component first
     for i in 0..num_pairs {
-        p[2 * i + 0] = if p[2 * i + 1].im < 0.0 { p[2 * i + 1] } else { p[2 * i + 1].conj() };
-        p[2 * i + 1] = p[2 * i + 0].conj();
+        p[2 * i] = if p[2 * i + 1].im < 0.0 { p[2 * i + 1] } else { p[2 * i + 1].conj() };
+        p[2 * i + 1] = p[2 * i].conj();
     }
 
     // sort conjugate pairs
@@ -165,13 +165,9 @@ fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize)
         for j in (i + 1..num_pairs).rev() {
             if p[2 * (j - 1)].re > p[2 * j].re {
                 // swap pairs
-                let temp = p[2 * (j - 1)];
-                p[2 * (j - 1)] = p[2 * j];
-                p[2 * j] = temp;
+                p.swap(2 * (j - 1), 2 * j);
 
-                let temp = p[2 * (j - 1) + 1];
-                p[2 * (j - 1) + 1] = p[2 * j + 1];
-                p[2 * j + 1] = temp;
+                p.swap(2 * (j - 1) + 1, 2 * j + 1);
             }
         }
     }
@@ -180,9 +176,7 @@ fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize)
     for i in 2 * num_pairs..n {
         for j in (i + 1..n).rev() {
             if p[j - 1].re > p[j].re {
-                let temp = p[j - 1];
-                p[j - 1] = p[j];
-                p[j] = temp;
+                p.swap(j - 1, j);
             }
         }
     }
@@ -428,19 +422,19 @@ pub fn iir_design_d2sos(
     let l = (n - r) / 2; // filter semi-length
 
     for i in 0..l {
-        let p0 = -pp[2 * i + 0];
+        let p0 = -pp[2 * i];
         let p1 = -pp[2 * i + 1];
 
-        let z0 = -zp[2 * i + 0];
+        let z0 = -zp[2 * i];
         let z1 = -zp[2 * i + 1];
 
         // expand complex pole pairs
-        a[3 * i + 0] = 1.0;
+        a[3 * i] = 1.0;
         a[3 * i + 1] = (p0 + p1).re;
         a[3 * i + 2] = (p0 * p1).re;
 
         // expand complex zero pairs
-        b[3 * i + 0] = 1.0;
+        b[3 * i] = 1.0;
         b[3 * i + 1] = (z0 + z1).re;
         b[3 * i + 2] = (z0 * z1).re;
     }
@@ -451,12 +445,12 @@ pub fn iir_design_d2sos(
         let z0 = -zp[n - 1];
 
         // expand complex pole pair
-        a[3 * l + 0] = 1.0;
+        a[3 * l] = 1.0;
         a[3 * l + 1] = p0.re;
         a[3 * l + 2] = 0.0;
 
         // expand complex zero pair
-        b[3 * l + 0] = 1.0;
+        b[3 * l] = 1.0;
         b[3 * l + 1] = z0.re;
         b[3 * l + 2] = 0.0;
     }
@@ -468,7 +462,7 @@ pub fn iir_design_d2sos(
 
     // adjust gain of first element
     for i in 0..l + r {
-        b[3 * i + 0] *= g;
+        b[3 * i] *= g;
         b[3 * i + 1] *= g;
         b[3 * i + 2] *= g;
     }
@@ -528,12 +522,16 @@ pub fn iir_design_lp2bp(
     // transform zeros, poles using quadratic formula
     for i in 0..n {
         let t0 = 1.0 + zd[i];
-        zdt[2 * i + 0] = 0.5 * (c0 * t0 + (c0 * c0 * t0 * t0 - 4.0 * zd[i]).sqrt());
-        zdt[2 * i + 1] = 0.5 * (c0 * t0 - (c0 * c0 * t0 * t0 - 4.0 * zd[i]).sqrt());
+        (zdt[2 * i], zdt[2 * i + 1]) = (
+            0.5 * (c0 * t0 + (c0 * c0 * t0 * t0 - 4.0 * zd[i]).sqrt()),
+            0.5 * (c0 * t0 - (c0 * c0 * t0 * t0 - 4.0 * zd[i]).sqrt()),
+        );
 
         let t0 = 1.0 + pd[i];
-        pdt[2 * i + 0] = 0.5 * (c0 * t0 + (c0 * c0 * t0 * t0 - 4.0 * pd[i]).sqrt());
-        pdt[2 * i + 1] = 0.5 * (c0 * t0 - (c0 * c0 * t0 * t0 - 4.0 * pd[i]).sqrt());
+        (pdt[2 * i], pdt[2 * i + 1]) = (
+            0.5 * (c0 * t0 + (c0 * c0 * t0 * t0 - 4.0 * pd[i]).sqrt()),
+            0.5 * (c0 * t0 - (c0 * c0 * t0 * t0 - 4.0 * pd[i]).sqrt()),
+        );
     }
 
     Ok(())
@@ -685,7 +683,7 @@ pub fn iir_design(
         // update parameters; filter order doubles which changes the
         // number of second-order sections and forces there to never
         // be any remainder (r=0 always).
-        order = 2 * order;
+        order *= 2;
     }
 
     if format == IirFormat::TransferFunction {

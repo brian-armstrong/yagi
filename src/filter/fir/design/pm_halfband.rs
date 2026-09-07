@@ -69,7 +69,7 @@ fn firdespm_halfband_utility_inner(gamma: f32, userdata: &mut FirdespmHalfband) 
             if i < userdata.h_len { Complex32::new(userdata.h[i], 0.0) } else { Complex32::new(0.0, 0.0) };
     }
     // compute transform
-    userdata.fft.run(&mut userdata.buf_time, &mut userdata.buf_freq);
+    userdata.fft.run(&userdata.buf_time, &mut userdata.buf_freq);
 
     // compute metric: power in stop-band
     let u: f32 = (0..userdata.n)

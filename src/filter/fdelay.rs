@@ -102,12 +102,12 @@ where
         self.npfb
     }
 
-    pub fn push(&mut self, x: T) -> () {
+    pub fn push(&mut self, x: T) {
         self.w.push(x);
         self.pfb.push(self.w.index(self.w_index).unwrap());
     }
 
-    pub fn write(&mut self, x: &[T]) -> () {
+    pub fn write(&mut self, x: &[T]) {
         for &xi in x {
             self.push(xi);
         }

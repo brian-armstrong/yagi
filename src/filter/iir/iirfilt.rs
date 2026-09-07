@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_precision)]
 use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
@@ -97,7 +98,7 @@ where
     // zeros, digital, integrator
     #[rustfmt::skip]
     let zdi = [
-        Complex32::from(1.175839 * -1.0),
+        Complex32::from(-1.175839),
         3.371020 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.1125),
         3.371020 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  125.1125),
         4.549710 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -80.96404),
@@ -109,7 +110,7 @@ where
     // poles, digital, integrator
     #[rustfmt::skip]
     let pdi = [
-        Complex32::from(0.5805235 * -1.0),
+        Complex32::from(-0.5805235),
         0.2332021 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -114.0968),
         0.2332021 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  114.0968),
         0.1814755 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -66.33969),
@@ -143,7 +144,7 @@ where
     // zeros, digital, differentiator
     #[rustfmt::skip]
     let zdd = [
-        Complex32::from(1.702575 * -1.0),
+        Complex32::from(-1.702575),
         5.877385 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -221.4063),
         5.877385 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  221.4063),
         4.197421 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -144.5972),
@@ -154,7 +155,7 @@ where
     ];
     #[rustfmt::skip]
     let pdd = [
-        Complex32::from(0.8476936 * -1.0),
+        Complex32::from(-0.8476936),
         0.2990781 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 * -125.5188),
         0.2990781 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  125.5188),
         0.2232427 * Complex32::from_polar(1.0, f32::consts::PI / 180.0 *  -81.52326),

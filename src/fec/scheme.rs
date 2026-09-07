@@ -316,9 +316,9 @@ impl FecScheme {
             FecScheme::Hamming84 => block_enc_msg_len(dec_msg_len, 4, 8),
             FecScheme::Hamming128 => block_enc_msg_len(dec_msg_len, 8, 12),
             FecScheme::Golay2412 => block_enc_msg_len(dec_msg_len, 12, 24),
-            FecScheme::Secded2216 => dec_msg_len + (dec_msg_len + 1) / 2,
-            FecScheme::Secded3932 => dec_msg_len + (dec_msg_len + 3) / 4,
-            FecScheme::Secded7264 => dec_msg_len + (dec_msg_len + 7) / 8,
+            FecScheme::Secded2216 => dec_msg_len + dec_msg_len.div_ceil(2),
+            FecScheme::Secded3932 => dec_msg_len + dec_msg_len.div_ceil(4),
+            FecScheme::Secded7264 => dec_msg_len + dec_msg_len.div_ceil(8),
             // convolutional codes
             FecScheme::ConvV27 => 2 * dec_msg_len + 2, // (K-1)/r=12, round up to 2 bytes
             FecScheme::ConvV29 => 2 * dec_msg_len + 2, // (K-1)/r=16, 2 bytes
@@ -354,13 +354,13 @@ pub(crate) fn block_enc_msg_len(dec_msg_len: usize, m: usize, k: usize) -> usize
     let num_bits_in = dec_msg_len * 8;
 
     // compute total number of blocks: ceil(num_bits_in/m)
-    let num_blocks = (num_bits_in + m - 1) / m;
+    let num_blocks = num_bits_in.div_ceil(m);
 
     // compute total number of bits out
     let num_bits_out = num_blocks * k;
 
     // compute total number of bytes out: ceil(num_bits_out/8)
-    (num_bits_out + 7) / 8
+    num_bits_out.div_ceil(8)
 }
 
 /// Compute encoded message length for punctured convolutional codes.
@@ -391,8 +391,8 @@ pub(crate) fn rs_enc_msg_len(dec_msg_len: usize, nroots: usize, kk: usize) -> us
         return 0;
     }
 
-    let num_blocks = (dec_msg_len + kk - 1) / kk;
-    let dec_block_len = (dec_msg_len + num_blocks - 1) / num_blocks;
+    let num_blocks = dec_msg_len.div_ceil(kk);
+    let dec_block_len = dec_msg_len.div_ceil(num_blocks);
 
     (dec_block_len + nroots) * num_blocks
 }

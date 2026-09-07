@@ -98,13 +98,13 @@ where
         Ok(())
     }
 
-    pub fn push(&mut self, x: T) -> () {
+    pub fn push(&mut self, x: T) {
         self.buffer.push(x)
     }
 
     pub fn execute(&self) -> Result<T> {
         let r = self.buffer.read();
-        let y = self.w0.dotprod(&r);
+        let y = self.w0.dotprod(r);
         Ok(y)
     }
 

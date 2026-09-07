@@ -123,13 +123,13 @@ where
         self.w0.iter().rev().map(|&x| x.conj()).collect()
     }
 
-    pub fn push(&mut self, x: T) -> () {
+    pub fn push(&mut self, x: T) {
         self.buffer.push(x);
         self.update_sumsq(x);
         self.count += 1;
     }
 
-    pub fn push_block(&mut self, x: &[T]) -> () {
+    pub fn push_block(&mut self, x: &[T]) {
         for &xi in x {
             self.push(xi);
         }
@@ -161,14 +161,14 @@ where
             let d_hat = self.execute()?;
             y[i] = d_hat;
 
-            if ((self.count + k - 1) % k) == 0 {
+            if (self.count + k - 1).is_multiple_of(k) {
                 self.step_blind(d_hat);
             }
         }
         Ok(())
     }
 
-    pub fn step(&mut self, d: T, d_hat: T) -> () {
+    pub fn step(&mut self, d: T, d_hat: T) {
         if !self.buf_full {
             if self.count < self.h_len {
                 return;
@@ -187,12 +187,12 @@ where
         self.w0.copy_from_slice(&self.w1);
     }
 
-    pub fn step_blind(&mut self, d_hat: T) -> () {
+    pub fn step_blind(&mut self, d_hat: T) {
         let d = d_hat / d_hat.abs();
         self.step(d, d_hat)
     }
 
-    fn update_sumsq(&mut self, x: T) -> () {
+    fn update_sumsq(&mut self, x: T) {
         let x2_n = (x * x.conj()).re();
         self.x2.push(x2_n);
         let x2_0 = self.x2.read();

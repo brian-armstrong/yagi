@@ -441,13 +441,12 @@ impl FirDesignPm {
 
         // search inside grid
         for i in 1..self.grid_size - 1 {
-            if ((self.e[i] >= 0.0) && (self.e[i - 1] <= self.e[i]) && (self.e[i + 1] <= self.e[i]))
-                || ((self.e[i] < 0.0) && (self.e[i - 1] >= self.e[i]) && (self.e[i + 1] >= self.e[i]))
+            if (((self.e[i] >= 0.0) && (self.e[i - 1] <= self.e[i]) && (self.e[i + 1] <= self.e[i]))
+                || ((self.e[i] < 0.0) && (self.e[i - 1] >= self.e[i]) && (self.e[i + 1] >= self.e[i])))
+                && num_found < nmax
             {
-                if num_found < nmax {
-                    found_iext[num_found] = i;
-                    num_found += 1;
-                }
+                found_iext[num_found] = i;
+                num_found += 1;
             }
         }
 

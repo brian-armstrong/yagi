@@ -54,7 +54,7 @@ where
         let mut v = T::one();
         for c in 0..k {
             matrix_access_mut(&mut x_matrix, n, k, r, c, v);
-            v = v * x[r];
+            v *= x[r];
         }
     }
 
@@ -89,7 +89,7 @@ where
 ///
 /// * `n` - Polynomial order
 /// * `c` - Output polynomial coefficients (length: n+1)
-pub fn poly_expandbinomial<T>(n: usize, c: &mut [T]) -> ()
+pub fn poly_expandbinomial<T>(n: usize, c: &mut [T])
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + From<f32>,
 {
@@ -122,7 +122,7 @@ where
 /// * `m` - Polynomial order (positive term)
 /// * `k` - Polynomial order (negative term)
 /// * `c` - Output polynomial coefficients (length: m+k+1)
-pub fn poly_expandbinomial_pm<T>(m: usize, k: usize, c: &mut [T]) -> ()
+pub fn poly_expandbinomial_pm<T>(m: usize, k: usize, c: &mut [T])
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + From<f32>,
 {
@@ -165,7 +165,7 @@ where
 /// * `r` - Roots of polynomial (length: n)
 /// * `n` - Number of roots
 /// * `p` - Output polynomial coefficients (length: n+1)
-pub fn poly_expandroots<T>(r: &[T], n: usize, p: &mut [T]) -> ()
+pub fn poly_expandroots<T>(r: &[T], n: usize, p: &mut [T])
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Neg<Output = T> + From<f32>,
 {
@@ -200,7 +200,7 @@ where
 /// * `b` - Multiplicant of polynomial roots (length: n)
 /// * `n` - Number of roots
 /// * `p` - Output polynomial coefficients (length: n+1)
-pub fn poly_expandroots2<T>(a: &[T], b: &[T], n: usize, p: &mut [T]) -> ()
+pub fn poly_expandroots2<T>(a: &[T], b: &[T], n: usize, p: &mut [T])
 where
     T: Copy
         + std::ops::Mul<Output = T>
@@ -242,7 +242,7 @@ where
 /// * `b` - Second polynomial coefficients (length: order_b+1)
 /// * `order_b` - Second polynomial order
 /// * `c` - Output polynomial coefficients (length: order_a + order_b + 1)
-pub fn poly_mul<T>(a: &[T], order_a: usize, b: &[T], order_b: usize, c: &mut [T]) -> ()
+pub fn poly_mul<T>(a: &[T], order_a: usize, b: &[T], order_b: usize, c: &mut [T])
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + From<f32>,
 {
@@ -310,7 +310,7 @@ where
 /// # Returns
 ///
 /// `Ok(())` on success, `Err(())` on failure
-pub fn poly_fit_lagrange<T>(x: &[T], y: &[T], n: usize, p: &mut [T]) -> ()
+pub fn poly_fit_lagrange<T>(x: &[T], y: &[T], n: usize, p: &mut [T])
 where
     T: Copy
         + std::ops::Mul<Output = T>
@@ -359,7 +359,7 @@ where
 /// * `x` - Input array (known) [size: `n` x 1]
 /// * `n` - Number of input/output pairs
 /// * `w` - Output barycentric weights [size: `n` x 1]
-pub fn poly_fit_lagrange_barycentric<T>(x: &[T], n: usize, w: &mut [T]) -> ()
+pub fn poly_fit_lagrange_barycentric<T>(x: &[T], n: usize, w: &mut [T])
 where
     T: Copy
         + std::ops::Mul<Output = T>
@@ -419,8 +419,8 @@ where
             return y[j];
         }
 
-        t0 = t0 + w[j] * y[j] / g;
-        t1 = t1 + w[j] / g;
+        t0 += w[j] * y[j] / g;
+        t1 += w[j] / g;
     }
 
     t0 / t1

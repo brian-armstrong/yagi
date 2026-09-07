@@ -51,11 +51,9 @@ impl<T: FftNum> Fft<T> {
     }
 
     pub fn shift(&self, input: &mut [Complex<T>], n: usize) {
-        let n2 = if n % 2 == 0 { n / 2 } else { (n - 1) / 2 };
+        let n2 = if n.is_multiple_of(2) { n / 2 } else { (n - 1) / 2 };
         for i in 0..n2 {
-            let temp = input[i];
-            input[i] = input[i + n2];
-            input[i + n2] = temp;
+            input.swap(i, i + n2);
         }
     }
 }

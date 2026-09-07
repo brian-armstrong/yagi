@@ -46,7 +46,7 @@ impl Nco {
 
     pub fn static_index(&self, theta: u32) -> usize {
         (((theta as usize) + (1 << (NCO_STATIC_LUT_WORDBITS - NCO_STATIC_LUT_NBITS - 1)))
-            >> (NCO_STATIC_LUT_WORDBITS - NCO_STATIC_LUT_NBITS)) as usize
+            >> (NCO_STATIC_LUT_WORDBITS - NCO_STATIC_LUT_NBITS))
             & (NCO_STATIC_LUT_SIZE - 1)
     }
 }

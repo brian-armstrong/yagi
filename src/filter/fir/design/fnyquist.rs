@@ -135,7 +135,7 @@ pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32
     for i in 0..h_len {
         let mut f = i as f32 / h_len as f32;
         if f > 0.5 {
-            f = f - 1.0;
+            f -= 1.0;
         }
 
         // enforce even symmetry
@@ -213,7 +213,7 @@ pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f3
     for i in 0..h_len {
         let mut f = i as f32 / h_len as f32;
         if f > 0.5 {
-            f = f - 1.0;
+            f -= 1.0;
         }
 
         // enforce even symmetry
@@ -285,7 +285,7 @@ fn asechf(z: f32) -> f32 {
 
     let z_inv = 1.0 / z;
 
-    return ((z_inv - 1.0).sqrt() * (z_inv + 1.0).sqrt() + z_inv).ln();
+    ((z_inv - 1.0).sqrt() * (z_inv + 1.0).sqrt() + z_inv).ln()
 }
 
 /// Flipped arccosh frequency response
@@ -310,7 +310,7 @@ pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut 
     for i in 0..h_len {
         let mut f = i as f32 / h_len as f32;
         if f > 0.5 {
-            f = f - 1.0;
+            f -= 1.0;
         }
 
         // enforce even symmetry

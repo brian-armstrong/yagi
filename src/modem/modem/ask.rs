@@ -30,7 +30,7 @@ impl Modem {
             reference[k] = (1 << k) as f32 * alpha;
         }
 
-        if bits_per_symbol >= 2 && bits_per_symbol < 8 {
+        if (2..8).contains(&bits_per_symbol) {
             modem.init_demod_soft_tab(2)?;
         }
 

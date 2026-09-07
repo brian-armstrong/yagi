@@ -43,7 +43,7 @@ impl Cpfskdem {
         if h <= 0.0 {
             return Err(Error::Config("modulation index must be greater than 0".into()));
         }
-        if k < 2 || (k % 2) != 0 {
+        if k < 2 || !k.is_multiple_of(2) {
             return Err(Error::Config("samples/symbol must be greater than 2 and even".into()));
         }
         if m == 0 {

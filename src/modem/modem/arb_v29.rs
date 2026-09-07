@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_precision)]
 use crate::modem::modem::*;
 
 // V.29 star constellation

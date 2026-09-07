@@ -131,10 +131,10 @@ impl Qdetector {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
-        if k < 2 || k > 80 {
+        if !(2..=80).contains(&k) {
             return Err(Error::Config("samples per symbol must be in [2,80]".into()));
         }
-        if m < 1 || m > 100 {
+        if !(1..=100).contains(&m) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
         if beta < 0.0 || beta > 1.0 {
@@ -167,10 +167,10 @@ impl Qdetector {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
-        if k < 2 || k > 80 {
+        if !(2..=80).contains(&k) {
             return Err(Error::Config("samples per symbol must be in [2,80]".into()));
         }
-        if m < 1 || m > 100 {
+        if !(1..=100).contains(&m) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
         if beta < 0.0 || beta > 1.0 {
@@ -214,10 +214,10 @@ impl Qdetector {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
-        if k < 2 || k > 80 {
+        if !(2..=80).contains(&k) {
             return Err(Error::Config("samples per symbol must be in [2,80]".into()));
         }
-        if m < 1 || m > 100 {
+        if !(1..=100).contains(&m) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
         if beta < 0.0 || beta > 1.0 {

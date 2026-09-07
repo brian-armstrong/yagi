@@ -42,7 +42,7 @@ impl SymStream {
         Ok(q)
     }
 
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.modem.reset();
         self.interp.reset();
         self.buf_index = 0;

@@ -70,7 +70,7 @@ impl<T: Default + Clone + Copy> Window<T> {
         if i >= self.len {
             return Err(Error::Range("index value out of range".to_string()));
         }
-        Ok(self.v[self.read_index + i].clone())
+        Ok(self.v[self.read_index + i])
     }
 
     pub fn set(&mut self, i: usize, value: T) {
@@ -89,7 +89,7 @@ impl<T: Default + Clone + Copy> Window<T> {
 
     pub fn write(&mut self, values: &[T]) {
         for value in values {
-            self.push(value.clone());
+            self.push(*value);
         }
     }
 

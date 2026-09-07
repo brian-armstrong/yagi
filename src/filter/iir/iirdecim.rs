@@ -110,7 +110,7 @@ where
     }
 
     /// Reset the filter state
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.iirfilt.reset();
     }
 
@@ -140,7 +140,7 @@ where
     ///
     /// * `x` - The input samples (size: `n * decimation_factor`)
     /// * `y` - The output samples (size: `n`)
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> () {
+    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) {
         for (i, xi) in x.chunks(self.decimation_factor).enumerate() {
             y[i] = self.execute(xi);
         }

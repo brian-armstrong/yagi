@@ -267,6 +267,15 @@ where
     }
 }
 
+impl<T> Default for Agc<T>
+where
+    T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<f32, Output = T>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

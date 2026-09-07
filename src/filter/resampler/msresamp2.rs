@@ -75,7 +75,7 @@ where
         let as_ = q.as_ + 5.0;
         for i in 0..q.num_stages {
             fc = if i == 1 { (0.5 - fc) / 2.0 } else { 0.5 * fc };
-            f0 = 0.5 * f0;
+            f0 *= 0.5;
             let ft = 2.0 * (0.25 - fc);
 
             // compute filter length
@@ -206,7 +206,7 @@ where
         // for 2 stages: x -> b1 -> y
         // for 3 stages: x -> b1 -> b0 -> y (b0 is largest)
         // for 4 stages: x -> b1 -> b0 -> b1 -> y (b0 is largest)
-        let last_interior_writes_b1 = self.num_stages >= 2 && self.num_stages % 2 == 0;
+        let last_interior_writes_b1 = self.num_stages >= 2 && self.num_stages.is_multiple_of(2);
         if last_interior_writes_b1 {
             (n_out / 4, n_out / 2)
         } else {
@@ -273,7 +273,7 @@ where
     ///
     /// Returns the number of output samples written.
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        if self.type_ == ResampType::Decim && x.len() % self.rate != 0 {
+        if self.type_ == ResampType::Decim && !x.len().is_multiple_of(self.rate) {
             return Err(Error::Config(format!(
                 "decimation input length ({}) must be a multiple of the rate ({})",
                 x.len(),
@@ -328,7 +328,7 @@ where
 
         // without this swap, we'd toggle which buffer is which on each run, causing
         // both to be the same size
-        if self.num_stages % 2 == 0 {
+        if self.num_stages.is_multiple_of(2) {
             std::mem::swap(&mut self.block0, &mut self.block1);
         }
         Ok(n_out)
@@ -361,7 +361,7 @@ where
         }
 
         // don't swap shorter and longer buffers across the call
-        if self.num_stages % 2 == 0 {
+        if self.num_stages.is_multiple_of(2) {
             std::mem::swap(&mut self.block0, &mut self.block1);
         }
         Ok(n_out)

@@ -39,7 +39,7 @@ where
         let mut t0 = T::zero();
         for k in 0..j {
             let l_jk = matrix_access(l, n, n, j, k);
-            t0 = t0 + l_jk * l_jk.conj();
+            t0 += l_jk * l_jk.conj();
         }
         // Test to ensure a_jj > t0
         if a_jj.re() < t0.re() {
@@ -60,7 +60,7 @@ where
             for k in 0..j {
                 let l_ik = matrix_access(l, n, n, i, k);
                 let l_jk = matrix_access(l, n, n, j, k);
-                t1 = t1 - l_ik * l_jk.conj();
+                t1 -= l_ik * l_jk.conj();
             }
             // TODO: store inverse of l_jj to reduce number of divisions
             matrix_access_mut(l, n, n, i, j, t1 / l_jj);

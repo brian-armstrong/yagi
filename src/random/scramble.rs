@@ -9,7 +9,7 @@ pub fn scramble_data(x: &mut [u8]) {
     let t = x.len() & !3;
 
     // apply static masks
-    for chunk in x[..t].chunks_exact_mut(4) {
+    for chunk in x[..t].as_chunks_mut::<4>().0 {
         chunk[0] ^= SCRAMBLE_MASK0;
         chunk[1] ^= SCRAMBLE_MASK1;
         chunk[2] ^= SCRAMBLE_MASK2;
@@ -35,7 +35,7 @@ pub fn unscramble_data(x: &mut [u8]) {
 
 /// unscramble soft bits
 pub fn unscramble_data_soft(x: &mut [u8]) {
-    for (i, chunk) in x.chunks_exact_mut(8).enumerate() {
+    for (i, chunk) in x.as_chunks_mut::<8>().0.iter_mut().enumerate() {
         let mask = match i % 4 {
             0 => SCRAMBLE_MASK0,
             1 => SCRAMBLE_MASK1,

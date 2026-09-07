@@ -144,7 +144,7 @@ impl Channel {
     ///
     /// * `h` - channel coefficients
     pub fn add_multipath(&mut self, h: &[Complex32]) -> Result<()> {
-        if h.len() == 0 {
+        if h.is_empty() {
             return Err(Error::Mode("channel_add_multipath(), filter length is zero".into()));
         }
         if h.len() > MAX_MULTIPATH_LEN {

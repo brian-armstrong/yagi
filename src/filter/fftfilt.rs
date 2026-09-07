@@ -68,9 +68,9 @@ where
 
         // compute FFT of filter coefficients and copy to internal H array
         for i in 0..2 * q.n {
-            q.time_buf[i] = if i < q.h_len { Complex32::from(q.h[i].clone()) } else { Complex32::zero() };
+            q.time_buf[i] = if i < q.h_len { Complex32::from(q.h[i]) } else { Complex32::zero() };
         }
-        q.fft.run(&mut q.time_buf, &mut q.freq_buf);
+        q.fft.run(&q.time_buf, &mut q.freq_buf);
         q.h_freq.copy_from_slice(&q.freq_buf);
 
         q.set_scale(Coeff::one());
@@ -112,7 +112,7 @@ where
         }
 
         // run forward transform
-        self.fft.run(&mut self.time_buf, &mut self.freq_buf);
+        self.fft.run(&self.time_buf, &mut self.freq_buf);
 
         // compute inner product between FFT{ x } and FFT{ H }
         for i in 0..2 * self.n {
@@ -120,7 +120,7 @@ where
         }
 
         // compute inverse transform
-        self.ifft.run(&mut self.freq_buf, &mut self.time_buf);
+        self.ifft.run(&self.freq_buf, &mut self.time_buf);
 
         // copy output summed with buffer
         for i in 0..self.n {

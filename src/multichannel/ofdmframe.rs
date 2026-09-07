@@ -15,20 +15,15 @@ use num_complex::Complex32;
 ///
 /// key: '.' (null), '|' (pilot), '+' (data)
 /// .+++P+++++++P.........P+++++++P+++
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SubcarrierType {
     /// disabled subcarrier, carries no energy
+    #[default]
     Null,
     /// known reference symbol, used to track gain and phase
     Pilot,
     /// payload subcarrier
     Data,
-}
-
-impl Default for SubcarrierType {
-    fn default() -> Self {
-        SubcarrierType::Null
-    }
 }
 
 /// Counts of each subcarrier type in an allocation
@@ -66,7 +61,7 @@ impl OfdmFrameConfig {
         if num_subcarriers < 8 {
             return Err(Error::Config("ofdmframe_config_create(), number of subcarriers must be at least 8".into()));
         }
-        if num_subcarriers % 2 != 0 {
+        if !num_subcarriers.is_multiple_of(2) {
             return Err(Error::Config("ofdmframe_config_create(), number of subcarriers must be even".into()));
         }
         if cp_len > num_subcarriers {
@@ -333,7 +328,7 @@ pub fn ofdmframe_init_sctype_range(f0: f32, f1: f32, p: &mut [SubcarrierType]) -
         p[k] = if i < m0 || i > m1 {
             // guard band
             SubcarrierType::Null
-        } else if k % pilot_spacing == 0 {
+        } else if k.is_multiple_of(pilot_spacing) {
             SubcarrierType::Pilot
         } else {
             SubcarrierType::Data
@@ -398,7 +393,7 @@ pub fn ofdmframe_sctype_string(p: &[SubcarrierType]) -> String {
 
 /// parse subcarrier allocation from string, centered on dc
 pub fn ofdmframe_sctype_from_string(s: &str) -> Result<Vec<SubcarrierType>> {
-    if s.len() < 2 || s.chars().nth(0).unwrap() != '[' || s.chars().nth(s.len() - 1).unwrap() != ']' {
+    if s.len() < 2 || !s.starts_with('[') || !s.ends_with(']') {
         return Err(Error::Config("ofdmframe_sctype_from_string(), string must be bracketed".into()));
     }
     let num_subcarriers = s.len() - 2;

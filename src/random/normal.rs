@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_precision)]
 use libm::erff;
 use num_complex::Complex;
 use rand::Rng;

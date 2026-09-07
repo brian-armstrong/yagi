@@ -180,7 +180,7 @@ where
     }
 
     /// Reset the interpolator
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.w.reset()
     }
 
@@ -207,7 +207,7 @@ where
     /// # Arguments
     ///
     /// * `scale` - scaling factor to apply to each output sample
-    pub fn set_scale(&mut self, scale: Coeff) -> () {
+    pub fn set_scale(&mut self, scale: Coeff) {
         self.bank.set_scale(scale)
     }
 

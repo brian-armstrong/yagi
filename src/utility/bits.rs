@@ -110,7 +110,7 @@ pub fn pack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
     let sym_in_len = sym_in.len();
     let sym_out_len = sym_out.len();
 
-    let req_sym_out_len = (sym_in_len + 7) / 8;
+    let req_sym_out_len = sym_in_len.div_ceil(8);
     if sym_out_len < req_sym_out_len {
         return Err(Error::Config("pack_bytes(), output too short".into()));
     }
@@ -130,7 +130,7 @@ pub fn pack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
         }
     }
 
-    if sym_in_len % 8 != 0 {
+    if !sym_in_len.is_multiple_of(8) {
         sym_out[n] = byte >> 1;
         n += 1;
     }
@@ -181,7 +181,7 @@ pub fn repack_bytes(sym_in: &[u8], sym_in_bps: usize, sym_out: &mut [u8], sym_ou
     // compute number of output symbols and determine if output array
     // is sufficiently sized
     let total_bits = sym_in_len * sym_in_bps;
-    let req_sym_out_len = (total_bits + (sym_out_bps - 1)) / sym_out_bps;
+    let req_sym_out_len = total_bits.div_ceil(sym_out_bps);
     if sym_out_len < req_sym_out_len {
         return Err(Error::Config(format!(
             "repack_bytes(), output too short; {} {}-bit symbols cannot be packed into {} {}-bit elements",
@@ -276,7 +276,7 @@ const REVERSE_BYTE_GENTAB: [u8; 256] = [
 
 /// Count the number of ones in an integer
 pub fn count_ones(x: u32) -> u32 {
-    x.count_ones() as u32
+    x.count_ones()
 }
 
 /// Count the number of ones in an integer, modulo 2
@@ -286,17 +286,17 @@ pub fn count_ones_mod2(x: u32) -> u32 {
 
 /// Count the binary dot-product between two integers
 pub fn bdotprod(x: u32, y: u32) -> u32 {
-    (x & y).count_ones() & 1 as u32
+    (x & y).count_ones() & 1_u32
 }
 
 /// Counts the number of different bits between two symbols
 pub fn count_bit_errors(s1: u32, s2: u32) -> u32 {
-    (s1 ^ s2).count_ones() as u32
+    (s1 ^ s2).count_ones()
 }
 
 /// Counts the number of different bits between two arrays of symbols
 pub fn count_bit_errors_array(msg0: &[u8], msg1: &[u8]) -> u32 {
-    msg0.iter().zip(msg1.iter()).map(|(&a, &b)| (a ^ b).count_ones() as u32).sum()
+    msg0.iter().zip(msg1.iter()).map(|(&a, &b)| (a ^ b).count_ones()).sum()
 }
 
 /// Print string of bits to standard output
@@ -308,7 +308,7 @@ pub fn print_bitstring(x: u32, n: u32) {
 
 /// Slow implementation of byte reversal
 pub fn reverse_byte(x: u8) -> u8 {
-    REVERSE_BYTE_GENTAB[x as usize] as u8
+    REVERSE_BYTE_GENTAB[x as usize]
 }
 
 /// Reverse integer with 8 bits of data
@@ -337,11 +337,11 @@ pub fn reverse_32(x: u32) -> u32 {
 }
 
 pub fn count_leading_zeros(x: u32) -> u32 {
-    x.leading_zeros() as u32
+    x.leading_zeros()
 }
 
 pub fn msb_index(x: u32) -> u32 {
-    32 - x.leading_zeros() as u32
+    32 - x.leading_zeros()
 }
 
 #[cfg(test)]

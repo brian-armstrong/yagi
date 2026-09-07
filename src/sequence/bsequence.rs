@@ -14,8 +14,8 @@ pub struct BSequence {
 impl BSequence {
     pub fn new(num_bits: usize) -> Self {
         // round up to the nearest 32 (number of bits in a u32)
-        let s_len = (num_bits + 31) / 32;
-        let num_bits_msb = if num_bits % 32 == 0 { 32 } else { num_bits % 32 };
+        let s_len = num_bits.div_ceil(32);
+        let num_bits_msb = if num_bits.is_multiple_of(32) { 32 } else { num_bits % 32 };
         let bit_mask_msb = 1u32.checked_shl(num_bits_msb as u32).unwrap_or(0).wrapping_sub(1);
 
         let mut bs = Self { s: vec![0; s_len], num_bits, num_bits_msb, bit_mask_msb };
@@ -32,7 +32,7 @@ impl BSequence {
         if qa.num_bits < 8 {
             return Err(Error::Config("sequence too short".into()));
         }
-        if qa.num_bits % 8 != 0 {
+        if !qa.num_bits.is_multiple_of(8) {
             return Err(Error::Config("sequence must be multiple of 8".into()));
         }
 

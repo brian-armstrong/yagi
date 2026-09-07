@@ -47,7 +47,7 @@ where
     /// * `m` - prototype filter semi-length, length=2*M*m
     /// * `h` - prototype filter coefficient array
     pub fn new(channelizer_type: ChannelizerType, num_channels: usize, m: usize, h: &[f32]) -> Result<Self> {
-        if num_channels < 2 || num_channels % 2 != 0 {
+        if num_channels < 2 || !num_channels.is_multiple_of(2) {
             return Err(Error::Config("number of channels must be greater than 2 and even".into()));
         }
         if m < 1 {
@@ -98,7 +98,7 @@ where
     /// * `m` - prototype filter semi-length, length=2*M*m+1
     /// * `as_` - filter stop-band attenuation [dB]
     pub fn new_kaiser(channelizer_type: ChannelizerType, num_channels: usize, m: usize, as_: f32) -> Result<Self> {
-        if num_channels < 2 || num_channels % 2 != 0 {
+        if num_channels < 2 || !num_channels.is_multiple_of(2) {
             return Err(Error::Config("number of channels must be greater than 2 and even".into()));
         }
         if m < 1 {

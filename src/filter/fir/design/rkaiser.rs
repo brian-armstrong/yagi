@@ -1,4 +1,5 @@
 // Root-Nyquist Kaiser filter design.
+#![allow(clippy::excessive_precision)]
 
 use crate::error::{Error, Result};
 use crate::filter::fir::design::kaiser::fir_design_kaiser;
@@ -345,7 +346,7 @@ fn fir_design_rkaiser_internal_isi(k: usize, m: usize, beta: f32, dt: f32, rho: 
     h.copy_from_slice(&h_kaiser);
 
     // compute filter ISI
-    let (isi_rms, _isi_max) = filter_isi(&h, k, m);
+    let (isi_rms, _isi_max) = filter_isi(h, k, m);
 
     // return RMS of ISI
     Ok(isi_rms)

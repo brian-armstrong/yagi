@@ -17,15 +17,15 @@ pub fn is_prime(n: u32) -> bool {
         return false;
     } else if n <= 3 {
         return true;
-    } else if n % 2 == 0 {
+    } else if n.is_multiple_of(2) {
         return false; // divisible by 2
-    } else if n % 3 == 0 {
+    } else if n.is_multiple_of(3) {
         return false; // divisible by 3
     }
 
     let mut r = 5;
     while r * r <= n {
-        if n % r == 0 || n % (r + 2) == 0 {
+        if n.is_multiple_of(r) || n.is_multiple_of(r + 2) {
             return false;
         }
         r += 6;
@@ -50,7 +50,7 @@ pub fn factor(n: u32, factors: &mut Vec<u32>) -> Result<usize> {
 
     while num > 1 && num_factors < MAX_FACTORS {
         for k in 2..=num {
-            if num % k == 0 {
+            if num.is_multiple_of(k) {
                 // k factors n; append to list
                 factors.push(k);
                 num_factors += 1;
@@ -85,7 +85,7 @@ pub fn unique_factor(n: u32, factors: &mut Vec<u32>) -> Result<usize> {
 
     while num > 1 && num_factors < MAX_FACTORS {
         for k in 2..=num {
-            if num % k == 0 {
+            if num.is_multiple_of(k) {
                 // k factors n; append to list
                 if num_factors == 0 || factors[num_factors - 1] != k {
                     factors.push(k);
@@ -132,7 +132,7 @@ pub fn gcd(mut p: u32, mut q: u32) -> Result<u32> {
     let mut gcd = 1;
     let mut r = 2; // root
     while r <= q {
-        while p % r == 0 && q % r == 0 {
+        while p.is_multiple_of(r) && q.is_multiple_of(r) {
             p /= r;
             q /= r;
             gcd *= r;
@@ -227,7 +227,7 @@ pub fn totient(x: u32) -> u32 {
     let mut p = 0;
     loop {
         for k in 2..=n {
-            if n % k == 0 {
+            if n.is_multiple_of(k) {
                 n /= k;
 
                 if p != k {

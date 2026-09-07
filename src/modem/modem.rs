@@ -891,7 +891,7 @@ pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
     }
 
     let mut s = 0;
-    for &bit in soft_bits.iter().take(bps as usize) {
+    for &bit in soft_bits.iter().take(bps) {
         s <<= 1;
         s |= if bit > SOFTBIT_ERASURE { 1 } else { 0 };
     }
@@ -912,7 +912,7 @@ pub fn unpack_soft_bits(sym_in: u32, bps: usize, soft_bits: &mut [u8]) -> Result
     }
 
     for i in 0..bps {
-        soft_bits[i as usize] = if (sym_in >> (bps - i - 1)) & 0x0001 != 0 { SOFTBIT_1 } else { SOFTBIT_0 };
+        soft_bits[i] = if (sym_in >> (bps - i - 1)) & 0x0001 != 0 { SOFTBIT_1 } else { SOFTBIT_0 };
     }
     Ok(())
 }

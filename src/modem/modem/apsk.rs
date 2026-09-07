@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_precision)]
 use crate::modem::modem::*;
 
 #[derive(Debug, Clone)]
@@ -76,9 +77,9 @@ impl Modem {
             let phi = apsk.phi[p] + (s0 as f32) * 2.0 * PI / (s1 as f32);
 
             let symbol_out = Complex32::from_polar(r, phi);
-            return Ok(symbol_out);
+            Ok(symbol_out)
         } else {
-            return Err(Error::Internal("Apsk data not initialized".into()));
+            Err(Error::Internal("Apsk data not initialized".into()))
         }
     }
 
@@ -119,9 +120,9 @@ impl Modem {
             self.x_hat = self.modulate(s_prime as u32)?;
             self.r = symbol_in;
 
-            return Ok(s_prime as u32);
+            Ok(s_prime as u32)
         } else {
-            return Err(Error::Internal("Apsk data not initialized".into()));
+            Err(Error::Internal("Apsk data not initialized".into()))
         }
     }
 }

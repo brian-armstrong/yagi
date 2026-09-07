@@ -20,7 +20,7 @@ impl Fskdem {
         if m == 0 {
             return Err(Error::Config("bits/symbol must be greater than 0".into()));
         }
-        if k < 2 || k > 2048 {
+        if !(2..=2048).contains(&k) {
             return Err(Error::Config("samples/symbol must be in [2^m, 2048]".into()));
         }
         if !(0.0..0.5).contains(&bandwidth) {
@@ -94,7 +94,7 @@ impl Fskdem {
         self.buf_time[..self.k].copy_from_slice(y);
 
         // Compute transform
-        self.fft.run(&mut self.buf_time, &mut self.buf_freq);
+        self.fft.run(&self.buf_time, &mut self.buf_freq);
 
         // Find maximum by looking at particular bins
         let mut vmax = 0.0;

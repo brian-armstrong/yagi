@@ -16,7 +16,7 @@ fn vco_static_lut_theta_shifted_pi2(theta: u32) -> u32 {
 }
 
 fn vco_static_lut_theta_accum(theta: u32) -> u32 {
-    (theta & ((1 << (VCO_STATIC_LUT_WORDBITS - VCO_STATIC_LUT_NBITS)) - 1)) as u32
+    theta & ((1 << (VCO_STATIC_LUT_WORDBITS - VCO_STATIC_LUT_NBITS)) - 1)
 }
 
 #[derive(Debug, Clone)]
@@ -35,15 +35,15 @@ impl Vco {
         let mut vco = Vco { vco_sintab: vec![VcoLut { value: 0.0, skew: 0.0 }; VCO_STATIC_LUT_SIZE] };
 
         let mut theta = 0;
-        let d_theta = std::u32::MAX / VCO_STATIC_LUT_SIZE as u32;
+        let d_theta = u32::MAX / VCO_STATIC_LUT_SIZE as u32;
 
         // Initialize sine table
         for i in 0..VCO_STATIC_LUT_QSIZE {
             let value = Vco::fp_sin(theta);
             let next_value = Vco::fp_sin(theta + d_theta);
             let skew = (next_value - value) / d_theta as f32;
-            let index = i as usize;
-            let index_pi = index + VCO_STATIC_LUT_HSIZE as usize;
+            let index = i;
+            let index_pi = index + VCO_STATIC_LUT_HSIZE;
             vco.vco_sintab[index] = VcoLut { value, skew };
             vco.vco_sintab[index_pi] = VcoLut { value: -value, skew: -skew };
             theta = theta.wrapping_add(d_theta);
@@ -72,7 +72,7 @@ impl Vco {
     }
 
     fn fp_sin(theta: u32) -> f32 {
-        return (theta as f32 * PI / (std::i32::MAX as u32 + 1) as f32).sin();
+        (theta as f32 * PI / (i32::MAX as u32 + 1) as f32).sin()
     }
 
     pub fn sin(&self, theta: u32) -> f32 {
@@ -107,5 +107,11 @@ impl Vco {
 
     fn static_index(&self, theta: u32) -> usize {
         (theta as usize >> (VCO_STATIC_LUT_WORDBITS - VCO_STATIC_LUT_NBITS)) & (VCO_STATIC_LUT_SIZE - 1)
+    }
+}
+
+impl Default for Vco {
+    fn default() -> Self {
+        Self::new()
     }
 }

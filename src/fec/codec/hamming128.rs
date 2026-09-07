@@ -129,9 +129,8 @@ pub(crate) fn decode_symbol(mut sym_enc: u16) -> u8 {
     //                0000 0000 1111     >  0x000f
     //                0000 1110 0000     >  0x00e0
     //                0010 0000 0000     >  0x0200
-    let sym_dec = ((sym_enc & 0x000f) | ((sym_enc & 0x00e0) >> 1) | ((sym_enc & 0x0200) >> 2)) as u8;
 
-    sym_dec
+    ((sym_enc & 0x000f) | ((sym_enc & 0x00e0) >> 1) | ((sym_enc & 0x0200) >> 2)) as u8
 }
 
 /// encode block of data using Hamming(12,8) encoder

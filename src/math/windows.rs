@@ -199,7 +199,7 @@ pub fn kbd(i: usize, wlen: usize, beta: f32) -> Result<f32> {
     if wlen == 0 {
         return Err(Error::Value("KBD window: window length must be greater than zero".to_string()));
     }
-    if wlen % 2 != 0 {
+    if !wlen.is_multiple_of(2) {
         return Err(Error::Value("KBD window: window length must be even".to_string()));
     }
 
@@ -225,7 +225,7 @@ pub fn kbd_window(wlen: usize, beta: f32) -> Result<Vec<f32>> {
     if wlen == 0 {
         return Err(Error::Value("KBD window: window length must be greater than zero".to_string()));
     }
-    if wlen % 2 != 0 {
+    if !wlen.is_multiple_of(2) {
         return Err(Error::Value("KBD window: window length must be even".to_string()));
     }
     if beta < 0.0 {

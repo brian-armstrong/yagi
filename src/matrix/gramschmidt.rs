@@ -18,8 +18,8 @@ where
     let mut uv = <T as NumCast>::from(0.0).unwrap();
     let mut uu = <T as NumCast>::from(0.0).unwrap();
     for i in 0..n {
-        uv = uv + u[i] * v[i].conj();
-        uu = uu + u[i] * u[i].conj();
+        uv += u[i] * v[i].conj();
+        uu += u[i] * u[i].conj();
     }
 
     // TODO: check magnitude of _uu
@@ -63,10 +63,10 @@ where
                 let tj = v[k * cx + j];
 
                 let prodij = ti * tj.conj();
-                vij = vij + prodij;
+                vij += prodij;
 
                 let prodii = ti * ti.conj();
-                vii = vii + prodii;
+                vii += prodii;
             }
             // TODO: vii should be 1.0 from normalization step below
             let g = vij / vii;
@@ -78,7 +78,7 @@ where
 
             // Subtract projection from v_j
             for k in 0..n {
-                v[k * cx + j] = v[k * cx + j] - proj_ij[k];
+                v[k * cx + j] -= proj_ij[k];
             }
         }
 
@@ -87,12 +87,12 @@ where
         for k in 0..n {
             let tj = v[k * cx + j];
             let prodjj = tj * tj.conj();
-            vjj = vjj + prodjj;
+            vjj += prodjj;
         }
         // TODO: check magnitude of vjj
         let g = <T as NumCast>::from(1.0).unwrap() / vjj.sqrt();
         for k in 0..n {
-            v[k * cx + j] = v[k * cx + j] * g;
+            v[k * cx + j] *= g;
         }
 
         if DEBUG_MATRIX_GRAMSCHMIDT {

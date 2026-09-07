@@ -170,8 +170,7 @@ fn ellip_acdf(w: Complex32, k: f32, n: usize) -> Complex32 {
         w = w / (1.0 + (1.0 - w * w * v1 * v1).sqrt()) * 2.0 / (1.0 + v[i]);
     }
 
-    let u = w.acos() * 2.0 / PI;
-    u
+    w.acos() * 2.0 / PI
 }
 
 /// Complex elliptic asnf() function (Jacobian elliptic arc sine)
