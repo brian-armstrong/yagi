@@ -118,7 +118,7 @@ impl FirDesignPm {
         wtype: Option<&[FirPmWeightType]>,
         btype: FirPmBandType,
     ) -> Result<FirDesignPm> {
-        let mut obj = FirDesignPm::_new(h_len, num_bands, bands, Some(des), weights, wtype, btype)?;
+        let mut obj = FirDesignPm::new_base(h_len, num_bands, bands, Some(des), weights, wtype, btype)?;
         obj.create_grid(None)?;
         // TODO : fix grid, weights according to filter type
         Ok(obj)
@@ -147,7 +147,7 @@ impl FirDesignPm {
     where
         F: FnMut(f64) -> Result<FirPmResponse>,
     {
-        let mut obj = FirDesignPm::_new(h_len, num_bands, bands, None, None, None, btype)?;
+        let mut obj = FirDesignPm::new_base(h_len, num_bands, bands, None, None, None, btype)?;
         obj.create_grid(Some(&mut response))?;
         // TODO : fix grid, weights according to filter type
         Ok(obj)
@@ -191,7 +191,7 @@ impl FirDesignPm {
         )))
     }
 
-    fn _new(
+    fn new_base(
         h_len: usize,
         num_bands: usize,
         bands: &[f32],
