@@ -31,7 +31,7 @@ impl IirHilbertFilter {
         Ok(q)
     }
 
-    pub fn new_default(n: usize) -> Result<Self> {
+    pub fn from_order(n: usize) -> Result<Self> {
         if n == 0 {
             return Err(Error::Config("filter order must be greater than zero".into()));
         }
@@ -174,7 +174,7 @@ mod tests {
         let m = 5; // Transform order
 
         // create transform
-        let mut q = IirHilbertFilter::new_default(m).unwrap();
+        let mut q = IirHilbertFilter::from_order(m).unwrap();
         // q.print();
 
         let h_len = 2 * p + 1; // pulse length
@@ -236,7 +236,7 @@ mod tests {
         let m: usize = 7; // Transform order
 
         // create transform
-        let mut q = IirHilbertFilter::new_default(m).unwrap();
+        let mut q = IirHilbertFilter::from_order(m).unwrap();
         // q.print();
 
         let h_len: usize = 2 * p + 1; // pulse length
@@ -319,7 +319,7 @@ mod tests {
     fn test_iirhilbf_invalid_config() {
         // check that object returns None for invalid configurations
         assert!(IirHilbertFilter::new(IirFilterShape::Butter, 0, 0.1, 60.0).is_err()); // order out of range
-        assert!(IirHilbertFilter::new_default(0).is_err()); // order out of range
+        assert!(IirHilbertFilter::from_order(0).is_err()); // order out of range
 
         // create proper object and test configuration methods
         // let q = IirHilb::new(IirdesFilterType::Butter, 5, 0.1, 60.0).unwrap();
