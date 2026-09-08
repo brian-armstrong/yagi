@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::sequence::MSequence;
+use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 use std::f32::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
 
@@ -506,7 +506,7 @@ pub struct Modem {
     demod_soft_neighbors: Option<Vec<u8>>, // array of nearest neighbors
     demod_soft_p: u32,                     // number of neighbors in array
 
-    randomizer: MSequence,
+    randomizer: MaximalLengthSequence,
 }
 
 #[derive(Debug, Clone)]
@@ -800,7 +800,7 @@ impl Modem {
             data: None,
             r: Complex32::new(0.0, 0.0),
             x_hat: Complex32::new(0.0, 0.0),
-            randomizer: MSequence::from_degree(11)?,
+            randomizer: MaximalLengthSequence::from_degree(11)?,
         };
         modem.reset();
         Ok(modem)

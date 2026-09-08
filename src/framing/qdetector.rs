@@ -8,8 +8,8 @@ use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::filter::{FirFilterShape, FirInterpolationFilter};
 use crate::math::nextpow2;
-use crate::modem::cpfskmod::{CpfskFilterType, Cpfskmod};
-use crate::modem::gmskmod::GmskMod;
+use crate::modem::cpfskmod::{CpfskFilterType, CpfskModulator};
+use crate::modem::gmskmod::GmskModulator;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum QdetectorState {
@@ -19,7 +19,8 @@ enum QdetectorState {
 
 /// Frame detector using FFT-based cross-correlation
 #[derive(Clone)]
-pub struct Qdetector {
+#[doc(alias = "Qdetector")]
+pub struct FrameDetector {
     s_len: usize,                // template (time) length
     s: Vec<Complex32>,           // template (time)
     s_conj_freq: Vec<Complex32>, // template conjugate (freq), [size: nfft x 1]
@@ -52,7 +53,7 @@ pub struct Qdetector {
     frame_detected: bool,  // frame detected flag
 }
 
-impl Qdetector {
+impl FrameDetector {
     /// Create detector with generic sequence
     ///
     /// # Arguments
@@ -181,7 +182,7 @@ impl Qdetector {
         let s_len = k * (sequence_len + 2 * m);
         let mut s = vec![Complex32::new(0.0, 0.0); s_len];
 
-        let mut modulator = GmskMod::new(k, m, beta)?;
+        let mut modulator = GmskModulator::new(k, m, beta)?;
 
         for i in 0..(sequence_len + 2 * m) {
             let bit = if i < sequence_len { sequence[i] } else { 0 };
@@ -228,7 +229,7 @@ impl Qdetector {
         let s_len = k * (sequence_len + 2 * m);
         let mut s = vec![Complex32::new(0.0, 0.0); s_len];
 
-        let mut modulator = Cpfskmod::new(bps, h, k, m, beta, filter_type)?;
+        let mut modulator = CpfskModulator::new(bps, h, k, m, beta, filter_type)?;
 
         for i in 0..(sequence_len + 2 * m) {
             let sym = if i < sequence_len { sequence[i] as usize } else { 0 };
@@ -524,11 +525,11 @@ impl Qdetector {
     }
 }
 
-impl std::fmt::Debug for Qdetector {
+impl std::fmt::Debug for FrameDetector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Qdetector {{ seq={}, nfft={}, dphi_max={}, thresh={}, energy={} }}",
+            "FrameDetector {{ seq={}, nfft={}, dphi_max={}, thresh={}, energy={} }}",
             self.s_len, self.nfft, self.dphi_max, self.threshold, self.s2_sum
         )
     }
@@ -558,7 +559,7 @@ mod tests {
             .collect();
 
         // create detector
-        let q = Qdetector::new_linear(&sequence, ftype, k, m, beta).unwrap();
+        let q = FrameDetector::new_linear(&sequence, ftype, k, m, beta).unwrap();
         qdetector_runtest(q);
     }
 
@@ -572,11 +573,11 @@ mod tests {
         let sequence: Vec<u8> = (0..sequence_len).map(|_| rng.gen::<u8>() & 0x01).collect();
 
         // create detector
-        let q = Qdetector::new_gmsk(&sequence, k, m, beta).unwrap();
+        let q = FrameDetector::new_gmsk(&sequence, k, m, beta).unwrap();
         qdetector_runtest(q);
     }
 
-    fn qdetector_runtest(mut q: Qdetector) {
+    fn qdetector_runtest(mut q: FrameDetector) {
         let gamma = 1.0; // channel gain
         let tau = 0.0; // fractional sample timing offset
         let dphi = 0.0; // carrier frequency offset
@@ -766,7 +767,7 @@ mod tests {
             .collect();
 
         // create initial detector
-        let mut q0 = Qdetector::new(&sequence).unwrap();
+        let mut q0 = FrameDetector::new(&sequence).unwrap();
 
         // run on random-ish samples
         for i in 0..347 {

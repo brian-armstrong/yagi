@@ -123,9 +123,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
+    use crate::fft::spgram::SpectralPeriodogram;
     use crate::filter::FirFilterShape;
-    use crate::framing::symstreamr::SymStreamR;
+    use crate::framing::symstreamr::ArbitraryRateSymbolStream;
     use crate::math::WindowType;
     use crate::modem::modem::ModulationScheme;
     use crate::random::randnf;
@@ -144,10 +144,15 @@ mod tests {
         let mut interp = IirInterpolationFilter::<Complex32, f32>::new_butterworth(interp_factor, order).unwrap();
 
         // create and configure objects
-        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
-        let mut gen =
-            SymStreamR::new_linear(FirFilterShape::Kaiser, bw * interp_factor as f32, 25, 0.2, ModulationScheme::Qpsk)
-                .unwrap();
+        let mut q = SpectralPeriodogram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
+        let mut gen = ArbitraryRateSymbolStream::new_linear(
+            FirFilterShape::Kaiser,
+            bw * interp_factor as f32,
+            25,
+            0.2,
+            ModulationScheme::Qpsk,
+        )
+        .unwrap();
         gen.set_gain((bw as f32).sqrt());
 
         // generate samples and push through spgram object

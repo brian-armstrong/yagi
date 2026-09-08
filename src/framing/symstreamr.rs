@@ -1,21 +1,22 @@
 use crate::error::{Error, Result};
-use crate::filter::msresamp::MsResamp;
+use crate::filter::msresamp::MultiStageResampler;
 use crate::filter::FirFilterShape;
-use crate::framing::symstream::SymStream;
+use crate::framing::symstream::SymbolStream;
 use crate::math::nextpow2;
 use crate::modem::modem::ModulationScheme;
 use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
-pub struct SymStreamR {
-    symstream: SymStream,
-    resamp: MsResamp<Complex32, f32>,
+#[doc(alias = "SymStreamR")]
+pub struct ArbitraryRateSymbolStream {
+    symstream: SymbolStream,
+    resamp: MultiStageResampler<Complex32, f32>,
     buf: Vec<Complex32>,
     buf_size: usize,
     buf_index: usize,
 }
 
-impl SymStreamR {
+impl ArbitraryRateSymbolStream {
     pub fn new() -> Result<Self> {
         Self::new_linear(FirFilterShape::Arkaiser, 0.5, 7, 0.3, ModulationScheme::Qpsk)
     }
@@ -27,9 +28,9 @@ impl SymStreamR {
             return Err(Error::Config(format!("symbol bandwidth ({}) must be in [{},{}]", bw, BW_MIN, BW_MAX)));
         }
 
-        let symstream = SymStream::new_linear(ftype, 2, m, beta, ms)?;
+        let symstream = SymbolStream::new_linear(ftype, 2, m, beta, ms)?;
         let rate = 0.5 / bw;
-        let resamp = MsResamp::new(rate, 60.0)?;
+        let resamp = MultiStageResampler::new(rate, 60.0)?;
 
         let buf_len = 1 << nextpow2((0.5 / bw).ceil() as u32)?;
         let buf = vec![Complex32::new(0.0, 0.0); buf_len];
@@ -119,7 +120,7 @@ impl SymStreamR {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
+    use crate::fft::spgram::SpectralPeriodogram;
     use crate::fft::{fft_run, Direction};
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
@@ -130,7 +131,7 @@ mod tests {
         let ftype = FirFilterShape::Arkaiser;
         let beta = 0.30;
         let ms = ModulationScheme::Qpsk;
-        let mut gen = SymStreamR::new_linear(ftype, bw, m, beta, ms).unwrap();
+        let mut gen = ArbitraryRateSymbolStream::new_linear(ftype, bw, m, beta, ms).unwrap();
         let delay = gen.get_delay();
         let tol = 0.05; // error tolerance
 
@@ -296,7 +297,7 @@ mod tests {
         // create object
         let ftype = FirFilterShape::Arkaiser;
         let ms = ModulationScheme::Qpsk;
-        let mut gen = SymStreamR::new_linear(ftype, bw, m, beta, ms).unwrap();
+        let mut gen = ArbitraryRateSymbolStream::new_linear(ftype, bw, m, beta, ms).unwrap();
         gen.set_gain(bw.sqrt());
 
         // spectral periodogram options
@@ -304,7 +305,7 @@ mod tests {
         let num_samples = (192000.0 / bw) as usize; // number of samples
 
         // create spectral periodogram
-        let mut periodogram = Spgram::from_nfft(nfft).unwrap();
+        let mut periodogram = SpectralPeriodogram::from_nfft(nfft).unwrap();
 
         let buf_len = 1337;
         let mut buf = vec![Complex32::new(0.0, 0.0); buf_len];
@@ -363,7 +364,7 @@ mod tests {
     #[autotest_annotate(autotest_symstreamrcf_copy)]
     fn test_symstreamrcf_copy() {
         // create objects
-        let mut gen_orig = SymStream::new_linear(
+        let mut gen_orig = SymbolStream::new_linear(
             FirFilterShape::Arkaiser,
             5, // k = 1/0.2
             17,

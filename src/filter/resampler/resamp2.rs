@@ -23,7 +23,8 @@ impl Resamp2Coeff for Complex32 {
 }
 
 #[derive(Clone, Debug)]
-pub struct Resamp2<T, Coeff = T> {
+#[doc(alias = "Resamp2")]
+pub struct HalfBandResampler<T, Coeff = T> {
     m: usize,
 
     dp: DotProduct<T, Coeff>,
@@ -36,7 +37,7 @@ pub struct Resamp2<T, Coeff = T> {
     toggle: bool,
 }
 
-impl<T, Coeff> Resamp2<T, Coeff>
+impl<T, Coeff> HalfBandResampler<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Resamp2Coeff,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
@@ -378,7 +379,7 @@ mod tests {
         }
 
         // create the half-band resampler, with a specified stopband attenuation level
-        let mut q = Resamp2::<Complex32>::new(m as usize, 0.0, as_).unwrap();
+        let mut q = HalfBandResampler::<Complex32>::new(m as usize, 0.0, as_).unwrap();
 
         // run half-band decimation
         let mut y_hat = [Complex32::new(0.0, 0.0); 2];
@@ -420,7 +421,7 @@ mod tests {
         }
 
         // create the half-band resampler, with a specified stopband attenuation level
-        let mut q = Resamp2::<Complex32>::new(m as usize, 0.0, as_).unwrap();
+        let mut q = HalfBandResampler::<Complex32>::new(m as usize, 0.0, as_).unwrap();
 
         // run synthesis
         let mut x_hat = [Complex32::new(0.0, 0.0); 2];
@@ -450,7 +451,7 @@ mod tests {
         let tol = 0.5f32;
 
         // create the half-band resampler
-        let mut q = Resamp2::<Complex32>::new(m, 0.0, as_).unwrap();
+        let mut q = HalfBandResampler::<Complex32>::new(m, 0.0, as_).unwrap();
 
         // get impulse response
         let h_len = 4 * m + 1;
@@ -529,26 +530,26 @@ mod tests {
     #[autotest_annotate(autotest_resamp2_config)]
     fn test_resamp2_config() {
         // check that object returns None for invalid configurations
-        assert!(Resamp2::<Complex32, f32>::new(0, 0.0, 60.0).is_err()); // m out of range
-        assert!(Resamp2::<Complex32, f32>::new(1, 0.0, 60.0).is_err()); // m out of range
-        assert!(Resamp2::<Complex32, f32>::new(2, 0.7, 60.0).is_err()); // f0 out of range
-        assert!(Resamp2::<Complex32, f32>::new(2, -0.7, 60.0).is_err()); // f0 out of range
-        assert!(Resamp2::<Complex32, f32>::new(2, 0.0, -1.0).is_err()); // as out of range
+        assert!(HalfBandResampler::<Complex32, f32>::new(0, 0.0, 60.0).is_err()); // m out of range
+        assert!(HalfBandResampler::<Complex32, f32>::new(1, 0.0, 60.0).is_err()); // m out of range
+        assert!(HalfBandResampler::<Complex32, f32>::new(2, 0.7, 60.0).is_err()); // f0 out of range
+        assert!(HalfBandResampler::<Complex32, f32>::new(2, -0.7, 60.0).is_err()); // f0 out of range
+        assert!(HalfBandResampler::<Complex32, f32>::new(2, 0.0, -1.0).is_err()); // as out of range
 
         // create proper object and test configurations
-        let q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
         assert_eq!(q.get_delay(), 2 * 4 - 1);
         // q.print();
 
         // redesign filter with new length
         // nb there's no recreate
         // q = q.recreate(8, 0.0, 60.0);
-        let q = Resamp2::<Complex32, f32>::new(8, 0.0, 60.0).unwrap();
+        let q = HalfBandResampler::<Complex32, f32>::new(8, 0.0, 60.0).unwrap();
         assert_eq!(q.get_delay(), 2 * 8 - 1);
 
         // redesign filter with same length, but new stop-band suppression
         // q = q.recreate(8, 0.0, 80.0);
-        let mut q = Resamp2::<Complex32, f32>::new(8, 0.0, 80.0).unwrap();
+        let mut q = HalfBandResampler::<Complex32, f32>::new(8, 0.0, 80.0).unwrap();
         assert_eq!(q.get_delay(), 2 * 8 - 1);
 
         // test setting/getting properties
@@ -562,7 +563,7 @@ mod tests {
     #[autotest_annotate(autotest_resamp2_copy)]
     fn test_resamp2_copy() {
         // create original half-band resampler
-        let mut qa = Resamp2::<Complex32>::new(12, 0.0, 60.0).unwrap();
+        let mut qa = HalfBandResampler::<Complex32>::new(12, 0.0, 60.0).unwrap();
 
         // run random samples through filter
         let num_samples = 80;
@@ -589,19 +590,19 @@ mod tests {
     fn test_resamp2_block_rejects_short_output_without_advancing() {
         let x = vec![Complex32::new(1.0, -0.5); 4];
 
-        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let mut q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
         assert!(q.filter_execute_block(&x[..2], &mut [Complex32::default(); 3]).is_err());
 
-        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let mut q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
         assert!(q.analyzer_execute_block(&x, &mut [Complex32::default(); 3]).is_err());
 
-        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let mut q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
         assert!(q.synthesizer_execute_block(&x, &mut [Complex32::default(); 3]).is_err());
 
-        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let mut q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
         assert!(q.decim_execute_block(&x, &mut [Complex32::default(); 1]).is_err());
 
-        let mut q = Resamp2::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let mut q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
         let mut q_ref = q.clone();
         assert!(q.interp_execute_block(&x[..2], &mut [Complex32::default(); 3]).is_err());
 
@@ -615,7 +616,7 @@ mod tests {
     #[test]
     fn test_resamp2_decim_block_matches_crc() {
         for &m in &[2usize, 3, 5, 8] {
-            let mut q_sample = Resamp2::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
+            let mut q_sample = HalfBandResampler::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
             q_sample.set_scale(0.73);
             let mut q_block = q_sample.clone();
             assert!(q_block.decim_phase.is_empty());
@@ -654,7 +655,7 @@ mod tests {
     #[test]
     fn test_resamp2_decim_block_matches_rrr() {
         for &m in &[2usize, 3, 5, 8, 16] {
-            let mut q_sample = Resamp2::<f32, f32>::new(m, 0.0, 60.0).unwrap();
+            let mut q_sample = HalfBandResampler::<f32, f32>::new(m, 0.0, 60.0).unwrap();
             q_sample.set_scale(0.73);
             let mut q_block = q_sample.clone();
 
@@ -683,7 +684,7 @@ mod tests {
     #[test]
     fn test_resamp2_interp_block_matches_crc() {
         for &m in &[2usize, 3, 5, 8] {
-            let mut q_sample = Resamp2::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
+            let mut q_sample = HalfBandResampler::<Complex32, f32>::new(m, 0.0, 60.0).unwrap();
             q_sample.set_scale(0.73);
             let mut q_block = q_sample.clone();
 
@@ -718,7 +719,7 @@ mod tests {
     #[test]
     fn test_resamp2_interp_block_matches_rrr() {
         for &m in &[2usize, 3, 5, 8, 16] {
-            let mut q_sample = Resamp2::<f32, f32>::new(m, 0.0, 60.0).unwrap();
+            let mut q_sample = HalfBandResampler::<f32, f32>::new(m, 0.0, 60.0).unwrap();
             q_sample.set_scale(0.73);
             let mut q_block = q_sample.clone();
 

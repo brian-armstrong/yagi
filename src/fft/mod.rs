@@ -8,7 +8,7 @@ extern crate rustfft;
 pub mod r2r;
 pub mod spgram;
 
-pub use r2r::{fft_r2r_run, FftR2r, FftR2rKind};
+pub use r2r::{fft_r2r_run, RealToRealFft, RealToRealFftKind};
 
 use num_complex::Complex;
 use std::sync::Arc;

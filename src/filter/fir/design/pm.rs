@@ -57,7 +57,8 @@ pub enum FirPmWeightType {
 
 /// Desired response and weight at a frequency grid point.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FirPmResponse {
+#[doc(alias = "FirPmResponse")]
+pub struct ParksMcClellanResponse {
     /// Desired filter response. Must be finite.
     pub desired: f64,
     /// Positive, finite error weight. Larger values prioritize this frequency.
@@ -68,7 +69,8 @@ pub struct FirPmResponse {
 
 /// Parks-McClellan filter design object
 #[derive(Debug, Clone)]
-pub struct FirDesignPm {
+#[doc(alias = "FirDesignPm")]
+pub struct ParksMcClellanDesigner {
     h_len: usize,                // filter length
     s: usize,                    // odd/even filter length
     r: usize,                    // number of approximating functions
@@ -93,7 +95,7 @@ pub struct FirDesignPm {
                                  // fid: Option<std::fs::File>, // file for debugging
 }
 
-impl FirDesignPm {
+impl ParksMcClellanDesigner {
     /// create new Parks-McClellan filter design object
     ///
     /// # Arguments
@@ -117,8 +119,8 @@ impl FirDesignPm {
         weights: Option<&[f32]>,
         wtype: Option<&[FirPmWeightType]>,
         btype: FirPmBandType,
-    ) -> Result<FirDesignPm> {
-        let mut obj = FirDesignPm::new_base(h_len, num_bands, bands, Some(des), weights, wtype, btype)?;
+    ) -> Result<ParksMcClellanDesigner> {
+        let mut obj = ParksMcClellanDesigner::new_base(h_len, num_bands, bands, Some(des), weights, wtype, btype)?;
         obj.create_grid(None)?;
         // TODO : fix grid, weights according to filter type
         Ok(obj)
@@ -143,11 +145,11 @@ impl FirDesignPm {
         bands: &[f32],
         btype: FirPmBandType,
         mut response: F,
-    ) -> Result<FirDesignPm>
+    ) -> Result<ParksMcClellanDesigner>
     where
-        F: FnMut(f64) -> Result<FirPmResponse>,
+        F: FnMut(f64) -> Result<ParksMcClellanResponse>,
     {
-        let mut obj = FirDesignPm::new_base(h_len, num_bands, bands, None, None, None, btype)?;
+        let mut obj = ParksMcClellanDesigner::new_base(h_len, num_bands, bands, None, None, None, btype)?;
         obj.create_grid(Some(&mut response))?;
         // TODO : fix grid, weights according to filter type
         Ok(obj)
@@ -199,7 +201,7 @@ impl FirDesignPm {
         weights: Option<&[f32]>,
         wtype: Option<&[FirPmWeightType]>,
         btype: FirPmBandType,
-    ) -> Result<FirDesignPm> {
+    ) -> Result<ParksMcClellanDesigner> {
         // basic validation
         if h_len == 0 {
             return Err(Error::Config("Invalid filter length".to_string()));
@@ -260,7 +262,7 @@ impl FirDesignPm {
             grid_size += ((f1 - f0) / df + 1.0).floor() as usize;
         }
 
-        let mut obj = FirDesignPm {
+        let mut obj = ParksMcClellanDesigner {
             h_len,
             s,
             r,
@@ -302,7 +304,10 @@ impl FirDesignPm {
         Ok(obj)
     }
 
-    fn create_grid(&mut self, mut response: Option<&mut dyn FnMut(f64) -> Result<FirPmResponse>>) -> Result<()> {
+    fn create_grid(
+        &mut self,
+        mut response: Option<&mut dyn FnMut(f64) -> Result<ParksMcClellanResponse>>,
+    ) -> Result<()> {
         // frequency step size
         let df = 0.5 / (self.grid_density * self.r) as f64;
 
@@ -650,7 +655,7 @@ pub fn fir_design_pm(
     wtype: Option<&[FirPmWeightType]>,
     btype: FirPmBandType,
 ) -> Result<Vec<f32>> {
-    let mut obj = FirDesignPm::new(h_len, num_bands, bands, des, weights, wtype, btype)?;
+    let mut obj = ParksMcClellanDesigner::new(h_len, num_bands, bands, des, weights, wtype, btype)?;
     obj.execute()
 }
 
@@ -845,8 +850,8 @@ mod tests {
         assert!(validate_psd_signalf(&h, &regions).unwrap());
     }
 
-    fn firdespm_response_helper(frequency: f64) -> Result<FirPmResponse> {
-        Ok(FirPmResponse {
+    fn firdespm_response_helper(frequency: f64) -> Result<ParksMcClellanResponse> {
+        Ok(ParksMcClellanResponse {
             desired: if frequency < 0.39 { (20.0 * frequency.abs()).exp() } else { 0.0 },
             weight: if frequency < 0.39 { (-10.0 * frequency).exp() } else { 1.0 },
         })
@@ -863,7 +868,7 @@ mod tests {
 
         let captured_value = 42;
         let mut num_calls = 0;
-        let mut q = FirDesignPm::new_with_response(n, num_bands, &bands, btype, |frequency| {
+        let mut q = ParksMcClellanDesigner::new_with_response(n, num_bands, &bands, btype, |frequency| {
             assert_eq!(captured_value, 42);
             num_calls += 1;
             firdespm_response_helper(frequency)
@@ -896,7 +901,8 @@ mod tests {
         let des = vec![1.0f32, 0.0]; // desired values
         let w = vec![1.0f32, 1.0]; // weights
         let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
-        let mut q0 = FirDesignPm::new(51, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).unwrap();
+        let mut q0 =
+            ParksMcClellanDesigner::new(51, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).unwrap();
 
         // copy object
         let mut q1 = q0.clone();
@@ -921,10 +927,10 @@ mod tests {
         assert!(fir_design_pm_lowpass(51, -0.2, 60.0, 0.0).is_err());
 
         // try to create object with filter length 0
-        assert!(FirDesignPm::new(0, 3, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
+        assert!(ParksMcClellanDesigner::new(0, 3, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
 
         // try to create object with 0 bands
-        assert!(FirDesignPm::new(71, 0, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
+        assert!(ParksMcClellanDesigner::new(71, 0, &[], &[], None, None, FirPmBandType::Bandpass).is_err());
 
         // create valid object
         // skipping a print test
@@ -941,25 +947,52 @@ mod tests {
         let w_0 = vec![1.0f32, -1.0]; // weights out of range
 
         // try to create regular object with invalid configuration
-        assert!(FirDesignPm::new(0, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 0, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 2, &bands_0, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 2, &bands_1, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err());
-        assert!(FirDesignPm::new(51, 2, &bands, &des, Some(&w_0), Some(&wtype), FirPmBandType::Bandpass).is_err());
+        assert!(
+            ParksMcClellanDesigner::new(0, 2, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err()
+        );
+        assert!(
+            ParksMcClellanDesigner::new(51, 0, &bands, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass).is_err()
+        );
+        assert!(ParksMcClellanDesigner::new(51, 2, &bands_0, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass)
+            .is_err());
+        assert!(ParksMcClellanDesigner::new(51, 2, &bands_1, &des, Some(&w), Some(&wtype), FirPmBandType::Bandpass)
+            .is_err());
+        assert!(ParksMcClellanDesigner::new(51, 2, &bands, &des, Some(&w_0), Some(&wtype), FirPmBandType::Bandpass)
+            .is_err());
 
         // try to create response object with invalid configuration
-        assert!(
-            FirDesignPm::new_with_response(0, 2, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
-        );
-        assert!(
-            FirDesignPm::new_with_response(51, 0, &bands, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
-        );
-        assert!(
-            FirDesignPm::new_with_response(51, 2, &bands_0, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
-        );
-        assert!(
-            FirDesignPm::new_with_response(51, 2, &bands_1, FirPmBandType::Bandpass, firdespm_response_helper).is_err()
-        );
+        assert!(ParksMcClellanDesigner::new_with_response(
+            0,
+            2,
+            &bands,
+            FirPmBandType::Bandpass,
+            firdespm_response_helper
+        )
+        .is_err());
+        assert!(ParksMcClellanDesigner::new_with_response(
+            51,
+            0,
+            &bands,
+            FirPmBandType::Bandpass,
+            firdespm_response_helper
+        )
+        .is_err());
+        assert!(ParksMcClellanDesigner::new_with_response(
+            51,
+            2,
+            &bands_0,
+            FirPmBandType::Bandpass,
+            firdespm_response_helper
+        )
+        .is_err());
+        assert!(ParksMcClellanDesigner::new_with_response(
+            51,
+            2,
+            &bands_1,
+            FirPmBandType::Bandpass,
+            firdespm_response_helper
+        )
+        .is_err());
     }
 
     #[test]
@@ -971,7 +1004,7 @@ mod tests {
         let w = vec![1.0f32, 1.0]; // weights
         let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
         let btype = FirPmBandType::Differentiator;
-        let result = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
+        let result = ParksMcClellanDesigner::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
 
         assert!(matches!(result, Err(Error::Config(_))));
     }
@@ -985,7 +1018,7 @@ mod tests {
         let w = vec![1.0f32, 1.0]; // weights
         let wtype = vec![FirPmWeightType::Flat, FirPmWeightType::Flat];
         let btype = FirPmBandType::Hilbert;
-        let result = FirDesignPm::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
+        let result = ParksMcClellanDesigner::new(n, 2, &bands, &des, Some(&w), Some(&wtype), btype);
 
         assert!(matches!(result, Err(Error::Config(_))));
     }
@@ -993,7 +1026,8 @@ mod tests {
     fn test_firdespm_response_error() {
         let bands = [0.0, 0.35, 0.4, 0.5];
         let error = Error::Value("response failed".into());
-        let result = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| Err(error.clone()));
+        let result =
+            ParksMcClellanDesigner::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| Err(error.clone()));
 
         assert_eq!(result.unwrap_err(), error);
     }
@@ -1001,15 +1035,17 @@ mod tests {
     #[test]
     fn test_firdespm_rejects_invalid_response_values() {
         let bands = [0.0, 0.35, 0.4, 0.5];
-        let invalid_desired = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
-            Ok(FirPmResponse { desired: f64::NAN, weight: 1.0 })
+        let invalid_desired = ParksMcClellanDesigner::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
+            Ok(ParksMcClellanResponse { desired: f64::NAN, weight: 1.0 })
         });
-        let non_finite_weight = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
-            Ok(FirPmResponse { desired: 1.0, weight: f64::INFINITY })
-        });
-        let non_positive_weight = FirDesignPm::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
-            Ok(FirPmResponse { desired: 1.0, weight: 0.0 })
-        });
+        let non_finite_weight =
+            ParksMcClellanDesigner::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
+                Ok(ParksMcClellanResponse { desired: 1.0, weight: f64::INFINITY })
+            });
+        let non_positive_weight =
+            ParksMcClellanDesigner::new_with_response(81, 2, &bands, FirPmBandType::Bandpass, |_| {
+                Ok(ParksMcClellanResponse { desired: 1.0, weight: 0.0 })
+            });
 
         assert!(matches!(invalid_desired, Err(Error::Value(_))));
         assert!(matches!(non_finite_weight, Err(Error::Value(_))));
@@ -1025,13 +1061,13 @@ mod tests {
         let wtype = [FirPmWeightType::Flat, FirPmWeightType::Flat];
         let btype = FirPmBandType::Bandpass;
 
-        let short_bands = FirDesignPm::new(51, 2, &bands[..3], &des, Some(&weights), Some(&wtype), btype);
-        let long_bands = FirDesignPm::new(51, 2, &extra_bands, &des, Some(&weights), Some(&wtype), btype);
-        let short_des = FirDesignPm::new(51, 2, &bands, &des[..1], Some(&weights), Some(&wtype), btype);
-        let short_weights = FirDesignPm::new(51, 2, &bands, &des, Some(&weights[..1]), Some(&wtype), btype);
-        let short_wtype = FirDesignPm::new(51, 2, &bands, &des, Some(&weights), Some(&wtype[..1]), btype);
-        let response_short_bands = FirDesignPm::new_with_response(51, 2, &bands[..3], btype, |_| {
-            Ok(FirPmResponse { desired: 1.0, weight: 1.0 })
+        let short_bands = ParksMcClellanDesigner::new(51, 2, &bands[..3], &des, Some(&weights), Some(&wtype), btype);
+        let long_bands = ParksMcClellanDesigner::new(51, 2, &extra_bands, &des, Some(&weights), Some(&wtype), btype);
+        let short_des = ParksMcClellanDesigner::new(51, 2, &bands, &des[..1], Some(&weights), Some(&wtype), btype);
+        let short_weights = ParksMcClellanDesigner::new(51, 2, &bands, &des, Some(&weights[..1]), Some(&wtype), btype);
+        let short_wtype = ParksMcClellanDesigner::new(51, 2, &bands, &des, Some(&weights), Some(&wtype[..1]), btype);
+        let response_short_bands = ParksMcClellanDesigner::new_with_response(51, 2, &bands[..3], btype, |_| {
+            Ok(ParksMcClellanResponse { desired: 1.0, weight: 1.0 })
         });
 
         assert!(matches!(short_bands, Err(Error::Config(_))));
@@ -1052,9 +1088,9 @@ mod tests {
         let invalid_weights = [1.0, f32::NAN];
         let btype = FirPmBandType::Bandpass;
 
-        let bands_result = FirDesignPm::new(51, 2, &invalid_bands, &des, Some(&weights), None, btype);
-        let des_result = FirDesignPm::new(51, 2, &bands, &invalid_des, Some(&weights), None, btype);
-        let weights_result = FirDesignPm::new(51, 2, &bands, &des, Some(&invalid_weights), None, btype);
+        let bands_result = ParksMcClellanDesigner::new(51, 2, &invalid_bands, &des, Some(&weights), None, btype);
+        let des_result = ParksMcClellanDesigner::new(51, 2, &bands, &invalid_des, Some(&weights), None, btype);
+        let weights_result = ParksMcClellanDesigner::new(51, 2, &bands, &des, Some(&invalid_weights), None, btype);
 
         assert!(matches!(bands_result, Err(Error::Config(_))));
         assert!(matches!(des_result, Err(Error::Config(_))));
@@ -1065,9 +1101,9 @@ mod tests {
     fn test_firdespm_unsupported_response_does_not_invoke_callback() {
         let bands = [0.0, 0.2, 0.3, 0.5];
         let mut callback_invoked = false;
-        let result = FirDesignPm::new_with_response(51, 2, &bands, FirPmBandType::Hilbert, |_| {
+        let result = ParksMcClellanDesigner::new_with_response(51, 2, &bands, FirPmBandType::Hilbert, |_| {
             callback_invoked = true;
-            Ok(FirPmResponse { desired: 1.0, weight: 1.0 })
+            Ok(ParksMcClellanResponse { desired: 1.0, weight: 1.0 })
         });
 
         assert!(matches!(result, Err(Error::Config(_))));
@@ -1079,7 +1115,8 @@ mod tests {
         let bands = [0.0, 0.08, 0.16, 0.5];
         let des = [1.0, 0.0];
         let weights = [1.0, 1.0];
-        let mut q = FirDesignPm::new(24, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
+        let mut q =
+            ParksMcClellanDesigner::new(24, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
 
         assert!(matches!(q.execute_with_max_iterations(1), Err(Error::NoConvergence(_)),));
     }
@@ -1089,7 +1126,8 @@ mod tests {
         let bands = [0.0, 0.2, 0.3, 0.5];
         let des = [0.0, 0.0];
         let weights = [1.0, 1.0];
-        let mut q = FirDesignPm::new(51, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
+        let mut q =
+            ParksMcClellanDesigner::new(51, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
 
         q.num_exchanges = 1;
         q.e.fill(0.0);
@@ -1101,7 +1139,8 @@ mod tests {
         let bands = [0.0, 0.16, 0.34, 0.5];
         let des = [1.0, 0.0];
         let weights = [1.0, 1.0];
-        let mut q = FirDesignPm::new(81, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
+        let mut q =
+            ParksMcClellanDesigner::new(81, 2, &bands, &des, Some(&weights), None, FirPmBandType::Bandpass).unwrap();
 
         // A monotonic error curve has only its two endpoints as extrema.
         for i in 0..q.grid_size {

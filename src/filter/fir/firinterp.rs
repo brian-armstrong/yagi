@@ -11,7 +11,7 @@ pub struct FirInterpolationFilter<T, Coeff = T> {
     h_sub_len: usize,
     interpolation_factor: usize,
     w: Window<T>,
-    bank: filter::FirPfbBank<T, Coeff>,
+    bank: filter::FirPolyphaseFilterBank<T, Coeff>,
     block_scratch: Vec<T>,
 }
 
@@ -54,7 +54,7 @@ where
         h_padded[..h_len].clone_from_slice(&h[..h_len]);
 
         let w = Window::new(h_sub_len)?;
-        let bank = filter::FirPfbBank::new(interp, &h_padded, h_len_padded)?;
+        let bank = filter::FirPolyphaseFilterBank::new(interp, &h_padded, h_len_padded)?;
 
         Ok(Self { h_sub_len, interpolation_factor: interp, w, bank, block_scratch: Vec::new() })
     }

@@ -3,7 +3,7 @@ use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
 use crate::filter::iir::design;
-use crate::filter::iir::iirfiltsos::IirFilterSos;
+use crate::filter::iir::iirfiltsos::IirSecondOrderSection;
 use core::f32;
 use num_complex::{Complex32, ComplexFloat};
 
@@ -388,7 +388,7 @@ pub struct IirFilter<T, Coeff = T> {
 
     filter_type: IirFilterType,
 
-    qsos: Vec<IirFilterSos<T, Coeff>>, // second-order sections filters
+    qsos: Vec<IirSecondOrderSection<T, Coeff>>, // second-order sections filters
 
     scale: Coeff, // output scaling factor
 }
@@ -490,7 +490,7 @@ where
         for i in 0..nsos {
             let bt = [b[3 * i], b[3 * i + 1], b[3 * i + 2]];
             let at = [a[3 * i], a[3 * i + 1], a[3 * i + 2]];
-            filter.qsos.push(IirFilterSos::<T, Coeff>::new(&bt, &at)?);
+            filter.qsos.push(IirSecondOrderSection::<T, Coeff>::new(&bt, &at)?);
         }
 
         filter.set_scale(Coeff::one());
@@ -643,8 +643,8 @@ where
     }
 
     #[inline]
-    fn execute_sos_const<const NSOS: usize>(qsos: &mut [IirFilterSos<T, Coeff>], mut x: T) -> T {
-        let qsos: &mut [IirFilterSos<T, Coeff>; NSOS] = qsos.try_into().unwrap();
+    fn execute_sos_const<const NSOS: usize>(qsos: &mut [IirSecondOrderSection<T, Coeff>], mut x: T) -> T {
+        let qsos: &mut [IirSecondOrderSection<T, Coeff>; NSOS] = qsos.try_into().unwrap();
         for sos in qsos {
             x = sos.execute(x);
         }
@@ -652,7 +652,7 @@ where
     }
 
     #[inline]
-    fn execute_sos_dynamic(qsos: &mut [IirFilterSos<T, Coeff>], mut x: T) -> T {
+    fn execute_sos_dynamic(qsos: &mut [IirSecondOrderSection<T, Coeff>], mut x: T) -> T {
         for sos in qsos {
             x = sos.execute(x);
         }
@@ -688,7 +688,7 @@ where
     }
 
     fn execute_sos_block_const<const NSOS: usize>(&mut self, x: &[T], y: &mut [T]) {
-        let qsos: &mut [IirFilterSos<T, Coeff>; NSOS] = self.qsos.as_mut_slice().try_into().unwrap();
+        let qsos: &mut [IirSecondOrderSection<T, Coeff>; NSOS] = self.qsos.as_mut_slice().try_into().unwrap();
         for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
             let mut value = *x_s;
             for sos in qsos.iter_mut() {
@@ -770,7 +770,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
+    use crate::fft::spgram::SpectralPeriodogram;
     use crate::random::randnf;
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
@@ -837,7 +837,7 @@ mod tests {
         let mut filter = IirFilter::<Complex32, f32>::new_dc_blocker(alpha).unwrap();
 
         // create and configure objects
-        let mut q = Spgram::new(nfft, crate::math::WindowType::Hann, nfft / 2, nfft / 4).unwrap();
+        let mut q = SpectralPeriodogram::new(nfft, crate::math::WindowType::Hann, nfft / 2, nfft / 4).unwrap();
 
         // start running input through filter
         for _ in 0..n {

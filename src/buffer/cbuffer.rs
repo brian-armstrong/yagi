@@ -17,8 +17,8 @@ use crate::error::{Error, Result};
 /// [`Self::commit`] advances the internal write index after write.
 ///
 /// ```
-/// # use yagi::buffer::cbuffer::CBuffer;
-/// let mut q = CBuffer::<f32>::new(16).unwrap();
+/// # use yagi::buffer::cbuffer::CircularBuffer;
+/// let mut q = CircularBuffer::<f32>::new(16).unwrap();
 /// q.write(&[1.0, 2.0, 3.0, 4.0]).unwrap();
 ///
 /// let n = {
@@ -30,7 +30,8 @@ use crate::error::{Error, Result};
 /// assert_eq!(q.size(), 1);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct CBuffer<T> {
+#[doc(alias = "CBuffer")]
+pub struct CircularBuffer<T> {
     // allocated memory array: max_size + max_read - 1 elements, the tail being
     // the mirror region used to linearize wrapping reads
     v: Vec<T>,
@@ -51,7 +52,7 @@ pub struct CBuffer<T> {
     write_index: usize,
 }
 
-impl<T: Default + Clone + Copy> CBuffer<T> {
+impl<T: Default + Clone + Copy> CircularBuffer<T> {
     /// create circular buffer object
     ///
     ///  max_size   :   maximum buffer size
@@ -239,8 +240,8 @@ impl<T: Default + Clone + Copy> CBuffer<T> {
     /// mirroring how [`Self::read`] clamps and reports through the slice length.
     ///
     /// ```
-    /// # use yagi::buffer::cbuffer::CBuffer;
-    /// let mut q = CBuffer::<f32>::new(8).unwrap();
+    /// # use yagi::buffer::cbuffer::CircularBuffer;
+    /// let mut q = CircularBuffer::<f32>::new(8).unwrap();
     /// // leave the write index near the end of the ring
     /// q.write(&[0.0; 6]).unwrap();
     /// q.release(6).unwrap();
@@ -310,7 +311,7 @@ mod tests {
         let test4 = [3.0f32, 4.0, 5.0, 6.0, 7.0, 8.0, 1.0, 2.0, 3.0];
 
         // create new circular buffer with 10 elements
-        let mut q = CBuffer::<f32>::new(10).unwrap();
+        let mut q = CircularBuffer::<f32>::new(10).unwrap();
         // cbuffer: { <empty> }
         assert!(q.is_empty());
 
@@ -386,7 +387,7 @@ mod tests {
         ];
 
         // create new circular buffer with 10 elements
-        let mut q = CBuffer::<Complex32>::new(10).unwrap();
+        let mut q = CircularBuffer::<Complex32>::new(10).unwrap();
         assert!(q.is_empty());
 
         // part 1: write 4 elements to the buffer
@@ -435,7 +436,7 @@ mod tests {
         let mut write_buffer = vec![0.0f32; max_size];
 
         // create new circular buffer
-        let mut q = CBuffer::<f32>::new_max(max_size, max_read).unwrap();
+        let mut q = CircularBuffer::<f32>::new_max(max_size, max_read).unwrap();
 
         let mut write_id = 0usize; // running total number of values written
         let mut read_id = 0usize; // running total number of values read
@@ -503,7 +504,7 @@ mod tests {
         let max_read = 17; // maximum number of elements to read
 
         // create new circular buffer
-        let mut q = CBuffer::<f32>::new_max(max_size, max_read).unwrap();
+        let mut q = CircularBuffer::<f32>::new_max(max_size, max_read).unwrap();
 
         assert_eq!(q.max_size(), max_size);
         assert_eq!(q.max_read(), max_read);
@@ -524,9 +525,9 @@ mod tests {
         assert!(q.release(1).is_err());
 
         // liquid does not reject these, but neither can be satisfied
-        assert!(CBuffer::<f32>::new(0).is_err());
-        assert!(CBuffer::<f32>::new_max(8, 0).is_err());
-        assert!(CBuffer::<f32>::new_max(8, 9).is_err());
+        assert!(CircularBuffer::<f32>::new(0).is_err());
+        assert!(CircularBuffer::<f32>::new_max(8, 0).is_err());
+        assert!(CircularBuffer::<f32>::new_max(8, 9).is_err());
     }
 
     // test copy
@@ -535,7 +536,7 @@ mod tests {
     fn test_cbuffer_copy() {
         // create base object
         let wlen = 20;
-        let mut q0 = CBuffer::<Complex32>::new(wlen).unwrap();
+        let mut q0 = CircularBuffer::<Complex32>::new(wlen).unwrap();
 
         // write some values
         for _ in 0..wlen {
@@ -571,7 +572,7 @@ mod tests {
     fn test_cbuffer_read_spans_wrap() {
         let max_size = 8;
         for offset in 0..max_size {
-            let mut q = CBuffer::<f32>::new(max_size).unwrap();
+            let mut q = CircularBuffer::<f32>::new(max_size).unwrap();
 
             // advance the read/write indices to `offset` without leaving data
             for i in 0..offset {
@@ -597,7 +598,7 @@ mod tests {
     // read is clamped by both occupancy and max_read, and never consumes
     #[test]
     fn test_cbuffer_read_clamps_and_does_not_consume() {
-        let mut q = CBuffer::<f32>::new_max(16, 4).unwrap();
+        let mut q = CircularBuffer::<f32>::new_max(16, 4).unwrap();
         q.write(&[1.0, 2.0, 3.0]).unwrap();
 
         // clamped by occupancy
@@ -620,8 +621,8 @@ mod tests {
     // reserve/commit must be equivalent to write, and commit may be short
     #[test]
     fn test_cbuffer_reserve_commit_matches_write() {
-        let mut a = CBuffer::<f32>::new(16).unwrap();
-        let mut b = CBuffer::<f32>::new(16).unwrap();
+        let mut a = CircularBuffer::<f32>::new(16).unwrap();
+        let mut b = CircularBuffer::<f32>::new(16).unwrap();
 
         a.write(&[1.0, 2.0, 3.0, 4.0]).unwrap();
 
@@ -650,7 +651,7 @@ mod tests {
     // caller picks up the remainder on the next reserve
     #[test]
     fn test_cbuffer_reserve_truncates_at_wrap() {
-        let mut q = CBuffer::<f32>::new(8).unwrap();
+        let mut q = CircularBuffer::<f32>::new(8).unwrap();
 
         // push the write index to 6, leaving 2 contiguous slots of 8 available
         q.write(&[0.0; 6]).unwrap();
@@ -690,7 +691,7 @@ mod tests {
     // a full buffer errors rather than handing back an empty reservation
     #[test]
     fn test_cbuffer_reserve_full_errors() {
-        let mut q = CBuffer::<f32>::new(4).unwrap();
+        let mut q = CircularBuffer::<f32>::new(4).unwrap();
         q.write(&[1.0, 2.0, 3.0, 4.0]).unwrap();
         assert!(q.is_full());
 
@@ -706,7 +707,7 @@ mod tests {
     // occupancy accounting must hold under an arbitrary mix of operations
     #[test]
     fn test_cbuffer_occupancy_invariants() {
-        let mut q = CBuffer::<f32>::new(10).unwrap();
+        let mut q = CircularBuffer::<f32>::new(10).unwrap();
         let mut expected: std::collections::VecDeque<f32> = std::collections::VecDeque::new();
 
         // a fixed, deliberately awkward schedule of writes and reads

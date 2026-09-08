@@ -10,8 +10,8 @@ use crate::fft::{Direction, Fft};
 use crate::math::{poly_fit, poly_val};
 use crate::matrix::matrix_linsolve;
 use crate::multichannel::ofdmframe::{ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierType};
-use crate::nco::{unwrap_phase, Osc, OscScheme};
-use crate::sequence::MSequence;
+use crate::nco::{unwrap_phase, Nco, NcoBackend};
+use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 
 /// channel estimator used at acquisition
@@ -218,7 +218,7 @@ struct OfdmRxFrontend {
     x_freq: Vec<Complex32>,
     x_time: Vec<Complex32>,
     input_buffer: Window<Complex32>,
-    nco: Osc,
+    nco: Nco,
 }
 
 impl OfdmRxFrontend {
@@ -229,7 +229,7 @@ impl OfdmRxFrontend {
             x_freq: vec![Complex32::new(0.0, 0.0); m],
             x_time: vec![Complex32::new(0.0, 0.0); m],
             input_buffer: Window::new(config.symbol_len())?,
-            nco: Osc::new(OscScheme::Nco),
+            nco: Nco::new(NcoBackend::LookupTable),
         })
     }
 
@@ -632,7 +632,7 @@ struct PayloadReceiver {
     pilot_bins: Vec<usize>,
     pilot_frequencies: Vec<f32>,
     pilot_phases: Vec<f32>,
-    pilot_sequence: MSequence,
+    pilot_sequence: MaximalLengthSequence,
     phase_offset: f32,
     phase_slope: f32,
 }
@@ -677,7 +677,7 @@ impl PayloadReceiver {
             pilot_bins,
             pilot_frequencies,
             pilot_phases,
-            pilot_sequence: MSequence::from_degree(8)?,
+            pilot_sequence: MaximalLengthSequence::from_degree(8)?,
             phase_offset: 0.0,
             phase_slope: 0.0,
         })
@@ -728,7 +728,7 @@ impl PayloadReceiver {
         Ok(true)
     }
 
-    fn correct_phase_and_timing(&mut self, subcarriers: &mut [Complex32], nco: &mut Osc) -> Result<()> {
+    fn correct_phase_and_timing(&mut self, subcarriers: &mut [Complex32], nco: &mut Nco) -> Result<()> {
         let n = self.pilot_bins.len();
         if n < 2 {
             return Err(Error::Internal(
@@ -786,31 +786,34 @@ impl PayloadReceiver {
     }
 }
 
-/// One equalized OFDM payload symbol recovered by [`OfdmFrameSync::execute`].
+/// One equalized OFDM payload symbol recovered by [`OfdmFrameSynchronizer::execute`].
 ///
 /// Both slices borrow the synchronizer's internal buffers and remain valid
 /// until its next mutable operation.
 #[derive(Clone, Copy, Debug)]
-pub struct OfdmFrameSyncSymbol<'a> {
+#[doc(alias = "OfdmFrameSyncSymbol")]
+pub struct OfdmFrameSynchronizerSymbol<'a> {
     /// Equalized subcarrier values, indexed by natural FFT bin.
     pub subcarriers: &'a [Complex32],
     /// Subcarrier allocation corresponding to [`Self::subcarriers`].
     pub allocation: &'a [SubcarrierType],
 }
 
-/// Result of pushing a block of samples through an [`OfdmFrameSync`].
+/// Result of pushing a block of samples through an [`OfdmFrameSynchronizer`].
 #[derive(Clone, Copy, Debug)]
-pub struct OfdmFrameSyncOutput<'a> {
+#[doc(alias = "OfdmFrameSyncOutput")]
+pub struct OfdmFrameSynchronizerOutput<'a> {
     /// Number of input samples consumed. Resume with `&input[consumed..]`.
     pub consumed: usize,
     /// Recovered payload symbol, if one became available.
-    pub symbol: Option<OfdmFrameSyncSymbol<'a>>,
+    pub symbol: Option<OfdmFrameSynchronizerSymbol<'a>>,
 }
 
 /// Result of copying recovered symbols with
-/// [`OfdmFrameSync::execute_symbols_into`].
+/// [`OfdmFrameSynchronizer::execute_symbols_into`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct OfdmFrameSyncBlockOutput {
+#[doc(alias = "OfdmFrameSyncBlockOutput")]
+pub struct OfdmFrameSynchronizerBlockOutput {
     /// Number of input samples consumed. Resume with `&input[consumed..]`.
     pub consumed: usize,
     /// Number of complete OFDM symbols copied to the destination.
@@ -831,7 +834,8 @@ enum FrameSyncMode {
 /// process it and decide whether the logical frame is complete. The caller
 /// must call [`Self::reset`] after the final symbol before feeding the next
 /// frame.
-pub struct OfdmFrameSync {
+#[doc(alias = "OfdmFrameSync")]
+pub struct OfdmFrameSynchronizer {
     config: OfdmFrameConfig,
     frontend: OfdmRxFrontend,
     acquisition: OfdmFrameAcquisition,
@@ -839,7 +843,7 @@ pub struct OfdmFrameSync {
     mode: FrameSyncMode,
 }
 
-impl OfdmFrameSync {
+impl OfdmFrameSynchronizer {
     /// Create an OFDM frame synchronizer from a validated configuration.
     pub fn new(config: &OfdmFrameConfig) -> Result<Self> {
         let mut synchronizer = Self {
@@ -926,7 +930,7 @@ impl OfdmFrameSync {
     /// When a symbol is returned, resume with `&x[output.consumed..]` after the
     /// borrowed symbol is no longer needed. If it completes the logical frame,
     /// call [`Self::reset`] before resuming so the next preamble can be found.
-    pub fn execute<'a>(&'a mut self, x: &[Complex32]) -> Result<OfdmFrameSyncOutput<'a>> {
+    pub fn execute<'a>(&'a mut self, x: &[Complex32]) -> Result<OfdmFrameSynchronizerOutput<'a>> {
         for (i, &xi) in x.iter().enumerate() {
             let mix_down = match self.mode {
                 FrameSyncMode::Acquiring => self.acquisition.should_mix_down(),
@@ -959,9 +963,9 @@ impl OfdmFrameSync {
             };
 
             if symbol_ready {
-                return Ok(OfdmFrameSyncOutput {
+                return Ok(OfdmFrameSynchronizerOutput {
                     consumed: i + 1,
-                    symbol: Some(OfdmFrameSyncSymbol {
+                    symbol: Some(OfdmFrameSynchronizerSymbol {
                         subcarriers: &self.frontend.x_freq,
                         allocation: self.config.allocation(),
                     }),
@@ -969,7 +973,7 @@ impl OfdmFrameSync {
             }
         }
 
-        Ok(OfdmFrameSyncOutput { consumed: x.len(), symbol: None })
+        Ok(OfdmFrameSynchronizerOutput { consumed: x.len(), symbol: None })
     }
 
     /// Push samples through the synchronizer and copy as many recovered payload
@@ -988,7 +992,7 @@ impl OfdmFrameSync {
         &mut self,
         x: &[Complex32],
         symbols: &mut [Complex32],
-    ) -> Result<OfdmFrameSyncBlockOutput> {
+    ) -> Result<OfdmFrameSynchronizerBlockOutput> {
         let m = self.num_subcarriers();
         if !symbols.len().is_multiple_of(m) {
             return Err(Error::Config(format!(
@@ -1013,14 +1017,14 @@ impl OfdmFrameSync {
             symbols_written += 1;
         }
 
-        Ok(OfdmFrameSyncBlockOutput { consumed, symbols_written })
+        Ok(OfdmFrameSynchronizerBlockOutput { consumed, symbols_written })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::multichannel::{ofdmframe_init_default_sctype, OfdmFrameGen};
+    use crate::multichannel::{ofdmframe_init_default_sctype, OfdmFrameGenerator};
     use crate::random::{crandnf, randf};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
@@ -1030,9 +1034,9 @@ mod tests {
         cp_len: usize,
         taper_len: usize,
         allocation: Option<&[SubcarrierType]>,
-    ) -> Result<OfdmFrameGen> {
+    ) -> Result<OfdmFrameGenerator> {
         let config = OfdmFrameConfig::new(num_subcarriers, cp_len, taper_len, allocation)?;
-        OfdmFrameGen::new(&config)
+        OfdmFrameGenerator::new(&config)
     }
 
     fn new_framesync(
@@ -1040,12 +1044,18 @@ mod tests {
         cp_len: usize,
         taper_len: usize,
         allocation: Option<&[SubcarrierType]>,
-    ) -> Result<OfdmFrameSync> {
+    ) -> Result<OfdmFrameSynchronizer> {
         let config = OfdmFrameConfig::new(num_subcarriers, cp_len, taper_len, allocation)?;
-        OfdmFrameSync::new(&config)
+        OfdmFrameSynchronizer::new(&config)
     }
 
-    fn make_frame(fg: &mut OfdmFrameGen, m: usize, cp_len: usize, num_data: usize, x: &[Complex32]) -> Vec<Complex32> {
+    fn make_frame(
+        fg: &mut OfdmFrameGenerator,
+        m: usize,
+        cp_len: usize,
+        num_data: usize,
+        x: &[Complex32],
+    ) -> Vec<Complex32> {
         let sym = m + cp_len;
         let mut y = vec![Complex32::new(0.0, 0.0); (3 + num_data) * sym];
         let mut n = 0;
@@ -1063,7 +1073,7 @@ mod tests {
         y
     }
 
-    fn collect_symbols(fs: &mut OfdmFrameSync, samples: &[Complex32]) -> Vec<Vec<Complex32>> {
+    fn collect_symbols(fs: &mut OfdmFrameSynchronizer, samples: &[Complex32]) -> Vec<Vec<Complex32>> {
         let mut consumed = 0;
         let mut symbols = Vec::new();
         while consumed < samples.len() {
@@ -1102,8 +1112,8 @@ mod tests {
 
         // create synthesizer/analyzer objects
         let config = OfdmFrameConfig::new(m, cp_len, taper_len, Some(&p)).unwrap();
-        let mut fg = OfdmFrameGen::new(&config).unwrap();
-        let mut fs = OfdmFrameSync::new(&config).unwrap();
+        let mut fg = OfdmFrameGenerator::new(&config).unwrap();
+        let mut fs = OfdmFrameSynchronizer::new(&config).unwrap();
 
         let mut y = vec![Complex32::new(0.0, 0.0); num_samples];
 
@@ -1196,7 +1206,7 @@ mod tests {
 
         // create proper object and test configurations
         let config = OfdmFrameConfig::new(64, 16, 4, None).unwrap();
-        let mut q = OfdmFrameSync::new(&config).unwrap();
+        let mut q = OfdmFrameSynchronizer::new(&config).unwrap();
 
         assert!(!q.is_frame_open());
         q.set_cfo(0.0);
@@ -1457,7 +1467,7 @@ mod tests {
         assert!(!fs.is_frame_open());
 
         let empty = fs.execute_symbols_into(&y, &mut []).unwrap();
-        assert_eq!(empty, OfdmFrameSyncBlockOutput { consumed: 0, symbols_written: 0 });
+        assert_eq!(empty, OfdmFrameSynchronizerBlockOutput { consumed: 0, symbols_written: 0 });
 
         let mut first = vec![Complex32::new(0.0, 0.0); 2 * m];
         let first_result = fs.execute_symbols_into(&y, &mut first).unwrap();

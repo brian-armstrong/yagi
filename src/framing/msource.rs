@@ -1,9 +1,9 @@
 // msource : multi-signal source generator
 
 use crate::error::{Error, Result};
-use crate::framing::qsource::{QSource, QSourceCallback, QSourceConfig, QSourceType, SourceId};
+use crate::framing::qsource::{SignalSource, SignalSourceCallback, SignalSourceConfig, SignalSourceType, SourceId};
 use crate::modem::modem::ModulationScheme;
-use crate::multichannel::{ChannelizerType, FirPfbChannelizer2};
+use crate::multichannel::{ChannelizerType, OversampledPolyphaseChannelizer};
 
 use num_complex::Complex32;
 
@@ -12,9 +12,10 @@ use num_complex::Complex32;
 /// This object manages multiple signal sources and combines them
 /// using a polyphase filterbank channelizer for efficient synthesis.
 #[derive(Clone, Debug)]
-pub struct MSource {
+#[doc(alias = "MSource")]
+pub struct MultiSignalSource {
     /// Array of signal sources
-    sources: Vec<QSource>,
+    sources: Vec<SignalSource>,
     /// ID counter for assigning unique IDs
     id_counter: SourceId,
     /// Channelizer size (number of channels)
@@ -24,7 +25,7 @@ pub struct MSource {
     /// Channelizer filter stop-band suppression (dB)
     as_: f32,
     /// Synthesis channelizer
-    ch: FirPfbChannelizer2<Complex32>,
+    ch: OversampledPolyphaseChannelizer<Complex32>,
     /// Frequency domain buffer
     buf_freq: Vec<Complex32>,
     /// Time domain buffer
@@ -35,8 +36,8 @@ pub struct MSource {
     num_samples: u64,
 }
 
-impl MSource {
-    /// Create a new MSource object
+impl MultiSignalSource {
+    /// Create a new MultiSignalSource object
     ///
     /// # Arguments
     ///
@@ -54,7 +55,7 @@ impl MSource {
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
 
-        let ch = FirPfbChannelizer2::new_kaiser(ChannelizerType::Synthesizer, m_channels, m, as_)?;
+        let ch = OversampledPolyphaseChannelizer::new_kaiser(ChannelizerType::Synthesizer, m_channels, m, as_)?;
 
         let buf_freq = vec![Complex32::new(0.0, 0.0); m_channels];
         let buf_time = vec![Complex32::new(0.0, 0.0); m_channels / 2];
@@ -73,7 +74,7 @@ impl MSource {
         })
     }
 
-    /// Create MSource with default parameters (M=1200, m=4, as=60dB)
+    /// Create MultiSignalSource with default parameters (M=1200, m=4, as=60dB)
     pub fn new_default() -> Result<Self> {
         Self::new(1200, 4, 60.0)
     }
@@ -94,7 +95,7 @@ impl MSource {
     }
 
     /// Add a source to the list and return its ID
-    fn add_source(&mut self, mut source: QSource) -> SourceId {
+    fn add_source(&mut self, mut source: SignalSource) -> SourceId {
         let id = self.id_counter;
         source.set_id(id);
         self.sources.push(source);
@@ -108,7 +109,7 @@ impl MSource {
     }
 
     /// Get mutable reference to source by ID
-    fn get_source_mut(&mut self, id: SourceId) -> Result<&mut QSource> {
+    fn get_source_mut(&mut self, id: SourceId) -> Result<&mut SignalSource> {
         match self.find(id) {
             Some(idx) => Ok(&mut self.sources[idx]),
             None => Err(Error::Range(format!("source with id {} not found", id))),
@@ -116,7 +117,7 @@ impl MSource {
     }
 
     /// Get reference to source by ID
-    fn get_source(&self, id: SourceId) -> Result<&QSource> {
+    fn get_source(&self, id: SourceId) -> Result<&SignalSource> {
         match self.find(id) {
             Some(idx) => Ok(&self.sources[idx]),
             None => Err(Error::Range(format!("source with id {} not found", id))),
@@ -135,7 +136,7 @@ impl MSource {
     ///
     /// ID of the added source
     pub fn add_tone(&mut self, fc: f32, bw: f32, gain: f32) -> Result<SourceId> {
-        let source = QSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, QSourceConfig::Tone)?;
+        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, SignalSourceConfig::Tone)?;
         Ok(self.add_source(source))
     }
 
@@ -162,8 +163,8 @@ impl MSource {
         negate: bool,
         single: bool,
     ) -> Result<SourceId> {
-        let config = QSourceConfig::Chirp { duration, negate, single };
-        let source = QSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, config)?;
+        let config = SignalSourceConfig::Chirp { duration, negate, single };
+        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, config)?;
         Ok(self.add_source(source))
     }
 
@@ -179,7 +180,7 @@ impl MSource {
     ///
     /// ID of the added source
     pub fn add_noise(&mut self, fc: f32, bw: f32, gain: f32) -> Result<SourceId> {
-        let source = QSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, QSourceConfig::Noise)?;
+        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, SignalSourceConfig::Noise)?;
         Ok(self.add_source(source))
     }
 
@@ -207,8 +208,8 @@ impl MSource {
         beta: f32,
     ) -> Result<SourceId> {
         // create object with double the bandwidth to account for 2 samples/symbol
-        let config = QSourceConfig::Modem { scheme: ms, m, beta };
-        let source = QSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
+        let config = SignalSourceConfig::Modem { scheme: ms, m, beta };
+        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
         Ok(self.add_source(source))
     }
 
@@ -227,8 +228,8 @@ impl MSource {
     /// ID of the added source
     pub fn add_fsk(&mut self, fc: f32, bw: f32, gain: f32, m: usize, k: usize) -> Result<SourceId> {
         // create object with double the bandwidth to account for k samples/symbol
-        let config = QSourceConfig::Fsk { m, k };
-        let source = QSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
+        let config = SignalSourceConfig::Fsk { m, k };
+        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
         Ok(self.add_source(source))
     }
 
@@ -247,8 +248,8 @@ impl MSource {
     /// ID of the added source
     pub fn add_gmsk(&mut self, fc: f32, bw: f32, gain: f32, m: usize, bt: f32) -> Result<SourceId> {
         // create object with double the bandwidth to account for 2 samples/symbol
-        let config = QSourceConfig::Gmsk { m, bt };
-        let source = QSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
+        let config = SignalSourceConfig::Gmsk { m, bt };
+        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
         Ok(self.add_source(source))
     }
 
@@ -259,20 +260,20 @@ impl MSource {
     /// * `fc` - center frequency [-0.5, 0.5]
     /// * `bw` - bandwidth [0, 1]
     /// * `gain` - signal gain (dB)
-    /// * `callback` - object implementing QSourceCallback trait
+    /// * `callback` - object implementing SignalSourceCallback trait
     ///
     /// # Returns
     ///
     /// ID of the added source
-    pub fn add_user<C: QSourceCallback + 'static>(
+    pub fn add_user<C: SignalSourceCallback + 'static>(
         &mut self,
         fc: f32,
         bw: f32,
         gain: f32,
         callback: C,
     ) -> Result<SourceId> {
-        let config = QSourceConfig::User(Box::new(callback));
-        let source = QSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, config)?;
+        let config = SignalSourceConfig::User(Box::new(callback));
+        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, config)?;
         Ok(self.add_source(source))
     }
 
@@ -326,7 +327,7 @@ impl MSource {
     }
 
     /// Get source type by ID
-    pub fn get_source_type(&self, id: SourceId) -> Result<QSourceType> {
+    pub fn get_source_type(&self, id: SourceId) -> Result<SignalSourceType> {
         Ok(self.get_source(id)?.get_type())
     }
 
@@ -370,7 +371,7 @@ impl MSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
+    use crate::fft::spgram::SpectralPeriodogram;
     use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
     use test_macro::autotest_annotate;
 
@@ -378,12 +379,12 @@ mod tests {
     #[autotest_annotate(autotest_msourcecf_config)]
     fn test_msourcecf_config() {
         // check invalid configurations
-        assert!(MSource::new(0, 12, 60.0).is_err()); // too few subcarriers
-        assert!(MSource::new(17, 12, 60.0).is_err()); // odd-numbered subcarriers
-        assert!(MSource::new(64, 0, 60.0).is_err()); // filter semi-length too small
+        assert!(MultiSignalSource::new(0, 12, 60.0).is_err()); // too few subcarriers
+        assert!(MultiSignalSource::new(17, 12, 60.0).is_err()); // odd-numbered subcarriers
+        assert!(MultiSignalSource::new(64, 0, 60.0).is_err()); // filter semi-length too small
 
         // create proper object and test configurations
-        let mut q = MSource::new(64, 12, 60.0).unwrap();
+        let mut q = MultiSignalSource::new(64, 12, 60.0).unwrap();
 
         // try to configure signals with invalid IDs
         assert!(q.remove(12345).is_err());
@@ -422,7 +423,7 @@ mod tests {
     #[autotest_annotate(autotest_msourcecf_accessor)]
     fn test_msourcecf_accessor() {
         // create object and add signals
-        let mut q = MSource::new(240, 12, 60.0).unwrap();
+        let mut q = MultiSignalSource::new(240, 12, 60.0).unwrap();
         let id_tone = q.add_tone(-0.123456, 0.0, 20.0).unwrap();
         let id_noise = q.add_noise(0.220780, 0.10, 0.0).unwrap();
 
@@ -468,7 +469,7 @@ mod tests {
         q.enable(id_noise).unwrap();
 
         let nfft = 2400;
-        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut spgram = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
 
         while q.get_num_samples() < 192000 {
             q.write_samples(&mut buf).unwrap();
@@ -487,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_msourcecf_tone_basic() {
-        let mut q = MSource::new_default().unwrap();
+        let mut q = MultiSignalSource::new_default().unwrap();
 
         // add a tone
         let id = q.add_tone(0.1, 0.0, 0.0).unwrap();
@@ -504,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_msourcecf_chirp_basic() {
-        let mut q = MSource::new_default().unwrap();
+        let mut q = MultiSignalSource::new_default().unwrap();
 
         // add a chirp
         let id = q.add_chirp(0.0, 0.2, 0.0, 1000.0, false, false).unwrap();
@@ -521,7 +522,7 @@ mod tests {
 
     #[test]
     fn test_msourcecf_modem_basic() {
-        let mut q = MSource::new_default().unwrap();
+        let mut q = MultiSignalSource::new_default().unwrap();
 
         // add a linear modulation source
         let id = q.add_modem(0.0, 0.1, 0.0, ModulationScheme::Qpsk, 12, 0.3).unwrap();
@@ -538,7 +539,7 @@ mod tests {
 
     #[test]
     fn test_msourcecf_fsk_basic() {
-        let mut q = MSource::new_default().unwrap();
+        let mut q = MultiSignalSource::new_default().unwrap();
 
         // add an FSK modulation source (2 bits/symbol, 4 samples/symbol)
         let id = q.add_fsk(0.0, 0.1, 0.0, 2, 4).unwrap();
@@ -555,7 +556,7 @@ mod tests {
 
     #[test]
     fn test_msourcecf_gmsk_basic() {
-        let mut q = MSource::new_default().unwrap();
+        let mut q = MultiSignalSource::new_default().unwrap();
 
         // add a GMSK modulation source
         let id = q.add_gmsk(0.0, 0.1, 0.0, 3, 0.25).unwrap();
@@ -576,7 +577,7 @@ mod tests {
         value: Complex32,
     }
 
-    impl QSourceCallback for TestConstantSource {
+    impl SignalSourceCallback for TestConstantSource {
         fn generate(&mut self, output: &mut [Complex32]) -> crate::error::Result<()> {
             for sample in output.iter_mut() {
                 *sample = self.value;
@@ -584,14 +585,14 @@ mod tests {
             Ok(())
         }
 
-        fn clone_box(&self) -> Box<dyn QSourceCallback> {
+        fn clone_box(&self) -> Box<dyn SignalSourceCallback> {
             Box::new(self.clone())
         }
     }
 
     #[test]
     fn test_msourcecf_user_basic() {
-        let mut q = MSource::new_default().unwrap();
+        let mut q = MultiSignalSource::new_default().unwrap();
 
         // add a user-defined source
         let source = TestConstantSource { value: Complex32::new(1.0, 0.0) };
@@ -609,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_msourcecf_multiple_sources() {
-        let mut q = MSource::new(64, 12, 60.0).unwrap();
+        let mut q = MultiSignalSource::new(64, 12, 60.0).unwrap();
 
         // add multiple sources
         let id0 = q.add_noise(0.0, 1.0, -40.0).unwrap();
@@ -637,7 +638,7 @@ mod tests {
     #[test]
     fn test_msourcecf_spectrum() {
         // This test verifies msource produces signals at expected frequencies/powers
-        let mut gen = MSource::new_default().unwrap();
+        let mut gen = MultiSignalSource::new_default().unwrap();
 
         // Add signals matching the firpfbchr test
         gen.add_noise(0.0, 1.0, -60.0).unwrap(); // wide-band noise floor
@@ -646,7 +647,7 @@ mod tests {
         gen.add_modem(0.1875, 0.065, -20.0, ModulationScheme::Qpsk, 12, 0.3).unwrap();
 
         let nfft = 2400;
-        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut spgram = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
 
         let mut buf = vec![Complex32::new(0.0, 0.0); 1024];
 
@@ -711,9 +712,9 @@ mod tests {
         let nfft = 2400;
         let num_samples = 192000;
 
-        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut spgram = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
 
-        let mut gen = MSource::new_default().unwrap();
+        let mut gen = MultiSignalSource::new_default().unwrap();
         // add signals (fc, bw, gain)
         gen.add_noise(0.0, 1.0, -40.0).unwrap(); // wide-band noise
         gen.add_tone(-0.4, 0.0, 20.0).unwrap(); // tone
@@ -756,9 +757,9 @@ mod tests {
         let nfft = 2400;
         let num_samples: u64 = 192000;
 
-        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut spgram = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
 
-        let mut gen = MSource::new_default().unwrap();
+        let mut gen = MultiSignalSource::new_default().unwrap();
         // add signals (fc, bw, gain, duration, negate, single)
         gen.add_noise(0.0, 1.0, -40.0).unwrap(); // wide-band noise
         gen.add_chirp(0.0, 0.60, 20.0, (num_samples as f32) * 0.9, false, true).unwrap();
@@ -788,7 +789,7 @@ mod tests {
         counter: usize,
     }
 
-    impl QSourceCallback for PulseTrainSource {
+    impl SignalSourceCallback for PulseTrainSource {
         fn generate(&mut self, output: &mut [Complex32]) -> crate::error::Result<()> {
             for sample in output.iter_mut() {
                 *sample = if self.counter == 0 { Complex32::new(1.0, 0.0) } else { Complex32::new(0.0, 0.0) };
@@ -797,7 +798,7 @@ mod tests {
             Ok(())
         }
 
-        fn clone_box(&self) -> Box<dyn QSourceCallback> {
+        fn clone_box(&self) -> Box<dyn SignalSourceCallback> {
             Box::new(self.clone())
         }
     }
@@ -815,13 +816,13 @@ mod tests {
         let nfft = 2400;
         let num_samples: u64 = 192000;
 
-        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut spgram = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
 
         let buf_len = 1024;
         let mut buf = vec![Complex32::new(0.0, 0.0); buf_len];
 
         // create multi-signal source generator
-        let mut gen = MSource::new_default().unwrap();
+        let mut gen = MultiSignalSource::new_default().unwrap();
 
         // add signals     (fc,    bw,    gain, {options})
         gen.add_noise(0.00, 1.00, -40.0).unwrap(); // wide-band noise

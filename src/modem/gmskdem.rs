@@ -2,11 +2,11 @@
 //
 // Two implementations are available:
 // 1. Fixed matched filter (default) - uses FirFilter with GMSK receive filter
-// 2. Adaptive equalizer - uses Eqlms for decision-directed equalization
+// 2. Adaptive equalizer - uses LeastMeanSquaresEqualizer for decision-directed equalization
 //
 // The equalizer variant can be enabled by setting GMSKDEM_USE_EQUALIZER to true.
 
-use crate::equalization::eqlms::Eqlms;
+use crate::equalization::eqlms::LeastMeanSquaresEqualizer;
 use crate::error::{Error, Result};
 use crate::filter::fir_design_prototype;
 use crate::filter::{FirFilter, FirFilterShape};
@@ -22,12 +22,13 @@ enum FilterState {
     /// Fixed matched filter
     Fir(FirFilter<f32, f32>),
     /// Adaptive equalizer
-    Equalizer(Eqlms<f32>),
+    Equalizer(LeastMeanSquaresEqualizer<f32>),
 }
 
 /// GMSK demodulator
 #[derive(Clone, Debug)]
-pub struct GmskDem {
+#[doc(alias = "GmskDem")]
+pub struct GmskDemodulator {
     k: usize,   // samples/symbol
     m: usize,   // symbol delay
     bt: f32,    // bandwidth/time product
@@ -37,7 +38,7 @@ pub struct GmskDem {
     num_symbols_demod: u64,
 }
 
-impl GmskDem {
+impl GmskDemodulator {
     /// Create GMSK demodulator
     ///
     /// # Arguments
@@ -57,7 +58,7 @@ impl GmskDem {
         }
 
         let filter = if GMSKDEM_USE_EQUALIZER {
-            let mut eq = Eqlms::<f32>::new_rnyquist(FirFilterShape::Gmskrx, k, m, bt, 0.0)?;
+            let mut eq = LeastMeanSquaresEqualizer::<f32>::new_rnyquist(FirFilterShape::Gmskrx, k, m, bt, 0.0)?;
             eq.set_bw(0.01)?; // default learning rate
             FilterState::Equalizer(eq)
         } else {
@@ -199,20 +200,20 @@ impl GmskDem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modem::gmskmod::GmskMod;
-    use crate::sequence::MSequence;
+    use crate::modem::gmskmod::GmskModulator;
+    use crate::sequence::MaximalLengthSequence;
     use test_macro::autotest_annotate;
 
     #[test]
     fn test_gmskdem_config() {
         // invalid configurations
-        assert!(GmskDem::new(1, 3, 0.25).is_err()); // k too small
-        assert!(GmskDem::new(2, 0, 0.25).is_err()); // m too small
-        assert!(GmskDem::new(2, 3, 0.0).is_err()); // bt too small
-        assert!(GmskDem::new(2, 3, 1.0).is_err()); // bt too large
+        assert!(GmskDemodulator::new(1, 3, 0.25).is_err()); // k too small
+        assert!(GmskDemodulator::new(2, 0, 0.25).is_err()); // m too small
+        assert!(GmskDemodulator::new(2, 3, 0.0).is_err()); // bt too small
+        assert!(GmskDemodulator::new(2, 3, 1.0).is_err()); // bt too large
 
         // valid configuration
-        let q = GmskDem::new(4, 3, 0.25).unwrap();
+        let q = GmskDemodulator::new(4, 3, 0.25).unwrap();
         assert_eq!(q.get_k(), 4);
         assert_eq!(q.get_m(), 3);
         assert!((q.get_bt() - 0.25).abs() < 1e-6);
@@ -222,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_gmskdem_eq_bw() {
-        let mut q = GmskDem::new(4, 3, 0.25).unwrap();
+        let mut q = GmskDemodulator::new(4, 3, 0.25).unwrap();
 
         if q.uses_equalizer() {
             // With equalizer, set_eq_bw should succeed
@@ -236,13 +237,13 @@ mod tests {
     }
 
     fn testbench_gmskmodem(k: usize, m: usize, bt: f32) {
-        let mut modulator = GmskMod::new(k, m, bt).unwrap();
-        let mut demodulator = GmskDem::new(k, m, bt).unwrap();
+        let mut modulator = GmskModulator::new(k, m, bt).unwrap();
+        let mut demodulator = GmskDemodulator::new(k, m, bt).unwrap();
 
         let delay = m + m;
         let num_symbols = 80 + delay;
 
-        let mut ms = MSequence::from_degree(7).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(7).unwrap();
         let mut buf = vec![Complex32::new(0.0, 0.0); k];
         let mut sym_in = vec![0u8; num_symbols];
         let mut sym_out = vec![0u8; num_symbols];
@@ -354,7 +355,7 @@ mod tests {
         let m = 3;
         let bt = 0.2345;
 
-        let mut dem_orig = GmskDem::new(k, m, bt).unwrap();
+        let mut dem_orig = GmskDemodulator::new(k, m, bt).unwrap();
 
         let num_symbols = 16;
         let mut buf = vec![Complex32::new(0.0, 0.0); k];

@@ -8,7 +8,7 @@
 use crate::error::{Error, Result};
 use crate::fft::{fft_run, Direction};
 use crate::math::nextpow2;
-use crate::sequence::MSequence;
+use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 
 /// subcarrier allocation type
@@ -150,7 +150,7 @@ pub(crate) fn ofdmframe_init_s0(
     let m = sequence_bits(num_subcarriers)?;
 
     // generate m-sequence generator object
-    let mut ms = MSequence::from_degree(m)?;
+    let mut ms = MaximalLengthSequence::from_degree(m)?;
 
     let mut m_s0 = 0;
 
@@ -215,7 +215,7 @@ pub(crate) fn ofdmframe_init_s1(
     let m = sequence_bits(num_subcarriers)? + 1;
 
     // generate m-sequence generator object
-    let mut ms = MSequence::from_degree(m)?;
+    let mut ms = MaximalLengthSequence::from_degree(m)?;
 
     let mut m_s1 = 0;
 

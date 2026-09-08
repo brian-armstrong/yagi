@@ -4,7 +4,8 @@ use crate::error::{Error, Result};
 use crate::matrix::{matrix_access, matrix_access_mut, matrix_mul, FloatComplex};
 
 #[derive(Clone, Debug)]
-pub struct Eqrls<T> {
+#[doc(alias = "Eqrls")]
+pub struct RecursiveLeastSquaresEqualizer<T> {
     p: usize,      // filter order
     lambda: f32,   // RLS forgetting factor
     delta: f32,    // RLS initialization factor
@@ -22,7 +23,7 @@ pub struct Eqrls<T> {
     buffer: Window<T>,
 }
 
-impl<T> Eqrls<T>
+impl<T> RecursiveLeastSquaresEqualizer<T>
 where
     T: Clone + Copy + From<f32> + Default + FloatComplex,
     [T]: DotProd<T, Output = T>,
@@ -214,7 +215,7 @@ mod tests {
         let mut w = vec![0.0f32; p]; // equalizer filter coefficients
 
         // create equalizer
-        let mut eq = Eqrls::<f32>::new(None, p).unwrap();
+        let mut eq = RecursiveLeastSquaresEqualizer::<f32>::new(None, p).unwrap();
 
         // create channel filter
         h[0] = 1.0f32;
@@ -247,7 +248,7 @@ mod tests {
         for i in 0..9 {
             h[i] = randnf();
         }
-        let mut q0 = Eqrls::<f32>::new(Some(&h), 9).unwrap();
+        let mut q0 = RecursiveLeastSquaresEqualizer::<f32>::new(Some(&h), 9).unwrap();
 
         // create channel filter
         let hc = [1.0f32, -0.08f32, 0.32f32, 0.01f32, -0.06f32, 0.07f32, -0.03f32];

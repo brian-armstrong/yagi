@@ -1,15 +1,16 @@
 use crate::error::Result;
 
 #[derive(Debug, Clone)]
-pub struct WDelay<T> {
+#[doc(alias = "WDelay")]
+pub struct WindowedDelay<T> {
     v: Vec<T>,
     delay: usize,
     read_index: usize,
 }
 
-impl<T: Default + Clone + Copy> WDelay<T> {
+impl<T: Default + Clone + Copy> WindowedDelay<T> {
     pub fn new(delay: usize) -> Result<Self> {
-        let mut wdelay = WDelay { v: vec![T::default(); delay + 1], delay, read_index: 0 };
+        let mut wdelay = WindowedDelay { v: vec![T::default(); delay + 1], delay, read_index: 0 };
 
         wdelay.reset();
         Ok(wdelay)
@@ -25,7 +26,7 @@ impl<T: Default + Clone + Copy> WDelay<T> {
             vtmp.push(self.v[(i + self.read_index) % (self.delay + 1)]);
         }
 
-        *self = WDelay::new(delay)?;
+        *self = WindowedDelay::new(delay)?;
 
         for v in vtmp.iter() {
             self.push(*v);
@@ -64,7 +65,7 @@ mod tests {
     fn test_wdelayf() {
         // create wdelay
         // wdelay: 0 0 0 0 0
-        let mut w = WDelay::<f32>::new(4).unwrap();
+        let mut w = WindowedDelay::<f32>::new(4).unwrap();
 
         assert_abs_diff_eq!(w.read(), 0.0);
 
@@ -120,7 +121,7 @@ mod tests {
     fn test_wdelay_copy() {
         // create base object
         let delay = 20;
-        let mut q0 = WDelay::<Complex<f32>>::new(delay).unwrap();
+        let mut q0 = WindowedDelay::<Complex<f32>>::new(delay).unwrap();
 
         // write some values
         // TODO randnf()

@@ -6,11 +6,12 @@ use num_complex::Complex32;
 
 use crate::error::{Error, Result};
 use crate::filter::estimate_req_filter_len;
-use crate::filter::resamp2::Resamp2;
-use crate::nco::{Osc, OscScheme};
+use crate::filter::resamp2::HalfBandResampler;
+use crate::nco::{Nco, NcoBackend};
 
 #[derive(Clone, Debug)]
-pub struct Dds {
+#[doc(alias = "Dds")]
+pub struct DirectDigitalSynthesizer {
     // user-defined parameters
     num_stages: usize,
 
@@ -18,7 +19,7 @@ pub struct Dds {
     rate: usize,
 
     // halfband decimation/interpolation stages
-    halfband_resamp: Vec<Resamp2<Complex32, f32>>,
+    halfband_resamp: Vec<HalfBandResampler<Complex32, f32>>,
 
     m: Vec<usize>,
 
@@ -27,14 +28,14 @@ pub struct Dds {
     buffer1: Vec<Complex32>,
 
     // low-rate mixing stage
-    ncox: Osc,
+    ncox: Nco,
 
     // down-converter scaling factor
     zeta: f32,
     scale: Complex32,
 }
 
-impl Dds {
+impl DirectDigitalSynthesizer {
     pub fn new(num_stages: usize, fc: f32, bw: f32, as_: f32) -> Result<Self> {
         // error checking
         if num_stages > 20 {
@@ -93,7 +94,7 @@ impl Dds {
         // allocate memory for resampler pointers and create objects
         let mut halfband_resamp = Vec::with_capacity(num_stages);
         for i in 0..num_stages {
-            halfband_resamp.push(Resamp2::new(m_vec[i], fc_vec[i], as_vec[i])?);
+            halfband_resamp.push(HalfBandResampler::new(m_vec[i], fc_vec[i], as_vec[i])?);
         }
 
         // set down-converter scaling factor
@@ -101,7 +102,7 @@ impl Dds {
         let scale = Complex32::new(1.0, 0.0);
 
         // create NCO and set frequency
-        let mut ncox = Osc::new(OscScheme::Vco);
+        let mut ncox = Nco::new(NcoBackend::InterpolatedLookupTable);
         // TODO : ensure range is in [-pi,pi]
         ncox.set_frequency(2.0 * PI * (rate as f32) * fc);
 
@@ -214,7 +215,7 @@ mod tests {
     use test_macro::autotest_annotate;
 
     use crate::filter::fir_design_kaiser;
-    use crate::framing::symstreamr::SymStreamR;
+    use crate::framing::symstreamr::ArbitraryRateSymbolStream;
     use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
 
     fn testbench_dds_cccf(num_stages: usize, fc: f32, as_: f32) {
@@ -224,7 +225,7 @@ mod tests {
         let r = 1 << num_stages; // resampling rate (output/input)
 
         // create resampler
-        let mut q = Dds::new(num_stages, fc, bw, as_).unwrap();
+        let mut q = DirectDigitalSynthesizer::new(num_stages, fc, bw, as_).unwrap();
         q.set_scale(Complex32::new(1.0 / r as f32, 0.0));
 
         let delay_interp = q.get_delay_interp();
@@ -304,15 +305,15 @@ mod tests {
     #[autotest_annotate(autotest_dds_config)]
     fn test_dds_config() {
         // check that object returns None for invalid configurations
-        assert!(Dds::new(50, 0.0, 0.1, 60.0).is_err()); // num stages out of range
-        assert!(Dds::new(2, 0.7, 0.1, 60.0).is_err()); // fc out of range
-        assert!(Dds::new(2, -0.7, 0.1, 60.0).is_err()); // fc out of range
-        assert!(Dds::new(2, 0.2, 1.4, 60.0).is_err()); // bw out of range
-        assert!(Dds::new(2, 0.2, -1.4, 60.0).is_err()); // bw out of range
-        assert!(Dds::new(2, 0.2, 0.1, -1.0).is_err()); // as out of range
+        assert!(DirectDigitalSynthesizer::new(50, 0.0, 0.1, 60.0).is_err()); // num stages out of range
+        assert!(DirectDigitalSynthesizer::new(2, 0.7, 0.1, 60.0).is_err()); // fc out of range
+        assert!(DirectDigitalSynthesizer::new(2, -0.7, 0.1, 60.0).is_err()); // fc out of range
+        assert!(DirectDigitalSynthesizer::new(2, 0.2, 1.4, 60.0).is_err()); // bw out of range
+        assert!(DirectDigitalSynthesizer::new(2, 0.2, -1.4, 60.0).is_err()); // bw out of range
+        assert!(DirectDigitalSynthesizer::new(2, 0.2, 0.1, -1.0).is_err()); // as out of range
 
         // create proper object and test configurations
-        let mut q = Dds::new(2, 0.0, 0.2, 60.0).unwrap();
+        let mut q = DirectDigitalSynthesizer::new(2, 0.0, 0.2, 60.0).unwrap();
 
         // test setting/getting properties
         q.set_scale(Complex32::new(2.0, -3.0));
@@ -328,11 +329,11 @@ mod tests {
         let r = 1usize << num_stages; // resampling rate (input/output)
 
         // create resampler
-        let mut q0 = Dds::new(num_stages, 0.1234, 0.4321, 60.0).unwrap();
+        let mut q0 = DirectDigitalSynthesizer::new(num_stages, 0.1234, 0.4321, 60.0).unwrap();
         q0.set_scale(Complex32::new(0.72280, 0.0));
 
         // create generator with default parameters
-        let mut gen = SymStreamR::new().unwrap();
+        let mut gen = ArbitraryRateSymbolStream::new().unwrap();
 
         // generate samples and push through resampler
         let mut buf = vec![Complex32::new(0.0, 0.0); r];

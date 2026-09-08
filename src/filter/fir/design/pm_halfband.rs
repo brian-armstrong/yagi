@@ -2,12 +2,12 @@ use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::filter::fir::design::estimate_req_filter_transition_bandwidth;
 use crate::filter::fir::design::pm::{fir_design_pm, FirPmBandType, FirPmWeightType};
-use crate::optim::qs1dsearch::{OptimDirection, Qs1dSearch};
+use crate::optim::qs1dsearch::{OptimDirection, QuadSectionSearch};
 
 use num_complex::Complex32;
 
 // Structured data type
-struct FirdespmHalfband {
+struct ParksMcClellanWorkspace {
     // top-level filter design parameters
     m: usize,     // filter semi-length
     h_len: usize, // filter length, 4*m+1
@@ -23,7 +23,7 @@ struct FirdespmHalfband {
     utility_error: Option<Error>, // unexpected error from optimizer callback
 }
 
-impl FirdespmHalfband {
+impl ParksMcClellanWorkspace {
     fn new(m: usize, h_len: usize, nfft: usize, ft: f32) -> Result<Self> {
         let mut nfft = nfft;
         while nfft < 20 * m {
@@ -46,7 +46,7 @@ impl FirdespmHalfband {
     }
 }
 
-fn firdespm_halfband_utility_inner(gamma: f32, userdata: &mut FirdespmHalfband) -> Result<f32> {
+fn firdespm_halfband_utility_inner(gamma: f32, userdata: &mut ParksMcClellanWorkspace) -> Result<f32> {
     // design filter
     let f0 = 0.25 - 0.5 * userdata.ft * gamma;
     let f1 = 0.25 + 0.5 * userdata.ft;
@@ -84,7 +84,7 @@ fn firdespm_halfband_utility_inner(gamma: f32, userdata: &mut FirdespmHalfband) 
     Ok(10.0 * (u / userdata.n as f32).log10())
 }
 
-fn firdespm_halfband_utility(gamma: f32, userdata: &mut FirdespmHalfband) -> f32 {
+fn firdespm_halfband_utility(gamma: f32, userdata: &mut ParksMcClellanWorkspace) -> f32 {
     match firdespm_halfband_utility_inner(gamma, userdata) {
         Ok(utility) => utility,
         Err(Error::NoConvergence(_)) => f32::INFINITY, // reject this candidate
@@ -107,11 +107,12 @@ fn firdespm_halfband_utility(gamma: f32, userdata: &mut FirdespmHalfband) -> f32
 /// A vec of filter coefficients
 pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
     // create and initialize object
-    let mut q = FirdespmHalfband::new(m, 4 * m + 1, 1200, ft)?;
+    let mut q = ParksMcClellanWorkspace::new(m, 4 * m + 1, 1200, ft)?;
 
     // create and run search
     let gamma = {
-        let mut optim = Qs1dSearch::new(|gamma| firdespm_halfband_utility(gamma, &mut q), OptimDirection::Minimize);
+        let mut optim =
+            QuadSectionSearch::new(|gamma| firdespm_halfband_utility(gamma, &mut q), OptimDirection::Minimize);
         optim.init_bounds(1.0, 0.9)?;
         for _ in 0..32 {
             optim.step()?;

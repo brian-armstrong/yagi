@@ -9,7 +9,7 @@ use crate::fft::{Direction, Fft};
 use crate::multichannel::ofdmframe::{
     ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierCounts, SubcarrierType,
 };
-use crate::sequence::MSequence;
+use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 
 /// OFDM frame generator
@@ -19,7 +19,8 @@ use num_complex::Complex32;
 /// and adjacent symbols are cross-faded over `taper_len` samples to soften the
 /// spectral splatter at symbol boundaries.
 #[derive(Clone, Debug)]
-pub struct OfdmFrameGen {
+#[doc(alias = "OfdmFrameGen")]
+pub struct OfdmFrameGenerator {
     num_subcarriers: usize, // number of subcarriers
     cp_len: usize,          // cyclic prefix length
     p: Vec<SubcarrierType>, // subcarrier allocation
@@ -47,10 +48,10 @@ pub struct OfdmFrameGen {
     s1_time: Vec<Complex32>, // long sequence (time)
 
     // pilot sequence
-    ms_pilot: MSequence,
+    ms_pilot: MaximalLengthSequence,
 }
 
-impl OfdmFrameGen {
+impl OfdmFrameGenerator {
     /// Create an OFDM frame generator from a validated configuration.
     pub fn new(config: &OfdmFrameConfig) -> Result<Self> {
         let num_subcarriers = config.num_subcarriers();
@@ -85,7 +86,7 @@ impl OfdmFrameGen {
         let g_data = 1.0 / ((counts.pilot + counts.data) as f32).sqrt();
 
         // set pilot sequence
-        let ms_pilot = MSequence::from_degree(8)?;
+        let ms_pilot = MaximalLengthSequence::from_degree(8)?;
 
         Ok(Self {
             num_subcarriers,
@@ -324,9 +325,9 @@ mod tests {
         cp_len: usize,
         taper_len: usize,
         allocation: Option<&[SubcarrierType]>,
-    ) -> Result<OfdmFrameGen> {
+    ) -> Result<OfdmFrameGenerator> {
         let config = OfdmFrameConfig::new(num_subcarriers, cp_len, taper_len, allocation)?;
-        OfdmFrameGen::new(&config)
+        OfdmFrameGenerator::new(&config)
     }
 
     #[test]
@@ -341,7 +342,7 @@ mod tests {
 
         // create proper object and test configurations
         let config = OfdmFrameConfig::new(64, 16, 4, None).unwrap();
-        let _q = OfdmFrameGen::new(&config).unwrap();
+        let _q = OfdmFrameGenerator::new(&config).unwrap();
     }
 
     #[test]

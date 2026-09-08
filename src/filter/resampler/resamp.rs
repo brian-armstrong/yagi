@@ -1,23 +1,24 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::{self, FirPfbBank};
+use crate::filter::{self, FirPolyphaseFilterBank};
 use crate::math::nextpow2;
 
 use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
-pub struct Resamp<T, Coeff = T> {
+#[doc(alias = "Resamp")]
+pub struct ArbitraryResampler<T, Coeff = T> {
     m: usize,
     r: f32,
     step: u32,
     phase: u32,
     bits_index: usize,
     w: Window<T>,
-    bank: FirPfbBank<T, Coeff>,
+    bank: FirPolyphaseFilterBank<T, Coeff>,
 }
 
-impl<T, Coeff> Resamp<T, Coeff>
+impl<T, Coeff> ArbitraryResampler<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
@@ -55,7 +56,7 @@ where
         // copy to type-specific array, applying gain
         let h: Vec<Coeff> = hf.iter().map(|&x| (x * gain).into()).collect();
 
-        let bank = FirPfbBank::new(npfb, &h, n - 1)?;
+        let bank = FirPolyphaseFilterBank::new(npfb, &h, n - 1)?;
         let w = Window::new(bank.filter_len())?;
 
         let mut q = Self { m, r: rate, step: 0, phase: 0, bits_index: bits, w, bank };
@@ -208,7 +209,7 @@ mod tests {
         let fc: f32 = 0.45; // resampler cut-off frequency
 
         // create resampler
-        let mut resamp = Resamp::<Complex32>::new(r, m, fc, as_db, npfb).unwrap();
+        let mut resamp = ArbitraryResampler::<Complex32>::new(r, m, fc, as_db, npfb).unwrap();
 
         // generate pulse with sharp transition and very narrow side-lobes
         let p = (40.0 / r) as usize;
@@ -309,7 +310,7 @@ mod tests {
         let fc = 0.4f32;
         let as_db = 60.0f32;
         let m = 20;
-        let mut resamp = Resamp::<Complex32>::new(rate, m, fc, as_db, npfb).unwrap();
+        let mut resamp = ArbitraryResampler::<Complex32>::new(rate, m, fc, as_db, npfb).unwrap();
 
         // sizes to test in sequence
         let sizes = [1, 2, 3, 20, 7, 64, 4, 4, 4, 27];
@@ -384,7 +385,7 @@ mod tests {
     fn test_resamp_crcf_copy() {
         // create object with irregular parameters
         let rate = 0.71239213987520f32;
-        let mut q0 = Resamp::<Complex32>::new(rate, 17, 0.37, 60.0, 64).unwrap();
+        let mut q0 = ArbitraryResampler::<Complex32>::new(rate, 17, 0.37, 60.0, 64).unwrap();
 
         // run samples through filter
         let num_samples = 80;
@@ -423,7 +424,7 @@ mod tests {
         let fc = 0.4f32;
         let as_db = 60.0f32;
         let m = 20;
-        let mut resamp = Resamp::<Complex32>::new(rate, m, fc, as_db, npfb).unwrap();
+        let mut resamp = ArbitraryResampler::<Complex32>::new(rate, m, fc, as_db, npfb).unwrap();
 
         // allocate buffers
         let max_input = 1024;
@@ -496,7 +497,7 @@ mod tests {
     #[test]
     fn test_resamp_crcf_block_matches() {
         for &rate in &[0.37f32, 0.73, 1.0, 1.37, 4.1] {
-            let mut q_sample = Resamp::<Complex32, f32>::new(rate, 7, 0.4, 60.0, 64).unwrap();
+            let mut q_sample = ArbitraryResampler::<Complex32, f32>::new(rate, 7, 0.4, 60.0, 64).unwrap();
             let mut q_block = q_sample.clone();
 
             let chunks = [0usize, 1, 5, 13, 14, 15, 64, 3, 97];
@@ -530,7 +531,7 @@ mod tests {
     #[test]
     fn test_resamp_rrrf_block_matches() {
         let rate = 1.37;
-        let mut q_sample = Resamp::<f32, f32>::new(rate, 7, 0.4, 60.0, 64).unwrap();
+        let mut q_sample = ArbitraryResampler::<f32, f32>::new(rate, 7, 0.4, 60.0, 64).unwrap();
         let mut q_block = q_sample.clone();
         let input: Vec<_> = (0..257).map(|i| ((i + 3) as f32 * 0.11).cos()).collect();
 

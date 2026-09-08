@@ -7,7 +7,8 @@ use std::f32::consts::PI;
 
 /// GMSK modulator
 #[derive(Clone, Debug)]
-pub struct GmskMod {
+#[doc(alias = "GmskMod")]
+pub struct GmskModulator {
     k: usize, // samples/symbol
     m: usize, // symbol delay
     bt: f32,  // bandwidth/time product
@@ -16,7 +17,7 @@ pub struct GmskMod {
     k_inv: f32, // 1/k
 }
 
-impl GmskMod {
+impl GmskModulator {
     /// Create GMSK modulator
     ///
     /// # Arguments
@@ -110,13 +111,13 @@ mod tests {
     #[test]
     fn test_gmskmod_config() {
         // invalid configurations
-        assert!(GmskMod::new(1, 3, 0.25).is_err()); // k too small
-        assert!(GmskMod::new(2, 0, 0.25).is_err()); // m too small
-        assert!(GmskMod::new(2, 3, 0.0).is_err()); // bt too small
-        assert!(GmskMod::new(2, 3, 1.0).is_err()); // bt too large
+        assert!(GmskModulator::new(1, 3, 0.25).is_err()); // k too small
+        assert!(GmskModulator::new(2, 0, 0.25).is_err()); // m too small
+        assert!(GmskModulator::new(2, 3, 0.0).is_err()); // bt too small
+        assert!(GmskModulator::new(2, 3, 1.0).is_err()); // bt too large
 
         // valid configuration
-        let q = GmskMod::new(4, 3, 0.25).unwrap();
+        let q = GmskModulator::new(4, 3, 0.25).unwrap();
         assert_eq!(q.get_k(), 4);
         assert_eq!(q.get_m(), 3);
         assert!((q.get_bt() - 0.25).abs() < 1e-6);
@@ -124,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_gmskmod_modulate() {
-        let mut q = GmskMod::new(4, 3, 0.25).unwrap();
+        let mut q = GmskModulator::new(4, 3, 0.25).unwrap();
         let mut buf = vec![Complex32::new(0.0, 0.0); 4];
 
         // modulate a few symbols
@@ -141,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_gmskmod_phase_continuity() {
-        let mut q = GmskMod::new(4, 3, 0.25).unwrap();
+        let mut q = GmskModulator::new(4, 3, 0.25).unwrap();
         let mut buf = vec![Complex32::new(0.0, 0.0); 4];
         let mut prev_phase = 0.0f32;
 
@@ -163,18 +164,18 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_gmskmod_copy)]
     fn autotest_gmskmod_copy() {
-        use crate::sequence::MSequence;
+        use crate::sequence::MaximalLengthSequence;
 
         let k = 5;
         let m = 3;
         let bt = 0.2345;
 
-        let mut mod_orig = GmskMod::new(k, m, bt).unwrap();
+        let mut mod_orig = GmskModulator::new(k, m, bt).unwrap();
 
         let num_symbols = 16;
         let mut buf_orig = vec![Complex32::new(0.0, 0.0); k];
         let mut buf_copy = vec![Complex32::new(0.0, 0.0); k];
-        let mut ms = MSequence::from_degree(7).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(7).unwrap();
 
         // run original object
         for _ in 0..num_symbols {

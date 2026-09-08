@@ -12,8 +12,8 @@ const SYNTH_PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 
 /// Numerically-controlled synthesizer driven by an arbitrary lookup table
 ///
-/// Unlike [`Osc`](super::Osc), which generates a sinusoid from a fixed-point
-/// phase accumulator, `Synth` walks a caller-supplied table of complex samples.
+/// Unlike [`Nco`](super::Nco), which generates a sinusoid from a fixed-point
+/// phase accumulator, `TableOscillator` walks a caller-supplied table of complex samples.
 /// That makes it a spreading-sequence generator: with the default frequency it
 /// visits each table entry exactly once per cycle, and [`Self::despread`]
 /// correlates a received block against the sequence.
@@ -23,7 +23,8 @@ const SYNTH_PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 /// outputs are midpoints of adjacent entries, used for early/late timing
 /// discrimination in [`Self::despread_triple`].
 #[derive(Debug, Clone)]
-pub struct Synth {
+#[doc(alias = "Synth")]
+pub struct TableOscillator {
     theta: f32,   // phase
     d_theta: f32, // frequency
     tab: Vec<Complex32>,
@@ -38,7 +39,7 @@ pub struct Synth {
     beta: f32,
 }
 
-impl Synth {
+impl TableOscillator {
     /// create synth object from a table of complex samples
     ///
     /// The initial frequency visits each table entry once per cycle, i.e.
@@ -340,7 +341,7 @@ impl Synth {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sequence::MSequence;
+    use crate::sequence::MaximalLengthSequence;
     use approx::assert_abs_diff_eq;
 
     // unit-magnitude DFT-like sequence: tab[i] = exp(j*2*pi*i/n)
@@ -350,7 +351,7 @@ mod tests {
 
     // a real +/-1 spreading code
     fn tab_bpsk(m: usize) -> Vec<Complex32> {
-        let mut ms = MSequence::from_degree(m as u32).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(m as u32).unwrap();
         let n = ms.get_length() as usize;
         (0..n)
             .map(|_| {
@@ -362,10 +363,10 @@ mod tests {
 
     #[test]
     fn test_synth_config() {
-        assert!(Synth::new(&[]).is_err());
+        assert!(TableOscillator::new(&[]).is_err());
 
         let tab = tab_cexp(8);
-        let q = Synth::new(&tab).unwrap();
+        let q = TableOscillator::new(&tab).unwrap();
         assert_eq!(q.get_length(), 8);
 
         // default frequency visits each entry once per cycle
@@ -373,7 +374,7 @@ mod tests {
         assert_abs_diff_eq!(q.get_phase(), 0.0, epsilon = 1e-6);
 
         // negative pll bandwidth is rejected, and leaves the object usable
-        let mut q = Synth::new(&tab).unwrap();
+        let mut q = TableOscillator::new(&tab).unwrap();
         assert!(q.pll_set_bandwidth(-1.0).is_err());
         assert!(q.pll_set_bandwidth(0.0).is_ok());
 
@@ -394,7 +395,7 @@ mod tests {
     fn test_synth_step_walks_table() {
         for n in [4usize, 8, 16] {
             let tab = tab_cexp(n);
-            let mut q = Synth::new(&tab).unwrap();
+            let mut q = TableOscillator::new(&tab).unwrap();
 
             for i in 0..3 * n {
                 let expected = tab[i % n];
@@ -411,7 +412,7 @@ mod tests {
         for tab in [tab_cexp(8), tab_cexp(16), tab_bpsk(6)] {
             let n = tab.len();
             for sym in [Complex32::new(1.0, 0.0), Complex32::new(0.5, 0.25), Complex32::new(-0.75, 0.6)] {
-                let mut tx = Synth::new(&tab).unwrap();
+                let mut tx = TableOscillator::new(&tab).unwrap();
                 let mut chips = vec![Complex32::new(0.0, 0.0); n];
                 tx.spread(sym, &mut chips).unwrap();
 
@@ -424,7 +425,7 @@ mod tests {
 
                 // despread normalizes by sum(|x|*|tab|), so amplitude drops out
                 // and only the phase survives
-                let mut rx = Synth::new(&tab).unwrap();
+                let mut rx = TableOscillator::new(&tab).unwrap();
                 let y = rx.despread(&chips).unwrap();
                 let expected = sym / sym.norm();
                 assert_abs_diff_eq!(y.re, expected.re, epsilon = 1e-4);
@@ -444,11 +445,11 @@ mod tests {
                 Complex32::new(-1.0, 0.0),
             ] {
                 let n = tab.len();
-                let mut tx = Synth::new(&tab).unwrap();
+                let mut tx = TableOscillator::new(&tab).unwrap();
                 let mut chips = vec![Complex32::new(0.0, 0.0); n];
                 tx.spread(sym, &mut chips).unwrap();
 
-                let mut rx = Synth::new(&tab).unwrap();
+                let mut rx = TableOscillator::new(&tab).unwrap();
                 let expected = sym / sym.norm();
 
                 let (early, punctual, late) = rx.despread_triple(&chips).unwrap();
@@ -487,17 +488,17 @@ mod tests {
 
         let sym = Complex32::new(1.0, 0.0);
 
-        let mut matched = Synth::new(&tab).unwrap();
+        let mut matched = TableOscillator::new(&tab).unwrap();
         let mut chips = vec![Complex32::new(0.0, 0.0); n];
         matched.spread(sym, &mut chips).unwrap();
 
         // despread the matched code with the wrong local sequence
-        let mut wrong = Synth::new(&other).unwrap();
+        let mut wrong = TableOscillator::new(&other).unwrap();
         let y = wrong.despread(&chips).unwrap();
         assert!(y.norm() < 0.5, "wrong-code correlation = {}", y.norm());
 
         // and the right one recovers it
-        let mut right = Synth::new(&tab).unwrap();
+        let mut right = TableOscillator::new(&tab).unwrap();
         let y = right.despread(&chips).unwrap();
         assert_abs_diff_eq!(y.norm(), 1.0, epsilon = 1e-4);
     }
@@ -506,7 +507,7 @@ mod tests {
     fn test_synth_pll_tracks_frequency_offset() {
         let n = 16;
         let tab = tab_cexp(n);
-        let mut q = Synth::new(&tab).unwrap();
+        let mut q = TableOscillator::new(&tab).unwrap();
         q.pll_set_bandwidth(0.02).unwrap();
 
         // run the synth against a reference phase advancing slightly faster

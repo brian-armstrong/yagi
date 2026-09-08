@@ -1,34 +1,35 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::iir::IirFilterSos;
-use crate::filter::{self, FirFilterShape, FirPfbFilter};
+use crate::filter::iir::IirSecondOrderSection;
+use crate::filter::{self, FirFilterShape, FirPolyphaseFilter};
 use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
-pub struct Symsync<T> {
+#[doc(alias = "Symsync")]
+pub struct SymbolSynchronizer<T> {
     k: usize,     // samples/symbol (input)
     k_out: usize, // samples/symbol (output)
 
-    npfb: usize,               // number of filters in symsync
-    mf: FirPfbFilter<T, f32>,  // matched filter
-    dmf: FirPfbFilter<T, f32>, // derivative matched filter
-    b: usize,                  // filterbank index
-    bf: f32,                   // filterbank index (fractional)
-    tau: f32,                  // fractional sample offset
-    tau_decim: f32,            // fractional sample offset (decimated)
+    npfb: usize,                     // number of filters in symsync
+    mf: FirPolyphaseFilter<T, f32>,  // matched filter
+    dmf: FirPolyphaseFilter<T, f32>, // derivative matched filter
+    b: usize,                        // filterbank index
+    bf: f32,                         // filterbank index (fractional)
+    tau: f32,                        // fractional sample offset
+    tau_decim: f32,                  // fractional sample offset (decimated)
 
     rate: f32, // internal resampling rate
     del: f32,  // fractional delay step
 
-    q: f32,                 // timing error
-    q_hat: f32,             // filtered timing error
-    decim_counter: usize,   // decimation counter
-    pll: IirFilterSos<f32>, // loop filter
-    rate_adjustment: f32,   // rate adjustment factor
-    is_locked: bool,        // synchronizer locked flag
+    q: f32,                          // timing error
+    q_hat: f32,                      // filtered timing error
+    decim_counter: usize,            // decimation counter
+    pll: IirSecondOrderSection<f32>, // loop filter
+    rate_adjustment: f32,            // rate adjustment factor
+    is_locked: bool,                 // synchronizer locked flag
 }
 
-impl<T> Symsync<T>
+impl<T> SymbolSynchronizer<T>
 where
     T: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + std::ops::Mul<f32, Output = T> + Default,
     [T]: DotProd<f32, Output = T>,
@@ -74,12 +75,12 @@ where
             *dhi *= 0.06f32 / hdh_max;
         }
 
-        let mf = FirPfbFilter::new(npfb, h, h_len)?;
-        let dmf = FirPfbFilter::new(npfb, &dh, h_len)?;
+        let mf = FirPolyphaseFilter::new(npfb, h, h_len)?;
+        let dmf = FirPolyphaseFilter::new(npfb, &dh, h_len)?;
 
         let a_coeff = [1.0, 0.0, 0.0];
         let b_coeff = [0.0, 0.0, 0.0];
-        let pll = IirFilterSos::new(&b_coeff, &a_coeff)?;
+        let pll = IirSecondOrderSection::new(&b_coeff, &a_coeff)?;
 
         let mut q = Self {
             k,
@@ -307,10 +308,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filter::resampler::resamp::Resamp;
+    use crate::filter::resampler::resamp::ArbitraryResampler;
     use crate::filter::FirInterpolationFilter;
     use crate::random::randnf;
-    use crate::sequence::MSequence;
+    use crate::sequence::MaximalLengthSequence;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
 
@@ -318,7 +319,7 @@ mod tests {
     #[autotest_annotate(autotest_symsync_copy)]
     fn test_symsync_copy() {
         // create base object
-        let mut q0 = Symsync::<Complex32>::new_rnyquist(FirFilterShape::Arkaiser, 5, 7, 0.25, 64).unwrap();
+        let mut q0 = SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Arkaiser, 5, 7, 0.25, 64).unwrap();
         q0.set_lf_bw(0.02).unwrap();
 
         // run samples through filter
@@ -361,25 +362,25 @@ mod tests {
     #[autotest_annotate(autotest_symsync_config)]
     fn test_symsync_config() {
         // test copying/creating invalid objects
-        // assert!(Symsync::<Complex32>::copy(&None).is_err());
+        // assert!(SymbolSynchronizer::<Complex32>::copy(&None).is_err());
 
-        assert!(Symsync::<Complex32>::new(0, 12, &[], 48).is_err()); // k is too small
-        assert!(Symsync::<Complex32>::new(2, 0, &[], 48).is_err()); // M is too small
-        assert!(Symsync::<Complex32>::new(2, 12, &[], 0).is_err()); // h_len is too small
-        assert!(Symsync::<Complex32>::new(2, 12, &[], 47).is_err()); // h_len is not divisible by M
+        assert!(SymbolSynchronizer::<Complex32>::new(0, 12, &[], 48).is_err()); // k is too small
+        assert!(SymbolSynchronizer::<Complex32>::new(2, 0, &[], 48).is_err()); // M is too small
+        assert!(SymbolSynchronizer::<Complex32>::new(2, 12, &[], 0).is_err()); // h_len is too small
+        assert!(SymbolSynchronizer::<Complex32>::new(2, 12, &[], 47).is_err()); // h_len is not divisible by M
 
-        assert!(Symsync::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 0, 12, 0.2, 48).is_err()); // k is too small
-        assert!(Symsync::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 0, 0.2, 48).is_err()); // m is too small
-        assert!(Symsync::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 12, 7.2, 48).is_err()); // beta is too large
-        assert!(Symsync::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 12, 0.2, 0).is_err()); // M is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 0, 12, 0.2, 48).is_err()); // k is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 0, 0.2, 48).is_err()); // m is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 12, 7.2, 48).is_err()); // beta is too large
+        assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 12, 0.2, 0).is_err()); // M is too small
 
-        assert!(Symsync::<Complex32>::new_kaiser(0, 12, 0.2, 48).is_err()); // k is too small
-        assert!(Symsync::<Complex32>::new_kaiser(2, 0, 0.2, 48).is_err()); // m is too small
-        assert!(Symsync::<Complex32>::new_kaiser(2, 12, 7.2, 48).is_err()); // beta is too large
-        assert!(Symsync::<Complex32>::new_kaiser(2, 12, 0.2, 0).is_err()); // M is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(0, 12, 0.2, 48).is_err()); // k is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 0, 0.2, 48).is_err()); // m is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 7.2, 48).is_err()); // beta is too large
+        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 0.2, 0).is_err()); // M is too small
 
         // create valid object
-        let mut q = Symsync::<Complex32>::new_kaiser(2, 12, 0.2, 48).unwrap();
+        let mut q = SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 0.2, 48).unwrap();
         // assert!(q.print().is_ok());
 
         // check lock state
@@ -438,7 +439,7 @@ mod tests {
         // generate pseudo-random QPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
         //       each time this test is run
-        let mut ms = MSequence::from_degree(10).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(10).unwrap();
         for i in 0..num_symbols as usize {
             let si = ms.generate_symbol(1);
             let sq = ms.generate_symbol(1);
@@ -467,7 +468,8 @@ mod tests {
         let resamp_bw = 0.45; // resampling filter bandwidth
         let resamp_as = 60.0; // resampling filter stop-band attenuation
         let resamp_npfb = 64; // number of filters in bank
-        let mut resamp = Resamp::<Complex32>::new(rate, resamp_len, resamp_bw, resamp_as, resamp_npfb).unwrap();
+        let mut resamp =
+            ArbitraryResampler::<Complex32>::new(rate, resamp_len, resamp_bw, resamp_as, resamp_npfb).unwrap();
 
         // run resampler on block
         let ny = resamp.execute_block(&x[..num_samples as usize], &mut y[..]).unwrap();
@@ -478,9 +480,9 @@ mod tests {
 
         // create symbol synchronizer
         let mut sync = if method == "rnyquist" {
-            Symsync::<Complex32>::new_rnyquist(ftype_tx, k, m, beta, num_filters).unwrap()
+            SymbolSynchronizer::<Complex32>::new_rnyquist(ftype_tx, k, m, beta, num_filters).unwrap()
         } else {
-            Symsync::<Complex32>::new_kaiser(k, m, beta, num_filters).unwrap()
+            SymbolSynchronizer::<Complex32>::new_kaiser(k, m, beta, num_filters).unwrap()
         };
 
         // set loop filter bandwidth
@@ -595,7 +597,7 @@ mod tests {
         // generate pseudo-random BPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
         //       each time this test is run
-        let mut ms = MSequence::from_degree(10).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(10).unwrap();
         for i in 0..num_symbols {
             s[i] = if ms.generate_symbol(1) == 0 { 1.0 } else { -1.0 };
         }
@@ -619,7 +621,7 @@ mod tests {
         let resamp_bw = 0.45f32; // resampling filter bandwidth
         let resamp_as = 60.0f32; // resampling filter stop-band attenuation
         let resamp_npfb = 64; // number of filters in bank
-        let mut resamp = Resamp::<f32>::new(rate, resamp_len, resamp_bw, resamp_as, resamp_npfb).unwrap();
+        let mut resamp = ArbitraryResampler::<f32>::new(rate, resamp_len, resamp_bw, resamp_as, resamp_npfb).unwrap();
 
         // run resampler on block
         let ny = resamp.execute_block(&x[..num_samples], &mut y).unwrap();
@@ -630,9 +632,9 @@ mod tests {
 
         // create symbol synchronizer
         let mut sync = if method == "rnyquist" {
-            Symsync::<f32>::new_rnyquist(ftype_tx, k, m, beta, num_filters).unwrap()
+            SymbolSynchronizer::<f32>::new_rnyquist(ftype_tx, k, m, beta, num_filters).unwrap()
         } else {
-            Symsync::<f32>::new_kaiser(k, m, beta, num_filters).unwrap()
+            SymbolSynchronizer::<f32>::new_kaiser(k, m, beta, num_filters).unwrap()
         };
 
         // set loop filter bandwidth
@@ -757,7 +759,7 @@ mod tests {
     // error if the output buffer is too small, rather than panicking.
     #[test]
     fn test_symsync_output_buffer_full() {
-        let mut sync = Symsync::<Complex32>::new_kaiser(2, 7, 0.3, 32).unwrap();
+        let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 0.3, 32).unwrap();
 
         // Set rate to 0.5 - this means ~2 outputs per input
         sync.set_fractional_rate(0.5).unwrap();

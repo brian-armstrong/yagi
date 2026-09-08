@@ -20,7 +20,8 @@ use std::sync::Arc;
 use rustdct::DctPlanner;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum FftR2rKind {
+#[doc(alias = "FftR2rKind")]
+pub enum RealToRealFftKind {
     Redft00, // DCT-I
     Redft10, // DCT-II
     Redft01, // DCT-III
@@ -44,25 +45,26 @@ enum DctDst {
 }
 
 #[derive(Clone)]
-pub struct FftR2r {
+#[doc(alias = "FftR2r")]
+pub struct RealToRealFft {
     n: usize,
-    kind: FftR2rKind,
+    kind: RealToRealFftKind,
     transform: DctDst,
 }
 
-impl FftR2r {
-    pub fn new(n: usize, kind: FftR2rKind) -> Self {
+impl RealToRealFft {
+    pub fn new(n: usize, kind: RealToRealFftKind) -> Self {
         let mut planner = DctPlanner::new();
 
         let transform = match kind {
-            FftR2rKind::Redft00 => DctDst::Dct1(planner.plan_dct1(n)),
-            FftR2rKind::Redft10 => DctDst::Dct2(planner.plan_dct2(n)),
-            FftR2rKind::Redft01 => DctDst::Dct3(planner.plan_dct3(n)),
-            FftR2rKind::Redft11 => DctDst::Dct4(planner.plan_dct4(n)),
-            FftR2rKind::Rodft00 => DctDst::Dst1(planner.plan_dst1(n)),
-            FftR2rKind::Rodft10 => DctDst::Dst2(planner.plan_dst2(n)),
-            FftR2rKind::Rodft01 => DctDst::Dst3(planner.plan_dst3(n)),
-            FftR2rKind::Rodft11 => DctDst::Dst4(planner.plan_dst4(n)),
+            RealToRealFftKind::Redft00 => DctDst::Dct1(planner.plan_dct1(n)),
+            RealToRealFftKind::Redft10 => DctDst::Dct2(planner.plan_dct2(n)),
+            RealToRealFftKind::Redft01 => DctDst::Dct3(planner.plan_dct3(n)),
+            RealToRealFftKind::Redft11 => DctDst::Dct4(planner.plan_dct4(n)),
+            RealToRealFftKind::Rodft00 => DctDst::Dst1(planner.plan_dst1(n)),
+            RealToRealFftKind::Rodft10 => DctDst::Dst2(planner.plan_dst2(n)),
+            RealToRealFftKind::Rodft01 => DctDst::Dst3(planner.plan_dst3(n)),
+            RealToRealFftKind::Rodft11 => DctDst::Dst4(planner.plan_dst4(n)),
         };
 
         Self { n, kind, transform }
@@ -99,19 +101,19 @@ impl FftR2r {
         self.n == 0
     }
 
-    pub fn kind(&self) -> FftR2rKind {
+    pub fn kind(&self) -> RealToRealFftKind {
         self.kind
     }
 }
 
-impl std::fmt::Debug for FftR2r {
+impl std::fmt::Debug for RealToRealFft {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "FftR2r {{ n: {}, kind: {:?} }}", self.n, self.kind)
+        write!(f, "RealToRealFft {{ n: {}, kind: {:?} }}", self.n, self.kind)
     }
 }
 
-pub fn fft_r2r_run(x: &[f32], y: &mut [f32], kind: FftR2rKind) {
-    let fft = FftR2r::new(x.len(), kind);
+pub fn fft_r2r_run(x: &[f32], y: &mut [f32], kind: RealToRealFftKind) {
+    let fft = RealToRealFft::new(x.len(), kind);
     fft.run(x, y);
 }
 
@@ -121,7 +123,7 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
-    fn fft_r2r_test(x: &[f32], expected: &[f32], kind: FftR2rKind) {
+    fn fft_r2r_test(x: &[f32], expected: &[f32], kind: RealToRealFftKind) {
         let n = x.len();
         let tol = 1e-4;
 
@@ -138,144 +140,144 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT00_n8)]
     fn test_fft_r2r_redft00_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT00_Y8, FftR2rKind::Redft00);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT00_Y8, RealToRealFftKind::Redft00);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT10_n8)]
     fn test_fft_r2r_redft10_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT10_Y8, FftR2rKind::Redft10);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT10_Y8, RealToRealFftKind::Redft10);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT01_n8)]
     fn test_fft_r2r_redft01_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT01_Y8, FftR2rKind::Redft01);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT01_Y8, RealToRealFftKind::Redft01);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT11_n8)]
     fn test_fft_r2r_redft11_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT11_Y8, FftR2rKind::Redft11);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_REDFT11_Y8, RealToRealFftKind::Redft11);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT00_n8)]
     fn test_fft_r2r_rodft00_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT00_Y8, FftR2rKind::Rodft00);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT00_Y8, RealToRealFftKind::Rodft00);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT10_n8)]
     fn test_fft_r2r_rodft10_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT10_Y8, FftR2rKind::Rodft10);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT10_Y8, RealToRealFftKind::Rodft10);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT01_n8)]
     fn test_fft_r2r_rodft01_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT01_Y8, FftR2rKind::Rodft01);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT01_Y8, RealToRealFftKind::Rodft01);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT11_n8)]
     fn test_fft_r2r_rodft11_n8() {
-        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT11_Y8, FftR2rKind::Rodft11);
+        fft_r2r_test(&FFTDATA_R2R_X8, &FFTDATA_R2R_RODFT11_Y8, RealToRealFftKind::Rodft11);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT00_n32)]
     fn test_fft_r2r_redft00_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT00_Y32, FftR2rKind::Redft00);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT00_Y32, RealToRealFftKind::Redft00);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT10_n32)]
     fn test_fft_r2r_redft10_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT10_Y32, FftR2rKind::Redft10);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT10_Y32, RealToRealFftKind::Redft10);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT01_n32)]
     fn test_fft_r2r_redft01_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT01_Y32, FftR2rKind::Redft01);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT01_Y32, RealToRealFftKind::Redft01);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT11_n32)]
     fn test_fft_r2r_redft11_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT11_Y32, FftR2rKind::Redft11);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_REDFT11_Y32, RealToRealFftKind::Redft11);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT00_n32)]
     fn test_fft_r2r_rodft00_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT00_Y32, FftR2rKind::Rodft00);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT00_Y32, RealToRealFftKind::Rodft00);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT10_n32)]
     fn test_fft_r2r_rodft10_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT10_Y32, FftR2rKind::Rodft10);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT10_Y32, RealToRealFftKind::Rodft10);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT01_n32)]
     fn test_fft_r2r_rodft01_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT01_Y32, FftR2rKind::Rodft01);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT01_Y32, RealToRealFftKind::Rodft01);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT11_n32)]
     fn test_fft_r2r_rodft11_n32() {
-        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT11_Y32, FftR2rKind::Rodft11);
+        fft_r2r_test(&FFTDATA_R2R_X32, &FFTDATA_R2R_RODFT11_Y32, RealToRealFftKind::Rodft11);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT00_n27)]
     fn test_fft_r2r_redft00_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT00_Y27, FftR2rKind::Redft00);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT00_Y27, RealToRealFftKind::Redft00);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT10_n27)]
     fn test_fft_r2r_redft10_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT10_Y27, FftR2rKind::Redft10);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT10_Y27, RealToRealFftKind::Redft10);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT01_n27)]
     fn test_fft_r2r_redft01_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT01_Y27, FftR2rKind::Redft01);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT01_Y27, RealToRealFftKind::Redft01);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT11_n27)]
     fn test_fft_r2r_redft11_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT11_Y27, FftR2rKind::Redft11);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_REDFT11_Y27, RealToRealFftKind::Redft11);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT00_n27)]
     fn test_fft_r2r_rodft00_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT00_Y27, FftR2rKind::Rodft00);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT00_Y27, RealToRealFftKind::Rodft00);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT10_n27)]
     fn test_fft_r2r_rodft10_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT10_Y27, FftR2rKind::Rodft10);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT10_Y27, RealToRealFftKind::Rodft10);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT01_n27)]
     fn test_fft_r2r_rodft01_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT01_Y27, FftR2rKind::Rodft01);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT01_Y27, RealToRealFftKind::Rodft01);
     }
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_RODFT11_n27)]
     fn test_fft_r2r_rodft11_n27() {
-        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT11_Y27, FftR2rKind::Rodft11);
+        fft_r2r_test(&FFTDATA_R2R_X27, &FFTDATA_R2R_RODFT11_Y27, RealToRealFftKind::Rodft11);
     }
 }

@@ -8,7 +8,8 @@ use std::f32::consts::PI;
 
 /// Continuous-phase frequency-shift keying demodulator
 #[derive(Clone, Debug)]
-pub struct Cpfskdem {
+#[doc(alias = "Cpfskdem")]
+pub struct CpfskDemodulator {
     bps: usize, // bits per symbol
     k: usize,   // samples per symbol
     beta: f32,  // filter bandwidth parameter
@@ -24,7 +25,7 @@ pub struct Cpfskdem {
     z_prime: Complex32, // previous filtered sample
 }
 
-impl Cpfskdem {
+impl CpfskDemodulator {
     /// Create CPFSK demodulator object (frequency demodulator)
     ///
     /// # Arguments
@@ -224,7 +225,7 @@ impl Cpfskdem {
 
 #[cfg(test)]
 mod tests {
-    use super::super::cpfskmod::Cpfskmod;
+    use super::super::cpfskmod::CpfskModulator;
     use super::*;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
@@ -233,25 +234,25 @@ mod tests {
     #[autotest_annotate(autotest_cpfskmodem_config)]
     fn test_cpfskmodem_config() {
         // test creating invalid modulator objects
-        assert!(Cpfskmod::new(0, 0.5, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // bps is less than 1
-        assert!(Cpfskmod::new(1, 0.0, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // h (mod index) is out of range
-        assert!(Cpfskmod::new(1, 0.5, 0, 12, 0.25, CpfskFilterType::Square).is_err()); // k is too small
-        assert!(Cpfskmod::new(1, 0.5, 5, 12, 0.25, CpfskFilterType::Square).is_err()); // k is not even
-        assert!(Cpfskmod::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err()); // m is too small
-        assert!(Cpfskmod::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err()); // beta is too small
-        assert!(Cpfskmod::new(1, 0.5, 4, 12, 7.22, CpfskFilterType::Square).is_err()); // beta is too large
+        assert!(CpfskModulator::new(0, 0.5, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // bps is less than 1
+        assert!(CpfskModulator::new(1, 0.0, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // h (mod index) is out of range
+        assert!(CpfskModulator::new(1, 0.5, 0, 12, 0.25, CpfskFilterType::Square).is_err()); // k is too small
+        assert!(CpfskModulator::new(1, 0.5, 5, 12, 0.25, CpfskFilterType::Square).is_err()); // k is not even
+        assert!(CpfskModulator::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err()); // m is too small
+        assert!(CpfskModulator::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err()); // beta is too small
+        assert!(CpfskModulator::new(1, 0.5, 4, 12, 7.22, CpfskFilterType::Square).is_err()); // beta is too large
 
         // test creating invalid demodulator objects
-        assert!(Cpfskdem::new(0, 0.5, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // bps is less than 1
-        assert!(Cpfskdem::new(1, 0.0, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // h (mod index) is out of range
-        assert!(Cpfskdem::new(1, 0.5, 0, 12, 0.25, CpfskFilterType::Square).is_err()); // k is too small
-        assert!(Cpfskdem::new(1, 0.5, 5, 12, 0.25, CpfskFilterType::Square).is_err()); // k is not even
-        assert!(Cpfskdem::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err()); // m is too small
-        assert!(Cpfskdem::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err()); // beta is too small
-        assert!(Cpfskdem::new(1, 0.5, 4, 12, 7.22, CpfskFilterType::Square).is_err()); // beta is too large
+        assert!(CpfskDemodulator::new(0, 0.5, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // bps is less than 1
+        assert!(CpfskDemodulator::new(1, 0.0, 4, 12, 0.25, CpfskFilterType::Square).is_err()); // h (mod index) is out of range
+        assert!(CpfskDemodulator::new(1, 0.5, 0, 12, 0.25, CpfskFilterType::Square).is_err()); // k is too small
+        assert!(CpfskDemodulator::new(1, 0.5, 5, 12, 0.25, CpfskFilterType::Square).is_err()); // k is not even
+        assert!(CpfskDemodulator::new(1, 0.5, 4, 0, 0.25, CpfskFilterType::Square).is_err()); // m is too small
+        assert!(CpfskDemodulator::new(1, 0.5, 4, 12, 0.0, CpfskFilterType::Square).is_err()); // beta is too small
+        assert!(CpfskDemodulator::new(1, 0.5, 4, 12, 7.22, CpfskFilterType::Square).is_err()); // beta is too large
 
         // create modulator object and check configuration
-        let mod_ = Cpfskmod::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
+        let mod_ = CpfskModulator::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
         assert_eq!(mod_.get_bits_per_symbol(), 1);
         assert_abs_diff_eq!(mod_.get_modulation_index(), 0.5);
         assert_eq!(mod_.get_samples_per_symbol(), 4);
@@ -259,7 +260,7 @@ mod tests {
         assert_eq!(mod_.get_type(), CpfskFilterType::Square);
 
         // create demodulator object and check configuration
-        let dem = Cpfskdem::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
+        let dem = CpfskDemodulator::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
         assert_eq!(dem.get_bits_per_symbol(), 1);
         assert_abs_diff_eq!(dem.get_modulation_index(), 0.5);
         assert_eq!(dem.get_samples_per_symbol(), 4);
@@ -270,40 +271,40 @@ mod tests {
     #[test]
     fn test_cpfskdem_create() {
         // valid creation
-        let result = Cpfskdem::new(2, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_ok());
 
         // invalid bps
-        let result = Cpfskdem::new(0, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(0, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid modulation index
-        let result = Cpfskdem::new(2, 0.0, 4, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.0, 4, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid k (odd)
-        let result = Cpfskdem::new(2, 0.5, 3, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.5, 3, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid k (too small)
-        let result = Cpfskdem::new(2, 0.5, 1, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.5, 1, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid m
-        let result = Cpfskdem::new(2, 0.5, 4, 0, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.5, 4, 0, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid beta
-        let result = Cpfskdem::new(2, 0.5, 4, 3, 0.0, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.5, 4, 3, 0.0, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
-        let result = Cpfskdem::new(2, 0.5, 4, 3, 1.5, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.5, 4, 3, 1.5, CpfskFilterType::Gmsk);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_cpfskdem_msk() {
-        let result = Cpfskdem::new_msk(4);
+        let result = CpfskDemodulator::new_msk(4);
         assert!(result.is_ok());
         let dem = result.unwrap();
         assert_eq!(dem.get_bits_per_symbol(), 1);
@@ -313,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_cpfskdem_gmsk() {
-        let result = Cpfskdem::new_gmsk(4, 3, 0.35);
+        let result = CpfskDemodulator::new_gmsk(4, 3, 0.35);
         assert!(result.is_ok());
         let dem = result.unwrap();
         assert_eq!(dem.get_bits_per_symbol(), 1);
@@ -322,7 +323,7 @@ mod tests {
     }
 
     /// Helper function for mod/demod testing
-    fn cpfskmodem_test_mod_demod(mut mod_: Cpfskmod, mut dem: Cpfskdem) {
+    fn cpfskmodem_test_mod_demod(mut mod_: CpfskModulator, mut dem: CpfskDemodulator) {
         let delay = mod_.get_delay() + dem.get_delay();
         let k = mod_.get_samples_per_symbol();
         let bps = mod_.get_bits_per_symbol();
@@ -333,7 +334,7 @@ mod tests {
         let mut sym_out = vec![0usize; num_symbols];
 
         // modulate, demodulate
-        let mut ms = crate::sequence::MSequence::from_degree(7).unwrap();
+        let mut ms = crate::sequence::MaximalLengthSequence::from_degree(7).unwrap();
         for i in 0..num_symbols {
             // generate random symbol
             sym_in[i] = ms.generate_symbol(bps as u32) as usize;
@@ -360,8 +361,8 @@ mod tests {
 
     /// Helper function to create mod/dem pair and test
     fn cpfskmodem_test_harness(bps: usize, h: f32, k: usize, m: usize, beta: f32, filter_type: CpfskFilterType) {
-        let mod_ = Cpfskmod::new(bps, h, k, m, beta, filter_type).unwrap();
-        let dem = Cpfskdem::new(bps, h, k, m, beta, filter_type).unwrap();
+        let mod_ = CpfskModulator::new(bps, h, k, m, beta, filter_type).unwrap();
+        let dem = CpfskDemodulator::new(bps, h, k, m, beta, filter_type).unwrap();
 
         // ensure values match
         assert_eq!(mod_.get_samples_per_symbol(), k);
@@ -518,7 +519,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_cpfskmodem_spectrum)]
     fn test_cpfskmodem_spectrum() {
-        use crate::fft::spgram::Spgram;
+        use crate::fft::spgram::SpectralPeriodogram;
         use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
         use rand::Rng;
 
@@ -529,7 +530,7 @@ mod tests {
         let m = 3;
         let beta = 0.35;
         let filter_type = CpfskFilterType::RcosPartial;
-        let mut mod_ = Cpfskmod::new(bps, h, k, m, beta, filter_type).unwrap();
+        let mut mod_ = CpfskModulator::new(bps, h, k, m, beta, filter_type).unwrap();
 
         // spectral periodogram options
         let nfft = 2400;
@@ -542,7 +543,7 @@ mod tests {
         }
 
         // modulate several symbols and run result through spectral estimate
-        let mut periodogram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut periodogram = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
         let mut rng = rand::thread_rng();
         for _ in 0..num_symbols {
             let s = (rng.gen::<u32>() & ((1 << bps) - 1)) as usize;

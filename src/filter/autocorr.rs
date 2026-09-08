@@ -9,7 +9,8 @@ use num_complex::ComplexFloat;
 
 /// Computes auto-correlation with a fixed lag on input signals
 #[derive(Clone, Debug)]
-pub struct AutoCorr<T> {
+#[doc(alias = "AutoCorr")]
+pub struct Autocorrelator<T> {
     window_size: usize,
     delay: usize,
 
@@ -21,7 +22,7 @@ pub struct AutoCorr<T> {
     ie2: usize,    // read index
 }
 
-impl<T> AutoCorr<T>
+impl<T> Autocorrelator<T>
 where
     T: Copy + Default + ComplexFloat<Real = f32>,
     [T]: DotProd<T, Output = T>,
@@ -139,7 +140,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sequence::MSequence;
+    use crate::sequence::MaximalLengthSequence;
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
 
@@ -162,7 +163,7 @@ mod tests {
         let delay = 7;
 
         // deterministic pseudo-random QPSK-ish sequence
-        let mut ms = MSequence::from_degree(9).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(9).unwrap();
         let x: Vec<Complex32> = (0..96)
             .map(|_| {
                 let s = ms.generate_symbol(2);
@@ -172,7 +173,7 @@ mod tests {
             })
             .collect();
 
-        let mut q = AutoCorr::new(window_size, delay).unwrap();
+        let mut q = Autocorrelator::new(window_size, delay).unwrap();
         for (n, &xn) in x.iter().enumerate() {
             q.push(xn);
             let rxx = q.execute();
@@ -187,11 +188,11 @@ mod tests {
         let window_size = 12;
         let delay = 5;
 
-        let mut ms = MSequence::from_degree(7).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(7).unwrap();
         let xr: Vec<f32> = (0..64).map(|_| if ms.advance() != 0 { 1.0 } else { -1.0 }).collect();
         let xc: Vec<Complex32> = xr.iter().map(|&v| Complex32::new(v, 0.0)).collect();
 
-        let mut q = AutoCorr::new(window_size, delay).unwrap();
+        let mut q = Autocorrelator::new(window_size, delay).unwrap();
         for (n, &xn) in xr.iter().enumerate() {
             q.push(xn);
             let rxx = q.execute();
@@ -206,7 +207,7 @@ mod tests {
         let num_reps = 8;
         let window_size = 64;
 
-        let mut ms = MSequence::from_degree(9).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(9).unwrap();
         let sequence: Vec<Complex32> = (0..sequence_len)
             .map(|_| {
                 let s = ms.generate_symbol(2);
@@ -217,7 +218,7 @@ mod tests {
             .collect();
 
         // delay equal to the repetition period
-        let mut q = AutoCorr::new(window_size, sequence_len).unwrap();
+        let mut q = Autocorrelator::new(window_size, sequence_len).unwrap();
 
         // write the sequence repeatedly, then pad with zeros
         let mut x: Vec<Complex32> = Vec::new();
@@ -249,7 +250,7 @@ mod tests {
     #[test]
     fn test_autocorr_get_energy() {
         let window_size = 8;
-        let mut q = AutoCorr::new(window_size, 3).unwrap();
+        let mut q = Autocorrelator::new(window_size, 3).unwrap();
 
         // empty buffer has no energy
         assert_abs_diff_eq!(q.get_energy(), 0.0, epsilon = 1e-6);
@@ -275,15 +276,15 @@ mod tests {
 
     #[test]
     fn test_autocorr_config() {
-        assert!(AutoCorr::<Complex32>::new(0, 4).is_err());
-        assert!(AutoCorr::<f32>::new(0, 0).is_err());
+        assert!(Autocorrelator::<Complex32>::new(0, 4).is_err());
+        assert!(Autocorrelator::<f32>::new(0, 0).is_err());
 
-        let q = AutoCorr::<Complex32>::new(16, 4).unwrap();
+        let q = Autocorrelator::<Complex32>::new(16, 4).unwrap();
         assert_eq!(q.window_size(), 16);
         assert_eq!(q.delay(), 4);
 
         // output array must be at least as long as the input
-        let mut q = AutoCorr::<Complex32>::new(8, 2).unwrap();
+        let mut q = Autocorrelator::<Complex32>::new(8, 2).unwrap();
         let x = [Complex32::new(1.0, 0.0); 4];
         let mut rxx = [Complex32::new(0.0, 0.0); 3];
         assert!(q.execute_block(&x, &mut rxx).is_err());

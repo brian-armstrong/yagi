@@ -1,11 +1,11 @@
 use super::peak_hold::PeakHold;
-use crate::buffer::{WDelay, Window};
+use crate::buffer::{Window, WindowedDelay};
 
 // inspired by the excellent post at https://signalsmith-audio.co.uk/writing/2022/limiter/ by Geraint Luff
 
 pub struct Limiter {
     limit: f32,
-    delay: WDelay<f32>,
+    delay: WindowedDelay<f32>,
     peak_hold: PeakHold,
     release_scale: f32,
     last_release: f32,
@@ -23,7 +23,7 @@ impl Limiter {
         }
         Self {
             limit,
-            delay: WDelay::new(attack).unwrap(),
+            delay: WindowedDelay::new(attack).unwrap(),
             peak_hold: PeakHold::new(attack + hold),
             release_scale: 1.0 - (-1.0 / release as f32).exp(),
             last_release: 1.0,

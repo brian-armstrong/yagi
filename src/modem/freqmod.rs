@@ -3,14 +3,15 @@ use num_complex::Complex32;
 use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
-pub struct Freqmod {
+#[doc(alias = "Freqmod")]
+pub struct FrequencyModulator {
     ref_: f32,                    // phase reference: kf*2^16
     sincos_table_len: usize,      // table length: 10 bits
     sincos_table_phase: u16,      // accumulated phase: 16 bits
     sincos_table: Vec<Complex32>, // sin|cos look-up table: 2^10 entries
 }
 
-impl Freqmod {
+impl FrequencyModulator {
     pub fn new(kf: f32) -> Result<Self> {
         // Validate input
         if kf <= 0.0 {
@@ -70,19 +71,19 @@ mod tests {
 
     #[test]
     fn test_freqmod_create() {
-        let result = Freqmod::new(0.5);
+        let result = FrequencyModulator::new(0.5);
         assert!(result.is_ok());
 
-        let result = Freqmod::new(0.0);
+        let result = FrequencyModulator::new(0.0);
         assert!(result.is_err());
 
-        let result = Freqmod::new(-1.0);
+        let result = FrequencyModulator::new(-1.0);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_freqmod_modulate() -> Result<()> {
-        let mut mod_ = Freqmod::new(0.5)?;
+        let mut mod_ = FrequencyModulator::new(0.5)?;
 
         // Test single sample modulation
         let result = mod_.modulate(1.0);

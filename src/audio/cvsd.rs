@@ -17,7 +17,8 @@ use crate::filter::IirFilter;
 /// Pre-emphasis/de-emphasis filters boost the high-frequency contributions
 /// of the signal to improve intelligibility.
 #[derive(Debug, Clone)]
-pub struct Cvsd {
+#[doc(alias = "Cvsd")]
+pub struct CvsdCodec {
     num_bits: usize,
     bitref: u8,  // historical bit reference
     bitmask: u8, // historical bit reference mask
@@ -40,7 +41,7 @@ struct Filters {
     postfilt: IirFilter<f32, f32>, // de-emphasis filter (decoder)
 }
 
-impl Cvsd {
+impl CvsdCodec {
     /// create cvsd object
     ///
     ///  num_bits   :   number of adjacent bits to observe
@@ -219,8 +220,8 @@ mod tests {
         let alpha = 0.90;
 
         // create cvsd codecs
-        let mut cvsd_encoder = Cvsd::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
-        let mut cvsd_decoder = Cvsd::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
+        let mut cvsd_encoder = CvsdCodec::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
+        let mut cvsd_decoder = CvsdCodec::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
         // no print check
         assert_eq!(cvsd_encoder.num_bits(), nbits);
         assert_eq!(cvsd_encoder.zeta(), zeta);
@@ -251,8 +252,8 @@ mod tests {
         let zeta = 1.5;
         let alpha = 0.90;
 
-        let mut cvsd_encoder = Cvsd::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
-        let mut cvsd_decoder = Cvsd::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
+        let mut cvsd_encoder = CvsdCodec::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
+        let mut cvsd_decoder = CvsdCodec::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
 
         let mut phi = 0.0f32;
         let dphi = 0.1f32;
@@ -283,20 +284,20 @@ mod tests {
     #[autotest_annotate(autotest_cvsd_invalid_config)]
     fn test_cvsd_invalid_config() {
         // test invalid configuration to new()
-        assert!(Cvsd::new(0, 2.0).is_err()); // too few bits
-        assert!(Cvsd::new(2, 1.0).is_err()); // zeta too small
-        assert!(Cvsd::new(2, 0.5).is_err()); // zeta too small
-        assert!(Cvsd::new(2, 2.0).unwrap().with_conditioning(-1.0).is_err()); // alpha too small
-        assert!(Cvsd::new(2, 2.0).unwrap().with_conditioning(2.0).is_err()); // alpha too large
+        assert!(CvsdCodec::new(0, 2.0).is_err()); // too few bits
+        assert!(CvsdCodec::new(2, 1.0).is_err()); // zeta too small
+        assert!(CvsdCodec::new(2, 0.5).is_err()); // zeta too small
+        assert!(CvsdCodec::new(2, 2.0).unwrap().with_conditioning(-1.0).is_err()); // alpha too small
+        assert!(CvsdCodec::new(2, 2.0).unwrap().with_conditioning(2.0).is_err()); // alpha too large
 
         // liquid silently allows num_bits too big, but we don't
-        assert!(Cvsd::new(9, 2.0).is_err());
+        assert!(CvsdCodec::new(9, 2.0).is_err());
     }
 
     #[test]
     fn test_cvsd_encode8_matches_encode() {
-        let mut single = Cvsd::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
-        let mut block = Cvsd::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
+        let mut single = CvsdCodec::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
+        let mut block = CvsdCodec::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
 
         let mut phi = 0.0f32;
         for _ in 0..32 {
@@ -319,8 +320,8 @@ mod tests {
 
     #[test]
     fn test_cvsd_decode8_matches_decode() {
-        let mut single = Cvsd::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
-        let mut block = Cvsd::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
+        let mut single = CvsdCodec::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
+        let mut block = CvsdCodec::new(3, 1.5).unwrap().with_conditioning(0.9).unwrap();
 
         let mut buf = [0.0f32; 8];
         for byte in [0x00u8, 0xff, 0xa5, 0x5a, 0x01, 0x80, 0x3c] {
@@ -335,7 +336,7 @@ mod tests {
     #[test]
     fn test_cvsd_reference_bounded() {
         for &(nbits, zeta) in &[(1usize, 1.5f32), (3, 1.5), (8, 2.0)] {
-            let mut q = Cvsd::new(nbits, zeta).unwrap();
+            let mut q = CvsdCodec::new(nbits, zeta).unwrap();
             // all-ones drives delta to its maximum and the reference to +1
             for _ in 0..200 {
                 let y = q.decode(1);

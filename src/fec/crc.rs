@@ -308,12 +308,12 @@ pub fn crc32_generate_key(msg: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sequence::MSequence;
+    use crate::sequence::MaximalLengthSequence;
     use test_macro::autotest_annotate;
 
     fn crc_test(scheme: CrcScheme, n: usize) {
         // generate pseudo-random data
-        let mut ms = MSequence::from_degree(9).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(9).unwrap();
         let data: Vec<u8> = (0..n).map(|_| ms.generate_symbol(8) as u8).collect();
 
         // generate key

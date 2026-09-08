@@ -10,8 +10,8 @@ use num_complex::Complex32;
 use crate::channel::noise::NoiseSource;
 use crate::error::{Error, Result};
 use crate::filter::{FirFilter, IirFilter};
-use crate::nco::{Osc, OscScheme};
-use crate::sequence::MSequence;
+use crate::nco::{Nco, NcoBackend};
+use crate::sequence::MaximalLengthSequence;
 
 /// maximum multipath filter length liquid accepts
 const MAX_MULTIPATH_LEN: usize = 1000;
@@ -34,7 +34,7 @@ pub struct Channel {
     enabled_carrier: bool, // carrier offset enabled?
     dphi: f32,             // carrier frequency offset [radians/sample]
     phi: f32,              // carrier phase offset [radians]
-    nco: Osc,              // oscillator
+    nco: Nco,              // oscillator
 
     // multi-path channel
     enabled_multipath: bool,                         // enable multi-path channel filter?
@@ -66,7 +66,7 @@ impl Channel {
             enabled_carrier: false,
             dphi: 0.0,
             phi: 0.0,
-            nco: Osc::new(OscScheme::Vco),
+            nco: Nco::new(NcoBackend::InterpolatedLookupTable),
 
             enabled_multipath: false,
             channel_filter: FirFilter::new(&h).expect("unit filter is valid"),
@@ -182,7 +182,7 @@ impl Channel {
 
         // generate random coefficients using m-sequence generator
         self.h[0] = Complex32::new(1.0, 0.0);
-        let mut ms = MSequence::from_degree(14)?;
+        let mut ms = MaximalLengthSequence::from_degree(14)?;
         for i in 1..h_len {
             let vi = ms.generate_symbol(8) as f32 / 256.0 - 0.5;
             let vq = ms.generate_symbol(8) as f32 / 256.0 - 0.5;

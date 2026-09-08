@@ -12,7 +12,8 @@ use num_complex::{Complex32, ComplexFloat};
 /// Finite impulse response polyphase filterbank channelizer with rational rate
 /// (output rate Fs / P)
 #[derive(Clone, Debug)]
-pub struct FirPfbChannelizerR<T> {
+#[doc(alias = "FirPfbChannelizerR")]
+pub struct RationalPolyphaseChannelizer<T> {
     num_channels: usize,
     decim_rate: usize,
     m: usize,
@@ -30,7 +31,7 @@ pub struct FirPfbChannelizerR<T> {
     base_index: usize,
 }
 
-impl<T> FirPfbChannelizerR<T>
+impl<T> RationalPolyphaseChannelizer<T>
 where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + Into<Complex32> + From<Complex32>,
     [f32]: DotProd<T, Output = T>,
@@ -200,8 +201,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
-    use crate::framing::MSource;
+    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::framing::MultiSignalSource;
     use crate::modem::modem::ModulationScheme;
     use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
     use num_complex::Complex32;
@@ -215,19 +216,19 @@ mod tests {
         let h = filter::fir_design_kaiser(h_len, 0.1, 60.0, 0.0).unwrap();
 
         // check invalid function calls
-        assert!(FirPfbChannelizerR::<Complex32>::new(0, 76, 12, &h).is_err()); // too few channels
-        assert!(FirPfbChannelizerR::<Complex32>::new(64, 0, 12, &h).is_err()); // decimation rate too small
-        assert!(FirPfbChannelizerR::<Complex32>::new(64, 76, 0, &h).is_err()); // filter delay too small
-        assert!(FirPfbChannelizerR::<Complex32>::new(64, 76, 12, &[]).is_err()); // coefficients empty
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new(0, 76, 12, &h).is_err()); // too few channels
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new(64, 0, 12, &h).is_err()); // decimation rate too small
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new(64, 76, 0, &h).is_err()); // filter delay too small
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new(64, 76, 12, &[]).is_err()); // coefficients empty
 
         // kaiser
-        assert!(FirPfbChannelizerR::<Complex32>::new_kaiser(0, 76, 12, 60.0).is_err()); // too few channels
-        assert!(FirPfbChannelizerR::<Complex32>::new_kaiser(64, 0, 12, 60.0).is_err()); // decimation rate too small
-        assert!(FirPfbChannelizerR::<Complex32>::new_kaiser(64, 76, 0, 60.0).is_err()); // filter delay too small
-        assert!(FirPfbChannelizerR::<Complex32>::new_kaiser(64, 76, 12, -1.0).is_err()); // stop-band suppression out of range
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new_kaiser(0, 76, 12, 60.0).is_err()); // too few channels
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new_kaiser(64, 0, 12, 60.0).is_err()); // decimation rate too small
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new_kaiser(64, 76, 0, 60.0).is_err()); // filter delay too small
+        assert!(RationalPolyphaseChannelizer::<Complex32>::new_kaiser(64, 76, 12, -1.0).is_err()); // stop-band suppression out of range
 
         // create proper object and test configurations
-        let q = FirPfbChannelizerR::<Complex32>::new_kaiser(64, 76, 12, 60.0).unwrap();
+        let q = RationalPolyphaseChannelizer::<Complex32>::new_kaiser(64, 76, 12, 60.0).unwrap();
         assert_eq!(q.get_num_channels(), 64);
         assert_eq!(q.get_decim_rate(), 76);
         assert_eq!(q.get_m(), 12);
@@ -244,10 +245,10 @@ mod tests {
         let as_ = 60.0f32; // filter stop-band attenuation
 
         // create filterbank object
-        let mut qa = FirPfbChannelizerR::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
+        let mut qa = RationalPolyphaseChannelizer::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
 
         // create multi-signal source generator
-        let mut gen = MSource::new_default().unwrap();
+        let mut gen = MultiSignalSource::new_default().unwrap();
 
         // add signals (fc, bw, gain)
         gen.add_noise(0.0, 1.0, -60.0).unwrap(); // wide-band noise
@@ -267,9 +268,9 @@ mod tests {
 
         // create spectral periodograms
         let nfft = 2400;
-        let mut p0 = Spgram::<Complex32>::from_nfft(nfft).unwrap();
-        let mut c1 = Spgram::<Complex32>::from_nfft(nfft).unwrap();
-        let mut c3 = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut p0 = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut c1 = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut c3 = SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap();
 
         // run channelizer
         let mut buf_0 = vec![Complex32::new(0.0, 0.0); p];
@@ -335,7 +336,7 @@ mod tests {
         let m = 12;
         let as_ = 60.0f32;
 
-        let mut qa = FirPfbChannelizerR::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
+        let mut qa = RationalPolyphaseChannelizer::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
 
         let num_blocks = 10000;
         let mut channel_power = vec![0.0f32; m_channels];
@@ -397,7 +398,7 @@ mod tests {
             for freq_idx in 0..32 {
                 let tone_freq = (freq_idx as f32) / 32.0 - 0.5;
 
-                let mut qa = FirPfbChannelizerR::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
+                let mut qa = RationalPolyphaseChannelizer::<Complex32>::new_kaiser(m_channels, p, m, as_).unwrap();
 
                 let num_blocks = 1000;
                 let mut channel_power = 0.0f32;

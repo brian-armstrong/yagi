@@ -8,15 +8,16 @@ use crate::error::{Error, Result};
 use crate::fec::{CrcScheme, FecScheme};
 use crate::modem::modem::{Modem, ModulationScheme};
 
-use super::qpacketsymbolizer::QPacketSymbolizer;
+use super::qpacketsymbolizer::PacketSymbolizer;
 
 /// packet encoder/decoder with modulation
 #[derive(Debug, Clone)]
-pub struct QPacketModem {
+#[doc(alias = "QPacketModem")]
+pub struct PacketModem {
     /// payload modulator/demodulator
     mod_payload: Modem,
     /// packet encoder/decoder producing symbol indices
-    sym: QPacketSymbolizer,
+    sym: PacketSymbolizer,
     /// payload symbols (modulator input, demod output)
     payload_mod: Vec<u8>,
     /// soft values from the demodulator, bps per symbol
@@ -27,7 +28,7 @@ pub struct QPacketModem {
     evm: f32,
 }
 
-impl QPacketModem {
+impl PacketModem {
     /// create packet encoder with a particular configuration
     ///
     ///  payload_len :   length of payload message [bytes]
@@ -47,7 +48,7 @@ impl QPacketModem {
         let bits_per_symbol = mod_payload.get_bps();
 
         // create the symbolizer, which owns the packetizer
-        let sym = QPacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol)?;
+        let sym = PacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol)?;
 
         Ok(Self {
             mod_payload,
@@ -270,7 +271,7 @@ mod tests {
         ms: ModulationScheme,
     ) {
         // create and configure packet encoder/decoder object
-        let mut q = QPacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
+        let mut q = PacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
 
         // initialize payload
         let mut rng = rand::thread_rng();
@@ -352,7 +353,7 @@ mod tests {
         let snr_db = 25.0f32;
 
         // create and configure packet encoder/decoder object
-        let mut q = QPacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
+        let mut q = PacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
 
         // get frame length and allocate memory for frame samples
         let frame_len = q.frame_len();
@@ -386,7 +387,7 @@ mod tests {
         let ms = ModulationScheme::Pi4Dqpsk;
 
         // create and configure packet encoder/decoder object
-        let mut q0 = QPacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
+        let mut q0 = PacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
 
         // initialize buffers
         let frame_len = q0.frame_len();

@@ -11,13 +11,13 @@ fn nco_static_lut_index_shifted_pi2(index: usize) -> usize {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct Nco {
+pub(super) struct LookupTableBackend {
     sintab: Vec<f32>,
 }
 
-impl Nco {
+impl LookupTableBackend {
     pub fn new() -> Self {
-        let mut nco = Nco { sintab: vec![0.0; NCO_STATIC_LUT_SIZE] };
+        let mut nco = LookupTableBackend { sintab: vec![0.0; NCO_STATIC_LUT_SIZE] };
 
         // Initialize sine table
         for i in 0..NCO_STATIC_LUT_SIZE {

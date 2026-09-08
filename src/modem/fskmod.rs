@@ -1,18 +1,19 @@
 use crate::error::{Error, Result};
-use crate::nco::{Osc, OscScheme};
+use crate::nco::{Nco, NcoBackend};
 use num_complex::Complex32;
 use std::f32::consts::PI;
 
 #[derive(Clone, Debug)]
-pub struct Fskmod {
+#[doc(alias = "Fskmod")]
+pub struct FskModulator {
     k: usize,        // samples per symbol
     bandwidth: f32,  // filter bandwidth parameter
     m_size: usize,   // constellation size (M)
     m2: f32,         // (M-1)/2
-    oscillator: Osc, // nco
+    oscillator: Nco, // nco
 }
 
-impl Fskmod {
+impl FskModulator {
     pub fn new(m: usize, k: usize, bandwidth: f32) -> Result<Self> {
         // Validate input
         if m == 0 {
@@ -28,7 +29,7 @@ impl Fskmod {
         let m_size = 1 << m;
         let m2 = 0.5 * (m_size - 1) as f32;
 
-        let mut q = Self { k, bandwidth, m_size, m2, oscillator: Osc::new(OscScheme::Vco) };
+        let mut q = Self { k, bandwidth, m_size, m2, oscillator: Nco::new(NcoBackend::InterpolatedLookupTable) };
 
         q.reset()?;
         Ok(q)
@@ -78,22 +79,22 @@ mod tests {
 
     #[test]
     fn test_fskmod_create() {
-        let result = Fskmod::new(2, 8, 0.25);
+        let result = FskModulator::new(2, 8, 0.25);
         assert!(result.is_ok());
 
-        let result = Fskmod::new(0, 8, 0.25);
+        let result = FskModulator::new(0, 8, 0.25);
         assert!(result.is_err());
 
-        let result = Fskmod::new(2, 1, 0.25);
+        let result = FskModulator::new(2, 1, 0.25);
         assert!(result.is_err());
 
-        let result = Fskmod::new(2, 8, 0.6);
+        let result = FskModulator::new(2, 8, 0.6);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_fskmod_modulate() -> Result<()> {
-        let mut mod_ = Fskmod::new(2, 8, 0.25)?;
+        let mut mod_ = FskModulator::new(2, 8, 0.25)?;
         let mut y = vec![Complex32::new(0.0, 0.0); 8];
 
         // Test valid symbol
@@ -118,12 +119,12 @@ mod tests {
         let bw = 0.2345; // occupied bandwidth
 
         // create modulator/demodulator pair
-        let mut mod_orig = Fskmod::new(m, k, bw)?;
+        let mut mod_orig = FskModulator::new(m, k, bw)?;
 
         let num_symbols = 96;
         let mut buf_orig = vec![Complex32::new(0.0, 0.0); k];
         let mut buf_copy = vec![Complex32::new(0.0, 0.0); k];
-        let mut ms = crate::sequence::MSequence::from_degree(7)?;
+        let mut ms = crate::sequence::MaximalLengthSequence::from_degree(7)?;
 
         // run original object
         for _ in 0..num_symbols {

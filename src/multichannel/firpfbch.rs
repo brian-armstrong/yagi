@@ -19,7 +19,8 @@ pub enum ChannelizerType {
 
 /// Finite impulse response polyphase filterbank channelizer
 #[derive(Clone, Debug)]
-pub struct FirPfbChannelizer<T, Coeff = f32> {
+#[doc(alias = "FirPfbChannelizer")]
+pub struct PolyphaseChannelizer<T, Coeff = f32> {
     channelizer_type: ChannelizerType,
     num_channels: usize,
     p: usize,
@@ -35,7 +36,7 @@ pub struct FirPfbChannelizer<T, Coeff = f32> {
     x_out: Vec<Complex32>,
 }
 
-impl<T, Coeff> FirPfbChannelizer<T, Coeff>
+impl<T, Coeff> PolyphaseChannelizer<T, Coeff>
 where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + Into<Complex32> + From<Complex32>,
     Coeff: Clone + Copy + From<f32>,
@@ -294,19 +295,19 @@ mod tests {
     use test_macro::autotest_annotate;
 
     use crate::filter::FirFilter;
-    use crate::sequence::MSequence;
+    use crate::sequence::MaximalLengthSequence;
 
     #[test]
     #[autotest_annotate(autotest_firpfbch_crcf_config)]
     fn test_firpfbch_crcf_config() {
         // check invalid function calls
-        assert!(FirPfbChannelizer::<Complex32>::new(ChannelizerType::Analyzer, 0, 12, &[]).is_err());
-        assert!(FirPfbChannelizer::<Complex32>::new(ChannelizerType::Analyzer, 76, 0, &[]).is_err());
+        assert!(PolyphaseChannelizer::<Complex32>::new(ChannelizerType::Analyzer, 0, 12, &[]).is_err());
+        assert!(PolyphaseChannelizer::<Complex32>::new(ChannelizerType::Analyzer, 76, 0, &[]).is_err());
 
-        assert!(FirPfbChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 0, 12, 60.0).is_err());
-        assert!(FirPfbChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 0, 60.0).is_err());
+        assert!(PolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 0, 12, 60.0).is_err());
+        assert!(PolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 0, 60.0).is_err());
 
-        assert!(FirPfbChannelizer::<Complex32>::new_rnyquist(
+        assert!(PolyphaseChannelizer::<Complex32>::new_rnyquist(
             ChannelizerType::Analyzer,
             0,
             12,
@@ -314,7 +315,7 @@ mod tests {
             filter::FirFilterShape::Arkaiser
         )
         .is_err());
-        assert!(FirPfbChannelizer::<Complex32>::new_rnyquist(
+        assert!(PolyphaseChannelizer::<Complex32>::new_rnyquist(
             ChannelizerType::Analyzer,
             76,
             0,
@@ -322,7 +323,7 @@ mod tests {
             filter::FirFilterShape::Arkaiser
         )
         .is_err());
-        assert!(FirPfbChannelizer::<Complex32>::new_rnyquist(
+        assert!(PolyphaseChannelizer::<Complex32>::new_rnyquist(
             ChannelizerType::Analyzer,
             76,
             12,
@@ -332,7 +333,7 @@ mod tests {
         .is_err()); // invalid filter excess bandwidth
 
         // create proper object and test configurations
-        let q = FirPfbChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 12, 60.0).unwrap();
+        let q = PolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 12, 60.0).unwrap();
         assert_eq!(q.get_type(), ChannelizerType::Analyzer);
         assert_eq!(q.get_num_channels(), 76);
         assert_eq!(q.get_m(), 12);
@@ -352,13 +353,14 @@ mod tests {
         // generate filter coefficients using m-sequence
         let h_len = p * num_channels;
         let mut h = vec![0.0f32; h_len];
-        let mut ms = MSequence::from_degree(6).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(6).unwrap();
         for i in 0..h_len {
             h[i] = ms.generate_symbol(2) as f32 - 1.5;
         }
 
         // create filterbank object
-        let mut q = FirPfbChannelizer::<Complex32, f32>::new(ChannelizerType::Analyzer, num_channels, p, &h).unwrap();
+        let mut q =
+            PolyphaseChannelizer::<Complex32, f32>::new(ChannelizerType::Analyzer, num_channels, p, &h).unwrap();
 
         // create filter object
         let mut f = FirFilter::<Complex32, f32>::new(&h).unwrap();
@@ -369,7 +371,7 @@ mod tests {
         let mut y1 = vec![vec![Complex32::new(0.0, 0.0); num_channels]; num_symbols];
 
         // generate input sequence (complex noise)
-        let mut ms = MSequence::from_degree(7).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(7).unwrap();
         for i in 0..num_samples {
             y[i] = Complex32::new(
                 0.1 * std::f32::consts::FRAC_1_SQRT_2 * (ms.generate_symbol(2) as f32 - 1.5),
@@ -430,7 +432,7 @@ mod tests {
         // generate filter coefficients using m-sequence
         let h_len = p * num_channels;
         let mut h = vec![0.0f32; h_len];
-        let mut ms = MSequence::from_degree(6).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(6).unwrap();
         for i in 0..h_len {
             h[i] = ms.generate_symbol(2) as f32 - 1.5;
         }
@@ -440,14 +442,14 @@ mod tests {
 
         // create filterbank channelizer object
         let mut q =
-            FirPfbChannelizer::<Complex32, f32>::new(ChannelizerType::Synthesizer, num_channels, p, &h).unwrap();
+            PolyphaseChannelizer::<Complex32, f32>::new(ChannelizerType::Synthesizer, num_channels, p, &h).unwrap();
 
         let mut y_input = vec![vec![Complex32::new(0.0, 0.0); num_channels]; num_symbols];
         let mut y0 = vec![Complex32::new(0.0, 0.0); num_samples];
         let mut y1 = vec![Complex32::new(0.0, 0.0); num_samples];
 
         // generate input sequence (complex noise)
-        let mut ms = MSequence::from_degree(7).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(7).unwrap();
         for i in 0..num_symbols {
             for j in 0..num_channels {
                 y_input[i][j] = Complex32::new(
@@ -516,14 +518,14 @@ mod tests {
         // generate complex filter coefficients using m-sequence
         let h_len = p * num_channels;
         let mut h = vec![Complex32::new(0.0, 0.0); h_len];
-        let mut ms = MSequence::from_degree(6).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(6).unwrap();
         for i in 0..h_len {
             h[i] = Complex32::new(ms.generate_symbol(2) as f32 - 1.5, ms.generate_symbol(2) as f32 - 1.5);
         }
 
         // create filterbank object with complex coefficients
         let mut q =
-            FirPfbChannelizer::<Complex32, Complex32>::new(ChannelizerType::Analyzer, num_channels, p, &h).unwrap();
+            PolyphaseChannelizer::<Complex32, Complex32>::new(ChannelizerType::Analyzer, num_channels, p, &h).unwrap();
 
         // create filter object
         let mut f = FirFilter::<Complex32, Complex32>::new(&h).unwrap();
@@ -534,7 +536,7 @@ mod tests {
         let mut y1 = vec![vec![Complex32::new(0.0, 0.0); num_channels]; num_symbols];
 
         // generate input sequence (complex noise)
-        let mut ms = MSequence::from_degree(7).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(7).unwrap();
         for i in 0..num_samples {
             y[i] = Complex32::new(
                 0.1 * std::f32::consts::FRAC_1_SQRT_2 * (ms.generate_symbol(2) as f32 - 1.5),

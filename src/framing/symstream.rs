@@ -4,7 +4,8 @@ use crate::modem::modem::{Modem, ModulationScheme};
 use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
-pub struct SymStream {
+#[doc(alias = "SymStream")]
+pub struct SymbolStream {
     filter_type: FirFilterShape,
     k: usize,
     m: usize,
@@ -16,7 +17,7 @@ pub struct SymStream {
     buf_index: usize,
 }
 
-impl SymStream {
+impl SymbolStream {
     pub fn new() -> Result<Self> {
         Self::new_linear(FirFilterShape::Arkaiser, 2, 7, 0.3, ModulationScheme::Qpsk)
     }
@@ -108,7 +109,7 @@ impl SymStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
+    use crate::fft::spgram::SpectralPeriodogram;
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
@@ -118,7 +119,7 @@ mod tests {
         let ftype = FirFilterShape::Arkaiser;
         let beta = 0.30;
         let ms = ModulationScheme::Qpsk;
-        let mut gen = SymStream::new_linear(ftype, k, m, beta, ms).unwrap();
+        let mut gen = SymbolStream::new_linear(ftype, k, m, beta, ms).unwrap();
         let delay = gen.get_delay();
         let tol = 2.0 + k as f32; // error tolerance (fairly wide due to random signal)
 
@@ -263,7 +264,7 @@ mod tests {
         // create object
         let ftype = FirFilterShape::Arkaiser;
         let ms = ModulationScheme::Qpsk;
-        let mut gen = SymStream::new_linear(ftype, k, m, beta, ms).unwrap();
+        let mut gen = SymbolStream::new_linear(ftype, k, m, beta, ms).unwrap();
         gen.set_gain(1.0 / (k as f32).sqrt());
 
         // spectral periodogram options
@@ -271,7 +272,7 @@ mod tests {
         let num_samples = 192000 * k; // number of samples
 
         // create spectral periodogram
-        let mut periodogram = Spgram::from_nfft(nfft).unwrap();
+        let mut periodogram = SpectralPeriodogram::from_nfft(nfft).unwrap();
 
         let buf_len = 1337;
         let mut buf = vec![Complex32::new(0.0, 0.0); buf_len];
@@ -330,7 +331,7 @@ mod tests {
     fn test_symstreamcf_copy() {
         // create objects
         let mut gen_orig =
-            SymStream::new_linear(FirFilterShape::Arkaiser, 5, 17, 0.27, ModulationScheme::Dpsk4).unwrap();
+            SymbolStream::new_linear(FirFilterShape::Arkaiser, 5, 17, 0.27, ModulationScheme::Dpsk4).unwrap();
 
         // allocate memory for buffers
         let buf_len = 1337;

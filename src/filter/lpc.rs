@@ -89,7 +89,7 @@ pub fn levinson(r: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
 mod tests {
     use super::*;
     use crate::filter::iir::IirFilter;
-    use crate::sequence::msequence::MSequence;
+    use crate::sequence::msequence::MaximalLengthSequence;
     use test_macro::autotest_annotate;
 
     fn lpc_test_harness(n: usize, p: usize, fc: f32, tol: f32) -> Result<()> {
@@ -100,7 +100,7 @@ mod tests {
         let mut y = vec![0.0; n]; // input sequence (filtered noise)
 
         // generate input signal (filtered noise)
-        let mut ms = MSequence::from_degree(15)?;
+        let mut ms = MaximalLengthSequence::from_degree(15)?;
         for i in 0..n {
             // rough, but simple uniform random variable
             let v = ms.generate_symbol(10) as f32 / 1023.0 - 0.5;

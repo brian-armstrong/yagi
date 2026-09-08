@@ -1,23 +1,24 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::FirPfbFilter;
+use crate::filter::FirPolyphaseFilter;
 
 use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
-pub struct Fdelay<T, Coeff = T> {
+#[doc(alias = "Fdelay")]
+pub struct FractionalDelay<T, Coeff = T> {
     nmax: usize,
     m: usize,
     npfb: usize,
     delay: f32,
     w: Window<T>,
-    pfb: FirPfbFilter<T, Coeff>,
+    pfb: FirPolyphaseFilter<T, Coeff>,
     w_index: usize,
     f_index: usize,
 }
 
-impl<T, Coeff> Fdelay<T, Coeff>
+impl<T, Coeff> FractionalDelay<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
@@ -35,7 +36,7 @@ where
         }
 
         let w = Window::new(nmax + 1)?;
-        let pfb = FirPfbFilter::new_kaiser_simple(npfb, m)?;
+        let pfb = FirPolyphaseFilter::new_kaiser_simple(npfb, m)?;
 
         let mut q = Self { nmax, m, npfb, delay: 0.0, w, pfb, w_index: nmax - 1, f_index: 0 };
 
@@ -149,7 +150,7 @@ mod tests {
         let num_samples = nmax + 2 * m; // number of samples to run
 
         // create delay object and split delay between set and adjust methods
-        let mut q = Fdelay::<f32, f32>::new(nmax, m, npfb).unwrap();
+        let mut q = FractionalDelay::<f32, f32>::new(nmax, m, npfb).unwrap();
         q.set_delay(delay * 0.7).unwrap();
         q.adjust_delay(delay * 0.3).unwrap();
 
@@ -251,15 +252,15 @@ mod tests {
         let npfb: usize = 64;
 
         // test invalid configurations, normal construction
-        assert!(Fdelay::<f32, f32>::new(0, m, npfb).is_err());
-        assert!(Fdelay::<f32, f32>::new(nmax, 0, npfb).is_err());
-        assert!(Fdelay::<f32, f32>::new(nmax, m, 0).is_err());
+        assert!(FractionalDelay::<f32, f32>::new(0, m, npfb).is_err());
+        assert!(FractionalDelay::<f32, f32>::new(nmax, 0, npfb).is_err());
+        assert!(FractionalDelay::<f32, f32>::new(nmax, m, 0).is_err());
 
         // test invalid configurations, default construction
-        assert!(Fdelay::<f32, f32>::from_max_delay(0).is_err());
+        assert!(FractionalDelay::<f32, f32>::from_max_delay(0).is_err());
 
         // create proper object but test invalid internal configurations
-        let mut q = Fdelay::<f32, f32>::from_max_delay(nmax).unwrap();
+        let mut q = FractionalDelay::<f32, f32>::from_max_delay(nmax).unwrap();
 
         assert!(q.set_delay(-1.0).is_err());
         assert!(q.set_delay(nmax as f32 + 1.0).is_err());
@@ -274,8 +275,8 @@ mod tests {
     #[autotest_annotate(autotest_fdelay_rrrf_push_write)]
     fn test_fdelay_rrrf_push_write() {
         // create two identical objects
-        let mut q0 = Fdelay::<f32, f32>::from_max_delay(200).unwrap();
-        let mut q1 = Fdelay::<f32, f32>::from_max_delay(200).unwrap();
+        let mut q0 = FractionalDelay::<f32, f32>::from_max_delay(200).unwrap();
+        let mut q1 = FractionalDelay::<f32, f32>::from_max_delay(200).unwrap();
 
         // set identical delays
         q0.set_delay(7.2280).unwrap();
@@ -301,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_fdelay_crcf_execute_block_matches_execute() {
-        let mut reference = Fdelay::<Complex32, f32>::new(9, 4, 16).unwrap();
+        let mut reference = FractionalDelay::<Complex32, f32>::new(9, 4, 16).unwrap();
         let mut block = reference.clone();
         reference.set_delay(5.375).unwrap();
         block.set_delay(5.375).unwrap();

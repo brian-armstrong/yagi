@@ -11,7 +11,8 @@ use std::ops::Mul;
 pub const SPGRAM_PSD_MIN: f32 = 1e-12;
 
 #[derive(Debug, Clone)]
-pub struct Spgram<T> {
+#[doc(alias = "Spgram")]
+pub struct SpectralPeriodogram<T> {
     // options
     nfft: usize,
     wtype: WindowType,
@@ -40,7 +41,7 @@ pub struct Spgram<T> {
     sample_rate: f32,
 }
 
-impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T>> Spgram<T>
+impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T>> SpectralPeriodogram<T>
 where
     Complex32: From<T>,
 {
@@ -67,7 +68,7 @@ where
             return Err(Error::Config("delay must be greater than 0".into()));
         }
 
-        let mut spgram = Spgram {
+        let mut spgram = SpectralPeriodogram {
             nfft,
             wtype,
             window_len,
@@ -368,9 +369,9 @@ mod tests {
 
         // create spectral periodogram
         let mut q = if wlen == 0 || delay == 0 || wtype == WindowType::Unknown {
-            Spgram::<Complex32>::from_nfft(nfft).unwrap()
+            SpectralPeriodogram::<Complex32>::from_nfft(nfft).unwrap()
         } else {
-            Spgram::<Complex32>::new(nfft, wtype, wlen, delay).unwrap()
+            SpectralPeriodogram::<Complex32>::new(nfft, wtype, wlen, delay).unwrap()
         };
 
         for _ in 0..num_samples {
@@ -489,9 +490,9 @@ mod tests {
 
     fn testbench_spgramcf_signal(nfft: usize, wtype: WindowType, fc: f32, snr_db: f32) {
         use crate::filter::FirFilterShape;
-        use crate::framing::symstreamr::SymStreamR;
+        use crate::framing::symstreamr::ArbitraryRateSymbolStream;
         use crate::modem::modem::ModulationScheme;
-        use crate::nco::{Osc, OscScheme};
+        use crate::nco::{Nco, NcoBackend};
         use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
         use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
@@ -502,9 +503,10 @@ mod tests {
         let tol = 0.5f32;
 
         // create objects
-        let mut q = Spgram::<Complex32>::new(nfft, wtype, nfft / 2, nfft / 4).unwrap();
-        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, bw, m, beta, ModulationScheme::Qpsk).unwrap();
-        let mut mixer = Osc::new(OscScheme::Vco);
+        let mut q = SpectralPeriodogram::<Complex32>::new(nfft, wtype, nfft / 2, nfft / 4).unwrap();
+        let mut gen =
+            ArbitraryRateSymbolStream::new_linear(FirFilterShape::Kaiser, bw, m, beta, ModulationScheme::Qpsk).unwrap();
+        let mut mixer = Nco::new(NcoBackend::InterpolatedLookupTable);
 
         // set parameters
         let nstd = 10f32.powf(n0 / 20.0); // noise std. dev.
@@ -591,7 +593,7 @@ mod tests {
         let delay = 200;
         let wtype = WindowType::Hamming;
         let alpha = 0.0123456f32;
-        let mut q = Spgram::<Complex32>::new(nfft, wtype, wlen, delay).unwrap();
+        let mut q = SpectralPeriodogram::<Complex32>::new(nfft, wtype, wlen, delay).unwrap();
 
         // check setting bandwidth
         assert!(q.set_alpha(0.1).is_ok());
@@ -650,19 +652,20 @@ mod tests {
     #[autotest_annotate(autotest_spgramcf_invalid_config)]
     fn test_spgramcf_invalid_config() {
         // Test invalid configurations
-        assert!(Spgram::<Complex32>::new(0, WindowType::Hamming, 100, 100).is_err()); // nfft too small
-        assert!(Spgram::<Complex32>::new(1, WindowType::Hamming, 100, 100).is_err()); // nfft too small
-        assert!(Spgram::<Complex32>::new(2, WindowType::Hamming, 100, 100).is_err()); // window length too large
-        assert!(Spgram::<Complex32>::new(400, WindowType::Hamming, 0, 200).is_err()); // window length too small
-        assert!(Spgram::<Complex32>::new(400, WindowType::Unknown, 0, 200).is_err()); // invalid window type
-                                                                                      // assert!(Spgram::<Complex32>::new(400, WindowType::NumFunctions, 200, 200).is_err()); // invalid window type (can't do in rust)
-        assert!(Spgram::<Complex32>::new(400, WindowType::Kbd, 201, 200).is_err()); // KBD must be even
-        assert!(Spgram::<Complex32>::new(400, WindowType::Hamming, 200, 0).is_err()); // delay too small
+        assert!(SpectralPeriodogram::<Complex32>::new(0, WindowType::Hamming, 100, 100).is_err()); // nfft too small
+        assert!(SpectralPeriodogram::<Complex32>::new(1, WindowType::Hamming, 100, 100).is_err()); // nfft too small
+        assert!(SpectralPeriodogram::<Complex32>::new(2, WindowType::Hamming, 100, 100).is_err()); // window length too large
+        assert!(SpectralPeriodogram::<Complex32>::new(400, WindowType::Hamming, 0, 200).is_err()); // window length too small
+        assert!(SpectralPeriodogram::<Complex32>::new(400, WindowType::Unknown, 0, 200).is_err()); // invalid window type
 
-        assert!(Spgram::<Complex32>::from_nfft(0).is_err()); // nfft too small
-        assert!(Spgram::<Complex32>::from_nfft(1).is_err()); // nfft too small
+        // assert!(SpectralPeriodogram::<Complex32>::new(400, WindowType::NumFunctions, 200, 200).is_err()); // invalid window type (can't do in rust)
+        assert!(SpectralPeriodogram::<Complex32>::new(400, WindowType::Kbd, 201, 200).is_err()); // KBD must be even
+        assert!(SpectralPeriodogram::<Complex32>::new(400, WindowType::Hamming, 200, 0).is_err()); // delay too small
 
-        let mut q = Spgram::<Complex32>::from_nfft(540).unwrap();
+        assert!(SpectralPeriodogram::<Complex32>::from_nfft(0).is_err()); // nfft too small
+        assert!(SpectralPeriodogram::<Complex32>::from_nfft(1).is_err()); // nfft too small
+
+        let mut q = SpectralPeriodogram::<Complex32>::from_nfft(540).unwrap();
         assert!(q.set_rate(-10e6).is_err());
     }
 
@@ -679,7 +682,7 @@ mod tests {
             buf[i] = 0.1 + Complex32::new(randnf(), randnf()) * nstd * (0.5f32).sqrt();
         }
 
-        let psd = Spgram::<Complex32>::estimate_psd(nfft, &buf).unwrap();
+        let psd = SpectralPeriodogram::<Complex32>::estimate_psd(nfft, &buf).unwrap();
 
         // check mask
         for i in 0..nfft {
@@ -703,7 +706,7 @@ mod tests {
             buf[i] = 1.0 + Complex32::new(randnf(), randnf()) * nstd * (0.5f32).sqrt();
         }
 
-        let psd = Spgram::<Complex32>::estimate_psd(nfft, &buf).unwrap();
+        let psd = SpectralPeriodogram::<Complex32>::estimate_psd(nfft, &buf).unwrap();
 
         // use a very loose upper mask as we have only computed a few hundred samples
         for i in 0..nfft {
@@ -725,7 +728,7 @@ mod tests {
         let nstd = 0.1f32;
 
         // create object with some odd properties
-        let mut q0 = Spgram::<Complex32>::new(nfft, WindowType::Kaiser, 960, 373).unwrap();
+        let mut q0 = SpectralPeriodogram::<Complex32>::new(nfft, WindowType::Kaiser, 960, 373).unwrap();
 
         // generate a bunch of random noise samples
         for _ in 0..num_samples {
@@ -768,8 +771,8 @@ mod tests {
         let delay = 200; // delay > window_len => gapped
         let num_samples = 40 * delay;
 
-        let mut q_clean = Spgram::<Complex32>::new(nfft, WindowType::Kaiser, window_len, delay).unwrap();
-        let mut q_garbage = Spgram::<Complex32>::new(nfft, WindowType::Kaiser, window_len, delay).unwrap();
+        let mut q_clean = SpectralPeriodogram::<Complex32>::new(nfft, WindowType::Kaiser, window_len, delay).unwrap();
+        let mut q_garbage = SpectralPeriodogram::<Complex32>::new(nfft, WindowType::Kaiser, window_len, delay).unwrap();
 
         // sample_timer starts at `delay` and counts down; a sample is in-window for
         // the next transform when the post-decrement timer is < window_len.
@@ -802,7 +805,7 @@ mod tests {
     #[autotest_annotate(autotest_spgramcf_null)]
     fn test_spgramcf_null() {
         let nfft = 1200;
-        let psd = Spgram::<Complex32>::estimate_psd(nfft, &[]).unwrap();
+        let psd = SpectralPeriodogram::<Complex32>::estimate_psd(nfft, &[]).unwrap();
 
         // value should be exactly minimum
         let psd_val = 10.0 * SPGRAM_PSD_MIN.log10();

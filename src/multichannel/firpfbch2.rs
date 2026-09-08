@@ -13,7 +13,8 @@ use super::ChannelizerType;
 
 /// Finite impulse response polyphase filterbank channelizer with output rate 2 Fs / M
 #[derive(Clone, Debug)]
-pub struct FirPfbChannelizer2<T> {
+#[doc(alias = "FirPfbChannelizer2")]
+pub struct OversampledPolyphaseChannelizer<T> {
     channelizer_type: ChannelizerType,
     num_channels: usize,
     num_channels_half: usize,
@@ -33,7 +34,7 @@ pub struct FirPfbChannelizer2<T> {
     flag: bool,
 }
 
-impl<T> FirPfbChannelizer2<T>
+impl<T> OversampledPolyphaseChannelizer<T>
 where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + Into<Complex32> + From<Complex32>,
     [f32]: DotProd<T, Output = T>,
@@ -288,9 +289,15 @@ mod tests {
 
         // create filterbank objects from prototype
         let mut qa =
-            FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_).unwrap();
-        let mut qs =
-            FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Synthesizer, num_channels, m, as_).unwrap();
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_)
+                .unwrap();
+        let mut qs = OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(
+            ChannelizerType::Synthesizer,
+            num_channels,
+            m,
+            as_,
+        )
+        .unwrap();
 
         // run channelizer
         let mut y_channels = vec![Complex32::new(0.0, 0.0); num_channels];
@@ -356,7 +363,8 @@ mod tests {
         let m = 12;
         let as_ = 80.0f32;
         let mut q_orig =
-            FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_).unwrap();
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, num_channels, m, as_)
+                .unwrap();
 
         let half = num_channels / 2;
         let mut buf_0 = vec![Complex32::new(0.0, 0.0); half];
@@ -393,16 +401,23 @@ mod tests {
     #[autotest_annotate(autotest_firpfbch2_crcf_config)]
     fn test_firpfbch2_crcf_config() {
         // check invalid function calls
-        assert!(FirPfbChannelizer2::<Complex32>::new(ChannelizerType::Analyzer, 0, 12, &[]).is_err());
-        assert!(FirPfbChannelizer2::<Complex32>::new(ChannelizerType::Analyzer, 17, 12, &[]).is_err());
-        assert!(FirPfbChannelizer2::<Complex32>::new(ChannelizerType::Analyzer, 76, 0, &[]).is_err());
+        assert!(OversampledPolyphaseChannelizer::<Complex32>::new(ChannelizerType::Analyzer, 0, 12, &[]).is_err());
+        assert!(OversampledPolyphaseChannelizer::<Complex32>::new(ChannelizerType::Analyzer, 17, 12, &[]).is_err());
+        assert!(OversampledPolyphaseChannelizer::<Complex32>::new(ChannelizerType::Analyzer, 76, 0, &[]).is_err());
 
-        assert!(FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 0, 12, 60.0).is_err());
-        assert!(FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 17, 12, 60.0).is_err());
-        assert!(FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 0, 60.0).is_err());
+        assert!(
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 0, 12, 60.0).is_err()
+        );
+        assert!(
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 17, 12, 60.0).is_err()
+        );
+        assert!(
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 0, 60.0).is_err()
+        );
 
         // create proper object and test configurations
-        let q = FirPfbChannelizer2::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 12, 60.0).unwrap();
+        let q =
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 12, 60.0).unwrap();
         assert_eq!(q.get_type(), ChannelizerType::Analyzer);
         assert_eq!(q.get_num_channels(), 76);
         assert_eq!(q.get_m(), 12);

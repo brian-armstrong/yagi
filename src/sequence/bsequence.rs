@@ -1,17 +1,18 @@
 use crate::error::{Error, Result};
-use crate::sequence::msequence::MSequence;
+use crate::sequence::msequence::MaximalLengthSequence;
 use crate::utility::bits::count_ones;
 
 /// binary sequence
 #[derive(Debug, Clone)]
-pub struct BSequence {
+#[doc(alias = "BSequence")]
+pub struct BinarySequence {
     s: Vec<u32>,
     num_bits: usize,
     num_bits_msb: usize,
     bit_mask_msb: u32,
 }
 
-impl BSequence {
+impl BinarySequence {
     pub fn new(num_bits: usize) -> Self {
         // round up to the nearest 32 (number of bits in a u32)
         let s_len = num_bits.div_ceil(32);
@@ -25,7 +26,7 @@ impl BSequence {
 
     /// initialize two sequences to complementary codes.  sequences must
     /// be of length at least 8 and a power of 2 (e.g. 8, 16, 32, 64,...)
-    pub fn create_ccodes(qa: &mut BSequence, qb: &mut BSequence) -> Result<()> {
+    pub fn create_ccodes(qa: &mut BinarySequence, qb: &mut BinarySequence) -> Result<()> {
         if qa.num_bits != qb.num_bits {
             return Err(Error::Config("sequence lengths must match".into()));
         }
@@ -72,8 +73,8 @@ impl BSequence {
         Ok(())
     }
 
-    pub fn from_msequence(ms: &mut MSequence) -> Result<Self> {
-        let mut bs = BSequence::new(ms.get_length() as usize);
+    pub fn from_msequence(ms: &mut MaximalLengthSequence) -> Result<Self> {
+        let mut bs = BinarySequence::new(ms.get_length() as usize);
         bs.reset();
         for _ in 0..ms.get_length() {
             bs.push(ms.advance());
@@ -128,7 +129,7 @@ impl BSequence {
     }
 
     /// Correlate two binary sequences together
-    pub fn correlate(&self, bs2: &BSequence) -> Result<i32> {
+    pub fn correlate(&self, bs2: &BinarySequence) -> Result<i32> {
         if self.s.len() != bs2.s.len() {
             return Err(Error::Config("binary sequences must be the same length".into()));
         }
@@ -144,7 +145,7 @@ impl BSequence {
     }
 
     /// compute the binary addition of two bit sequences
-    pub fn add(&self, bs2: &BSequence, bs3: &mut BSequence) -> Result<()> {
+    pub fn add(&self, bs2: &BinarySequence, bs3: &mut BinarySequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
         }
@@ -157,7 +158,7 @@ impl BSequence {
     }
 
     /// compute the binary multiplication of two bit sequences
-    pub fn mul(&self, bs2: &BSequence, bs3: &mut BSequence) -> Result<()> {
+    pub fn mul(&self, bs2: &BinarySequence, bs3: &mut BinarySequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
         }
@@ -193,7 +194,7 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
 
-    use crate::sequence::msequence::MSequence;
+    use crate::sequence::msequence::MaximalLengthSequence;
 
     #[test]
     #[autotest_annotate(autotest_bsequence_init)]
@@ -202,7 +203,7 @@ mod tests {
         let v = [0xf0u8, 0xcau8];
 
         // create and initialize sequence
-        let mut q = BSequence::new(16);
+        let mut q = BinarySequence::new(16);
         q.init(&v);
 
         // run tests
@@ -231,10 +232,10 @@ mod tests {
     #[autotest_annotate(autotest_bsequence_init_msequence)]
     fn test_bsequence_init_msequence() {
         // create and initialize m-sequence
-        let mut ms = MSequence::from_degree(4).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(4).unwrap();
 
         // create and initialize binary sequence on m-sequence
-        let bs = BSequence::from_msequence(&mut ms).unwrap();
+        let bs = BinarySequence::from_msequence(&mut ms).unwrap();
 
         assert_eq!(bs.get_length(), ms.get_length() as usize);
     }
@@ -249,8 +250,8 @@ mod tests {
         let v1 = [0xcbu8, 0x1eu8];
 
         // create and initialize sequences
-        let mut q0 = BSequence::new(16);
-        let mut q1 = BSequence::new(16);
+        let mut q0 = BinarySequence::new(16);
+        let mut q1 = BinarySequence::new(16);
         q0.init(&v0);
         q1.init(&v1);
 
@@ -268,13 +269,13 @@ mod tests {
         let v1 = [0xcbu8, 0x1eu8];
 
         // create and initialize sequences
-        let mut q0 = BSequence::new(16);
-        let mut q1 = BSequence::new(16);
+        let mut q0 = BinarySequence::new(16);
+        let mut q1 = BinarySequence::new(16);
         q0.init(&v0);
         q1.init(&v1);
 
         // create result sequence
-        let mut r = BSequence::new(16);
+        let mut r = BinarySequence::new(16);
         q0.add(&q1, &mut r).unwrap();
 
         // run tests
@@ -309,13 +310,13 @@ mod tests {
         let v1 = [0xcbu8, 0x1eu8];
 
         // create and initialize sequences
-        let mut q0 = BSequence::new(16);
-        let mut q1 = BSequence::new(16);
+        let mut q0 = BinarySequence::new(16);
+        let mut q1 = BinarySequence::new(16);
         q0.init(&v0);
         q1.init(&v1);
 
         // create result sequence
-        let mut r = BSequence::new(16);
+        let mut r = BinarySequence::new(16);
         q0.mul(&q1, &mut r).unwrap();
 
         // run tests
@@ -347,7 +348,7 @@ mod tests {
         let v = [0xf0u8, 0xcau8];
 
         // create and initialize sequence
-        let mut q = BSequence::new(16);
+        let mut q = BinarySequence::new(16);
         q.init(&v);
 
         // run tests
@@ -356,14 +357,14 @@ mod tests {
 
     fn complementary_codes_test(n: usize) {
         // create and initialize codes
-        let mut a = BSequence::new(n);
-        let mut b = BSequence::new(n);
-        BSequence::create_ccodes(&mut a, &mut b).unwrap();
+        let mut a = BinarySequence::new(n);
+        let mut b = BinarySequence::new(n);
+        BinarySequence::create_ccodes(&mut a, &mut b).unwrap();
 
         // generate test sequences
-        let mut ax = BSequence::new(n);
-        let mut bx = BSequence::new(n);
-        BSequence::create_ccodes(&mut ax, &mut bx).unwrap();
+        let mut ax = BinarySequence::new(n);
+        let mut bx = BinarySequence::new(n);
+        BinarySequence::create_ccodes(&mut ax, &mut bx).unwrap();
 
         for i in 0..n {
             // correlate like sequences

@@ -1,27 +1,28 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::resampler::msresamp2::{MsResamp2, ResampType};
-use crate::filter::resampler::resamp::Resamp;
+use crate::filter::resampler::msresamp2::{MultiStageHalfBandResampler, ResampType};
+use crate::filter::resampler::resamp::ArbitraryResampler;
 use crate::filter::resampler::resamp2::Resamp2Coeff;
 use std::f32;
 
 use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
-pub struct MsResamp<T, Coeff = T> {
+#[doc(alias = "MsResamp")]
+pub struct MultiStageResampler<T, Coeff = T> {
     rate: f32,
     type_: ResampType,
     rate_arbitrary: f32,
     num_halfband_stages: usize,
     buffer: Vec<T>,
     buffer_index: usize,
-    halfband_resamp: MsResamp2<T, Coeff>,
-    arbitrary_resamp: Resamp<T, Coeff>,
+    halfband_resamp: MultiStageHalfBandResampler<T, Coeff>,
+    arbitrary_resamp: ArbitraryResampler<T, Coeff>,
     // intermediate scratch for block execute
     block_scratch: Vec<T>,
 }
 
-impl<T, Coeff> MsResamp<T, Coeff>
+impl<T, Coeff> MultiStageResampler<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Resamp2Coeff,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
@@ -56,10 +57,11 @@ where
         let buffer = vec![T::default(); buffer_len];
 
         // TODO: Compute appropriate cut-off frequency
-        let halfband_resamp = MsResamp2::new(type_, num_halfband_stages, 0.4, 0.0, as_)?;
+        let halfband_resamp = MultiStageHalfBandResampler::new(type_, num_halfband_stages, 0.4, 0.0, as_)?;
 
         // TODO: Compute appropriate parameters
-        let arbitrary_resamp = Resamp::new(rate_arbitrary, 7, f32::min(0.515 * rate_arbitrary, 0.49), as_, 256)?;
+        let arbitrary_resamp =
+            ArbitraryResampler::new(rate_arbitrary, 7, f32::min(0.515 * rate_arbitrary, 0.49), as_, 256)?;
 
         Ok(Self {
             rate,
@@ -298,9 +300,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
+    use crate::fft::spgram::SpectralPeriodogram;
     use crate::filter::FirFilterShape;
-    use crate::framing::symstreamr::SymStreamR;
+    use crate::framing::symstreamr::ArbitraryRateSymbolStream;
     use crate::math::WindowType;
     use crate::modem::modem::ModulationScheme;
     use crate::random::randnf;
@@ -317,10 +319,12 @@ mod tests {
         let tol = 0.5f32;
 
         // create and configure objects
-        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
-        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, r * bw, 25, 0.2, ModulationScheme::Qpsk).unwrap();
+        let mut q = SpectralPeriodogram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
+        let mut gen =
+            ArbitraryRateSymbolStream::new_linear(FirFilterShape::Kaiser, r * bw, 25, 0.2, ModulationScheme::Qpsk)
+                .unwrap();
         gen.set_gain((bw as f32).sqrt());
-        let mut resamp = MsResamp::<Complex32, f32>::new(r, as_).unwrap();
+        let mut resamp = MultiStageResampler::<Complex32, f32>::new(r, as_).unwrap();
 
         // generate samples and push through spgram object
         let buf_len = 256;
@@ -373,7 +377,7 @@ mod tests {
     fn testbench_msresamp_crcf_num_output(rate: f32) {
         // create object
         let as_ = 60.0f32;
-        let mut q = MsResamp::<Complex32, f32>::new(rate, as_).unwrap();
+        let mut q = MultiStageResampler::<Complex32, f32>::new(rate, as_).unwrap();
 
         // sizes to test in sequence
         let s = if rate < 0.1 { 131 } else { 1 }; // scale: increase for large decimation rates
@@ -447,7 +451,7 @@ mod tests {
     fn testbench_msresamp_crcf_max_input(rate: f32) {
         // create object
         let as_ = 60.0f32;
-        let mut q = MsResamp::<Complex32, f32>::new(rate, as_).unwrap();
+        let mut q = MultiStageResampler::<Complex32, f32>::new(rate, as_).unwrap();
 
         // allocate buffers
         let max_input = 2048;
@@ -522,7 +526,7 @@ mod tests {
     fn test_msresamp_crcf_copy() {
         // create initial object
         let rate = 0.071239213987520f32;
-        let mut q0 = MsResamp::<Complex32, f32>::new(rate, 60.0f32).unwrap();
+        let mut q0 = MultiStageResampler::<Complex32, f32>::new(rate, 60.0f32).unwrap();
 
         // run samples through filter
         let buf_len = 640;
@@ -564,7 +568,7 @@ mod tests {
 
     fn testbench_block_matches(rate: f32) {
         let as_ = 60.0f32;
-        let mut q_sample = MsResamp::<Complex32, f32>::new(rate, as_).unwrap();
+        let mut q_sample = MultiStageResampler::<Complex32, f32>::new(rate, as_).unwrap();
         let mut q_block = q_sample.clone();
 
         let n_in = 600;
@@ -598,7 +602,7 @@ mod tests {
 
     fn testbench_block_streaming(rate: f32) {
         let as_ = 60.0f32;
-        let mut q_sample = MsResamp::<Complex32, f32>::new(rate, as_).unwrap();
+        let mut q_sample = MultiStageResampler::<Complex32, f32>::new(rate, as_).unwrap();
         let mut q_block = q_sample.clone();
 
         // uneven chunk sizes, deliberately not multiples of any halfband group
@@ -640,7 +644,7 @@ mod tests {
     #[test]
     fn test_msresamp_block_rejects_short_output() {
         for &rate in &[5.3f32, 0.19] {
-            let mut q = MsResamp::<Complex32, f32>::new(rate, 60.0).unwrap();
+            let mut q = MultiStageResampler::<Complex32, f32>::new(rate, 60.0).unwrap();
             let mut q_ref = q.clone();
             let x: Vec<Complex32> = (0..100).map(|_| Complex32::new(randnf(), randnf())).collect();
             let n_out = q.get_num_output(x.len());

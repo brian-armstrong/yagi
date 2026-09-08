@@ -3,12 +3,13 @@ use num_complex::Complex32;
 use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
-pub struct Freqdem {
+#[doc(alias = "Freqdem")]
+pub struct FrequencyDemodulator {
     ref_: f32,          // 1/(2*pi*kf)
     r_prime: Complex32, // previous received sample
 }
 
-impl Freqdem {
+impl FrequencyDemodulator {
     pub fn new(kf: f32) -> Result<Self> {
         // Validate input
         if kf <= 0.0 {
@@ -51,25 +52,25 @@ impl Freqdem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modem::freqmod::Freqmod;
+    use crate::modem::freqmod::FrequencyModulator;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
     #[test]
     fn test_freqdem_create() {
-        let result = Freqdem::new(0.5);
+        let result = FrequencyDemodulator::new(0.5);
         assert!(result.is_ok());
 
-        let result = Freqdem::new(0.0);
+        let result = FrequencyDemodulator::new(0.0);
         assert!(result.is_err());
 
-        let result = Freqdem::new(-1.0);
+        let result = FrequencyDemodulator::new(-1.0);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_freqdem_demodulate() -> Result<()> {
-        let mut dem = Freqdem::new(0.5)?;
+        let mut dem = FrequencyDemodulator::new(0.5)?;
 
         // Test single sample demodulation
         let r = Complex32::new(1.0, 0.0);
@@ -96,8 +97,8 @@ mod tests {
         let tol = 5e-2f32;
 
         // create mod/demod objects
-        let mut mod_ = Freqmod::new(kf)?; // modulator
-        let mut dem = Freqdem::new(kf)?; // demodulator
+        let mut mod_ = FrequencyModulator::new(kf)?; // modulator
+        let mut dem = FrequencyDemodulator::new(kf)?; // demodulator
 
         // allocate arrays
         let mut m = vec![0.0f32; num_samples]; // message signal

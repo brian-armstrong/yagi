@@ -3,45 +3,53 @@ use std::f32::consts::PI;
 
 use crate::error::{Error, Result};
 
-use super::direct::Direct;
-use super::nco::Nco;
-use super::vco::Vco;
+use super::direct::DirectBackend;
+use super::interpolated::InterpolatedLookupTableBackend;
+use super::nco::LookupTableBackend;
 
 const PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 
+/// Numerical strategy used to synthesize the oscillator's sine and cosine.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum OscScheme {
+#[doc(alias = "OscScheme")]
+pub enum NcoBackend {
+    /// Evaluate sine and cosine directly.
     Direct,
-    Nco,
-    Vco,
+    /// Use the nearest entry in a sine lookup table.
+    LookupTable,
+    /// Linearly interpolate between entries in a sine lookup table.
+    InterpolatedLookupTable,
 }
 
 #[derive(Debug, Clone)]
-enum OscData {
-    Direct(Direct),
-    Nco(Nco),
-    Vco(Vco),
+enum BackendState {
+    Direct(DirectBackend),
+    LookupTable(LookupTableBackend),
+    InterpolatedLookupTable(InterpolatedLookupTableBackend),
 }
 
-/// Main NCO structure
+/// Numerically controlled oscillator with a 32-bit phase accumulator.
 #[derive(Debug, Clone)]
-pub struct Osc {
+#[doc(alias = "Osc")]
+pub struct Nco {
     theta: u32,
     d_theta: u32,
     alpha: f32,
     beta: f32,
-    osc: OscData,
+    osc: BackendState,
 }
 
-impl Osc {
+impl Nco {
     /// Create a new NCO
-    pub fn new(osc_scheme: OscScheme) -> Self {
-        let data = match osc_scheme {
-            OscScheme::Direct => OscData::Direct(Direct::new()),
-            OscScheme::Nco => OscData::Nco(Nco::new()),
-            OscScheme::Vco => OscData::Vco(Vco::new()),
+    pub fn new(backend: NcoBackend) -> Self {
+        let data = match backend {
+            NcoBackend::Direct => BackendState::Direct(DirectBackend::new()),
+            NcoBackend::LookupTable => BackendState::LookupTable(LookupTableBackend::new()),
+            NcoBackend::InterpolatedLookupTable => {
+                BackendState::InterpolatedLookupTable(InterpolatedLookupTableBackend::new())
+            }
         };
-        let mut nco = Osc { theta: 0, d_theta: 0, alpha: 0.0, beta: 0.0, osc: data };
+        let mut nco = Nco { theta: 0, d_theta: 0, alpha: 0.0, beta: 0.0, osc: data };
 
         // Set default PLL bandwidth
         nco.pll_set_bandwidth(PLL_BANDWIDTH_DEFAULT);
@@ -101,27 +109,27 @@ impl Osc {
     /// Compute sine of internal phase
     pub fn sin(&self) -> f32 {
         match self.osc {
-            OscData::Direct(ref direct) => direct.sin(self.theta),
-            OscData::Nco(ref nco) => nco.sin(self.theta),
-            OscData::Vco(ref vco) => vco.sin(self.theta),
+            BackendState::Direct(ref direct) => direct.sin(self.theta),
+            BackendState::LookupTable(ref nco) => nco.sin(self.theta),
+            BackendState::InterpolatedLookupTable(ref vco) => vco.sin(self.theta),
         }
     }
 
     /// Compute cosine of internal phase
     pub fn cos(&self) -> f32 {
         match self.osc {
-            OscData::Direct(ref direct) => direct.cos(self.theta),
-            OscData::Nco(ref nco) => nco.cos(self.theta),
-            OscData::Vco(ref vco) => vco.cos(self.theta),
+            BackendState::Direct(ref direct) => direct.cos(self.theta),
+            BackendState::LookupTable(ref nco) => nco.cos(self.theta),
+            BackendState::InterpolatedLookupTable(ref vco) => vco.cos(self.theta),
         }
     }
 
     /// Compute sine and cosine of internal phase
     pub fn sin_cos(&self) -> (f32, f32) {
         match self.osc {
-            OscData::Direct(ref direct) => direct.sin_cos(self.theta),
-            OscData::Nco(ref nco) => nco.sin_cos(self.theta),
-            OscData::Vco(ref vco) => vco.sin_cos(self.theta),
+            BackendState::Direct(ref direct) => direct.sin_cos(self.theta),
+            BackendState::LookupTable(ref nco) => nco.sin_cos(self.theta),
+            BackendState::InterpolatedLookupTable(ref vco) => vco.sin_cos(self.theta),
         }
     }
 
@@ -134,33 +142,33 @@ impl Osc {
     pub fn sin_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
         let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
         match self.osc {
-            OscData::Direct(ref direct) => direct.sin(theta) * scale,
-            OscData::Nco(ref nco) => nco.sin(theta) * scale,
-            OscData::Vco(ref vco) => vco.sin(theta) * scale,
+            BackendState::Direct(ref direct) => direct.sin(theta) * scale,
+            BackendState::LookupTable(ref nco) => nco.sin(theta) * scale,
+            BackendState::InterpolatedLookupTable(ref vco) => vco.sin(theta) * scale,
         }
     }
 
     pub fn cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
         let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
         match self.osc {
-            OscData::Direct(ref direct) => direct.cos(theta) * scale,
-            OscData::Nco(ref nco) => nco.cos(theta) * scale,
-            OscData::Vco(ref vco) => vco.cos(theta) * scale,
+            BackendState::Direct(ref direct) => direct.cos(theta) * scale,
+            BackendState::LookupTable(ref nco) => nco.cos(theta) * scale,
+            BackendState::InterpolatedLookupTable(ref vco) => vco.cos(theta) * scale,
         }
     }
 
     pub fn sin_cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> (f32, f32) {
         let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
         match self.osc {
-            OscData::Direct(ref direct) => {
+            BackendState::Direct(ref direct) => {
                 let (sin, cos) = direct.sin_cos(theta);
                 (sin * scale, cos * scale)
             }
-            OscData::Nco(ref nco) => {
+            BackendState::LookupTable(ref nco) => {
                 let (sin, cos) = nco.sin_cos(theta);
                 (sin * scale, cos * scale)
             }
-            OscData::Vco(ref vco) => {
+            BackendState::InterpolatedLookupTable(ref vco) => {
                 let (sin, cos) = vco.sin_cos(theta);
                 (sin * scale, cos * scale)
             }
@@ -232,9 +240,9 @@ impl Osc {
 
 #[cfg(test)]
 mod tests {
-    use crate::fft::spgram::Spgram;
+    use crate::fft::spgram::SpectralPeriodogram;
     use crate::math::windows::{hann, WindowType};
-    use crate::nco::{Osc, OscScheme};
+    use crate::nco::{Nco, NcoBackend};
     use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
     use lazy_static::lazy_static;
     use num_complex::Complex;
@@ -245,7 +253,7 @@ mod tests {
     // value, taking the shorter way around the accumulator word so that values
     // straddling the wrap (0x00000000 vs 0xffffffff) compare as adjacent.
     fn constrain_error(theta: f32, expected: u32) -> u32 {
-        let phase = Osc::constrain(theta);
+        let phase = Nco::constrain(theta);
         let error = if phase > expected { phase - expected } else { expected - phase };
         if error < 0x80000000 {
             error
@@ -305,7 +313,7 @@ mod tests {
     #[autotest_annotate(autotest_nco_crcf_copy)]
     fn test_nco_crcf_copy() {
         // create and initialize object
-        let mut nco_0 = Osc::new(OscScheme::Vco);
+        let mut nco_0 = Nco::new(NcoBackend::InterpolatedLookupTable);
         nco_0.set_phase(1.23456);
         nco_0.set_frequency(5.67890);
         nco_0.pll_set_bandwidth(0.011);
@@ -336,7 +344,7 @@ mod tests {
     fn test_nco_config() {
         // this autotest is very simplistic, and most of its negative conditions
         // are invalid in Rust
-        let _nco = Osc::new(OscScheme::Nco);
+        let _nco = Nco::new(NcoBackend::LookupTable);
     }
 
     // Helper function to calculate phase/frequency error
@@ -353,7 +361,7 @@ mod tests {
 
     // Test phase-locked loop
     fn nco_crcf_pll_test(
-        scheme: OscScheme,
+        scheme: NcoBackend,
         phase_offset: f32,
         freq_offset: f32,
         pll_bandwidth: f32,
@@ -361,8 +369,8 @@ mod tests {
         tol: f32,
     ) {
         // Create NCO objects
-        let mut nco_tx = Osc::new(scheme);
-        let mut nco_rx = Osc::new(scheme);
+        let mut nco_tx = Nco::new(scheme);
+        let mut nco_rx = Nco::new(scheme);
 
         // Initialize objects
         nco_tx.set_phase(phase_offset);
@@ -411,14 +419,14 @@ mod tests {
             let num_steps = (32.0 / bw) as usize;
 
             // Test various phase offsets
-            nco_crcf_pll_test(OscScheme::Nco, -PI / 1.1, 0.0, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, -PI / 2.0, 0.0, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, -PI / 4.0, 0.0, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, -PI / 8.0, 0.0, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, PI / 8.0, 0.0, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, PI / 4.0, 0.0, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, PI / 2.0, 0.0, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, PI / 1.1, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 1.1, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 2.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 4.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 8.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 8.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 4.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 2.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 1.1, 0.0, bw, num_steps, tol);
         }
     }
 
@@ -433,21 +441,21 @@ mod tests {
             let num_steps = (32.0 / bw) as usize;
 
             // Test various frequency offsets
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, -0.8, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, -0.4, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, -0.2, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, -0.1, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, 0.1, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, 0.2, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, 0.4, bw, num_steps, tol);
-            nco_crcf_pll_test(OscScheme::Nco, 0.0, 0.8, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.8, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.4, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.2, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.1, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.1, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.2, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.4, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.8, bw, num_steps, tol);
         }
     }
 
     // Autotest helper function
-    fn nco_crcf_phase_test(scheme: OscScheme, theta: f32, expected_cos: f32, expected_sin: f32, tol: f32) {
+    fn nco_crcf_phase_test(scheme: NcoBackend, theta: f32, expected_cos: f32, expected_sin: f32, tol: f32) {
         // Create object
-        let mut nco = Osc::new(scheme);
+        let mut nco = Nco::new(scheme);
 
         // Set phase
         nco.set_phase(theta);
@@ -479,32 +487,32 @@ mod tests {
         // Error tolerance (higher for NCO)
         let tol = 0.02;
 
-        nco_crcf_phase_test(OscScheme::Nco, -6.283185307, 1.000000000, 0.000000000, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -6.195739393, 0.996179042, 0.087334510, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -5.951041106, 0.945345356, 0.326070787, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -5.131745978, 0.407173250, 0.913350943, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -4.748043551, 0.035647016, 0.999364443, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -3.041191113, -0.994963998, -0.100232943, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -1.947799864, -0.368136099, -0.929771914, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -1.143752030, 0.414182352, -0.910193924, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -1.029377689, 0.515352252, -0.856978446, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -0.174356887, 0.984838307, -0.173474811, tol);
-        nco_crcf_phase_test(OscScheme::Nco, -0.114520496, 0.993449692, -0.114270338, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 0.000000000, 1.000000000, 0.000000000, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 1.436080000, 0.134309213, 0.990939471, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 2.016119855, -0.430749878, 0.902471353, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 2.996498473, -0.989492293, 0.144585621, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 3.403689755, -0.965848729, -0.259106603, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 3.591162483, -0.900634128, -0.434578148, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 5.111428476, 0.388533479, -0.921434607, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 5.727585681, 0.849584319, -0.527452828, tol);
-        nco_crcf_phase_test(OscScheme::Nco, 6.283185307, 1.000000000, -0.000000000, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -6.283185307, 1.000000000, 0.000000000, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -6.195739393, 0.996179042, 0.087334510, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -5.951041106, 0.945345356, 0.326070787, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -5.131745978, 0.407173250, 0.913350943, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -4.748043551, 0.035647016, 0.999364443, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -3.041191113, -0.994963998, -0.100232943, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -1.947799864, -0.368136099, -0.929771914, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -1.143752030, 0.414182352, -0.910193924, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -1.029377689, 0.515352252, -0.856978446, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -0.174356887, 0.984838307, -0.173474811, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -0.114520496, 0.993449692, -0.114270338, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 0.000000000, 1.000000000, 0.000000000, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 1.436080000, 0.134309213, 0.990939471, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 2.016119855, -0.430749878, 0.902471353, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 2.996498473, -0.989492293, 0.144585621, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 3.403689755, -0.965848729, -0.259106603, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 3.591162483, -0.900634128, -0.434578148, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 5.111428476, 0.388533479, -0.921434607, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 5.727585681, 0.849584319, -0.527452828, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 6.283185307, 1.000000000, -0.000000000, tol);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_basic)]
     fn test_nco_basic() {
-        let mut nco = Osc::new(OscScheme::Nco);
+        let mut nco = Nco::new(NcoBackend::LookupTable);
 
         let tol = 1e-4; // Error tolerance
         let f = 2.0 * PI / 64.0; // Frequency to test
@@ -557,7 +565,7 @@ mod tests {
         let tol = 0.05;
 
         // initialize nco object
-        let mut nco = Osc::new(OscScheme::Nco);
+        let mut nco = Nco::new(NcoBackend::LookupTable);
         nco.set_frequency(f);
         nco.set_phase(phi);
 
@@ -601,7 +609,7 @@ mod tests {
         }
 
         // initialize nco object
-        let mut nco = Osc::new(OscScheme::Nco);
+        let mut nco = Nco::new(NcoBackend::LookupTable);
         nco.set_frequency(f);
         nco.set_phase(phi);
 
@@ -620,14 +628,14 @@ mod tests {
         }
     }
 
-    fn testbench_nco_crcf_mix(scheme: OscScheme, phase: f32, frequency: f32) {
+    fn testbench_nco_crcf_mix(scheme: NcoBackend, phase: f32, frequency: f32) {
         use rand::Rng;
         // options
         let buf_len = 1200;
         let tol = 1e-2;
 
         // create and initialize object
-        let mut nco = Osc::new(scheme);
+        let mut nco = Nco::new(scheme);
         nco.set_phase(phase);
         nco.set_frequency(frequency);
 
@@ -662,128 +670,128 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_0)]
     fn test_nco_crcf_mix_nco_0() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 0.000, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_1)]
     fn test_nco_crcf_mix_nco_1() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 1.234, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 1.234, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_2)]
     fn test_nco_crcf_mix_nco_2() {
-        testbench_nco_crcf_mix(OscScheme::Nco, -1.234, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, -1.234, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_3)]
     fn test_nco_crcf_mix_nco_3() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 99.000, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 99.000, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_4)]
     fn test_nco_crcf_mix_nco_4() {
-        testbench_nco_crcf_mix(OscScheme::Nco, PI, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, PI, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_5)]
     fn test_nco_crcf_mix_nco_5() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 0.000, PI);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, PI);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_6)]
     fn test_nco_crcf_mix_nco_6() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 0.000, -PI);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, -PI);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_7)]
     fn test_nco_crcf_mix_nco_7() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 0.000, 0.123);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, 0.123);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_8)]
     fn test_nco_crcf_mix_nco_8() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 0.000, -0.123);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, -0.123);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_nco_9)]
     fn test_nco_crcf_mix_nco_9() {
-        testbench_nco_crcf_mix(OscScheme::Nco, 0.000, 1e-5);
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, 1e-5);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_0)]
     fn test_nco_crcf_mix_vco_0() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 0.000, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_1)]
     fn test_nco_crcf_mix_vco_1() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 1.234, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 1.234, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_2)]
     fn test_nco_crcf_mix_vco_2() {
-        testbench_nco_crcf_mix(OscScheme::Vco, -1.234, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, -1.234, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_3)]
     fn test_nco_crcf_mix_vco_3() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 99.000, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 99.000, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_4)]
     fn test_nco_crcf_mix_vco_4() {
-        testbench_nco_crcf_mix(OscScheme::Vco, PI, 0.000);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, PI, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_5)]
     fn test_nco_crcf_mix_vco_5() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 0.000, PI);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, PI);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_6)]
     fn test_nco_crcf_mix_vco_6() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 0.000, -PI);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, -PI);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_7)]
     fn test_nco_crcf_mix_vco_7() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 0.000, 0.123);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, 0.123);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_8)]
     fn test_nco_crcf_mix_vco_8() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 0.000, -0.123);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, -0.123);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_mix_vco_9)]
     fn test_nco_crcf_mix_vco_9() {
-        testbench_nco_crcf_mix(OscScheme::Vco, 0.000, 1e-5);
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, 1e-5);
     }
 
-    fn nco_crcf_spectrum_test(scheme: OscScheme, freq: f32) {
+    fn nco_crcf_spectrum_test(scheme: NcoBackend, freq: f32) {
         let num_samples = 1 << 16;
         let nfft: usize = 9600;
 
-        let mut nco = Osc::new(scheme);
+        let mut nco = Nco::new(scheme);
         nco.set_frequency(2.0 * PI * freq);
 
         let buf_len = 3 * nfft;
@@ -793,7 +801,7 @@ mod tests {
             buf_0[i] = Complex::new(1.0 / (nfft as f32).sqrt(), 0.0);
         }
 
-        let mut psd = Spgram::new(nfft, WindowType::BlackmanHarris, nfft, nfft / 2).unwrap();
+        let mut psd = SpectralPeriodogram::new(nfft, WindowType::BlackmanHarris, nfft, nfft / 2).unwrap();
 
         while psd.get_num_samples_total() < num_samples {
             nco.mix_block_up(&buf_0, &mut buf_1).unwrap();
@@ -819,65 +827,65 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f00)]
     fn test_nco_crcf_spectrum_nco_0() {
-        nco_crcf_spectrum_test(OscScheme::Nco, 0.000);
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.000);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f01)]
     fn test_nco_crcf_spectrum_nco_1() {
-        nco_crcf_spectrum_test(OscScheme::Nco, 0.1234);
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.1234);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f02)]
     fn test_nco_crcf_spectrum_nco_2() {
-        nco_crcf_spectrum_test(OscScheme::Nco, -0.1234);
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, -0.1234);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f03)]
     fn test_nco_crcf_spectrum_nco_3() {
-        nco_crcf_spectrum_test(OscScheme::Nco, 0.25);
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.25);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f04)]
     fn test_nco_crcf_spectrum_nco_4() {
-        nco_crcf_spectrum_test(OscScheme::Nco, 0.1);
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.1);
     }
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f00)]
     fn test_nco_crcf_spectrum_vco_0() {
-        nco_crcf_spectrum_test(OscScheme::Vco, 0.0);
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.0);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f01)]
     fn test_nco_crcf_spectrum_vco_1() {
-        nco_crcf_spectrum_test(OscScheme::Vco, 0.1234);
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.1234);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f02)]
     fn test_nco_crcf_spectrum_vco_2() {
-        nco_crcf_spectrum_test(OscScheme::Vco, -0.1234);
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, -0.1234);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f03)]
     fn test_nco_crcf_spectrum_vco_3() {
-        nco_crcf_spectrum_test(OscScheme::Vco, 0.25);
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.25);
     }
 
     #[test]
     #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f04)]
     fn test_nco_crcf_spectrum_vco_4() {
-        nco_crcf_spectrum_test(OscScheme::Vco, 0.1);
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.1);
     }
 
     // autotest helper function
     fn nco_crcf_frequency_test(
-        scheme: OscScheme,
+        scheme: NcoBackend,
         phase: f32,
         frequency: f32,
         sincos: &[Complex<f32>],
@@ -885,7 +893,7 @@ mod tests {
         tol: f32,
     ) {
         // create object
-        let mut nco = Osc::new(scheme);
+        let mut nco = Nco::new(scheme);
 
         // set phase and frequency
         nco.set_phase(phase);
@@ -927,10 +935,10 @@ mod tests {
         let tol = 0.04;
 
         // test frequencies with irrational values
-        nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 2.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_2, 256, tol); // 1/sqrt(2)
-        nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 3.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_3, 256, tol); // 1/sqrt(3)
-        nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 5.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_5, 256, tol); // 1/sqrt(5)
-        nco_crcf_frequency_test(OscScheme::Nco, 0.0, 1.0 / 7.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_7, 256, tol);
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 2.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_2, 256, tol); // 1/sqrt(2)
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 3.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_3, 256, tol); // 1/sqrt(3)
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 5.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_5, 256, tol); // 1/sqrt(5)
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 7.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_7, 256, tol);
         // 1/sqrt(7)
     }
 

@@ -20,7 +20,8 @@ impl FromComplex32 for f32 {
 }
 
 #[derive(Debug, Clone)]
-pub struct FftFilt<T, Coeff = T> {
+#[doc(alias = "FftFilt")]
+pub struct FftFilter<T, Coeff = T> {
     h: Vec<Coeff>,
     h_len: usize,
     n: usize,
@@ -37,7 +38,7 @@ pub struct FftFilt<T, Coeff = T> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<T, Coeff> FftFilt<T, Coeff>
+impl<T, Coeff> FftFilter<T, Coeff>
 where
     Coeff: Clone + Default + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Default + ComplexFloat<Real = f32> + FromComplex32,
@@ -150,11 +151,11 @@ mod tests {
         // check that object returns error for invalid configurations
         let h_1: [f32; 0] = [];
         let h_2: [f32; 9] = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-        assert!(FftFilt::<f32, f32>::new(&h_1, 64).is_err()); // filter length too small
-        assert!(FftFilt::<f32, f32>::new(&h_2, 7).is_err()); // block length too small
+        assert!(FftFilter::<f32, f32>::new(&h_1, 64).is_err()); // filter length too small
+        assert!(FftFilter::<f32, f32>::new(&h_2, 7).is_err()); // block length too small
 
         // create proper object and test configurations
-        let mut filt = FftFilt::<f32, f32>::new(&h_2, 64).unwrap();
+        let mut filt = FftFilter::<f32, f32>::new(&h_2, 64).unwrap();
 
         filt.set_scale(3.0);
         assert_eq!(filt.get_scale(), 3.0);
@@ -173,7 +174,7 @@ mod tests {
         let n = 96;
 
         // create object
-        let mut q0 = FftFilt::<Complex32, f32>::new(&h, n).unwrap();
+        let mut q0 = FftFilter::<Complex32, f32>::new(&h, n).unwrap();
 
         // compute output in blocks of size 'n'
         let mut buf = vec![Complex32::zero(); n];
@@ -216,7 +217,7 @@ mod tests {
         let num_blocks = quot + if rem > 0 { 1 } else { 0 };
 
         // load filter coefficients externally
-        let mut q = FftFilt::<f32, f32>::new(h, n).unwrap();
+        let mut q = FftFilter::<f32, f32>::new(h, n).unwrap();
 
         // allocate memory for output
         let mut y_test = vec![0.0; n * num_blocks];
@@ -244,7 +245,7 @@ mod tests {
         let num_blocks = quot + if rem > 0 { 1 } else { 0 };
 
         // load filter coefficients externally
-        let mut q = FftFilt::<Complex32, f32>::new(h, n).unwrap();
+        let mut q = FftFilter::<Complex32, f32>::new(h, n).unwrap();
 
         // allocate memory for output
         let mut y_test = vec![Complex32::zero(); n * num_blocks];
@@ -273,7 +274,7 @@ mod tests {
         let num_blocks = quot + if rem > 0 { 1 } else { 0 };
 
         // load filter coefficients externally
-        let mut q = FftFilt::<Complex32, Complex32>::new(h, n).unwrap();
+        let mut q = FftFilter::<Complex32, Complex32>::new(h, n).unwrap();
 
         // allocate memory for output
         let mut y_test = vec![Complex32::zero(); n * num_blocks];

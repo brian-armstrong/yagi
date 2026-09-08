@@ -38,7 +38,8 @@ const MSEQUENCE_GENPOLY_M31: u32 = 0x40000004; // 31   2,147,483,647
 
 /// maximal-length sequence
 #[derive(Debug, Clone, Copy)]
-pub struct MSequence {
+#[doc(alias = "MSequence")]
+pub struct MaximalLengthSequence {
     m: u32,     // length generator polynomial, shift register
     g: u32,     // generator polynomial, form: { x^m + ... + 1 }
     a: u32,     // initial shift register state, default: 1
@@ -46,7 +47,7 @@ pub struct MSequence {
     state: u32, // shift register
 }
 
-impl MSequence {
+impl MaximalLengthSequence {
     /// create a maximal-length sequence (m-sequence) object with
     /// an internal shift register length of _m bits.
     ///  m      :   generator polynomial length, sequence length is (2^m)-1
@@ -160,7 +161,7 @@ impl MSequence {
     }
 
     pub fn genpoly_period(g: u32) -> Result<u32> {
-        let mut q = MSequence::from_genpoly(g)?;
+        let mut q = MaximalLengthSequence::from_genpoly(g)?;
         Ok(q.measure_period())
     }
 }
@@ -170,18 +171,18 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
 
-    use crate::sequence::bsequence::BSequence;
+    use crate::sequence::bsequence::BinarySequence;
 
     fn msequence_test_autocorrelation(m: u32) {
         // create and initialize m-sequence
-        let mut ms = MSequence::from_degree(m).unwrap();
+        let mut ms = MaximalLengthSequence::from_degree(m).unwrap();
         let n = ms.get_length();
 
         // create and initialize first binary sequence on m-sequence
-        let bs1 = BSequence::from_msequence(&mut ms).unwrap();
+        let bs1 = BinarySequence::from_msequence(&mut ms).unwrap();
 
         // create and initialize second binary sequence on same m-sequence
-        let mut bs2 = BSequence::from_msequence(&mut ms).unwrap();
+        let mut bs2 = BinarySequence::from_msequence(&mut ms).unwrap();
 
         // ensure sequences are the same length
         assert_eq!(bs1.get_length(), n as usize);
@@ -267,7 +268,7 @@ mod tests {
 
     fn msequence_test_period(m: u32) {
         // create and initialize m-sequence
-        let mut q = MSequence::from_degree(m).unwrap();
+        let mut q = MaximalLengthSequence::from_degree(m).unwrap();
 
         // measure period and compare to expected
         let n = (1u32 << m) - 1;
@@ -459,12 +460,12 @@ mod tests {
     #[autotest_annotate(autotest_msequence_config)]
     fn test_msequence_config() {
         // check invalid configurations
-        assert!(MSequence::new(100, 0, 0).is_err());
-        assert!(MSequence::from_degree(32).is_err()); // too long
-        assert!(MSequence::from_genpoly(0).is_err());
+        assert!(MaximalLengthSequence::new(100, 0, 0).is_err());
+        assert!(MaximalLengthSequence::from_degree(32).is_err()); // too long
+        assert!(MaximalLengthSequence::from_genpoly(0).is_err());
 
         // create proper object and test configurations
-        let mut q = MSequence::from_genpoly(MSEQUENCE_GENPOLY_M11).unwrap();
+        let mut q = MaximalLengthSequence::from_genpoly(MSEQUENCE_GENPOLY_M11).unwrap();
 
         assert_eq!(q.get_state(), 1);
         q.set_state(0x8a);

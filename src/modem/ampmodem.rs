@@ -1,7 +1,7 @@
-use crate::buffer::WDelay;
+use crate::buffer::WindowedDelay;
 use crate::error::{Error, Result};
 use crate::filter::{FirFilter, FirHilbertFilter};
-use crate::nco::{Osc, OscScheme};
+use crate::nco::{Nco, NcoBackend};
 use num_complex::Complex32;
 
 /// Modulation types
@@ -21,21 +21,22 @@ enum AmpmodemDemodType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Ampmodem {
+#[doc(alias = "Ampmodem")]
+pub struct AmplitudeModem {
     mod_index: f32,                     // modulation index
     mod_type: AmpmodemType,             // modulation type (e.g. DSB)
     suppressed_carrier: bool,           // suppressed carrier flag
     m: usize,                           // filter semi-length for all objects
-    mixer: Osc,                         // mixer and phase-locked loop
+    mixer: Nco,                         // mixer and phase-locked loop
     dcblock: FirFilter<f32>,            // carrier suppression filter
     hilbert: FirHilbertFilter,          // hilbert transform (single side-band)
     lowpass: FirFilter<Complex32, f32>, // low-pass filter for SSB PLL
-    delay: WDelay<Complex32>,           // delay buffer to align to low-pass filter delay
+    delay: WindowedDelay<Complex32>,    // delay buffer to align to low-pass filter delay
     demod_type: AmpmodemDemodType,
     phase_error: f32,
 }
 
-impl Ampmodem {
+impl AmplitudeModem {
     pub fn new(mod_index: f32, mod_type: AmpmodemType, suppressed_carrier: bool) -> Result<Self> {
         // Validate input
         if mod_index <= 0.0 {
@@ -44,7 +45,7 @@ impl Ampmodem {
 
         let m = 25;
 
-        let mut nco = Osc::new(OscScheme::Nco);
+        let mut nco = Nco::new(NcoBackend::LookupTable);
         nco.pll_set_bandwidth(0.001);
 
         let demod_type = match (mod_type, suppressed_carrier) {
@@ -63,7 +64,7 @@ impl Ampmodem {
             dcblock: FirFilter::new_dc_blocker(m, 20.0)?,
             hilbert: FirHilbertFilter::new(m, 60.0)?,
             lowpass: FirFilter::new_kaiser(2 * m + 1, 0.01, 40.0, 0.0)?,
-            delay: WDelay::new(m)?,
+            delay: WindowedDelay::new(m)?,
             demod_type,
             phase_error: 0.0,
         };
@@ -263,7 +264,7 @@ mod tests {
         dphi: f32,
         mut phi: f32,
     ) -> Result<()> {
-        use crate::buffer::WDelay;
+        use crate::buffer::WindowedDelay;
         use crate::random::randnf;
         use num_complex::Complex;
         use std::f32::consts::{FRAC_1_SQRT_2, PI};
@@ -275,12 +276,12 @@ mod tests {
         let nstd = 10.0f32.powf(-snr_db / 20.0);
 
         // create mod/demod objects
-        let mut mod_ = Ampmodem::new(mod_index, mod_type, suppressed_carrier)?;
-        let mut demod = Ampmodem::new(mod_index, mod_type, suppressed_carrier)?;
+        let mut mod_ = AmplitudeModem::new(mod_index, mod_type, suppressed_carrier)?;
+        let mut demod = AmplitudeModem::new(mod_index, mod_type, suppressed_carrier)?;
 
         // compute end-to-end delay
         let delay = mod_.get_delay_mod() + demod.get_delay_demod();
-        let mut message_delay = WDelay::new(delay)?;
+        let mut message_delay = WindowedDelay::new(delay)?;
 
         // run trials
         let mut i = 0;

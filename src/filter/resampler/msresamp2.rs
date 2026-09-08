@@ -1,12 +1,13 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
 use crate::filter;
-use crate::filter::resampler::resamp2::{Resamp2, Resamp2Coeff};
+use crate::filter::resampler::resamp2::{HalfBandResampler, Resamp2Coeff};
 
 use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
-pub struct MsResamp2<T, Coeff = T> {
+#[doc(alias = "MsResamp2")]
+pub struct MultiStageHalfBandResampler<T, Coeff = T> {
     type_: ResampType,
     num_stages: usize,
     rate: usize,
@@ -20,7 +21,7 @@ pub struct MsResamp2<T, Coeff = T> {
     f0_stage: Vec<f32>,
     as_stage: Vec<f32>,
     m_stage: Vec<usize>,
-    resamp2: Vec<Resamp2<T, Coeff>>,
+    resamp2: Vec<HalfBandResampler<T, Coeff>>,
     // scratch for the execute_block path. initializes empty
     block0: Vec<T>,
     block1: Vec<T>,
@@ -32,7 +33,7 @@ pub enum ResampType {
     Interp,
 }
 
-impl<T, Coeff> MsResamp2<T, Coeff>
+impl<T, Coeff> MultiStageHalfBandResampler<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Resamp2Coeff,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
@@ -88,7 +89,7 @@ where
             q.m_stage[i] = m.max(3);
 
             // create half-band resampler
-            q.resamp2.push(Resamp2::<T, Coeff>::new(q.m_stage[i], q.f0_stage[i], q.as_stage[i])?);
+            q.resamp2.push(HalfBandResampler::<T, Coeff>::new(q.m_stage[i], q.f0_stage[i], q.as_stage[i])?);
         }
 
         q.reset();
@@ -379,7 +380,8 @@ mod tests {
 
     fn testbench_msresamp2_crcf_interp(num_stages: usize, fc: f32, as_: f32) {
         // create and configure objects
-        let mut resamp = MsResamp2::<Complex32, f32>::new(ResampType::Interp, num_stages, fc, 0.0, as_).unwrap();
+        let mut resamp =
+            MultiStageHalfBandResampler::<Complex32, f32>::new(ResampType::Interp, num_stages, fc, 0.0, as_).unwrap();
         let delay = resamp.get_delay();
 
         // generate samples and push through spgram object
@@ -492,7 +494,8 @@ mod tests {
     fn test_msresamp2_copy() {
         // create original resampler
         let num_stages = 4;
-        let mut q0 = MsResamp2::<Complex32, f32>::new(ResampType::Interp, num_stages, 0.4, 0.0, 60.0).unwrap();
+        let mut q0 =
+            MultiStageHalfBandResampler::<Complex32, f32>::new(ResampType::Interp, num_stages, 0.4, 0.0, 60.0).unwrap();
 
         // allocate buffers for output
         let m = 1 << num_stages; // interpolation factor
@@ -532,7 +535,8 @@ mod tests {
         let rate = 1usize << num_stages;
         let n = 40; // output symbols for interp, output samples for decim
 
-        let mut q_sample = MsResamp2::<Complex32, f32>::new(type_, num_stages, 0.4, 0.0, 60.0).unwrap();
+        let mut q_sample =
+            MultiStageHalfBandResampler::<Complex32, f32>::new(type_, num_stages, 0.4, 0.0, 60.0).unwrap();
         let mut q_block = q_sample.clone();
 
         let (num_in, num_out) = match type_ {
@@ -583,7 +587,8 @@ mod tests {
         let rate = 1usize << num_stages;
         let n = 30;
 
-        let mut q_sample = MsResamp2::<Complex32, f32>::new(ResampType::Decim, num_stages, 0.4, 0.0, 60.0).unwrap();
+        let mut q_sample =
+            MultiStageHalfBandResampler::<Complex32, f32>::new(ResampType::Decim, num_stages, 0.4, 0.0, 60.0).unwrap();
         let mut q_block = q_sample.clone();
 
         // split the block work unevenly so the second call is larger than the
@@ -608,7 +613,8 @@ mod tests {
     fn test_msresamp2_block_decim_rejects_partial_input() {
         let num_stages = 3;
         let rate = 1usize << num_stages;
-        let mut q = MsResamp2::<Complex32, f32>::new(ResampType::Decim, num_stages, 0.4, 0.0, 60.0).unwrap();
+        let mut q =
+            MultiStageHalfBandResampler::<Complex32, f32>::new(ResampType::Decim, num_stages, 0.4, 0.0, 60.0).unwrap();
         let mut q_ref = q.clone();
 
         let bad = vec![Complex32::new(1.0, -1.0); rate + 1];
@@ -636,7 +642,7 @@ mod tests {
                 ResampType::Interp => n_in * rate,
                 ResampType::Decim => n_in / rate,
             };
-            let mut q = MsResamp2::<Complex32, f32>::new(type_, num_stages, 0.4, 0.0, 60.0).unwrap();
+            let mut q = MultiStageHalfBandResampler::<Complex32, f32>::new(type_, num_stages, 0.4, 0.0, 60.0).unwrap();
             let mut q_ref = q.clone();
             let x: Vec<Complex32> = (0..n_in).map(|_| Complex32::new(randnf(), randnf())).collect();
 

@@ -3,7 +3,8 @@ use crate::fft::{Direction, Fft};
 use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
-pub struct Fskdem {
+#[doc(alias = "Fskdem")]
+pub struct FskDemodulator {
     k: usize,                 // samples per symbol
     m_size: usize,            // constellation size (M)
     k_size: usize,            // FFT size (K)
@@ -14,7 +15,7 @@ pub struct Fskdem {
     s_demod: usize,           // demodulated symbol (used for frequency error)
 }
 
-impl Fskdem {
+impl FskDemodulator {
     pub fn new(m: usize, k: usize, bandwidth: f32) -> Result<Self> {
         // Validate input
         if m == 0 {
@@ -148,28 +149,28 @@ impl Fskdem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modem::fskmod::Fskmod;
+    use crate::modem::fskmod::FskModulator;
     use crate::random::randnf;
     use test_macro::autotest_annotate;
 
     #[test]
     fn test_fskdem_create() {
-        let result = Fskdem::new(2, 8, 0.25);
+        let result = FskDemodulator::new(2, 8, 0.25);
         assert!(result.is_ok());
 
-        let result = Fskdem::new(0, 8, 0.25);
+        let result = FskDemodulator::new(0, 8, 0.25);
         assert!(result.is_err());
 
-        let result = Fskdem::new(2, 1, 0.25);
+        let result = FskDemodulator::new(2, 1, 0.25);
         assert!(result.is_err());
 
-        let result = Fskdem::new(2, 8, 0.6);
+        let result = FskDemodulator::new(2, 8, 0.6);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_fskdem_demodulate() -> Result<()> {
-        let mut dem = Fskdem::new(2, 8, 0.25)?;
+        let mut dem = FskDemodulator::new(2, 8, 0.25)?;
         let y = vec![Complex32::new(0.0, 0.0); 8];
 
         // Test valid demodulation
@@ -185,8 +186,8 @@ mod tests {
     // Helper function to keep code base small
     fn fskmodem_test_mod_demod(m: usize, k: usize, bandwidth: f32) -> Result<()> {
         // create modulator/demodulator pair
-        let mut modulator = Fskmod::new(m, k, bandwidth)?;
-        let mut demodulator = Fskdem::new(m, k, bandwidth)?;
+        let mut modulator = FskModulator::new(m, k, bandwidth)?;
+        let mut demodulator = FskDemodulator::new(m, k, bandwidth)?;
 
         let m_size = 1 << m; // constellation size
         let mut buf = vec![Complex32::new(0.0, 0.0); k];
@@ -337,7 +338,7 @@ mod tests {
         let bw = 0.2345; // occupied bandwidth
 
         // create modulator/demodulator pair
-        let mut dem_orig = Fskdem::new(m, k, bw)?;
+        let mut dem_orig = FskDemodulator::new(m, k, bw)?;
 
         let num_symbols = 96;
         let mut buf = vec![Complex32::new(0.0, 0.0); k];

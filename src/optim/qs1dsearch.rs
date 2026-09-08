@@ -7,7 +7,8 @@ pub enum OptimDirection {
 }
 
 #[derive(Debug)]
-pub struct Qs1dSearch<F> {
+#[doc(alias = "Qs1dSearch")]
+pub struct QuadSectionSearch<F> {
     // values
     vn: f32,
     va: f32,
@@ -31,7 +32,7 @@ pub struct Qs1dSearch<F> {
     num_steps: usize,
 }
 
-impl<F> Qs1dSearch<F>
+impl<F> QuadSectionSearch<F>
 where
     F: FnMut(f32) -> f32,
 {
@@ -250,7 +251,7 @@ mod tests {
         direction: OptimDirection,
     ) {
         // create qs1dsearch object and initialize
-        let mut q = Qs1dSearch::new(|v| utility(v, v_opt), direction);
+        let mut q = QuadSectionSearch::new(|v| utility(v, v_opt), direction);
         if bounds {
             q.init_bounds(v_lo, v_hi).unwrap();
         } else {
@@ -411,7 +412,7 @@ mod tests {
     fn test_qs1dsearch_config() {
         // create proper object and test configurations
         let v_opt = 0.0f32;
-        let mut q = Qs1dSearch::new(|v| qs1dsearch_umax(v, v_opt), OptimDirection::Maximize);
+        let mut q = QuadSectionSearch::new(|v| qs1dsearch_umax(v, v_opt), OptimDirection::Maximize);
         // assert!(q.print().is_ok());
 
         // test configurations

@@ -11,7 +11,8 @@ use crate::utility::bits::repack_bytes;
 
 /// packet encoder/decoder producing symbol indices
 #[derive(Debug, Clone)]
-pub struct QPacketSymbolizer {
+#[doc(alias = "QPacketSymbolizer")]
+pub struct PacketSymbolizer {
     /// packet encoder/decoder
     packetizer: Packetizer,
     /// bits per symbol
@@ -26,7 +27,7 @@ pub struct QPacketSymbolizer {
     payload_enc: Vec<u8>,
 }
 
-impl QPacketSymbolizer {
+impl PacketSymbolizer {
     /// create packet encoder/decoder with a particular configuration
     ///
     ///  payload_len     :   length of payload message [bytes]
@@ -218,8 +219,8 @@ mod tests {
     use rand::Rng;
     use test_macro::autotest_annotate;
 
-    fn symbolizer(payload_len: usize, bps: usize) -> QPacketSymbolizer {
-        QPacketSymbolizer::new(payload_len, CrcScheme::Crc32, FecScheme::Hamming128, FecScheme::None, bps).unwrap()
+    fn symbolizer(payload_len: usize, bps: usize) -> PacketSymbolizer {
+        PacketSymbolizer::new(payload_len, CrcScheme::Crc32, FecScheme::Hamming128, FecScheme::None, bps).unwrap()
     }
 
     #[test]
@@ -241,7 +242,7 @@ mod tests {
     #[test]
     fn test_symbolizer_invalid_bps() {
         for bps in [0usize, 9] {
-            assert!(QPacketSymbolizer::new(16, CrcScheme::Crc32, FecScheme::None, FecScheme::None, bps).is_err());
+            assert!(PacketSymbolizer::new(16, CrcScheme::Crc32, FecScheme::None, FecScheme::None, bps).is_err());
         }
     }
 
@@ -337,7 +338,7 @@ mod tests {
         bits_per_symbol: usize,
     ) {
         // create and configure packet encoder/decoder object
-        let mut q = QPacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol).unwrap();
+        let mut q = PacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol).unwrap();
 
         // initialize payload
         let mut rng = rand::thread_rng();

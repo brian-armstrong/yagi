@@ -1,11 +1,11 @@
 use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
-pub struct Direct {}
+pub(super) struct DirectBackend {}
 
-impl Direct {
+impl DirectBackend {
     pub fn new() -> Self {
-        Direct {}
+        DirectBackend {}
     }
 
     pub fn sin(&self, theta: u32) -> f32 {
@@ -21,7 +21,7 @@ impl Direct {
     }
 }
 
-impl Default for Direct {
+impl Default for DirectBackend {
     fn default() -> Self {
         Self::new()
     }

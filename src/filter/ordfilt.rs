@@ -3,13 +3,14 @@ use crate::error::{Error, Result};
 use std::cmp::Ordering;
 
 #[derive(Clone, Debug)]
-pub struct OrdFilt<T> {
+#[doc(alias = "OrdFilt")]
+pub struct OrderStatisticFilter<T> {
     k: usize,
     buf: Window<T>,
     buf_sorted: Vec<T>,
 }
 
-impl<T> OrdFilt<T>
+impl<T> OrderStatisticFilter<T>
 where
     T: Clone + Copy + PartialOrd + Default,
 {
@@ -75,7 +76,7 @@ mod tests {
     #[autotest_annotate(autotest_ordfilt_copy)]
     fn test_ordfilt_copy() {
         // create base object
-        let mut q0 = OrdFilt::<f32>::new(17, 5).unwrap();
+        let mut q0 = OrderStatisticFilter::<f32>::new(17, 5).unwrap();
 
         // run samples through filter
         for _ in 0..20 {

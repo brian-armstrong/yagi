@@ -1,7 +1,7 @@
 use num_complex::Complex;
 
 use crate::error::{Error, Result};
-use crate::fft::spgram::Spgram;
+use crate::fft::spgram::SpectralPeriodogram;
 use crate::fft::{fft_run, Direction};
 use crate::filter::{FirFilter, IirFilter};
 use crate::math::nextpow2;
@@ -113,7 +113,7 @@ pub fn validate_psd_iirfilt(iirfilt: &IirFilter<f32, f32>, nfft: usize, regions:
     validate_psd_spectrum(&psd, nfft, regions)
 }
 
-pub fn validate_psd_spgramcf(spgram: &Spgram<Complex<f32>>, regions: &[PsdRegion]) -> Result<bool> {
+pub fn validate_psd_spgramcf(spgram: &SpectralPeriodogram<Complex<f32>>, regions: &[PsdRegion]) -> Result<bool> {
     let nfft = spgram.get_nfft();
     let psd = spgram.get_psd();
     validate_psd_spectrum(&psd, nfft, regions)

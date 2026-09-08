@@ -1,20 +1,21 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::{self, FirFilterShape, FirPfbFilter};
+use crate::filter::{self, FirFilterShape, FirPolyphaseFilter};
 use crate::math::gcd;
 
 use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
-pub struct Rresamp<T, Coeff = T> {
+#[doc(alias = "Rresamp")]
+pub struct RationalResampler<T, Coeff = T> {
     p: usize,
     q: usize,
     m: usize,
     block_len: usize,
-    pfb: FirPfbFilter<T, Coeff>,
+    pfb: FirPolyphaseFilter<T, Coeff>,
 }
 
-impl<T, Coeff> Rresamp<T, Coeff>
+impl<T, Coeff> RationalResampler<T, Coeff>
 where
     Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
@@ -31,7 +32,7 @@ where
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
 
-        let pfb = FirPfbFilter::new(interp, h, 2 * interp * m)?;
+        let pfb = FirPolyphaseFilter::new(interp, h, 2 * interp * m)?;
 
         let mut q = Self { p: interp, q: decim, m, block_len: 1, pfb };
 
@@ -198,8 +199,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::Spgram;
-    use crate::framing::symstreamr::SymStreamR;
+    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::framing::symstreamr::ArbitraryRateSymbolStream;
     use crate::math::{hamming, WindowType};
     use crate::modem::modem::ModulationScheme;
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
@@ -214,8 +215,8 @@ mod tests {
         let as_ = 60.0f32; // resampling filter stop-band attenuation [dB]
 
         // create two identical resampler objects
-        let mut q0 = Rresamp::<Complex32>::new_kaiser(p, q, m, bw, as_).unwrap();
-        let mut q1 = Rresamp::<Complex32>::new_kaiser(p, q, m, bw, as_).unwrap();
+        let mut q0 = RationalResampler::<Complex32>::new_kaiser(p, q, m, bw, as_).unwrap();
+        let mut q1 = RationalResampler::<Complex32>::new_kaiser(p, q, m, bw, as_).unwrap();
 
         // full input, output buffers
         let mut buf_in = vec![num_complex::Complex32::new(0.0, 0.0); 2 * q * n];
@@ -294,12 +295,12 @@ mod tests {
 
         // create resampler with rate interp/decim
         let mut resamp = match method {
-            "baseline" => Rresamp::<Complex32, f32>::new_kaiser(interp, decim, m, bw, as_).unwrap(),
-            "default" => Rresamp::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap(),
+            "baseline" => RationalResampler::<Complex32, f32>::new_kaiser(interp, decim, m, bw, as_).unwrap(),
+            "default" => RationalResampler::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap(),
             _ => {
                 let ftype: FirFilterShape = method.parse().unwrap();
                 let beta = bw; // rename to avoid confusion
-                Rresamp::<Complex32, f32>::new_prototype(ftype, interp, decim, m, beta).unwrap()
+                RationalResampler::<Complex32, f32>::new_prototype(ftype, interp, decim, m, beta).unwrap()
             }
         };
 
@@ -307,8 +308,10 @@ mod tests {
 
         // create and configure objects
         let bw = 0.2f32; // target output bandwidth
-        let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
-        let mut gen = SymStreamR::new_linear(FirFilterShape::Kaiser, r * bw, 25, 0.2, ModulationScheme::Qpsk).unwrap();
+        let mut q = SpectralPeriodogram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
+        let mut gen =
+            ArbitraryRateSymbolStream::new_linear(FirFilterShape::Kaiser, r * bw, 25, 0.2, ModulationScheme::Qpsk)
+                .unwrap();
         gen.set_gain((bw * r).sqrt());
 
         // generate samples and push through spgram object
@@ -436,7 +439,7 @@ mod tests {
     }
 
     fn testbench_rresamp_crcf_num_output(interp: usize, decim: usize) {
-        let mut resamp = Rresamp::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
+        let mut resamp = RationalResampler::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
         let q = resamp.get_q();
         let p = resamp.get_p();
 
@@ -478,7 +481,7 @@ mod tests {
     }
 
     fn testbench_rresamp_crcf_max_input(interp: usize, decim: usize) {
-        let resamp = Rresamp::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
+        let resamp = RationalResampler::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
         let q = resamp.get_q();
 
         // test various output limits

@@ -30,7 +30,8 @@ use crate::error::{Error, Result};
 //       entries.
 //
 #[derive(Debug, Clone)]
-pub struct SMatrix<T> {
+#[doc(alias = "SMatrix")]
+pub struct SparseMatrix<T> {
     m: usize,              // number of rows
     n: usize,              // number of columns
     mlist: Vec<Vec<u16>>,  // list of non-zero col indices in each row
@@ -43,14 +44,14 @@ pub struct SMatrix<T> {
     max_num_nlist: usize,  // maximum of num_nlist
 }
 
-impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> SMatrix<T> {
+impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> SparseMatrix<T> {
     /// create _m x _n matrix, initialized with zeros
     pub fn new(m: usize, n: usize) -> Result<Self> {
         if m == 0 || n == 0 {
             return Err(Error::Config("smatrix_create(), dimensions must be greater than zero".to_string()));
         }
 
-        Ok(SMatrix {
+        Ok(SparseMatrix {
             m,
             n,
             mlist: vec![Vec::new(); m],
@@ -328,7 +329,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     }
 
     /// multiply two sparse matrices
-    pub fn mul(&self, b: &SMatrix<T>, c: &mut SMatrix<T>) -> Result<()> {
+    pub fn mul(&self, b: &SparseMatrix<T>, c: &mut SparseMatrix<T>) -> Result<()> {
         // validate input
         if c.m != self.m || c.n != b.n || self.n != b.m {
             return Err(Error::Range("smatrix_mul(), invalid dimensions".to_string()));
@@ -421,7 +422,7 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     }
 }
 
-impl SMatrix<u8> {
+impl SparseMatrix<u8> {
     // ...
 
     /// Multiply sparse binary matrix by floating-point matrix
@@ -497,7 +498,7 @@ mod tests {
         let tol = 1e-6f32;
 
         // Create sparse matrix and set values
-        let mut a = SMatrix::<f32>::new(4, 5).unwrap();
+        let mut a = SparseMatrix::<f32>::new(4, 5).unwrap();
         a.set(0, 4, 4.0);
         a.set(2, 3, 3.0);
         a.set(3, 0, 2.0);
@@ -525,9 +526,9 @@ mod tests {
         let tol = 1e-6f32;
 
         // Initialize matrices
-        let mut a = SMatrix::<f32>::new(4, 5).unwrap();
-        let mut b = SMatrix::<f32>::new(5, 3).unwrap();
-        let mut c = SMatrix::<f32>::new(4, 3).unwrap();
+        let mut a = SparseMatrix::<f32>::new(4, 5).unwrap();
+        let mut b = SparseMatrix::<f32>::new(5, 3).unwrap();
+        let mut c = SparseMatrix::<f32>::new(4, 3).unwrap();
 
         // Initialize 'a'
         a.set(0, 4, 4.0);
@@ -559,7 +560,7 @@ mod tests {
     #[autotest_annotate(autotest_smatrixb_vmul)]
     fn test_smatrixb_vmul() {
         // Create sparse matrix and set values
-        let mut a = SMatrix::<u8>::new(8, 12).unwrap();
+        let mut a = SparseMatrix::<u8>::new(8, 12).unwrap();
         a.set(0, 0, 1);
         a.set(2, 0, 1);
         a.set(6, 0, 1);
@@ -586,7 +587,7 @@ mod tests {
 
         // Multiply and run test
         a.vmul(&x, &mut y);
-        SMatrix::<u8>::wrap_bools(&mut y);
+        SparseMatrix::<u8>::wrap_bools(&mut y);
 
         assert_eq!(y, y_test);
     }
@@ -634,16 +635,16 @@ mod tests {
             0, 0, 0, 1, 0
         ];
 
-        let a = SMatrix::<u8>::from_array(&a_test, 8, 12).unwrap();
-        let b = SMatrix::<u8>::from_array(&b_test, 12, 5).unwrap();
-        let mut c = SMatrix::<u8>::new(8, 5).unwrap();
+        let a = SparseMatrix::<u8>::from_array(&a_test, 8, 12).unwrap();
+        let b = SparseMatrix::<u8>::from_array(&b_test, 12, 5).unwrap();
+        let mut c = SparseMatrix::<u8>::new(8, 5).unwrap();
 
         // Compute output
         a.mul(&b, &mut c).unwrap();
 
         for i in 0..8 {
             for j in 0..5 {
-                assert_eq!(SMatrix::<u8>::wrap_bool(c.get(i, j)), c_test[i * 5 + j]);
+                assert_eq!(SparseMatrix::<u8>::wrap_bool(c.get(i, j)), c_test[i * 5 + j]);
             }
         }
     }
@@ -654,7 +655,7 @@ mod tests {
         let tol = 1e-6f32;
 
         // Create sparse matrix and set values
-        let mut a = SMatrix::<u8>::new(8, 12).unwrap();
+        let mut a = SparseMatrix::<u8>::new(8, 12).unwrap();
         a.set(0, 0, 1);
         a.set(2, 0, 1);
         a.set(6, 0, 1);
@@ -719,7 +720,7 @@ mod tests {
         let tol = 1e-6f32;
 
         // Create sparse matrix and set values
-        let mut a = SMatrix::<u8>::new(8, 12).unwrap();
+        let mut a = SparseMatrix::<u8>::new(8, 12).unwrap();
         a.set(0, 0, 1);
         a.set(2, 0, 1);
         a.set(6, 0, 1);
@@ -768,7 +769,7 @@ mod tests {
         //  2 0 0 0 1
 
         // create sparse matrix and set values
-        let mut a = SMatrix::<i16>::new(4, 5).unwrap();
+        let mut a = SparseMatrix::<i16>::new(4, 5).unwrap();
         a.set(0, 4, 4);
         a.set(2, 3, 3);
         a.set(3, 0, 2);
@@ -795,9 +796,9 @@ mod tests {
     #[autotest_annotate(autotest_smatrixi_mul)]
     fn test_smatrixi_mul() {
         // initialize matrices
-        let mut a = SMatrix::<i16>::new(4, 5).unwrap();
-        let mut b = SMatrix::<i16>::new(5, 3).unwrap();
-        let mut c = SMatrix::<i16>::new(4, 3).unwrap();
+        let mut a = SparseMatrix::<i16>::new(4, 5).unwrap();
+        let mut b = SparseMatrix::<i16>::new(5, 3).unwrap();
+        let mut c = SparseMatrix::<i16>::new(4, 3).unwrap();
 
         // initialize 'a'
         // 0 0 0 0 4

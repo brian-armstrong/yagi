@@ -4,12 +4,12 @@ use crate::error::{Error, Result};
 
 /// Source identifier type
 pub type SourceId = i32;
-use crate::filter::resamp::Resamp;
-use crate::framing::symstream::SymStream;
-use crate::modem::fskmod::Fskmod;
-use crate::modem::gmskmod::GmskMod;
-use crate::multichannel::{ChannelizerType, FirPfbChannelizer2};
-use crate::nco::{Osc, OscScheme};
+use crate::filter::resamp::ArbitraryResampler;
+use crate::framing::symstream::SymbolStream;
+use crate::modem::fskmod::FskModulator;
+use crate::modem::gmskmod::GmskModulator;
+use crate::multichannel::{ChannelizerType, OversampledPolyphaseChannelizer};
+use crate::nco::{Nco, NcoBackend};
 use crate::random::randnf;
 
 use num_complex::Complex32;
@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 /// User-defined signal source callback trait
 ///
-/// Implement this trait to create custom signal generators for use with QSource.
+/// Implement this trait to create custom signal generators for use with SignalSource.
 /// The callback is invoked to fill a buffer with generated samples.
 ///
 /// # Example
@@ -32,7 +32,7 @@ use std::sync::Arc;
 ///     freq: f32,
 /// }
 ///
-/// impl QSourceCallback for MySineSource {
+/// impl SignalSourceCallback for MySineSource {
 ///     fn generate(&mut self, output: &mut [Complex32]) -> Result<()> {
 ///         for sample in output.iter_mut() {
 ///             *sample = Complex32::new(self.phase.cos(), self.phase.sin());
@@ -42,7 +42,8 @@ use std::sync::Arc;
 ///     }
 /// }
 /// ```
-pub trait QSourceCallback: Send + Sync {
+#[doc(alias = "QSourceCallback")]
+pub trait SignalSourceCallback: Send + Sync {
     /// Generate samples into the output buffer
     ///
     /// # Arguments
@@ -55,24 +56,25 @@ pub trait QSourceCallback: Send + Sync {
     fn generate(&mut self, output: &mut [Complex32]) -> Result<()>;
 
     /// Clone the callback into a boxed trait object
-    fn clone_box(&self) -> Box<dyn QSourceCallback>;
+    fn clone_box(&self) -> Box<dyn SignalSourceCallback>;
 }
 
-impl Clone for Box<dyn QSourceCallback> {
+impl Clone for Box<dyn SignalSourceCallback> {
     fn clone(&self) -> Self {
         self.clone_box()
     }
 }
 
-impl std::fmt::Debug for dyn QSourceCallback {
+impl std::fmt::Debug for dyn SignalSourceCallback {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "QSourceCallback")
+        write!(f, "SignalSourceCallback")
     }
 }
 
 /// Signal source type (for querying)
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum QSourceType {
+#[doc(alias = "QSourceType")]
+pub enum SignalSourceType {
     User,
     Tone,
     Chirp,
@@ -84,7 +86,8 @@ pub enum QSourceType {
 
 /// Signal source configuration
 #[derive(Clone)]
-pub enum QSourceConfig {
+#[doc(alias = "QSourceConfig")]
+pub enum SignalSourceConfig {
     /// Simple tone (CW)
     Tone,
     /// Linear frequency chirp
@@ -122,26 +125,26 @@ pub enum QSourceConfig {
         bt: f32,
     },
     /// User-defined callback
-    User(Box<dyn QSourceCallback>),
+    User(Box<dyn SignalSourceCallback>),
 }
 
-impl std::fmt::Debug for QSourceConfig {
+impl std::fmt::Debug for SignalSourceConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            QSourceConfig::Tone => write!(f, "Tone"),
-            QSourceConfig::Chirp { duration, negate, single } => f
+            SignalSourceConfig::Tone => write!(f, "Tone"),
+            SignalSourceConfig::Chirp { duration, negate, single } => f
                 .debug_struct("Chirp")
                 .field("duration", duration)
                 .field("negate", negate)
                 .field("single", single)
                 .finish(),
-            QSourceConfig::Noise => write!(f, "Noise"),
-            QSourceConfig::Modem { scheme, m, beta } => {
+            SignalSourceConfig::Noise => write!(f, "Noise"),
+            SignalSourceConfig::Modem { scheme, m, beta } => {
                 f.debug_struct("Modem").field("scheme", scheme).field("m", m).field("beta", beta).finish()
             }
-            QSourceConfig::Fsk { m, k } => f.debug_struct("Fsk").field("m", m).field("k", k).finish(),
-            QSourceConfig::Gmsk { m, bt } => f.debug_struct("Gmsk").field("m", m).field("bt", bt).finish(),
-            QSourceConfig::User(_) => write!(f, "User"),
+            SignalSourceConfig::Fsk { m, k } => f.debug_struct("Fsk").field("m", m).field("k", k).finish(),
+            SignalSourceConfig::Gmsk { m, bt } => f.debug_struct("Gmsk").field("m", m).field("bt", bt).finish(),
+            SignalSourceConfig::User(_) => write!(f, "User"),
         }
     }
 }
@@ -149,7 +152,7 @@ impl std::fmt::Debug for QSourceConfig {
 /// Chirp state
 #[derive(Clone, Debug)]
 struct ChirpState {
-    nco: Osc,
+    nco: Nco,
     df: f32,
     negate: bool,
     single: bool,
@@ -160,13 +163,13 @@ struct ChirpState {
 /// Modem state
 #[derive(Clone, Debug)]
 struct ModemState {
-    symstream: SymStream,
+    symstream: SymbolStream,
 }
 
 /// FSK state
 #[derive(Clone, Debug)]
 struct FskState {
-    modulator: Fskmod,
+    modulator: FskModulator,
     buf: Vec<Complex32>,
     mask: usize,
     index: usize,
@@ -175,7 +178,7 @@ struct FskState {
 /// GMSK state
 #[derive(Clone, Debug)]
 struct GmskState {
-    modulator: GmskMod,
+    modulator: GmskModulator,
     buf: [Complex32; 2],
     index: usize,
 }
@@ -183,7 +186,7 @@ struct GmskState {
 /// User callback state
 #[derive(Clone)]
 struct UserState {
-    callback: Arc<std::sync::Mutex<Box<dyn QSourceCallback>>>,
+    callback: Arc<std::sync::Mutex<Box<dyn SignalSourceCallback>>>,
 }
 
 impl std::fmt::Debug for UserState {
@@ -207,7 +210,8 @@ enum SourceState {
 /// Generic single signal source generator
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
-pub struct QSource {
+#[doc(alias = "QSource")]
+pub struct SignalSource {
     id: SourceId,
     m_channels: usize,
     p_channels: usize,
@@ -216,21 +220,21 @@ pub struct QSource {
     fc: f32,
     bw: f32,
     index: usize,
-    resamp: Resamp<Complex32>,
-    mixer: Osc,
+    resamp: ArbitraryResampler<Complex32>,
+    mixer: Nco,
     gain: f32,
     gain_ch: f32,
     buf: Vec<Complex32>,
     buf_time: Vec<Complex32>,
     buf_freq: Vec<Complex32>,
-    ch: FirPfbChannelizer2<Complex32>,
+    ch: OversampledPolyphaseChannelizer<Complex32>,
     enabled: bool,
     num_samples: u64,
     source: SourceState,
 }
 
-impl QSource {
-    /// Create a new QSource object
+impl SignalSource {
+    /// Create a new SignalSource object
     ///
     /// # Arguments
     ///
@@ -248,7 +252,7 @@ impl QSource {
         fc: f32,
         bw: f32,
         gain: f32,
-        config: QSourceConfig,
+        config: SignalSourceConfig,
     ) -> Result<Self> {
         if m_channels < 2 || !m_channels.is_multiple_of(2) {
             return Err(Error::Config("invalid channelizer size; must be even and greater than 1".into()));
@@ -269,10 +273,10 @@ impl QSource {
 
         // create resampler to correct for rate offset
         let rate = if bw == 0.0 { 1.0 } else { bw * (m_channels as f32) / (p_channels as f32) };
-        let resamp = Resamp::new(rate, 12, 0.45, as_, 64)?;
+        let resamp = ArbitraryResampler::new(rate, 12, 0.45, as_, 64)?;
 
         // create mixer for frequency offset correction
-        let mixer = Osc::new(OscScheme::Vco);
+        let mixer = Nco::new(NcoBackend::InterpolatedLookupTable);
 
         // create buffers
         let buf_len = 64;
@@ -281,24 +285,24 @@ impl QSource {
         let buf_freq = vec![Complex32::new(0.0, 0.0); p_channels];
 
         // create analysis channelizer
-        let ch = FirPfbChannelizer2::new_kaiser(ChannelizerType::Analyzer, p_channels, m, as_)?;
+        let ch = OversampledPolyphaseChannelizer::new_kaiser(ChannelizerType::Analyzer, p_channels, m, as_)?;
 
         // channelizer gain correction
         let gain_ch = ((p_channels as f32) / (m_channels as f32)).sqrt();
 
         // Initialize source state from config
         let source = match config {
-            QSourceConfig::Tone => SourceState::Tone,
-            QSourceConfig::Chirp { duration, negate, single } => {
-                let mut nco = Osc::new(OscScheme::Vco);
+            SignalSourceConfig::Tone => SourceState::Tone,
+            SignalSourceConfig::Chirp { duration, negate, single } => {
+                let mut nco = Nco::new(NcoBackend::InterpolatedLookupTable);
                 let num = (duration * bw).round() as u64;
                 let df = 2.0 * PI / (num as f32) * (if negate { -1.0 } else { 1.0 });
                 nco.set_frequency(if negate { PI } else { -PI });
                 SourceState::Chirp(ChirpState { nco, df, negate, single, num, timer: num })
             }
-            QSourceConfig::Noise => SourceState::Noise,
-            QSourceConfig::Modem { scheme, m: filter_m, beta } => {
-                let symstream = SymStream::new_linear(
+            SignalSourceConfig::Noise => SourceState::Noise,
+            SignalSourceConfig::Modem { scheme, m: filter_m, beta } => {
+                let symstream = SymbolStream::new_linear(
                     crate::filter::FirFilterShape::Arkaiser,
                     2, // k = 2 samples per symbol (fixed)
                     filter_m,
@@ -307,16 +311,16 @@ impl QSource {
                 )?;
                 SourceState::Modem(Box::new(ModemState { symstream }))
             }
-            QSourceConfig::Fsk { m: bits_per_sym, k } => {
-                let modulator = Fskmod::new(bits_per_sym, k, 0.25)?;
+            SignalSourceConfig::Fsk { m: bits_per_sym, k } => {
+                let modulator = FskModulator::new(bits_per_sym, k, 0.25)?;
                 let mask = (1 << bits_per_sym) - 1;
                 SourceState::Fsk(FskState { modulator, buf: vec![Complex32::new(0.0, 0.0); k], mask, index: 0 })
             }
-            QSourceConfig::Gmsk { m: filter_m, bt } => {
-                let modulator = GmskMod::new(2, filter_m, bt)?;
+            SignalSourceConfig::Gmsk { m: filter_m, bt } => {
+                let modulator = GmskModulator::new(2, filter_m, bt)?;
                 SourceState::Gmsk(GmskState { modulator, buf: [Complex32::new(0.0, 0.0); 2], index: 0 })
             }
-            QSourceConfig::User(callback) => {
+            SignalSourceConfig::User(callback) => {
                 SourceState::User(UserState { callback: Arc::new(std::sync::Mutex::new(callback)) })
             }
         };
@@ -431,15 +435,15 @@ impl QSource {
     }
 
     /// Get source type
-    pub fn get_type(&self) -> QSourceType {
+    pub fn get_type(&self) -> SignalSourceType {
         match &self.source {
-            SourceState::User(_) => QSourceType::User,
-            SourceState::Tone => QSourceType::Tone,
-            SourceState::Chirp(_) => QSourceType::Chirp,
-            SourceState::Noise => QSourceType::Noise,
-            SourceState::Modem(_) => QSourceType::Modem,
-            SourceState::Fsk(_) => QSourceType::Fsk,
-            SourceState::Gmsk(_) => QSourceType::Gmsk,
+            SourceState::User(_) => SignalSourceType::User,
+            SourceState::Tone => SignalSourceType::Tone,
+            SourceState::Chirp(_) => SignalSourceType::Chirp,
+            SourceState::Noise => SignalSourceType::Noise,
+            SourceState::Modem(_) => SignalSourceType::Modem,
+            SourceState::Fsk(_) => SignalSourceType::Fsk,
+            SourceState::Gmsk(_) => SignalSourceType::Gmsk,
         }
     }
 
@@ -558,20 +562,20 @@ mod tests {
     #[autotest_annotate(autotest_qsourcecf_config)]
     fn test_qsourcecf_config() {
         // check invalid function calls
-        assert!(QSource::new(0, 12, 60.0, 0.0, 0.2, 10.0, QSourceConfig::Tone).is_err()); // too few subcarriers
-        assert!(QSource::new(17, 12, 60.0, 0.0, 0.2, 10.0, QSourceConfig::Tone).is_err()); // odd-numbered subcarriers
-        assert!(QSource::new(64, 0, 60.0, 0.0, 0.2, 10.0, QSourceConfig::Tone).is_err()); // filter semi-length too small
-        assert!(QSource::new(64, 12, 60.0, 0.6, 0.2, 10.0, QSourceConfig::Tone).is_err()); // center frequency out of range
-        assert!(QSource::new(64, 12, 60.0, -0.6, 0.2, 10.0, QSourceConfig::Tone).is_err()); // center frequency out of range
-        assert!(QSource::new(64, 12, 60.0, 0.0, -0.1, 10.0, QSourceConfig::Tone).is_err()); // bandwidth out of range
+        assert!(SignalSource::new(0, 12, 60.0, 0.0, 0.2, 10.0, SignalSourceConfig::Tone).is_err()); // too few subcarriers
+        assert!(SignalSource::new(17, 12, 60.0, 0.0, 0.2, 10.0, SignalSourceConfig::Tone).is_err()); // odd-numbered subcarriers
+        assert!(SignalSource::new(64, 0, 60.0, 0.0, 0.2, 10.0, SignalSourceConfig::Tone).is_err()); // filter semi-length too small
+        assert!(SignalSource::new(64, 12, 60.0, 0.6, 0.2, 10.0, SignalSourceConfig::Tone).is_err()); // center frequency out of range
+        assert!(SignalSource::new(64, 12, 60.0, -0.6, 0.2, 10.0, SignalSourceConfig::Tone).is_err()); // center frequency out of range
+        assert!(SignalSource::new(64, 12, 60.0, 0.0, -0.1, 10.0, SignalSourceConfig::Tone).is_err()); // bandwidth out of range
 
-        assert!(QSource::new(64, 12, 60.0, 0.0, 1.1, 10.0, QSourceConfig::Tone).is_err());
+        assert!(SignalSource::new(64, 12, 60.0, 0.0, 1.1, 10.0, SignalSourceConfig::Tone).is_err());
         // bandwidth out of range
     }
 
     #[test]
     fn test_qsourcecf_tone() {
-        let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, QSourceConfig::Tone).unwrap();
+        let mut q = SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, SignalSourceConfig::Tone).unwrap();
 
         // generate some samples
         for _ in 0..100 {
@@ -583,7 +587,7 @@ mod tests {
 
     #[test]
     fn test_qsourcecf_noise() {
-        let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, QSourceConfig::Noise).unwrap();
+        let mut q = SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, SignalSourceConfig::Noise).unwrap();
 
         // generate samples and check they're not all zero
         let mut sum = 0.0f32;
@@ -598,8 +602,8 @@ mod tests {
 
     #[test]
     fn test_qsourcecf_chirp() {
-        let config = QSourceConfig::Chirp { duration: 100.0, negate: false, single: false };
-        let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
+        let config = SignalSourceConfig::Chirp { duration: 100.0, negate: false, single: false };
+        let mut q = SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
 
         // generate some samples
         for _ in 0..100 {
@@ -611,7 +615,7 @@ mod tests {
 
     #[test]
     fn test_qsourcecf_enable_disable() {
-        let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, QSourceConfig::Tone).unwrap();
+        let mut q = SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, SignalSourceConfig::Tone).unwrap();
 
         assert!(q.is_enabled());
 
@@ -632,10 +636,10 @@ mod tests {
 
     #[test]
     fn test_qsourcecf_gmsk() {
-        let config = QSourceConfig::Gmsk { m: 3, bt: 0.25 };
-        let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
+        let config = SignalSourceConfig::Gmsk { m: 3, bt: 0.25 };
+        let mut q = SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
 
-        assert_eq!(q.get_type(), QSourceType::Gmsk);
+        assert_eq!(q.get_type(), SignalSourceType::Gmsk);
 
         // generate samples and check they're on unit circle (scaled by 1/sqrt(2))
         for _ in 0..100 {
@@ -653,10 +657,10 @@ mod tests {
 
     #[test]
     fn test_qsourcecf_fsk() {
-        let config = QSourceConfig::Fsk { m: 2, k: 4 }; // 2 bits/symbol, 4 samples/symbol
-        let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
+        let config = SignalSourceConfig::Fsk { m: 2, k: 4 }; // 2 bits/symbol, 4 samples/symbol
+        let mut q = SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
 
-        assert_eq!(q.get_type(), QSourceType::Fsk);
+        assert_eq!(q.get_type(), SignalSourceType::Fsk);
 
         // generate samples and check they're on unit circle
         for _ in 0..100 {
@@ -673,7 +677,7 @@ mod tests {
         freq: f32,
     }
 
-    impl QSourceCallback for TestSineSource {
+    impl SignalSourceCallback for TestSineSource {
         fn generate(&mut self, output: &mut [Complex32]) -> Result<()> {
             for sample in output.iter_mut() {
                 *sample = Complex32::new(self.phase.cos(), self.phase.sin());
@@ -682,7 +686,7 @@ mod tests {
             Ok(())
         }
 
-        fn clone_box(&self) -> Box<dyn QSourceCallback> {
+        fn clone_box(&self) -> Box<dyn SignalSourceCallback> {
             Box::new(self.clone())
         }
     }
@@ -690,10 +694,10 @@ mod tests {
     #[test]
     fn test_qsourcecf_user() {
         let source = TestSineSource { phase: 0.0, freq: 0.1 };
-        let config = QSourceConfig::User(Box::new(source));
-        let mut q = QSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
+        let config = SignalSourceConfig::User(Box::new(source));
+        let mut q = SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).unwrap();
 
-        assert_eq!(q.get_type(), QSourceType::User);
+        assert_eq!(q.get_type(), SignalSourceType::User);
 
         // generate samples and check they're on unit circle
         for _ in 0..100 {

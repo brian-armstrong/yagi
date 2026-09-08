@@ -1,10 +1,11 @@
-use crate::buffer::{WDelay, Window};
+use crate::buffer::{Window, WindowedDelay};
 use crate::error::{Error, Result};
 use crate::filter;
 use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
-pub struct Eqlms<T> {
+#[doc(alias = "Eqlms")]
+pub struct LeastMeanSquaresEqualizer<T> {
     h_len: usize,
     mu: f32,
     h0: Vec<T>,
@@ -13,11 +14,11 @@ pub struct Eqlms<T> {
     count: usize,
     buf_full: bool,
     buffer: Window<T>,
-    x2: WDelay<f32>,
+    x2: WindowedDelay<f32>,
     x2_sum: f32,
 }
 
-impl<T> Eqlms<T>
+impl<T> LeastMeanSquaresEqualizer<T>
 where
     T: Clone
         + Copy
@@ -39,7 +40,7 @@ where
             count: 0,
             buf_full: false,
             buffer: Window::new(h_len)?,
-            x2: WDelay::new(h_len)?,
+            x2: WindowedDelay::new(h_len)?,
             x2_sum: 0.0,
         };
 
@@ -250,10 +251,10 @@ mod tests {
 
         // create and initialize equalizer
         let mut eq = match init {
-            0 => Eqlms::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, k, p, beta, 0.0),
-            1 => Eqlms::<Complex<f32>>::new_lowpass(2 * k * p + 1, 0.5 / (k as f32)),
-            2 => Eqlms::<Complex<f32>>::new(Some(&hp), 2 * k * p + 1),
-            _ => Eqlms::<Complex<f32>>::new(None, 2 * k * p + 1),
+            0 => LeastMeanSquaresEqualizer::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, k, p, beta, 0.0),
+            1 => LeastMeanSquaresEqualizer::<Complex<f32>>::new_lowpass(2 * k * p + 1, 0.5 / (k as f32)),
+            2 => LeastMeanSquaresEqualizer::<Complex<f32>>::new(Some(&hp), 2 * k * p + 1),
+            _ => LeastMeanSquaresEqualizer::<Complex<f32>>::new(None, 2 * k * p + 1),
         }
         .unwrap();
         eq.set_bw(mu).unwrap();
@@ -261,7 +262,7 @@ mod tests {
         // run equalization
         let mut buf = vec![Complex::new(0.0, 0.0); k];
         let mut buf_interp = vec![Complex::new(0.0, 0.0); k];
-        let mut buf_sym = WDelay::new(m + p).unwrap();
+        let mut buf_sym = WindowedDelay::new(m + p).unwrap();
         let mut rmse = 0.0f32;
 
         for i in 0..2 * num_symbols {
@@ -389,19 +390,26 @@ mod tests {
     #[autotest_annotate(autotest_eqlms_config)]
     fn autotest_eqlms_config() {
         // check that object returns None for invalid configurations
-        assert!(Eqlms::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 0, 12, 0.3, 0.0).is_err());
-        assert!(Eqlms::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 2, 0, 0.3, 0.0).is_err());
-        assert!(Eqlms::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 2, 12, 2.0, 0.0).is_err());
-        assert!(Eqlms::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 2, 12, 0.3, -2.0).is_err());
+        assert!(
+            LeastMeanSquaresEqualizer::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 0, 12, 0.3, 0.0).is_err()
+        );
+        assert!(
+            LeastMeanSquaresEqualizer::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 2, 0, 0.3, 0.0).is_err()
+        );
+        assert!(
+            LeastMeanSquaresEqualizer::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 2, 12, 2.0, 0.0).is_err()
+        );
+        assert!(LeastMeanSquaresEqualizer::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 2, 12, 0.3, -2.0)
+            .is_err());
 
-        assert!(Eqlms::<Complex<f32>>::new_lowpass(0, 0.1).is_err());
-        assert!(Eqlms::<Complex<f32>>::new_lowpass(13, -0.1).is_err());
+        assert!(LeastMeanSquaresEqualizer::<Complex<f32>>::new_lowpass(0, 0.1).is_err());
+        assert!(LeastMeanSquaresEqualizer::<Complex<f32>>::new_lowpass(13, -0.1).is_err());
 
         // create proper object and test other interfaces
         let k = 2;
         let m = 3;
         let h_len = 2 * k * m + 1;
-        let mut q = Eqlms::<Complex<f32>>::new(None, h_len).unwrap();
+        let mut q = LeastMeanSquaresEqualizer::<Complex<f32>>::new(None, h_len).unwrap();
         // assert_eq!(q.print(), Ok(()));
 
         // test getting/setting properties
@@ -429,7 +437,7 @@ mod tests {
     #[autotest_annotate(autotest_eqlms_cccf_copy)]
     fn autotest_eqlms_cccf_copy() {
         // create initial object
-        let mut q0 = Eqlms::<Complex<f32>>::new_lowpass(21, 0.12345).unwrap();
+        let mut q0 = LeastMeanSquaresEqualizer::<Complex<f32>>::new_lowpass(21, 0.12345).unwrap();
         q0.set_bw(0.1).unwrap();
         // q0.print().unwrap();
 

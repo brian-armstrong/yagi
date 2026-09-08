@@ -20,7 +20,8 @@ pub enum CpfskFilterType {
 
 /// Continuous-phase frequency-shift keying modulator
 #[derive(Clone, Debug)]
-pub struct Cpfskmod {
+#[doc(alias = "Cpfskmod")]
+pub struct CpfskModulator {
     bps: usize, // bits per symbol
     k: usize,   // samples per symbol
     beta: f32,  // filter bandwidth parameter
@@ -41,7 +42,7 @@ pub struct Cpfskmod {
     v1: f32,
 }
 
-impl Cpfskmod {
+impl CpfskModulator {
     /// Create CPFSK modulator object (frequency modulator)
     ///
     /// # Arguments
@@ -293,40 +294,40 @@ mod tests {
     #[test]
     fn test_cpfskmod_create() {
         // valid creation
-        let result = Cpfskmod::new(2, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(2, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_ok());
 
         // invalid bps
-        let result = Cpfskmod::new(0, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(0, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid modulation index
-        let result = Cpfskmod::new(2, 0.0, 4, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(2, 0.0, 4, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid k (odd)
-        let result = Cpfskmod::new(2, 0.5, 3, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(2, 0.5, 3, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid k (too small)
-        let result = Cpfskmod::new(2, 0.5, 1, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(2, 0.5, 1, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid m
-        let result = Cpfskmod::new(2, 0.5, 4, 0, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(2, 0.5, 4, 0, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
         // invalid beta
-        let result = Cpfskmod::new(2, 0.5, 4, 3, 0.0, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(2, 0.5, 4, 3, 0.0, CpfskFilterType::Gmsk);
         assert!(result.is_err());
 
-        let result = Cpfskmod::new(2, 0.5, 4, 3, 1.5, CpfskFilterType::Gmsk);
+        let result = CpfskModulator::new(2, 0.5, 4, 3, 1.5, CpfskFilterType::Gmsk);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_cpfskmod_msk() {
-        let result = Cpfskmod::new_msk(4);
+        let result = CpfskModulator::new_msk(4);
         assert!(result.is_ok());
         let mod_ = result.unwrap();
         assert_eq!(mod_.get_bits_per_symbol(), 1);
@@ -336,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_cpfskmod_gmsk() {
-        let result = Cpfskmod::new_gmsk(4, 3, 0.35);
+        let result = CpfskModulator::new_gmsk(4, 3, 0.35);
         assert!(result.is_ok());
         let mod_ = result.unwrap();
         assert_eq!(mod_.get_bits_per_symbol(), 1);
@@ -346,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_cpfskmod_modulate() -> Result<()> {
-        let mut mod_ = Cpfskmod::new(2, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk)?;
+        let mut mod_ = CpfskModulator::new(2, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk)?;
         let mut y = vec![Complex32::new(0.0, 0.0); 4];
 
         // test valid symbol
@@ -367,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_cpfskmod_output_unit_amplitude() -> Result<()> {
-        let mut mod_ = Cpfskmod::new_gmsk(4, 3, 0.35)?;
+        let mut mod_ = CpfskModulator::new_gmsk(4, 3, 0.35)?;
         let mut y = vec![Complex32::new(0.0, 0.0); 4];
 
         // modulate some symbols and verify output has unit amplitude
@@ -384,7 +385,7 @@ mod tests {
     #[test]
     fn test_cpfskmod_gmsk_matches_liquid_over_long_run() -> Result<()> {
         let (k, m) = (4, 3);
-        let mut q = Cpfskmod::new_gmsk(k, m, 0.35)?;
+        let mut q = CpfskModulator::new_gmsk(k, m, 0.35)?;
         let mut y = vec![Complex32::new(0.0, 0.0); k];
 
         // (symbol index, sample index, re, im)
@@ -424,12 +425,12 @@ mod tests {
         let filter_type = CpfskFilterType::Gmsk;
 
         // create modulator
-        let mut mod_orig = Cpfskmod::new(bps, h, k, m, beta, filter_type)?;
+        let mut mod_orig = CpfskModulator::new(bps, h, k, m, beta, filter_type)?;
 
         let num_symbols = 80;
         let mut buf_orig = vec![Complex32::new(0.0, 0.0); k];
         let mut buf_copy = vec![Complex32::new(0.0, 0.0); k];
-        let mut ms = crate::sequence::MSequence::from_degree(7)?;
+        let mut ms = crate::sequence::MaximalLengthSequence::from_degree(7)?;
 
         // run original object
         for _ in 0..num_symbols {

@@ -22,7 +22,8 @@ use crate::error::{Error, Result};
 /// of the channel. The shorter the coherence time, the faster the channel
 /// effects.
 #[derive(Debug, Clone)]
-pub struct Tvmpch {
+#[doc(alias = "Tvmpch")]
+pub struct TimeVaryingMultipathChannel {
     h: Vec<Complex32>,    // filter coefficients, time-reversed
     w: Window<Complex32>, // internal buffer
 
@@ -33,7 +34,7 @@ pub struct Tvmpch {
     noise: NoiseSource, // Gaussian source driving the taps
 }
 
-impl Tvmpch {
+impl TimeVaryingMultipathChannel {
     /// create time-varying multi-path channel emulator object
     ///
     /// # Arguments
@@ -147,21 +148,21 @@ mod tests {
 
     #[test]
     fn test_tvmpch_rejects_invalid_config() {
-        assert!(Tvmpch::new(0, 0.1, 0.05).is_err());
-        assert!(Tvmpch::new(31, -0.1, 0.05).is_err());
-        assert!(Tvmpch::new(31, 0.1, -0.01).is_err());
-        assert!(Tvmpch::new(31, 0.1, 1.01).is_err());
-        assert!(Tvmpch::new(31, 0.1, 0.0).is_err());
+        assert!(TimeVaryingMultipathChannel::new(0, 0.1, 0.05).is_err());
+        assert!(TimeVaryingMultipathChannel::new(31, -0.1, 0.05).is_err());
+        assert!(TimeVaryingMultipathChannel::new(31, 0.1, -0.01).is_err());
+        assert!(TimeVaryingMultipathChannel::new(31, 0.1, 1.01).is_err());
+        assert!(TimeVaryingMultipathChannel::new(31, 0.1, 0.0).is_err());
 
-        assert!(Tvmpch::new(31, 0.1, 0.05).is_ok());
-        assert!(Tvmpch::new(1, 0.0, 1.0).is_ok());
+        assert!(TimeVaryingMultipathChannel::new(31, 0.1, 0.05).is_ok());
+        assert!(TimeVaryingMultipathChannel::new(1, 0.0, 1.0).is_ok());
     }
 
     #[test]
     fn test_tvmpch_single_tap_is_passthrough() {
         // with one coefficient there is nothing to fade. the lone tap is the
         // pinned direct path, so the channel is transparent
-        let mut q = Tvmpch::new_seeded(1, 1.0, 0.5, 1).unwrap();
+        let mut q = TimeVaryingMultipathChannel::new_seeded(1, 1.0, 0.5, 1).unwrap();
         let x: Vec<Complex32> = (0..32).map(|i| Complex32::new(i as f32, -(i as f32))).collect();
         let mut y = vec![Complex32::new(0.0, 0.0); x.len()];
         q.execute_block(&x, &mut y).unwrap();
@@ -172,7 +173,7 @@ mod tests {
     fn test_tvmpch_zero_std_is_pure_delay() {
         // std=0 kills the innovations, so the taps stay at their initial state.
         let n = 8;
-        let mut q = Tvmpch::new_seeded(n, 0.0, 0.1, 2).unwrap();
+        let mut q = TimeVaryingMultipathChannel::new_seeded(n, 0.0, 0.1, 2).unwrap();
         let x: Vec<Complex32> =
             (0..64).map(|i| Complex32::new((0.3 * i as f32).cos(), (0.2 * i as f32).sin())).collect();
         let mut y = vec![Complex32::new(0.0, 0.0); x.len()];
@@ -187,7 +188,7 @@ mod tests {
     #[test]
     fn test_tvmpch_direct_path_never_fades() {
         // the final stored tap is the direct path and must stay exactly 1
-        let mut q = Tvmpch::new_seeded(16, 2.0, 0.5, 3).unwrap();
+        let mut q = TimeVaryingMultipathChannel::new_seeded(16, 2.0, 0.5, 3).unwrap();
         for i in 0..500 {
             q.execute_one(Complex32::new(i as f32, 0.0));
         }
@@ -202,8 +203,8 @@ mod tests {
         let x: Vec<Complex32> =
             (0..120).map(|i| Complex32::new((0.1 * i as f32).cos(), (0.05 * i as f32).sin())).collect();
 
-        let mut q0 = Tvmpch::new_seeded(31, 0.1, 0.05, 9).unwrap();
-        let mut q1 = Tvmpch::new_seeded(31, 0.1, 0.05, 9).unwrap();
+        let mut q0 = TimeVaryingMultipathChannel::new_seeded(31, 0.1, 0.05, 9).unwrap();
+        let mut q1 = TimeVaryingMultipathChannel::new_seeded(31, 0.1, 0.05, 9).unwrap();
         let mut y0 = vec![Complex32::new(0.0, 0.0); x.len()];
         let mut y1 = vec![Complex32::new(0.0, 0.0); x.len()];
         q0.execute_block(&x, &mut y0).unwrap();
@@ -218,7 +219,7 @@ mod tests {
         }
 
         // a different seed must diverge
-        let mut q3 = Tvmpch::new_seeded(31, 0.1, 0.05, 10).unwrap();
+        let mut q3 = TimeVaryingMultipathChannel::new_seeded(31, 0.1, 0.05, 10).unwrap();
         let mut y3 = vec![Complex32::new(0.0, 0.0); x.len()];
         q3.execute_block(&x, &mut y3).unwrap();
         assert_ne!(y0, y3);
