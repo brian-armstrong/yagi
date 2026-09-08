@@ -58,7 +58,7 @@ where
     /// # Returns
     ///
     /// A new IIR decimation filter
-    pub fn new_default(decimation_factor: usize, order: usize) -> Result<Self> {
+    pub fn new_butterworth(decimation_factor: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
             decimation_factor,
             IirFilterShape::Butter,
@@ -170,7 +170,7 @@ mod tests {
     #[autotest_annotate(autotest_iirdecim_copy)]
     fn test_iirdecim_copy() {
         // create base object
-        let mut q0 = IirDecimationFilter::<Complex32, f32>::new_default(3, 7).unwrap();
+        let mut q0 = IirDecimationFilter::<Complex32, f32>::new_butterworth(3, 7).unwrap();
 
         // run samples through filter
         let mut buf = [Complex32::default(); 3];
