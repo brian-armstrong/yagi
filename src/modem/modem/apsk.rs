@@ -27,7 +27,7 @@ impl Modem {
 
         debug_assert_eq!(apsk_def.modulation, scheme);
 
-        let mut modem = Modem::_new(bits_per_symbol, apsk_def.modulation)?;
+        let mut modem = Modem::new_base(bits_per_symbol, apsk_def.modulation)?;
 
         let data = Apsk {
             num_levels: apsk_def.num_levels,

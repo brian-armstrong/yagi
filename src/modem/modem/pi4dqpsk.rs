@@ -13,7 +13,7 @@ impl Pi4Dqpsk {
 
 impl Modem {
     pub(super) fn new_pi4dqpsk() -> Result<Self> {
-        let mut modem = Modem::_new(2, ModulationScheme::Pi4Dqpsk)?;
+        let mut modem = Modem::new_base(2, ModulationScheme::Pi4Dqpsk)?;
         let data = Pi4Dqpsk { theta: 0.0 };
         modem.data = Some(ModemData::Pi4Dqpsk(data));
         modem.demodulate_soft_func = Some(Self::demodulate_soft_pi4dqpsk);

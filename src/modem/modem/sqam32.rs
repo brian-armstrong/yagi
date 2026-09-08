@@ -8,7 +8,7 @@ pub(super) struct Sqam32 {
 
 impl Modem {
     pub(super) fn new_sqam32() -> Result<Self> {
-        let mut modem = Modem::_new(5, ModulationScheme::Sqam32)?;
+        let mut modem = Modem::new_base(5, ModulationScheme::Sqam32)?;
 
         let symbol_map = MODEM_ARB_SQAM32.to_vec();
         modem.data = Some(ModemData::Sqam32(Sqam32 { map: symbol_map }));

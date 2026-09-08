@@ -721,7 +721,7 @@ impl Modem {
         Ok(symbol_out)
     }
 
-    fn _new(bits_per_symbol: usize, scheme: ModulationScheme) -> Result<Self> {
+    fn new_base(bits_per_symbol: usize, scheme: ModulationScheme) -> Result<Self> {
         if bits_per_symbol < 1 {
             return Err(Error::Config("modem must have at least 1 bit per symbol".into()));
         }

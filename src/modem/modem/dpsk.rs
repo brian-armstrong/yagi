@@ -16,7 +16,7 @@ impl Dpsk {
 impl Modem {
     pub(super) fn new_dpsk(scheme: ModulationScheme) -> Result<Self> {
         let bits_per_symbol = scheme.bits_per_symbol();
-        let mut modem = Self::_new(bits_per_symbol, scheme)?;
+        let mut modem = Self::new_base(bits_per_symbol, scheme)?;
 
         let alpha = PI / modem.constellation_size as f32;
 

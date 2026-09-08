@@ -9,7 +9,7 @@ impl Modem {
     }
 
     pub(super) fn new_arb(scheme: ModulationScheme, table: &[Complex32], m: usize) -> Result<Self> {
-        let mut modem = Modem::_new(m, scheme)?;
+        let mut modem = Modem::new_base(m, scheme)?;
         modem.symbol_map = Some(table.to_vec());
         if scheme == ModulationScheme::Arb {
             modem.arb_balance_iq()?;

@@ -9,7 +9,7 @@ pub(super) struct Psk {
 impl Modem {
     pub(super) fn new_psk(scheme: ModulationScheme) -> Result<Self> {
         let bits_per_symbol = scheme.bits_per_symbol();
-        let mut modem = Modem::_new(bits_per_symbol, scheme)?;
+        let mut modem = Modem::new_base(bits_per_symbol, scheme)?;
 
         let data = Psk {
             alpha: PI / modem.constellation_size as f32,

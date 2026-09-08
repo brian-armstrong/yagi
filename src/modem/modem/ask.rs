@@ -20,7 +20,7 @@ impl Modem {
             _ => unreachable!(),
         };
 
-        let mut modem = Self::_new(bits_per_symbol, scheme)?;
+        let mut modem = Self::new_base(bits_per_symbol, scheme)?;
         modem.data = Some(ModemData::Ask(Ask { alpha }));
 
         modem.reference = Some([0.0; MAX_MOD_BITS_PER_SYMBOL]);

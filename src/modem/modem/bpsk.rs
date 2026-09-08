@@ -2,7 +2,7 @@ use crate::modem::modem::*;
 
 impl Modem {
     pub(super) fn new_bpsk() -> Result<Self> {
-        let mut modem = Self::_new(1, ModulationScheme::Bpsk)?;
+        let mut modem = Self::new_base(1, ModulationScheme::Bpsk)?;
         modem.demodulate_soft_func = Some(Self::demodulate_soft_bpsk);
         modem.symbol_map = Some(vec![Complex32::new(0.0, 0.0); modem.constellation_size]);
         modem.init_map()?;

@@ -23,7 +23,7 @@ impl Modem {
             _ => unreachable!(),
         };
 
-        let mut modem = Modem::_new(bits_per_symbol, scheme)?;
+        let mut modem = Modem::new_base(bits_per_symbol, scheme)?;
 
         let (m_i, m_q) = if bits_per_symbol % 2 == 1 {
             // rectangular qam

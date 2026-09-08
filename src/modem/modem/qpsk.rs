@@ -2,7 +2,7 @@ use crate::modem::modem::*;
 
 impl Modem {
     pub(super) fn new_qpsk() -> Result<Self> {
-        let mut modem = Self::_new(2, ModulationScheme::Qpsk)?;
+        let mut modem = Self::new_base(2, ModulationScheme::Qpsk)?;
         modem.demodulate_soft_func = Some(Self::demodulate_soft_qpsk);
         Ok(modem)
     }
