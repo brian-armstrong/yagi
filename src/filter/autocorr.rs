@@ -162,7 +162,7 @@ mod tests {
         let delay = 7;
 
         // deterministic pseudo-random QPSK-ish sequence
-        let mut ms = MSequence::create_default(9).unwrap();
+        let mut ms = MSequence::from_degree(9).unwrap();
         let x: Vec<Complex32> = (0..96)
             .map(|_| {
                 let s = ms.generate_symbol(2);
@@ -187,7 +187,7 @@ mod tests {
         let window_size = 12;
         let delay = 5;
 
-        let mut ms = MSequence::create_default(7).unwrap();
+        let mut ms = MSequence::from_degree(7).unwrap();
         let xr: Vec<f32> = (0..64).map(|_| if ms.advance() != 0 { 1.0 } else { -1.0 }).collect();
         let xc: Vec<Complex32> = xr.iter().map(|&v| Complex32::new(v, 0.0)).collect();
 
@@ -206,7 +206,7 @@ mod tests {
         let num_reps = 8;
         let window_size = 64;
 
-        let mut ms = MSequence::create_default(9).unwrap();
+        let mut ms = MSequence::from_degree(9).unwrap();
         let sequence: Vec<Complex32> = (0..sequence_len)
             .map(|_| {
                 let s = ms.generate_symbol(2);

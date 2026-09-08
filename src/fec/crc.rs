@@ -313,7 +313,7 @@ mod tests {
 
     fn crc_test(scheme: CrcScheme, n: usize) {
         // generate pseudo-random data
-        let mut ms = MSequence::create_default(9).unwrap();
+        let mut ms = MSequence::from_degree(9).unwrap();
         let data: Vec<u8> = (0..n).map(|_| ms.generate_symbol(8) as u8).collect();
 
         // generate key

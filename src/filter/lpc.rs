@@ -100,7 +100,7 @@ mod tests {
         let mut y = vec![0.0; n]; // input sequence (filtered noise)
 
         // generate input signal (filtered noise)
-        let mut ms = MSequence::create_default(15)?;
+        let mut ms = MSequence::from_degree(15)?;
         for i in 0..n {
             // rough, but simple uniform random variable
             let v = ms.generate_symbol(10) as f32 / 1023.0 - 0.5;

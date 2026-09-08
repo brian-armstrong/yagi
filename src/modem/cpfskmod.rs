@@ -429,7 +429,7 @@ mod tests {
         let num_symbols = 80;
         let mut buf_orig = vec![Complex32::new(0.0, 0.0); k];
         let mut buf_copy = vec![Complex32::new(0.0, 0.0); k];
-        let mut ms = crate::sequence::MSequence::create_default(7)?;
+        let mut ms = crate::sequence::MSequence::from_degree(7)?;
 
         // run original object
         for _ in 0..num_symbols {

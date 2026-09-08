@@ -150,7 +150,7 @@ pub(crate) fn ofdmframe_init_s0(
     let m = sequence_bits(num_subcarriers)?;
 
     // generate m-sequence generator object
-    let mut ms = MSequence::create_default(m)?;
+    let mut ms = MSequence::from_degree(m)?;
 
     let mut m_s0 = 0;
 
@@ -215,7 +215,7 @@ pub(crate) fn ofdmframe_init_s1(
     let m = sequence_bits(num_subcarriers)? + 1;
 
     // generate m-sequence generator object
-    let mut ms = MSequence::create_default(m)?;
+    let mut ms = MSequence::from_degree(m)?;
 
     let mut m_s1 = 0;
 

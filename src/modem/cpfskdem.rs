@@ -333,7 +333,7 @@ mod tests {
         let mut sym_out = vec![0usize; num_symbols];
 
         // modulate, demodulate
-        let mut ms = crate::sequence::MSequence::create_default(7).unwrap();
+        let mut ms = crate::sequence::MSequence::from_degree(7).unwrap();
         for i in 0..num_symbols {
             // generate random symbol
             sym_in[i] = ms.generate_symbol(bps as u32) as usize;

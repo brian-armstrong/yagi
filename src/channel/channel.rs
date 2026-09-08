@@ -182,7 +182,7 @@ impl Channel {
 
         // generate random coefficients using m-sequence generator
         self.h[0] = Complex32::new(1.0, 0.0);
-        let mut ms = MSequence::create_default(14)?;
+        let mut ms = MSequence::from_degree(14)?;
         for i in 1..h_len {
             let vi = ms.generate_symbol(8) as f32 / 256.0 - 0.5;
             let vq = ms.generate_symbol(8) as f32 / 256.0 - 0.5;

@@ -350,7 +350,7 @@ mod tests {
 
     // a real +/-1 spreading code
     fn tab_bpsk(m: usize) -> Vec<Complex32> {
-        let mut ms = MSequence::create_default(m as u32).unwrap();
+        let mut ms = MSequence::from_degree(m as u32).unwrap();
         let n = ms.get_length() as usize;
         (0..n)
             .map(|_| {

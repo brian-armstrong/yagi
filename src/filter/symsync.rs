@@ -438,7 +438,7 @@ mod tests {
         // generate pseudo-random QPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
         //       each time this test is run
-        let mut ms = MSequence::create_default(10).unwrap();
+        let mut ms = MSequence::from_degree(10).unwrap();
         for i in 0..num_symbols as usize {
             let si = ms.generate_symbol(1);
             let sq = ms.generate_symbol(1);
@@ -595,7 +595,7 @@ mod tests {
         // generate pseudo-random BPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
         //       each time this test is run
-        let mut ms = MSequence::create_default(10).unwrap();
+        let mut ms = MSequence::from_degree(10).unwrap();
         for i in 0..num_symbols {
             s[i] = if ms.generate_symbol(1) == 0 { 1.0 } else { -1.0 };
         }

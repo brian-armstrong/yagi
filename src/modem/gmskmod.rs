@@ -174,7 +174,7 @@ mod tests {
         let num_symbols = 16;
         let mut buf_orig = vec![Complex32::new(0.0, 0.0); k];
         let mut buf_copy = vec![Complex32::new(0.0, 0.0); k];
-        let mut ms = MSequence::create_default(7).unwrap();
+        let mut ms = MSequence::from_degree(7).unwrap();
 
         // run original object
         for _ in 0..num_symbols {

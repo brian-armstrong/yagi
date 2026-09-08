@@ -242,7 +242,7 @@ mod tests {
         let delay = m + m;
         let num_symbols = 80 + delay;
 
-        let mut ms = MSequence::create_default(7).unwrap();
+        let mut ms = MSequence::from_degree(7).unwrap();
         let mut buf = vec![Complex32::new(0.0, 0.0); k];
         let mut sym_in = vec![0u8; num_symbols];
         let mut sym_out = vec![0u8; num_symbols];

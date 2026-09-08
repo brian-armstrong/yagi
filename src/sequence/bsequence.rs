@@ -231,7 +231,7 @@ mod tests {
     #[autotest_annotate(autotest_bsequence_init_msequence)]
     fn test_bsequence_init_msequence() {
         // create and initialize m-sequence
-        let mut ms = MSequence::create_default(4).unwrap();
+        let mut ms = MSequence::from_degree(4).unwrap();
 
         // create and initialize binary sequence on m-sequence
         let bs = BSequence::from_msequence(&mut ms).unwrap();

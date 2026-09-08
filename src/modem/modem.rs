@@ -800,7 +800,7 @@ impl Modem {
             data: None,
             r: Complex32::new(0.0, 0.0),
             x_hat: Complex32::new(0.0, 0.0),
-            randomizer: MSequence::create_default(11)?,
+            randomizer: MSequence::from_degree(11)?,
         };
         modem.reset();
         Ok(modem)

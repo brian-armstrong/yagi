@@ -60,7 +60,7 @@ impl MSequence {
         Ok(Self { m, g, a, n: (1 << m) - 1, state: a })
     }
 
-    pub fn create_genpoly(g: u32) -> Result<Self> {
+    pub fn from_genpoly(g: u32) -> Result<Self> {
         let t = msb_index(g);
         if t < 2 {
             return Err(Error::Config(format!("invalid generator polynomial: 0x{:x}", g)));
@@ -70,7 +70,7 @@ impl MSequence {
         Self::new(m, g, a)
     }
 
-    pub fn create_default(m: u32) -> Result<Self> {
+    pub fn from_degree(m: u32) -> Result<Self> {
         let g = match m {
             2 => MSEQUENCE_GENPOLY_M2,
             3 => MSEQUENCE_GENPOLY_M3,
@@ -104,7 +104,7 @@ impl MSequence {
             31 => MSEQUENCE_GENPOLY_M31,
             _ => return Err(Error::Config(format!("m ({}) not in range", m))),
         };
-        Self::create_genpoly(g)
+        Self::from_genpoly(g)
     }
 
     pub fn advance(&mut self) -> u32 {
@@ -160,7 +160,7 @@ impl MSequence {
     }
 
     pub fn genpoly_period(g: u32) -> Result<u32> {
-        let mut q = MSequence::create_genpoly(g)?;
+        let mut q = MSequence::from_genpoly(g)?;
         Ok(q.measure_period())
     }
 }
@@ -174,7 +174,7 @@ mod tests {
 
     fn msequence_test_autocorrelation(m: u32) {
         // create and initialize m-sequence
-        let mut ms = MSequence::create_default(m).unwrap();
+        let mut ms = MSequence::from_degree(m).unwrap();
         let n = ms.get_length();
 
         // create and initialize first binary sequence on m-sequence
@@ -267,7 +267,7 @@ mod tests {
 
     fn msequence_test_period(m: u32) {
         // create and initialize m-sequence
-        let mut q = MSequence::create_default(m).unwrap();
+        let mut q = MSequence::from_degree(m).unwrap();
 
         // measure period and compare to expected
         let n = (1u32 << m) - 1;
@@ -460,11 +460,11 @@ mod tests {
     fn test_msequence_config() {
         // check invalid configurations
         assert!(MSequence::new(100, 0, 0).is_err());
-        assert!(MSequence::create_default(32).is_err()); // too long
-        assert!(MSequence::create_genpoly(0).is_err());
+        assert!(MSequence::from_degree(32).is_err()); // too long
+        assert!(MSequence::from_genpoly(0).is_err());
 
         // create proper object and test configurations
-        let mut q = MSequence::create_genpoly(MSEQUENCE_GENPOLY_M11).unwrap();
+        let mut q = MSequence::from_genpoly(MSEQUENCE_GENPOLY_M11).unwrap();
 
         assert_eq!(q.get_state(), 1);
         q.set_state(0x8a);

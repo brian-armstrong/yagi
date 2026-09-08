@@ -85,7 +85,7 @@ impl OfdmFrameGen {
         let g_data = 1.0 / ((counts.pilot + counts.data) as f32).sqrt();
 
         // set pilot sequence
-        let ms_pilot = MSequence::create_default(8)?;
+        let ms_pilot = MSequence::from_degree(8)?;
 
         Ok(Self {
             num_subcarriers,

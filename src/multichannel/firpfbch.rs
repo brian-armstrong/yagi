@@ -352,7 +352,7 @@ mod tests {
         // generate filter coefficients using m-sequence
         let h_len = p * num_channels;
         let mut h = vec![0.0f32; h_len];
-        let mut ms = MSequence::create_default(6).unwrap();
+        let mut ms = MSequence::from_degree(6).unwrap();
         for i in 0..h_len {
             h[i] = ms.generate_symbol(2) as f32 - 1.5;
         }
@@ -369,7 +369,7 @@ mod tests {
         let mut y1 = vec![vec![Complex32::new(0.0, 0.0); num_channels]; num_symbols];
 
         // generate input sequence (complex noise)
-        let mut ms = MSequence::create_default(7).unwrap();
+        let mut ms = MSequence::from_degree(7).unwrap();
         for i in 0..num_samples {
             y[i] = Complex32::new(
                 0.1 * std::f32::consts::FRAC_1_SQRT_2 * (ms.generate_symbol(2) as f32 - 1.5),
@@ -430,7 +430,7 @@ mod tests {
         // generate filter coefficients using m-sequence
         let h_len = p * num_channels;
         let mut h = vec![0.0f32; h_len];
-        let mut ms = MSequence::create_default(6).unwrap();
+        let mut ms = MSequence::from_degree(6).unwrap();
         for i in 0..h_len {
             h[i] = ms.generate_symbol(2) as f32 - 1.5;
         }
@@ -447,7 +447,7 @@ mod tests {
         let mut y1 = vec![Complex32::new(0.0, 0.0); num_samples];
 
         // generate input sequence (complex noise)
-        let mut ms = MSequence::create_default(7).unwrap();
+        let mut ms = MSequence::from_degree(7).unwrap();
         for i in 0..num_symbols {
             for j in 0..num_channels {
                 y_input[i][j] = Complex32::new(
@@ -516,7 +516,7 @@ mod tests {
         // generate complex filter coefficients using m-sequence
         let h_len = p * num_channels;
         let mut h = vec![Complex32::new(0.0, 0.0); h_len];
-        let mut ms = MSequence::create_default(6).unwrap();
+        let mut ms = MSequence::from_degree(6).unwrap();
         for i in 0..h_len {
             h[i] = Complex32::new(ms.generate_symbol(2) as f32 - 1.5, ms.generate_symbol(2) as f32 - 1.5);
         }
@@ -534,7 +534,7 @@ mod tests {
         let mut y1 = vec![vec![Complex32::new(0.0, 0.0); num_channels]; num_symbols];
 
         // generate input sequence (complex noise)
-        let mut ms = MSequence::create_default(7).unwrap();
+        let mut ms = MSequence::from_degree(7).unwrap();
         for i in 0..num_samples {
             y[i] = Complex32::new(
                 0.1 * std::f32::consts::FRAC_1_SQRT_2 * (ms.generate_symbol(2) as f32 - 1.5),

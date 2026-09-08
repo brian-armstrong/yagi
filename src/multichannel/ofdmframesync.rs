@@ -677,7 +677,7 @@ impl PayloadReceiver {
             pilot_bins,
             pilot_frequencies,
             pilot_phases,
-            pilot_sequence: MSequence::create_default(8)?,
+            pilot_sequence: MSequence::from_degree(8)?,
             phase_offset: 0.0,
             phase_slope: 0.0,
         })
