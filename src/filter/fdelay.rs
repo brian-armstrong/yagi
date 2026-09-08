@@ -43,7 +43,7 @@ where
         Ok(q)
     }
 
-    pub fn new_default(nmax: usize) -> Result<Self> {
+    pub fn from_max_delay(nmax: usize) -> Result<Self> {
         Self::new(nmax, 8, 64)
     }
 
@@ -256,10 +256,10 @@ mod tests {
         assert!(Fdelay::<f32, f32>::new(nmax, m, 0).is_err());
 
         // test invalid configurations, default construction
-        assert!(Fdelay::<f32, f32>::new_default(0).is_err());
+        assert!(Fdelay::<f32, f32>::from_max_delay(0).is_err());
 
         // create proper object but test invalid internal configurations
-        let mut q = Fdelay::<f32, f32>::new_default(nmax).unwrap();
+        let mut q = Fdelay::<f32, f32>::from_max_delay(nmax).unwrap();
 
         assert!(q.set_delay(-1.0).is_err());
         assert!(q.set_delay(nmax as f32 + 1.0).is_err());
@@ -274,8 +274,8 @@ mod tests {
     #[autotest_annotate(autotest_fdelay_rrrf_push_write)]
     fn test_fdelay_rrrf_push_write() {
         // create two identical objects
-        let mut q0 = Fdelay::<f32, f32>::new_default(200).unwrap();
-        let mut q1 = Fdelay::<f32, f32>::new_default(200).unwrap();
+        let mut q0 = Fdelay::<f32, f32>::from_max_delay(200).unwrap();
+        let mut q1 = Fdelay::<f32, f32>::from_max_delay(200).unwrap();
 
         // set identical delays
         q0.set_delay(7.2280).unwrap();
