@@ -54,11 +54,11 @@ impl Fskdem {
 
         // Determine demodulation mapping between tones and frequency bins
         let mut demod_map = vec![0; m_size];
-        for i in 0..m_size {
+        for (i, dm) in demod_map.iter_mut().enumerate() {
             let freq = ((i as f32) - m2) * bandwidth / m2;
             let idx = freq * k_size as f32;
             let index = if idx < 0.0 { (idx + k_size as f32).round() as usize } else { idx.round() as usize };
-            demod_map[i] = index;
+            *dm = index;
         }
 
         // Check for uniqueness

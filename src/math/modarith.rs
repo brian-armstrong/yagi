@@ -226,7 +226,8 @@ pub fn totient(x: u32) -> u32 {
     let mut n = x;
     let mut p = 0;
     loop {
-        for k in 2..=n {
+        let mut k = 2;
+        while k <= n {
             if n.is_multiple_of(k) {
                 n /= k;
 
@@ -238,6 +239,7 @@ pub fn totient(x: u32) -> u32 {
                 p = k;
                 break;
             }
+            k += 1;
         }
 
         if n < 2 {

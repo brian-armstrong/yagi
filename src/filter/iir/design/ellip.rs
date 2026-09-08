@@ -22,10 +22,10 @@ use std::f32::consts::PI;
 /// * `v` - sequence of decreasing moduli [size: n]
 fn landenf(k: f32, n: usize, v: &mut [f32]) -> Result<()> {
     let mut k = k;
-    for i in 0..n {
+    for vi in &mut v[..n] {
         let kp = (1.0 - k * k).sqrt();
         k = (1.0 - kp) / (1.0 + kp);
-        v[i] = k;
+        *vi = k;
     }
     Ok(())
 }
@@ -53,8 +53,8 @@ fn ellipkf(k: f32, n: usize, k_out: &mut f32, kp_out: &mut f32) -> Result<()> {
         let mut v = vec![0.0; n];
         landenf(k, n, &mut v)?;
         *k_out = PI * 0.5;
-        for i in 0..n {
-            *k_out *= 1.0 + v[i];
+        for &vi in &v[..n] {
+            *k_out *= 1.0 + vi;
         }
     };
 
@@ -65,8 +65,8 @@ fn ellipkf(k: f32, n: usize, k_out: &mut f32, kp_out: &mut f32) -> Result<()> {
         let mut vp = vec![0.0; n];
         landenf(kp, n, &mut vp)?;
         *kp_out = PI * 0.5;
-        for i in 0..n {
-            *kp_out *= 1.0 + vp[i];
+        for &vpi in &vp[..n] {
+            *kp_out *= 1.0 + vpi;
         }
     }
 
@@ -218,10 +218,6 @@ pub fn iir_design_ellip_analog(
     let wp = 2.0 * PI * fp;
     let ws = 2.0 * PI * fs;
 
-    // ripples passband, stopband
-    let ep = ep;
-    let es = es;
-
     let k = wp / ws;
     let k1 = ep / es;
 
@@ -240,9 +236,9 @@ pub fn iir_design_ellip_analog(
     let l = (n / 2.0).floor() as usize;
     let r = (n as usize) % 2;
     let mut u = vec![0.0; l];
-    for i in 0..l {
+    for (i, ui) in u.iter_mut().enumerate() {
         let t = (i + 1) as f32;
-        u[i] = (2.0 * t - 1.0) / n;
+        *ui = (2.0 * t - 1.0) / n;
     }
     let mut zeta = vec![Complex32::new(0.0, 0.0); l];
     for i in 0..l {
@@ -265,9 +261,9 @@ pub fn iir_design_ellip_analog(
     za.clear();
     pa.clear();
 
-    for i in 0..l {
-        pa.push(pa_tmp[i]);
-        pa.push(pa_tmp[i].conj());
+    for &p in &pa_tmp[..l] {
+        pa.push(p);
+        pa.push(p.conj());
     }
 
     if r != 0 {
@@ -278,9 +274,9 @@ pub fn iir_design_ellip_analog(
         return Err(Error::Internal("Invalid derived order (poles)".into()));
     }
 
-    for i in 0..l {
-        za.push(za_tmp[i]);
-        za.push(za_tmp[i].conj());
+    for &z in &za_tmp[..l] {
+        za.push(z);
+        za.push(z.conj());
     }
 
     if za.len() != 2 * l {
@@ -288,11 +284,11 @@ pub fn iir_design_ellip_analog(
     }
 
     *ka = if r == 1 { Complex32::new(1.0, 0.0) } else { Complex32::new(1.0 / (1.0 + ep * ep).sqrt(), 0.0) };
-    for i in 0..n as usize {
-        *ka *= pa[i];
+    for &p in &pa[..n as usize] {
+        *ka *= p;
     }
-    for i in 0..2 * l {
-        *ka /= za[i];
+    for &z in &za[..2 * l] {
+        *ka /= z;
     }
 
     Ok(())

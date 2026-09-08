@@ -266,9 +266,12 @@ where
     fn step(&mut self) {
         // read buffer, copy to fft input array, applying window
         let rc = self.buffer.read();
-        for i in 0..self.window_len {
+        for (bt, (&rci, &wi)) in self.buf_time[..self.window_len]
+            .iter_mut()
+            .zip(rc[..self.window_len].iter().zip(&self.w[..self.window_len]))
+        {
             // first do the operation in T, then convert to Complex32
-            self.buf_time[i] = (rc[i] * self.w[i].into()).into();
+            *bt = (rci * wi.into()).into();
         }
 
         // execute fft on _q->buf_time and store result in _q->buf_freq
@@ -331,8 +334,8 @@ where
 
     pub fn read_psd(&self, psd: &mut [f32]) -> Result<()> {
         self.read_psd_mag(psd)?;
-        for i in 0..self.nfft {
-            psd[i] = 10.0 * psd[i].log10();
+        for p in &mut psd[..self.nfft] {
+            *p = 10.0 * p.log10();
         }
         Ok(())
     }

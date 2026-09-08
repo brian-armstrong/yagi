@@ -211,8 +211,8 @@ where
         }
 
         // copy channelized symbols to transform input
-        for i in 0..self.num_channels {
-            self.x[i] = x[i].into();
+        for (local, &input) in self.x[..self.num_channels].iter_mut().zip(&x[..self.num_channels]) {
+            *local = input.into();
         }
 
         // execute inverse DFT, store result in buffer 'x_out'
@@ -240,8 +240,8 @@ where
         }
 
         // push samples into buffers
-        for i in 0..self.num_channels {
-            self.analyzer_push(x[i]);
+        for &xi in &x[..self.num_channels] {
+            self.analyzer_push(xi);
         }
 
         // execute analysis filters on the given input starting
@@ -278,8 +278,8 @@ where
         self.fft.run(&self.x, &mut self.x_out);
 
         // move to output array
-        for i in 0..self.num_channels {
-            y[i] = <T as From<Complex32>>::from(self.x_out[i]);
+        for (yi, &xo) in y[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
+            *yi = <T as From<Complex32>>::from(xo);
         }
 
         Ok(())

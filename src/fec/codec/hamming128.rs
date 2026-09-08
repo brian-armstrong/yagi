@@ -265,8 +265,8 @@ fn soft_decode_symbol(soft_bits: &[u8]) -> u8 {
 pub fn hamming128_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) {
     let mut k = 0usize;
 
-    for i in 0..dec_msg_len {
-        msg_dec[i] = soft_decode_symbol(&msg_enc[k..]);
+    for md in &mut msg_dec[..dec_msg_len] {
+        *md = soft_decode_symbol(&msg_enc[k..]);
         k += 12;
     }
 }

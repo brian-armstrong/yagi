@@ -43,10 +43,10 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     // compute filter coefficients
     let mut h = vec![0.0; h_len];
     let c0 = 1.0 / (2.0_f32.ln()).sqrt();
-    for i in 0..h_len {
+    for (i, hi) in h.iter_mut().enumerate() {
         let t = (i as f32 + dt) / k as f32 - m as f32;
 
-        h[i] = qf(2.0 * PI * beta * (t - 0.5) * c0) - qf(2.0 * PI * beta * (t + 0.5) * c0);
+        *hi = qf(2.0 * PI * beta * (t - 0.5) * c0) - qf(2.0 * PI * beta * (t + 0.5) * c0);
     }
 
     // normalize filter coefficients such that the filter's
@@ -76,10 +76,7 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
 pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     let h_len = validate_gmsk_config(k, m, beta, dt)?;
 
-    let bt = beta;
-
-    // internal options
-    let beta = bt; // prototype filter cut-off
+    let bt = beta; // prototype filter cut-off (equals the BT product)
     let delta = 1e-3; // filter design correction factor
     let prototype = design::FirFilterShape::Kaiser; // Nyquist prototype
 

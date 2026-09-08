@@ -26,8 +26,8 @@ impl Modem {
         modem.reference = Some([0.0; MAX_MOD_BITS_PER_SYMBOL]);
         let reference = modem.reference.as_mut().unwrap();
 
-        for k in 0..bits_per_symbol {
-            reference[k] = (1 << k) as f32 * alpha;
+        for (k, r) in reference.iter_mut().enumerate().take(bits_per_symbol) {
+            *r = (1 << k) as f32 * alpha;
         }
 
         if (2..8).contains(&bits_per_symbol) {

@@ -66,6 +66,11 @@ impl<T: Default + Clone + Copy> Window<T> {
         self.len
     }
 
+    pub fn is_empty(&self) -> bool {
+        // guaranteed to be nonzero by new
+        false
+    }
+
     pub fn index(&self, i: usize) -> Result<T> {
         if i >= self.len {
             return Err(Error::Range("index value out of range".to_string()));

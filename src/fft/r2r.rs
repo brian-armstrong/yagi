@@ -95,6 +95,10 @@ impl FftR2r {
         self.n
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.n == 0
+    }
+
     pub fn kind(&self) -> FftR2rKind {
         self.kind
     }

@@ -28,7 +28,7 @@ pub fn fir_design_rrcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
     let mut h = vec![0.0; h_len];
 
     // Calculate filter coefficients
-    for n in 0..h_len {
+    for (n, hn) in h.iter_mut().enumerate() {
         let nf = n as f32;
         let kf = k as f32;
         let mf = m as f32;
@@ -40,7 +40,7 @@ pub fn fir_design_rrcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
         let beta = beta as f64;
 
         // Check for special condition where z equals zero
-        h[n] = if beta == 0.0 {
+        *hn = if beta == 0.0 {
             sincd(z) as f32
         } else if z.abs() < 1e-5 {
             (1.0 - beta + 4.0 * beta / PI) as f32

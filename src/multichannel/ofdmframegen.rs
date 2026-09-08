@@ -179,8 +179,8 @@ impl OfdmFrameGen {
         }
 
         // apply tapering window
-        for i in 0..self.taper_len {
-            y[i] *= self.taper[i];
+        for (yi, &t) in y[..self.taper_len].iter_mut().zip(&self.taper[..self.taper_len]) {
+            *yi *= t;
         }
         Ok(())
     }

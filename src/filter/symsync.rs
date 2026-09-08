@@ -70,8 +70,8 @@ where
             }
         }
 
-        for i in 0..h_len {
-            dh[i] *= 0.06f32 / hdh_max;
+        for dhi in &mut dh[..h_len] {
+            *dhi *= 0.06f32 / hdh_max;
         }
 
         let mf = FirPfbFilter::new(npfb, h, h_len)?;

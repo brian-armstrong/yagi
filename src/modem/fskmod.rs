@@ -59,9 +59,9 @@ impl Fskmod {
         self.oscillator.set_frequency(dphi);
 
         // Generate output tone
-        for i in 0..self.k {
+        for yi in &mut y[..self.k] {
             // Compute complex output
-            y[i] = self.oscillator.cexp();
+            *yi = self.oscillator.cexp();
 
             // Step oscillator
             self.oscillator.step();

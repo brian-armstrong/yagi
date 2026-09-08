@@ -246,8 +246,8 @@ fn cpfskmod_firdes(k: usize, m: usize, beta: f32, filter_type: CpfskFilterType, 
             if ht_len != k {
                 return Err(Error::Config("invalid filter length (rcos full)".into()));
             }
-            for i in 0..ht_len {
-                ht[i] = 1.0 - (2.0 * PI * i as f32 / ht_len as f32).cos();
+            for (i, hti) in ht.iter_mut().enumerate() {
+                *hti = 1.0 - (2.0 * PI * i as f32 / ht_len as f32).cos();
             }
         }
         CpfskFilterType::RcosPartial => {

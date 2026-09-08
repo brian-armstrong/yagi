@@ -44,8 +44,8 @@ impl Modem {
         modem.reference = Some([0.0; MAX_MOD_BITS_PER_SYMBOL]);
         let reference = modem.reference.as_mut().unwrap();
 
-        for k in 0..modem.bits_per_symbol {
-            reference[k] = (1 << k) as f32 * data.alpha;
+        for (k, r) in reference.iter_mut().enumerate().take(modem.bits_per_symbol) {
+            *r = (1 << k) as f32 * data.alpha;
         }
 
         modem.data = Some(ModemData::Qam(data));

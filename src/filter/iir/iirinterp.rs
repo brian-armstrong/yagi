@@ -96,8 +96,8 @@ where
         }
 
         // TODO: use iirpfb
-        for i in 0..self.m {
-            y[i] = self.iirfilt.execute(if i == 0 { x } else { T::default() });
+        for (i, yi) in y.iter_mut().enumerate() {
+            *yi = self.iirfilt.execute(if i == 0 { x } else { T::default() });
         }
         Ok(())
     }

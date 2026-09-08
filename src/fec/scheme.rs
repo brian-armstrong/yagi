@@ -101,40 +101,6 @@ impl FecScheme {
         FecScheme::RsM8,
     ];
 
-    /// returns fec_scheme based on input string
-    pub fn from_str(s: &str) -> Self {
-        match s {
-            "none" => FecScheme::None,
-            "rep3" => FecScheme::Rep3,
-            "rep5" => FecScheme::Rep5,
-            "h74" => FecScheme::Hamming74,
-            "h84" => FecScheme::Hamming84,
-            "h128" => FecScheme::Hamming128,
-            "g2412" => FecScheme::Golay2412,
-            "secded2216" => FecScheme::Secded2216,
-            "secded3932" => FecScheme::Secded3932,
-            "secded7264" => FecScheme::Secded7264,
-            "v27" => FecScheme::ConvV27,
-            "v29" => FecScheme::ConvV29,
-            "v39" => FecScheme::ConvV39,
-            "v615" => FecScheme::ConvV615,
-            "v27p23" => FecScheme::ConvV27P23,
-            "v27p34" => FecScheme::ConvV27P34,
-            "v27p45" => FecScheme::ConvV27P45,
-            "v27p56" => FecScheme::ConvV27P56,
-            "v27p67" => FecScheme::ConvV27P67,
-            "v27p78" => FecScheme::ConvV27P78,
-            "v29p23" => FecScheme::ConvV29P23,
-            "v29p34" => FecScheme::ConvV29P34,
-            "v29p45" => FecScheme::ConvV29P45,
-            "v29p56" => FecScheme::ConvV29P56,
-            "v29p67" => FecScheme::ConvV29P67,
-            "v29p78" => FecScheme::ConvV29P78,
-            "rs8" => FecScheme::RsM8,
-            _ => FecScheme::Unknown,
-        }
-    }
-
     /// short name
     pub fn short_name(&self) -> &'static str {
         match self {
@@ -167,6 +133,39 @@ impl FecScheme {
             FecScheme::ConvV29P78 => "v29p78",
             FecScheme::RsM8 => "rs8",
         }
+    }
+
+    fn from_short_name(s: &str) -> crate::error::Result<Self> {
+        Ok(match s {
+            "none" => FecScheme::None,
+            "rep3" => FecScheme::Rep3,
+            "rep5" => FecScheme::Rep5,
+            "h74" => FecScheme::Hamming74,
+            "h84" => FecScheme::Hamming84,
+            "h128" => FecScheme::Hamming128,
+            "g2412" => FecScheme::Golay2412,
+            "secded2216" => FecScheme::Secded2216,
+            "secded3932" => FecScheme::Secded3932,
+            "secded7264" => FecScheme::Secded7264,
+            "v27" => FecScheme::ConvV27,
+            "v29" => FecScheme::ConvV29,
+            "v39" => FecScheme::ConvV39,
+            "v615" => FecScheme::ConvV615,
+            "v27p23" => FecScheme::ConvV27P23,
+            "v27p34" => FecScheme::ConvV27P34,
+            "v27p45" => FecScheme::ConvV27P45,
+            "v27p56" => FecScheme::ConvV27P56,
+            "v27p67" => FecScheme::ConvV27P67,
+            "v27p78" => FecScheme::ConvV27P78,
+            "v29p23" => FecScheme::ConvV29P23,
+            "v29p34" => FecScheme::ConvV29P34,
+            "v29p45" => FecScheme::ConvV29P45,
+            "v29p56" => FecScheme::ConvV29P56,
+            "v29p67" => FecScheme::ConvV29P67,
+            "v29p78" => FecScheme::ConvV29P78,
+            "rs8" => FecScheme::RsM8,
+            _ => return Err(crate::error::Error::Config(format!("unknown FEC scheme: {}", s))),
+        })
     }
 
     /// long name
@@ -344,6 +343,14 @@ impl FecScheme {
     }
 }
 
+impl std::str::FromStr for FecScheme {
+    type Err = crate::error::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_short_name(s)
+    }
+}
+
 /// compute encoded message length for block codes
 ///
 ///  dec_msg_len    :   decoded message length (bytes)
@@ -439,10 +446,10 @@ mod tests {
     #[autotest_annotate(autotest_fec_str2fec)]
     fn test_fec_str2fec() {
         // invalid case
-        assert_eq!(FecScheme::from_str("invalid scheme"), FecScheme::Unknown);
+        assert!("invalid scheme".parse::<FecScheme>().is_err());
 
         for &(scheme, name, ..) in SCHEMES {
-            assert_eq!(FecScheme::from_str(name), scheme, "from_str({})", name);
+            assert_eq!(name.parse::<FecScheme>().unwrap(), scheme, "from_str({})", name);
             // short_name is the inverse: it must round-trip
             assert_eq!(scheme.short_name(), name, "short_name({:?})", scheme);
         }
@@ -506,7 +513,7 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for fs in FecScheme::ALL {
             assert!(seen.insert(fs.short_name()), "{:?} listed twice", fs);
-            assert_eq!(FecScheme::from_str(fs.short_name()), fs);
+            assert_eq!(fs.short_name().parse::<FecScheme>().unwrap(), fs);
             assert!(!fs.long_name().is_empty(), "{:?}", fs);
         }
 

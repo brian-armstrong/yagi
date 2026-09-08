@@ -1,6 +1,7 @@
 //
 // cyclic redundancy check (and family)
 //
+use crate::error::{Error, Result};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CrcScheme {
@@ -36,19 +37,6 @@ impl CrcScheme {
         CrcScheme::Crc32,
     ];
 
-    /// returns crc_scheme based on input string
-    pub fn from_str(s: &str) -> Self {
-        match s {
-            "none" => CrcScheme::None,
-            "checksum" => CrcScheme::Checksum,
-            "crc8" => CrcScheme::Crc8,
-            "crc16" => CrcScheme::Crc16,
-            "crc24" => CrcScheme::Crc24,
-            "crc32" => CrcScheme::Crc32,
-            _ => CrcScheme::Unknown,
-        }
-    }
-
     /// short name
     pub fn short_name(&self) -> &'static str {
         match self {
@@ -60,6 +48,18 @@ impl CrcScheme {
             CrcScheme::Crc24 => "crc24",
             CrcScheme::Crc32 => "crc32",
         }
+    }
+
+    fn from_short_name(s: &str) -> Result<Self> {
+        Ok(match s {
+            "none" => CrcScheme::None,
+            "checksum" => CrcScheme::Checksum,
+            "crc8" => CrcScheme::Crc8,
+            "crc16" => CrcScheme::Crc16,
+            "crc24" => CrcScheme::Crc24,
+            "crc32" => CrcScheme::Crc32,
+            _ => return Err(Error::Config(format!("unknown CRC scheme: {}", s))),
+        })
     }
 
     /// long name
@@ -86,6 +86,14 @@ impl CrcScheme {
             CrcScheme::Crc24 => 3,
             CrcScheme::Crc32 => 4,
         }
+    }
+}
+
+impl std::str::FromStr for CrcScheme {
+    type Err = Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Self::from_short_name(s)
     }
 }
 
@@ -361,14 +369,14 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_crc_config)]
     fn test_crc_config() {
-        assert_eq!(CrcScheme::from_str("unknown"), CrcScheme::Unknown);
-        assert_eq!(CrcScheme::from_str("rosebud"), CrcScheme::Unknown);
-        assert_eq!(CrcScheme::from_str("none"), CrcScheme::None);
-        assert_eq!(CrcScheme::from_str("checksum"), CrcScheme::Checksum);
-        assert_eq!(CrcScheme::from_str("crc8"), CrcScheme::Crc8);
-        assert_eq!(CrcScheme::from_str("crc16"), CrcScheme::Crc16);
-        assert_eq!(CrcScheme::from_str("crc24"), CrcScheme::Crc24);
-        assert_eq!(CrcScheme::from_str("crc32"), CrcScheme::Crc32);
+        assert!("unknown".parse::<CrcScheme>().is_err());
+        assert!("rosebud".parse::<CrcScheme>().is_err());
+        assert_eq!("none".parse::<CrcScheme>().unwrap(), CrcScheme::None);
+        assert_eq!("checksum".parse::<CrcScheme>().unwrap(), CrcScheme::Checksum);
+        assert_eq!("crc8".parse::<CrcScheme>().unwrap(), CrcScheme::Crc8);
+        assert_eq!("crc16".parse::<CrcScheme>().unwrap(), CrcScheme::Crc16);
+        assert_eq!("crc24".parse::<CrcScheme>().unwrap(), CrcScheme::Crc24);
+        assert_eq!("crc32".parse::<CrcScheme>().unwrap(), CrcScheme::Crc32);
 
         // check length
         assert_eq!(CrcScheme::Unknown.key_len(), 0);
@@ -388,7 +396,7 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for cs in CrcScheme::ALL {
             assert!(seen.insert(cs.short_name()), "{:?} listed twice", cs);
-            assert_eq!(CrcScheme::from_str(cs.short_name()), cs);
+            assert_eq!(cs.short_name().parse::<CrcScheme>().unwrap(), cs);
             assert!(!cs.long_name().is_empty(), "{:?}", cs);
         }
     }

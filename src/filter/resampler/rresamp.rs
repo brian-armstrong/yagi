@@ -174,8 +174,8 @@ where
     fn execute_primitive(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
         let mut index = 0;
         let mut n = 0;
-        for i in 0..self.q {
-            self.pfb.push(x[i]);
+        for &xi in &x[..self.q] {
+            self.pfb.push(xi);
 
             while index < self.p {
                 y[n] = self.pfb.execute(index)?;
@@ -297,7 +297,7 @@ mod tests {
             "baseline" => Rresamp::<Complex32, f32>::new_kaiser(interp, decim, m, bw, as_).unwrap(),
             "default" => Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap(),
             _ => {
-                let ftype = FirFilterShape::from_str(method).unwrap();
+                let ftype: FirFilterShape = method.parse().unwrap();
                 let beta = bw; // rename to avoid confusion
                 Rresamp::<Complex32, f32>::new_prototype(ftype, interp, decim, m, beta).unwrap()
             }

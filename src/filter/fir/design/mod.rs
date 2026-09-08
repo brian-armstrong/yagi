@@ -81,6 +81,7 @@ pub struct FilterInfo {
 }
 
 // Define window information
+// Must match the order of the FirFilterShape variants
 const FILTER_INFO: [FilterInfo; 15] = [
     // FilterInfo { short_name: "unknown", long_name: "unknown" },
     FilterInfo { short_name: "kaiser", long_name: "Nyquist Kaiser filter" },
@@ -108,11 +109,13 @@ const FILTER_INFO: [FilterInfo; 15] = [
 /// # Returns
 ///
 /// A `FirFilterType` matching the filter name
-impl FirFilterShape {
-    pub fn from_str(s: &str) -> Result<FirFilterShape> {
+impl std::str::FromStr for FirFilterShape {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<FirFilterShape> {
         for (i, info) in FILTER_INFO.iter().enumerate() {
             if info.short_name == s {
-                return Ok(unsafe { std::mem::transmute(i as u8) });
+                return Ok(unsafe { std::mem::transmute::<u8, FirFilterShape>(i as u8) });
             }
         }
         Err(Error::Config("Unknown filter type".into()))
@@ -300,7 +303,7 @@ pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f3
 
     let mut h = vec![0.0; n];
 
-    for i in 0..n {
+    for (i, hi) in h.iter_mut().enumerate() {
         // time vector
         let t = i as f32 - (n as f32 - 1.0) / 2.0;
 
@@ -311,7 +314,7 @@ pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f3
         let h2 = windows::window(wtype, i, n, arg)?;
 
         // composite
-        h[i] = h1 * h2;
+        *hi = h1 * h2;
     }
 
     Ok(h)
@@ -361,8 +364,8 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
     }
 
     // normalize
-    for i in 0..h.len() {
-        h[i] /= scale;
+    for hi in h.iter_mut() {
+        *hi /= scale;
     }
 
     // add impulse and return
@@ -431,7 +434,7 @@ pub fn fir_design_prototype(ftype: FirFilterShape, k: usize, m: usize, beta: f32
 pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f32>> {
     let beta = 4.0;
     let mut h = vec![0.0; n];
-    for i in 0..n {
+    for (i, hi) in h.iter_mut().enumerate() {
         // time sample
         let t = i as f32 - (n as f32 - 1.0) / 2.0;
 
@@ -445,7 +448,7 @@ pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f
         let w = windows::kaiser(i, n, beta)?;
 
         // composite
-        h[i] = (j + r) * w;
+        *hi = (j + r) * w;
     }
     Ok(h)
 }
@@ -577,8 +580,8 @@ pub fn filter_energy(h: &[f32], fc: f32, nfft: usize) -> Result<f32> {
 
     for i in 0..nfft {
         let f = 0.5 * (i as f32) / (nfft as f32);
-        for k in 0..h.len() {
-            expjwt[k] = Complex32::new(0.0, 2.0 * std::f32::consts::PI * f * k as f32).exp();
+        for (k, ejw) in expjwt.iter_mut().enumerate() {
+            *ejw = Complex32::new(0.0, 2.0 * std::f32::consts::PI * f * k as f32).exp();
         }
         let v = expjwt.dotprod(h);
         let e2 = (v * v.conj()).re;
@@ -635,9 +638,9 @@ where
 {
     let mut h_res = Complex32::new(0.0, 0.0);
     let fc = fc as f64;
-    for i in 0..h.len() {
+    for (i, &hi) in h.iter().enumerate() {
         let expjwt = Complex64::from_polar(1.0, -2.0 * std::f64::consts::PI * fc * i as f64);
-        let product = Complex32::from(h[i]) * Complex32::new(expjwt.re as f32, expjwt.im as f32);
+        let product = Complex32::from(hi) * Complex32::new(expjwt.re as f32, expjwt.im as f32);
         h_res += product;
     }
     Ok(h_res)
@@ -676,6 +679,7 @@ pub fn fir_group_delay(h: &[f32], fc: f32) -> Result<f32> {
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
+    use std::str::FromStr;
     use test_macro::autotest_annotate;
 
     use crate::fft::{fft_run, Direction};

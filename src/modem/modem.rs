@@ -160,9 +160,8 @@ impl ModulationScheme {
         ModulationScheme::Pi4Dqpsk,
     ];
 
-    /// returns modulation scheme based on input string
-    pub fn from_str(s: &str) -> Self {
-        match s {
+    fn from_short_name(s: &str) -> Result<Self> {
+        Ok(match s {
             "psk2" => ModulationScheme::Psk2,
             "psk4" => ModulationScheme::Psk4,
             "psk8" => ModulationScheme::Psk8,
@@ -216,8 +215,8 @@ impl ModulationScheme {
             "arb64ui" => ModulationScheme::Arb64Ui,
             "pi4dqpsk" => ModulationScheme::Pi4Dqpsk,
             "arb" => ModulationScheme::Arb,
-            _ => ModulationScheme::Unknown,
-        }
+            _ => return Err(Error::Config(format!("unknown modulation scheme: {}", s))),
+        })
     }
 
     /// short name
@@ -453,6 +452,22 @@ impl ModulationScheme {
     }
 }
 
+impl std::str::FromStr for ModulationScheme {
+    type Err = Error;
+
+    /// Parses a modulation scheme from its short name
+    fn from_str(s: &str) -> Result<Self> {
+        Self::from_short_name(s)
+    }
+}
+
+/// Modulator: maps a symbol to a constellation point
+type ModulateFn = fn(&mut Modem, u32) -> Result<Complex32>;
+/// Hard demodulator: maps a received sample to the nearest symbol
+type DemodulateFn = fn(&mut Modem, Complex32) -> Result<u32>;
+/// Soft demodulator: maps a received sample to a symbol and per-bit soft values
+type DemodulateSoftFn = fn(&mut Modem, Complex32, &mut [u8]) -> Result<u32>;
+
 #[derive(Debug, Clone)]
 pub struct Modem {
     // common data
@@ -478,13 +493,13 @@ pub struct Modem {
     data: Option<ModemData>,
 
     // modulate function pointer
-    modulate_func: fn(&mut Modem, u32) -> Result<Complex32>,
+    modulate_func: ModulateFn,
 
     // demodulate function pointer
-    demodulate_func: fn(&mut Modem, Complex32) -> Result<u32>,
+    demodulate_func: DemodulateFn,
 
     // soft demodulation
-    demodulate_soft_func: Option<fn(&mut Modem, Complex32, &mut [u8]) -> Result<u32>>,
+    demodulate_soft_func: Option<DemodulateSoftFn>,
 
     // soft demodulation
     // neighbors array
@@ -813,8 +828,8 @@ impl Modem {
 
         let constellation_size = self.constellation_size;
         let mut c = vec![Complex32::new(0.0, 0.0); constellation_size];
-        for i in 0..constellation_size {
-            c[i] = self.modulate(i as u32)?;
+        for (i, ci) in c.iter_mut().enumerate() {
+            *ci = self.modulate(i as u32)?;
         }
 
         let neighbors = self.demod_soft_neighbors.as_mut().unwrap();
@@ -911,8 +926,8 @@ pub fn unpack_soft_bits(sym_in: u32, bps: usize, soft_bits: &mut [u8]) -> Result
         )));
     }
 
-    for i in 0..bps {
-        soft_bits[i] = if (sym_in >> (bps - i - 1)) & 0x0001 != 0 { SOFTBIT_1 } else { SOFTBIT_0 };
+    for (i, bit) in soft_bits[..bps].iter_mut().enumerate() {
+        *bit = if (sym_in >> (bps - i - 1)) & 0x0001 != 0 { SOFTBIT_1 } else { SOFTBIT_0 };
     }
     Ok(())
 }
@@ -2414,10 +2429,10 @@ mod tests {
     #[autotest_annotate(autotest_modemcf_str2mod)]
     fn test_modemcf_str2mod() {
         // invalid case
-        assert_eq!(ModulationScheme::from_str("invalid scheme"), ModulationScheme::Unknown);
+        assert!("invalid scheme".parse::<ModulationScheme>().is_err());
 
         for &(scheme, name, ..) in SCHEMES {
-            assert_eq!(ModulationScheme::from_str(name), scheme, "from_str({})", name);
+            assert_eq!(name.parse::<ModulationScheme>().unwrap(), scheme, "from_str({})", name);
             assert_eq!(scheme.short_name(), name, "short_name({:?})", scheme);
         }
     }
@@ -2470,7 +2485,7 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for ms in ModulationScheme::ALL {
             assert!(seen.insert(ms.short_name()), "{:?} listed twice", ms);
-            assert_eq!(ModulationScheme::from_str(ms.short_name()), ms);
+            assert_eq!(ms.short_name().parse::<ModulationScheme>().unwrap(), ms);
         }
 
         let tabled: std::collections::HashSet<_> = SCHEMES.iter().map(|&(_, name, ..)| name).collect();
@@ -2481,7 +2496,7 @@ mod tests {
     fn test_modemcf_arb_not_in_all() {
         assert_eq!(ModulationScheme::Arb.short_name(), "arb");
         assert_eq!(ModulationScheme::Arb.bits_per_symbol(), 0);
-        assert_eq!(ModulationScheme::from_str("arb"), ModulationScheme::Arb);
+        assert_eq!("arb".parse::<ModulationScheme>().unwrap(), ModulationScheme::Arb);
         assert!(Modem::new(ModulationScheme::Arb).is_err());
     }
 

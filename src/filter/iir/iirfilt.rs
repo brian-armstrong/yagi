@@ -271,12 +271,12 @@ where
     let mut hb = Complex32::default();
     let mut ha = Complex32::default();
 
-    for i in 0..b.len() {
-        hb += b[i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+    for (i, &bi) in b.iter().enumerate() {
+        hb += bi.into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
     }
 
-    for i in 0..a.len() {
-        ha += a[i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+    for (i, &ai) in a.iter().enumerate() {
+        ha += ai.into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
     }
 
     // TODO : check to see if we need to take conjugate

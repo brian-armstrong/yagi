@@ -180,8 +180,9 @@ where
         let alpha = d - d_hat;
         let r = self.buffer.read();
 
-        for i in 0..self.h_len {
-            self.w1[i] = self.w0[i] + (self.mu * alpha.conj() * r[i]) / self.x2_sum;
+        for (w1, (&w0, &ri)) in self.w1[..self.h_len].iter_mut().zip(self.w0[..self.h_len].iter().zip(&r[..self.h_len]))
+        {
+            *w1 = w0 + (self.mu * alpha.conj() * ri) / self.x2_sum;
         }
 
         self.w0.copy_from_slice(&self.w1);

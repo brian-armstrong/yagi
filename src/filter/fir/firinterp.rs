@@ -172,8 +172,8 @@ where
 
         let h_len = 2 * m * interp;
         let mut hc = vec![Coeff::zero(); h_len];
-        for i in 0..h_len {
-            hc[i] = (PI * i as f32 / (2 * m * interp) as f32).sin().powi(2).into();
+        for (i, hci) in hc.iter_mut().enumerate() {
+            *hci = (PI * i as f32 / (2 * m * interp) as f32).sin().powi(2).into();
         }
 
         Self::new(interp, &hc, h_len)

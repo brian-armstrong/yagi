@@ -22,9 +22,8 @@ pub fn design_lpc(x: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     // compute auto-correlation with lags
     let mut r = vec![0.0; p + 1];
 
-    for i in 0..=p {
-        let lag = i;
-        r[i] = x[lag..].iter().zip(&x[..n - lag]).map(|(&a, &b)| a * b).sum();
+    for (lag, ri) in r.iter_mut().enumerate() {
+        *ri = x[lag..].iter().zip(&x[..n - lag]).map(|(&a, &b)| a * b).sum();
     }
 
     // solve the Toeplitz inversion using Levinson-Durbin recursion

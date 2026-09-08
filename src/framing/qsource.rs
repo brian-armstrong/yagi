@@ -199,7 +199,7 @@ enum SourceState {
     Tone,
     Chirp(ChirpState),
     Noise,
-    Modem(ModemState),
+    Modem(Box<ModemState>),
     Fsk(FskState),
     Gmsk(GmskState),
 }
@@ -305,7 +305,7 @@ impl QSource {
                     beta,
                     scheme,
                 )?;
-                SourceState::Modem(ModemState { symstream })
+                SourceState::Modem(Box::new(ModemState { symstream }))
             }
             QSourceConfig::Fsk { m: bits_per_sym, k } => {
                 let modulator = Fskmod::new(bits_per_sym, k, 0.25)?;

@@ -18,13 +18,7 @@ pub fn randf_pdf(x: f32) -> f32 {
 
 /// Uniform random number cumulative distribution function
 pub fn randf_cdf(x: f32) -> f32 {
-    if x < 0.0 {
-        0.0
-    } else if x > 1.0 {
-        1.0
-    } else {
-        x
-    }
+    x.clamp(0.0, 1.0)
 }
 
 /// Uniform random number generator with arbitrary bounds

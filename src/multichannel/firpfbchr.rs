@@ -158,9 +158,9 @@ where
     /// * `x` - channelizer input, [size: decim_rate x 1]
     pub fn push(&mut self, x: &[T]) {
         // load buffers in blocks of P in the reverse direction
-        for i in 0..self.decim_rate {
+        for &xi in &x[..self.decim_rate] {
             // push sample into buffer at filter index
-            self.w[self.base_index].push(x[i]);
+            self.w[self.base_index].push(xi);
 
             // decrement base index, wrapping around
             self.base_index = if self.base_index == 0 { self.num_channels - 1 } else { self.base_index - 1 };
@@ -191,8 +191,8 @@ where
 
         // copy result to output, scale result by 1/num_channels (C transform)
         let g = 1.0 / self.num_channels as f32;
-        for i in 0..self.num_channels {
-            y[i] = <T as From<Complex32>>::from(self.x_out[i] * g);
+        for (yi, &xo) in y[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
+            *yi = <T as From<Complex32>>::from(xo * g);
         }
     }
 }

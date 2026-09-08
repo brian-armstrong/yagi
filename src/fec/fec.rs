@@ -15,8 +15,8 @@ use super::scheme::FecScheme;
 
 #[derive(Debug, Clone)]
 enum FecData {
-    Convolutional(Convolutional),
-    ReedSolomon(ReedSolomon),
+    Convolutional(Box<Convolutional>),
+    ReedSolomon(Box<ReedSolomon>),
 }
 
 /// forward error-correction encoder/decoder
@@ -42,12 +42,12 @@ impl Fec {
             | FecScheme::Secded2216
             | FecScheme::Secded3932
             | FecScheme::Secded7264 => None,
-            FecScheme::RsM8 => Some(FecData::ReedSolomon(ReedSolomon::new_m8())),
+            FecScheme::RsM8 => Some(FecData::ReedSolomon(Box::new(ReedSolomon::new_m8()))),
             _ => {
                 // convolutional, punctured or otherwise
                 let (params, matrix) = conv_scheme_params(scheme)
                     .ok_or_else(|| Error::Config(format!("unhandled scheme {:?}", scheme)))?;
-                Some(FecData::Convolutional(Convolutional::new(params, matrix)))
+                Some(FecData::Convolutional(Box::new(Convolutional::new(params, matrix))))
             }
         };
 

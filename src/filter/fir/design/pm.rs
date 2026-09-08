@@ -525,14 +525,12 @@ impl FirDesignPm {
 
         // count number of changes
         self.num_exchanges = 0;
-        for i in 0..self.r + 1 {
-            self.num_exchanges += if self.iext[i] == found_iext[i] { 0 } else { 1 };
+        for (&old, &new) in self.iext[..self.r + 1].iter().zip(&found_iext[..self.r + 1]) {
+            self.num_exchanges += if old == new { 0 } else { 1 };
         }
 
         // copy new values
-        for i in 0..self.r + 1 {
-            self.iext[i] = found_iext[i];
-        }
+        self.iext[..self.r + 1].copy_from_slice(&found_iext[..self.r + 1]);
 
         Ok(())
     }
@@ -578,7 +576,7 @@ impl FirDesignPm {
         // evaluate Lagrange polynomial on evenly spaced points
         let p = self.r - self.s + 1;
         let mut g = vec![0.0; p];
-        for i in 0..p {
+        for (i, gi) in g.iter_mut().enumerate() {
             let f = (i as f64) / (self.h_len as f64);
             let xf = (2.0 * std::f64::consts::PI * f).cos();
             let cf = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf, self.r + 1);
@@ -600,7 +598,7 @@ impl FirDesignPm {
                 1.0
             };
 
-            g[i] = cf * g_val;
+            *gi = cf * g_val;
         }
 
         // compute inverse DFT (slow method), performing
@@ -608,13 +606,13 @@ impl FirDesignPm {
         // TODO : flesh out computation for other filter types
         if self.btype == FirPmBandType::Bandpass {
             // odd filter length, even symmetry
-            for i in 0..self.h_len {
+            for (i, hi) in h.iter_mut().enumerate() {
                 let mut v = g[0];
                 let f = ((i as f64) - (p - 1) as f64 + 0.5 * (1.0 - self.s as f64)) / (self.h_len as f64);
                 for j in 1..self.r {
                     v += 2.0 * g[j] * (2.0 * std::f64::consts::PI * f * j as f64).cos();
                 }
-                h[i] = (v / (self.h_len as f64)) as f32;
+                *hi = (v / (self.h_len as f64)) as f32;
             }
         } else if self.btype != FirPmBandType::Bandpass && self.s == 1 {
             // odd filter length, odd symmetry

@@ -33,7 +33,7 @@ pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32
 
     let mut h = vec![0.0; n];
 
-    for i in 0..n {
+    for (i, h_i) in h.iter_mut().enumerate() {
         // time vector
         let t = i as f32 - (n as f32 - 1.0) / 2.0 + mu;
 
@@ -44,7 +44,7 @@ pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32
         let h2 = windows::kaiser(i, n, beta)?;
 
         // composite
-        h[i] = h1 * h2;
+        *h_i = h1 * h2;
     }
 
     Ok(h)

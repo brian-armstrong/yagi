@@ -40,9 +40,7 @@ pub fn iir_design_bessel_analog(
     // compute poles (roots to Bessel polynomial)
     fpoly_bessel_roots(n + 1, &mut tmp_pa)?;
 
-    for i in 0..n {
-        pa.push(tmp_pa[i]);
-    }
+    pa.extend_from_slice(&tmp_pa[..n]);
 
     // analog Bessel filter prototype has no zeros
 
@@ -68,13 +66,13 @@ pub fn iir_design_bessel_analog(
 #[allow(dead_code)]
 fn fpoly_bessel(n: usize, p: &mut [f32]) -> Result<()> {
     let n = n - 1;
-    for k in 0..n + 1 {
+    for (k, pk) in p[..n + 1].iter_mut().enumerate() {
         let t0 = lgammaf((2 * n - k + 1) as f32);
         let t1 = lgammaf((n - k + 1) as f32);
         let t2 = lgammaf((k + 1) as f32);
         let t3 = LN_2 * (n - k) as f32;
 
-        p[k] = (t0 - t1 - t2 - t3).exp().round();
+        *pk = (t0 - t1 - t2 - t3).exp().round();
     }
     Ok(())
 }
@@ -114,10 +112,10 @@ fn fpoly_bessel_roots_orchard(n: usize, roots: &mut [Complex32]) -> Result<()> {
                 r_hat[j] = 2.0 * r1[j - p] - r0[j - 1];
             }
 
-            for j in 0..l {
-                let (x, y) = (r_hat[j].re, r_hat[j].im);
+            for rhj in &mut r_hat[..l] {
+                let (x, y) = (rhj.re, rhj.im);
                 let (x_hat, y_hat) = fpoly_bessel_roots_orchard_recursion(i, x, y)?;
-                r_hat[j] = Complex32::new(x_hat, y_hat);
+                *rhj = Complex32::new(x_hat, y_hat);
             }
         }
 

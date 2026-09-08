@@ -86,8 +86,8 @@ pub fn matrix_ones<T>(x: &mut [T], rows: usize, cols: usize)
 where
     T: FloatComplex,
 {
-    for i in 0..(rows * cols) {
-        x[i] = T::one();
+    for xi in &mut x[..rows * cols] {
+        *xi = T::one();
     }
 }
 
@@ -96,8 +96,8 @@ pub fn matrix_zeros<T>(x: &mut [T], rows: usize, cols: usize)
 where
     T: FloatComplex,
 {
-    for i in 0..(rows * cols) {
-        x[i] = T::zero();
+    for xi in &mut x[..rows * cols] {
+        *xi = T::zero();
     }
 }
 

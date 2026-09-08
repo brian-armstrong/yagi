@@ -198,8 +198,8 @@ where
 {
     matrix_hermitian(x, xr, xc);
 
-    for i in 0..(xr * xc) {
-        x[i] = x[i].conj();
+    for xi in &mut x[..xr * xc] {
+        *xi = xi.conj();
     }
 }
 
@@ -222,8 +222,8 @@ pub fn matrix_mul_transpose<T>(x: &[T], m: usize, n: usize, xxt: &mut [T])
 where
     T: FloatComplex,
 {
-    for i in 0..m * m {
-        xxt[i] = T::default();
+    for xxti in &mut xxt[..m * m] {
+        *xxti = T::default();
     }
 
     for r in 0..m {
@@ -243,8 +243,8 @@ pub fn matrix_transpose_mul<T>(x: &[T], m: usize, n: usize, xtx: &mut [T])
 where
     T: FloatComplex,
 {
-    for i in 0..n * n {
-        xtx[i] = T::default();
+    for xtxi in &mut xtx[..n * n] {
+        *xtxi = T::default();
     }
 
     for r in 0..n {
@@ -264,8 +264,8 @@ pub fn matrix_mul_hermitian<T>(x: &[T], m: usize, n: usize, xxh: &mut [T])
 where
     T: FloatComplex,
 {
-    for i in 0..m * m {
-        xxh[i] = T::default();
+    for xxhi in &mut xxh[..m * m] {
+        *xxhi = T::default();
     }
 
     for r in 0..m {
@@ -284,8 +284,8 @@ pub fn matrix_hermitian_mul<T>(x: &[T], m: usize, n: usize, xhx: &mut [T])
 where
     T: FloatComplex,
 {
-    for i in 0..n * n {
-        xhx[i] = T::default();
+    for xhxi in &mut xhx[..n * n] {
+        *xhxi = T::default();
     }
 
     for r in 0..n {

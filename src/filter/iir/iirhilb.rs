@@ -150,7 +150,7 @@ impl IirHilbertFilter {
     }
 
     pub fn interp_execute_block(&mut self, x: &[Complex32], y: &mut [f32]) {
-        for (&xi, yi) in x.iter().zip(y.chunks_exact_mut(2)) {
+        for (&xi, yi) in x.iter().zip(y.as_chunks_mut::<2>().0) {
             self.interp_execute(xi, yi);
         }
     }

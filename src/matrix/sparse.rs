@@ -390,8 +390,8 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     ///  y  :   output vector [size: _m x 1]
     pub fn vmul(&self, x: &[T], y: &mut [T]) {
         // initialize to zero
-        for i in 0..self.m {
-            y[i] = T::default();
+        for yi in &mut y[..self.m] {
+            *yi = T::default();
         }
 
         for i in 0..self.m {
@@ -479,8 +479,8 @@ impl SMatrix<u8> {
     }
 
     pub fn wrap_bools(v: &mut [u8]) {
-        for i in 0..v.len() {
-            v[i] %= 2;
+        for vi in v.iter_mut() {
+            *vi %= 2;
         }
     }
 }

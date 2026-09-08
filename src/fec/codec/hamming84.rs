@@ -54,9 +54,9 @@ pub fn hamming84_encode(msg_dec: &[u8], msg_enc: &mut [u8]) {
     let dec_msg_len = msg_dec.len();
     let mut j = 0usize;
 
-    for i in 0..dec_msg_len {
-        let s0 = (msg_dec[i] >> 4) & 0x0f;
-        let s1 = msg_dec[i] & 0x0f;
+    for &md in &msg_dec[..dec_msg_len] {
+        let s0 = (md >> 4) & 0x0f;
+        let s1 = md & 0x0f;
 
         msg_enc[j] = ENC_GENTAB[s0 as usize];
         msg_enc[j + 1] = ENC_GENTAB[s1 as usize];
@@ -120,13 +120,13 @@ fn soft_decode_symbol(soft_bits: &[u8]) -> u8 {
 pub fn hamming84_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) {
     let mut k = 0usize; // array bit index
 
-    for i in 0..dec_msg_len {
+    for md in &mut msg_dec[..dec_msg_len] {
         let s0 = soft_decode_symbol(&msg_enc[k..]);
         let s1 = soft_decode_symbol(&msg_enc[k + 8..]);
         k += 16;
 
         // pack two 4-bit symbols into one 8-bit byte
-        msg_dec[i] = (s0 << 4) | s1;
+        *md = (s0 << 4) | s1;
     }
 }
 

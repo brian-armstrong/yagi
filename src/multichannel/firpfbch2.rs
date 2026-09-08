@@ -184,8 +184,8 @@ where
 
         // scale result by 1/num_channels (C transform)
         let scale = 1.0 / self.num_channels as f32;
-        for i in 0..self.num_channels {
-            y[i] = <T as From<Complex32>>::from(self.x_out[i] * scale);
+        for (yi, &xo) in y[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
+            *yi = <T as From<Complex32>>::from(xo * scale);
         }
 
         // update flag
@@ -205,8 +205,8 @@ where
         }
 
         // copy input array to internal IFFT input buffer
-        for i in 0..self.num_channels {
-            self.x[i] = x[i].into();
+        for (local, &input) in self.x[..self.num_channels].iter_mut().zip(&x[..self.num_channels]) {
+            *local = input.into();
         }
 
         // execute IFFT, store result in buffer 'x_out'
@@ -220,8 +220,8 @@ where
 
         // push samples into appropriate buffer
         let buffer = if !self.flag { &mut self.w1 } else { &mut self.w0 };
-        for i in 0..self.num_channels {
-            buffer[i].push(<T as From<Complex32>>::from(self.x_out[i]));
+        for (buf, &xo) in buffer[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
+            buf.push(<T as From<Complex32>>::from(xo));
         }
 
         // compute filter outputs

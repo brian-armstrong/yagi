@@ -102,8 +102,8 @@ where
         }
 
         // copy input
-        for i in 0..self.n {
-            self.time_buf[i] = Complex32::from(x[i]);
+        for (tb, &xi) in self.time_buf[..self.n].iter_mut().zip(&x[..self.n]) {
+            *tb = Complex32::from(xi);
         }
 
         // pad end of time-domain buffer with zeros
@@ -123,8 +123,8 @@ where
         self.ifft.run(&self.freq_buf, &mut self.time_buf);
 
         // copy output summed with buffer
-        for i in 0..self.n {
-            y[i] = T::from_complex32((self.time_buf[i] + self.w[i]) * Complex32::from(self.scale));
+        for (yi, (&tb, &wi)) in y[..self.n].iter_mut().zip(self.time_buf[..self.n].iter().zip(&self.w[..self.n])) {
+            *yi = T::from_complex32((tb + wi) * Complex32::from(self.scale));
         }
 
         // copy buffer

@@ -733,8 +733,8 @@ pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
         return Err(Error::Internal("could not find roots of polynomial".into()));
     }
 
-    for i in 0..n - 1 {
-        if roots[i].norm() > 1.0 {
+    for root in &roots[..n - 1] {
+        if root.norm() > 1.0 {
             return Ok(false);
         }
     }
@@ -785,9 +785,8 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
     //      sum(c[i] * exp(j 2 pi fc i))
     let mut t0 = Complex32::new(0.0, 0.0);
     let mut t1 = Complex32::new(0.0, 0.0);
-    let mut c0: Complex32;
-    for i in 0..nc {
-        c0 = c[i] * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+    for (i, &ci) in c.iter().enumerate() {
+        let c0 = ci * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
         t0 += c0 * i as f32;
         t1 += c0;
     }

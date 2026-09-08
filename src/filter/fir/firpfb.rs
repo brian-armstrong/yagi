@@ -279,8 +279,8 @@ where
         assert_eq!(history.len(), self.filter_len, "Invalid filterbank history length");
         assert_eq!(y.len(), self.num_filters, "Invalid filterbank output length");
 
-        for phase in 0..self.num_filters {
-            y[phase] = unsafe { self.execute_unchecked(phase, history) };
+        for (phase, yp) in y.iter_mut().enumerate() {
+            *yp = unsafe { self.execute_unchecked(phase, history) };
         }
     }
 

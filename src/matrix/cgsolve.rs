@@ -42,9 +42,7 @@ where
     let mut ax1 = vec![T::zero(); n];
 
     // d0 = b - A*x0 (assume x0 = {0, 0, 0, ...0})
-    for j in 0..n {
-        d0[j] = b[j];
-    }
+    d0[..n].copy_from_slice(&b[..n]);
 
     // r0 = d0
     r0.copy_from_slice(&d0);

@@ -23,8 +23,8 @@ where
 {
     let mut xk = T::from(1.0);
     let mut y = T::from(0.0);
-    for i in 0..k {
-        y = y + p[i] * xk;
+    for &pi in &p[..k] {
+        y = y + pi * xk;
         xk = xk * x;
     }
     y
@@ -100,8 +100,8 @@ where
 
     // Initialize coefficients array to [1,0,0,....0]
     c[0] = T::from(1.0);
-    for i in 1..=n {
-        c[i] = T::from(0.0);
+    for ci in &mut c[1..=n] {
+        *ci = T::from(0.0);
     }
 
     // Iterative polynomial multiplication
@@ -135,8 +135,8 @@ where
 
     // Initialize coefficients array to [1,0,0,....0]
     c[0] = T::from(1.0);
-    for i in 1..=n {
-        c[i] = T::from(0.0);
+    for ci in &mut c[1..=n] {
+        *ci = T::from(0.0);
     }
 
     // Iterative polynomial multiplication (1+x)
@@ -176,8 +176,8 @@ where
 
     // Initialize coefficients array to [1,0,0,....0]
     p[0] = T::from(1.0);
-    for i in 1..=n {
-        p[i] = T::from(0.0);
+    for pi in &mut p[1..=n] {
+        *pi = T::from(0.0);
     }
 
     // Iterative polynomial multiplication
@@ -221,8 +221,8 @@ where
     poly_expandroots(&r, n, p);
 
     // Multiply by gain
-    for i in 0..=n {
-        p[i] = g * p[i];
+    for pi in &mut p[..=n] {
+        *pi = g * *pi;
     }
 }
 
@@ -322,8 +322,8 @@ where
 {
     let k = n - 1;
     // Clear output array
-    for i in 0..n {
-        p[i] = T::from(0.0);
+    for pi in &mut p[..n] {
+        *pi = T::from(0.0);
     }
 
     // compute roots, gain
@@ -386,8 +386,8 @@ where
     }
 
     let w0 = w[0] + T::from(1.0e-9);
-    for j in 0..n {
-        w[j] = w[j] / w0;
+    for wj in &mut w[..n] {
+        *wj = *wj / w0;
     }
 }
 
@@ -462,8 +462,8 @@ pub fn poly_findroots_durandkerner(p: &[f64], k: usize, roots: &mut [Complex<f64
     // Initialize roots
     let t0 = 0.9 * (1.0 + gmax) * Complex::new(0.0, 1.1526).exp().re();
     let mut t = 1.0;
-    for i in 0..num_roots {
-        r0[i] = t;
+    for r0i in &mut r0[..num_roots] {
+        *r0i = t;
         t *= t0;
     }
 
@@ -645,9 +645,7 @@ fn poly_findroots_bairstow_recursion(p: &[f64], k: usize, p1: &mut [f64], u: &mu
     }
 
     // Set resulting reduced polynomial
-    for i in 0..k - 2 {
-        p1[i] = b[i];
-    }
+    p1[..k - 2].copy_from_slice(&b[..k - 2]);
 
     Ok(())
 }

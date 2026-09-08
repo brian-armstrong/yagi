@@ -48,10 +48,10 @@ pub fn hamming74_encode(msg_dec: &[u8], msg_enc: &mut [u8]) {
 
     let mut k = 0usize; // array bit index
 
-    for i in 0..dec_msg_len {
+    for &md in &msg_dec[..dec_msg_len] {
         // strip two 4-bit symbols from input byte
-        let s0 = (msg_dec[i] >> 4) & 0x0f;
-        let s1 = msg_dec[i] & 0x0f;
+        let s0 = (md >> 4) & 0x0f;
+        let s1 = md & 0x0f;
 
         // encode two 7-bit symbols
         let m0 = ENC_GENTAB[s0 as usize];
@@ -76,7 +76,7 @@ pub fn hamming74_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) 
 
     let mut k = 0usize; // array bit index
 
-    for i in 0..dec_msg_len {
+    for md in &mut msg_dec[..dec_msg_len] {
         // strip two 7-bit symbols
         let r0 = unpack_array(msg_enc, k, 7).unwrap();
         k += 7;
@@ -86,7 +86,7 @@ pub fn hamming74_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) 
         let s0 = DEC_GENTAB[r0 as usize];
         let s1 = DEC_GENTAB[r1 as usize];
 
-        msg_dec[i] = (s0 << 4) | s1;
+        *md = (s0 << 4) | s1;
     }
 
     debug_assert_eq!(k, enc_msg_len * 8);
@@ -132,13 +132,13 @@ pub fn hamming74_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [
 
     let mut k = 0usize; // array bit index
 
-    for i in 0..dec_msg_len {
+    for md in &mut msg_dec[..dec_msg_len] {
         let s0 = soft_decode_symbol(&msg_enc[k..]);
         let s1 = soft_decode_symbol(&msg_enc[k + 7..]);
         k += 14;
 
         // pack two 4-bit symbols into one 8-bit byte
-        msg_dec[i] = (s0 << 4) | s1;
+        *md = (s0 << 4) | s1;
     }
 
     debug_assert_eq!(k, 8 * enc_msg_len);

@@ -197,9 +197,9 @@ impl Cpfskdem {
 
         let mut sym_out = 0;
 
-        for i in 0..self.k {
+        for (i, &yi) in y.iter().enumerate() {
             // push input sample through filter
-            self.mf.push(y[i]);
+            self.mf.push(yi);
 
             // decimate output - only compute at first sample of symbol
             if i == 0 {

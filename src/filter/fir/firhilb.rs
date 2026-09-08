@@ -57,10 +57,8 @@ impl FirHilbertFilter {
         }
 
         // resample, reverse direction
-        let mut j = 0;
-        for i in (1..h_len).step_by(2) {
+        for (j, i) in (1..h_len).step_by(2).enumerate() {
             hq[j] = h[h_len - i - 1];
-            j += 1;
         }
 
         // create windows for upper and lower polyphase filter branches

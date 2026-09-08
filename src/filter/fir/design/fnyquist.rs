@@ -132,7 +132,7 @@ pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32
     let gamma = (2.0f32).ln() / (beta * b);
 
     // compute frequency response of Nyquist filter
-    for i in 0..h_len {
+    for (i, hi) in h.iter_mut().enumerate() {
         let mut f = i as f32 / h_len as f32;
         if f > 0.5 {
             f -= 1.0;
@@ -141,7 +141,7 @@ pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32
         // enforce even symmetry
         f = f.abs();
 
-        h[i] = if f <= f0 {
+        *hi = if f <= f0 {
             // pass band
             1.0
         } else if f > f0 && f < f2 {
@@ -210,7 +210,7 @@ pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f3
     let gamma = (3.0f32.sqrt() + 2.0f32).ln() / (beta * b);
 
     // compute frequency response of Nyquist filter
-    for i in 0..h_len {
+    for (i, hi) in h.iter_mut().enumerate() {
         let mut f = i as f32 / h_len as f32;
         if f > 0.5 {
             f -= 1.0;
@@ -219,7 +219,7 @@ pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f3
         // enforce even symmetry
         f = f.abs();
 
-        h[i] = if f <= f0 {
+        *hi = if f <= f0 {
             // pass band
             1.0
         } else if f > f0 && f < f2 {
@@ -307,7 +307,7 @@ pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut 
     let zeta = 1.0f32 / (2.0f32 * beta * b);
 
     // compute frequency response of Nyquist filter
-    for i in 0..h_len {
+    for (i, hi) in h.iter_mut().enumerate() {
         let mut f = i as f32 / h_len as f32;
         if f > 0.5 {
             f -= 1.0;
@@ -316,7 +316,7 @@ pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut 
         // enforce even symmetry
         f = f.abs();
 
-        h[i] = if f <= f0 {
+        *hi = if f <= f0 {
             // pass band
             1.0
         } else if f > f0 && f < f2 {

@@ -25,6 +25,7 @@ pub struct WindowInfo {
 }
 
 // Define window information
+// The order of these must match the order of the WindowType variants
 const WINDOW_INFO: [WindowInfo; 10] = [
     WindowInfo { short_name: "unknown", long_name: "unknown" },
     WindowInfo { short_name: "hamming", long_name: "Hamming" },
@@ -50,7 +51,7 @@ pub fn print_windows() {
 pub fn get_window_type(name: &str) -> Result<WindowType> {
     for (i, info) in WINDOW_INFO.iter().enumerate() {
         if info.short_name == name {
-            return Ok(unsafe { std::mem::transmute(i as u8) });
+            return Ok(unsafe { std::mem::transmute::<u8, WindowType>(i as u8) });
         }
     }
     Err(Error::Config("Unknown window type".to_string()))
@@ -236,8 +237,8 @@ pub fn kbd_window(wlen: usize, beta: f32) -> Result<Vec<f32>> {
     let mut w = vec![0.0; wlen];
 
     let mut w_kaiser = vec![0.0; m + 1];
-    for i in 0..=m {
-        w_kaiser[i] = kaiser(i, m + 1, beta)?;
+    for (i, wk) in w_kaiser.iter_mut().enumerate() {
+        *wk = kaiser(i, m + 1, beta)?;
     }
 
     let w_sum: f32 = w_kaiser.iter().sum();

@@ -2,7 +2,7 @@
 use libm::erff;
 use num_complex::Complex;
 use rand::Rng;
-use std::f32::consts::PI;
+use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
 use crate::error::{Error, Result};
 
@@ -45,7 +45,7 @@ pub fn crandnf() -> Complex<f32> {
 }
 
 pub fn cawgn(x: &mut Complex<f32>, nstd: f32) {
-    *x += crandnf() * nstd * 0.707106781186547;
+    *x += crandnf() * nstd * FRAC_1_SQRT_2;
 }
 
 /// Gauss random number probability distribution function

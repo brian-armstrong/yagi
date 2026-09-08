@@ -72,11 +72,11 @@ pub fn iir_design_cheby2_analog(
 
     // compute analog gain (ignored in digital conversion)
     *ka = Complex32::new(1.0, 0.0);
-    for i in 0..n {
-        *ka *= pa[i];
+    for &p in &pa[..n] {
+        *ka *= p;
     }
-    for i in 0..(2 * l) {
-        *ka /= za[i];
+    for &z in &za[..2 * l] {
+        *ka /= z;
     }
 
     Ok(())
