@@ -63,7 +63,7 @@ impl Ampmodem {
             dcblock: FirFilter::new_dc_blocker(m, 20.0)?,
             hilbert: FirHilbertFilter::new(m, 60.0)?,
             lowpass: FirFilter::new_kaiser(2 * m + 1, 0.01, 40.0, 0.0)?,
-            delay: WDelay::create(m)?,
+            delay: WDelay::new(m)?,
             demod_type,
             phase_error: 0.0,
         };
@@ -280,7 +280,7 @@ mod tests {
 
         // compute end-to-end delay
         let delay = mod_.get_delay_mod() + demod.get_delay_demod();
-        let mut message_delay = WDelay::create(delay)?;
+        let mut message_delay = WDelay::new(delay)?;
 
         // run trials
         let mut i = 0;

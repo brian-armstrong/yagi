@@ -39,7 +39,7 @@ where
             count: 0,
             buf_full: false,
             buffer: Window::new(h_len)?,
-            x2: WDelay::create(h_len)?,
+            x2: WDelay::new(h_len)?,
             x2_sum: 0.0,
         };
 
@@ -261,7 +261,7 @@ mod tests {
         // run equalization
         let mut buf = vec![Complex::new(0.0, 0.0); k];
         let mut buf_interp = vec![Complex::new(0.0, 0.0); k];
-        let mut buf_sym = WDelay::create(m + p).unwrap();
+        let mut buf_sym = WDelay::new(m + p).unwrap();
         let mut rmse = 0.0f32;
 
         for i in 0..2 * num_symbols {

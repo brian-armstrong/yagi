@@ -23,7 +23,7 @@ impl Limiter {
         }
         Self {
             limit,
-            delay: WDelay::create(attack).unwrap(),
+            delay: WDelay::new(attack).unwrap(),
             peak_hold: PeakHold::new(attack + hold),
             release_scale: 1.0 - (-1.0 / release as f32).exp(),
             last_release: 1.0,
