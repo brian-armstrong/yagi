@@ -2,6 +2,7 @@
 name = "yagi"
 version = "0.1.5"
 edition = "2021"
+rust-version = "1.88"
 repository = "https://github.com/brian-armstrong/yagi"
 description = "Batteries-included DSP library"
 documentation = "https://docs.rs/yagi"
