@@ -31,7 +31,7 @@ where
     }
 
     /// create interpolator with default Butterworth prototype
-    pub fn new_default(m: usize, order: usize) -> Result<Self> {
+    pub fn new_butterworth(m: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
             m,
             IirFilterShape::Cheby2,
@@ -141,7 +141,7 @@ mod tests {
         let tol = 0.5f32; // error tolerance [dB]
 
         // create resampler with rate interp/decim
-        let mut interp = IirInterpolationFilter::<Complex32, f32>::new_default(interp_factor, order).unwrap();
+        let mut interp = IirInterpolationFilter::<Complex32, f32>::new_butterworth(interp_factor, order).unwrap();
 
         // create and configure objects
         let mut q = Spgram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
@@ -199,7 +199,7 @@ mod tests {
     #[autotest_annotate(autotest_iirinterp_copy)]
     fn test_iirinterp_copy() {
         // create base object
-        let mut q0 = IirInterpolationFilter::<Complex32, f32>::new_default(3, 7).unwrap();
+        let mut q0 = IirInterpolationFilter::<Complex32, f32>::new_butterworth(3, 7).unwrap();
         //q0.set_scale(0.12345f32);
 
         // run samples through filter
