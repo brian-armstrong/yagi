@@ -88,7 +88,7 @@ where
         })
     }
 
-    /// Create a new FIR PFB filter bank with default parameters
+    /// Create a new FIR PFB filter bank using Kaiser-Bessel design with default parameters
     ///
     /// This is equivalent to FirPfbBank::new_kaiser(num_filters, m, 0.5, 60.0)
     ///
@@ -100,7 +100,7 @@ where
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn default(num_filters: usize, m: usize) -> Result<Self> {
+    pub fn new_kaiser_simple(num_filters: usize, m: usize) -> Result<Self> {
         Self::new_kaiser(num_filters, m, 0.5, 60.0)
     }
 
@@ -390,7 +390,7 @@ where
         Self::from_bank(FirPfbBank::new(num_filters, h, h_len)?)
     }
 
-    /// Create a new FIR PFB filter bank with default parameters
+    /// Create a new FIR PFB filter bank using Kaiser-Bessel design with default parameters
     ///
     /// This is equivalent to FirPfbFilter::new_kaiser(num_filters, m, 0.5, 60.0)
     ///
@@ -402,8 +402,8 @@ where
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn default(num_filters: usize, m: usize) -> Result<Self> {
-        Self::from_bank(FirPfbBank::default(num_filters, m)?)
+    pub fn new_kaiser_simple(num_filters: usize, m: usize) -> Result<Self> {
+        Self::from_bank(FirPfbBank::new_kaiser_simple(num_filters, m)?)
     }
 
     /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
@@ -634,7 +634,7 @@ mod tests {
         // create base object with irregular parameters
         let m = 13;
         let h = 7;
-        let mut q0 = FirPfbFilter::<Complex32, f32>::default(m, h).unwrap();
+        let mut q0 = FirPfbFilter::<Complex32, f32>::new_kaiser_simple(m, h).unwrap();
 
         // run random samples through filter
         let num_samples = 80;

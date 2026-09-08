@@ -35,7 +35,7 @@ where
         }
 
         let w = Window::new(nmax + 1)?;
-        let pfb = FirPfbFilter::default(npfb, m)?;
+        let pfb = FirPfbFilter::new_kaiser_simple(npfb, m)?;
 
         let mut q = Self { nmax, m, npfb, delay: 0.0, w, pfb, w_index: nmax - 1, f_index: 0 };
 
