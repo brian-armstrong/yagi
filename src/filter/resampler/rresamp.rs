@@ -88,7 +88,7 @@ where
         Ok(q)
     }
 
-    pub fn new_default(interp: usize, decim: usize) -> Result<Self> {
+    pub fn new_kaiser_simple(interp: usize, decim: usize) -> Result<Self> {
         let m = 12;
         let bw = 0.5;
         let as_ = 60.0;
@@ -295,7 +295,7 @@ mod tests {
         // create resampler with rate interp/decim
         let mut resamp = match method {
             "baseline" => Rresamp::<Complex32, f32>::new_kaiser(interp, decim, m, bw, as_).unwrap(),
-            "default" => Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap(),
+            "default" => Rresamp::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap(),
             _ => {
                 let ftype: FirFilterShape = method.parse().unwrap();
                 let beta = bw; // rename to avoid confusion
@@ -373,7 +373,7 @@ mod tests {
         test_rresamp_crcf("baseline", 9, 5, 15, -1.0, 60.0);
     }
 
-    // tests using create_default() method
+    // tests using new_kaiser_simple() method
     #[test]
     #[autotest_annotate(autotest_rresamp_crcf_default_P1_Q5)]
     fn test_rresamp_crcf_default_p1_q5() {
@@ -436,7 +436,7 @@ mod tests {
     }
 
     fn testbench_rresamp_crcf_num_output(interp: usize, decim: usize) {
-        let mut resamp = Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap();
+        let mut resamp = Rresamp::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
         let q = resamp.get_q();
         let p = resamp.get_p();
 
@@ -478,7 +478,7 @@ mod tests {
     }
 
     fn testbench_rresamp_crcf_max_input(interp: usize, decim: usize) {
-        let resamp = Rresamp::<Complex32, f32>::new_default(interp, decim).unwrap();
+        let resamp = Rresamp::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
         let q = resamp.get_q();
 
         // test various output limits
