@@ -66,7 +66,7 @@ where
         Ok(q)
     }
 
-    pub fn new_default(rate: f32) -> Result<Self> {
+    pub fn from_rate(rate: f32) -> Result<Self> {
         if rate <= 0.0 {
             return Err(Error::Config("resampling rate must be greater than zero".into()));
         }
