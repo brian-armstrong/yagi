@@ -126,7 +126,7 @@ where
     }
 
     /// create default spgram object (Kaiser-Bessel window)
-    pub fn default(nfft: usize) -> Result<Self> {
+    pub fn from_nfft(nfft: usize) -> Result<Self> {
         if nfft < 2 {
             return Err(Error::Config("fft size must be at least 2".into()));
         }
@@ -342,7 +342,7 @@ where
 
     /// estimate spectrum on input signal
     pub fn estimate_psd(nfft: usize, x: &[T]) -> Result<Vec<f32>> {
-        let mut q = Self::default(nfft)?;
+        let mut q = Self::from_nfft(nfft)?;
 
         q.write(x);
 
@@ -368,7 +368,7 @@ mod tests {
 
         // create spectral periodogram
         let mut q = if wlen == 0 || delay == 0 || wtype == WindowType::Unknown {
-            Spgram::<Complex32>::default(nfft).unwrap()
+            Spgram::<Complex32>::from_nfft(nfft).unwrap()
         } else {
             Spgram::<Complex32>::new(nfft, wtype, wlen, delay).unwrap()
         };
@@ -659,10 +659,10 @@ mod tests {
         assert!(Spgram::<Complex32>::new(400, WindowType::Kbd, 201, 200).is_err()); // KBD must be even
         assert!(Spgram::<Complex32>::new(400, WindowType::Hamming, 200, 0).is_err()); // delay too small
 
-        assert!(Spgram::<Complex32>::default(0).is_err()); // nfft too small
-        assert!(Spgram::<Complex32>::default(1).is_err()); // nfft too small
+        assert!(Spgram::<Complex32>::from_nfft(0).is_err()); // nfft too small
+        assert!(Spgram::<Complex32>::from_nfft(1).is_err()); // nfft too small
 
-        let mut q = Spgram::<Complex32>::default(540).unwrap();
+        let mut q = Spgram::<Complex32>::from_nfft(540).unwrap();
         assert!(q.set_rate(-10e6).is_err());
     }
 

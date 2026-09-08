@@ -468,7 +468,7 @@ mod tests {
         q.enable(id_noise).unwrap();
 
         let nfft = 2400;
-        let mut spgram = Spgram::<Complex32>::default(nfft).unwrap();
+        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
 
         while q.get_num_samples() < 192000 {
             q.write_samples(&mut buf).unwrap();
@@ -646,7 +646,7 @@ mod tests {
         gen.add_modem(0.1875, 0.065, -20.0, ModulationScheme::Qpsk, 12, 0.3).unwrap();
 
         let nfft = 2400;
-        let mut spgram = Spgram::<Complex32>::default(nfft).unwrap();
+        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
 
         let mut buf = vec![Complex32::new(0.0, 0.0); 1024];
 
@@ -711,7 +711,7 @@ mod tests {
         let nfft = 2400;
         let num_samples = 192000;
 
-        let mut spgram = Spgram::<Complex32>::default(nfft).unwrap();
+        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
 
         let mut gen = MSource::new_default().unwrap();
         // add signals (fc, bw, gain)
@@ -756,7 +756,7 @@ mod tests {
         let nfft = 2400;
         let num_samples: u64 = 192000;
 
-        let mut spgram = Spgram::<Complex32>::default(nfft).unwrap();
+        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
 
         let mut gen = MSource::new_default().unwrap();
         // add signals (fc, bw, gain, duration, negate, single)
@@ -815,7 +815,7 @@ mod tests {
         let nfft = 2400;
         let num_samples: u64 = 192000;
 
-        let mut spgram = Spgram::<Complex32>::default(nfft).unwrap();
+        let mut spgram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
 
         let buf_len = 1024;
         let mut buf = vec![Complex32::new(0.0, 0.0); buf_len];

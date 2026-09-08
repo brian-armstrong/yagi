@@ -267,9 +267,9 @@ mod tests {
 
         // create spectral periodograms
         let nfft = 2400;
-        let mut p0 = Spgram::<Complex32>::default(nfft).unwrap();
-        let mut c1 = Spgram::<Complex32>::default(nfft).unwrap();
-        let mut c3 = Spgram::<Complex32>::default(nfft).unwrap();
+        let mut p0 = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut c1 = Spgram::<Complex32>::from_nfft(nfft).unwrap();
+        let mut c3 = Spgram::<Complex32>::from_nfft(nfft).unwrap();
 
         // run channelizer
         let mut buf_0 = vec![Complex32::new(0.0, 0.0); p];

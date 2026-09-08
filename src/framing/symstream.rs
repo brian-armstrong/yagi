@@ -271,7 +271,7 @@ mod tests {
         let num_samples = 192000 * k; // number of samples
 
         // create spectral periodogram
-        let mut periodogram = Spgram::default(nfft).unwrap();
+        let mut periodogram = Spgram::from_nfft(nfft).unwrap();
 
         let buf_len = 1337;
         let mut buf = vec![Complex32::new(0.0, 0.0); buf_len];

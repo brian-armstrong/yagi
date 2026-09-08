@@ -542,7 +542,7 @@ mod tests {
         }
 
         // modulate several symbols and run result through spectral estimate
-        let mut periodogram = Spgram::<Complex32>::default(nfft).unwrap();
+        let mut periodogram = Spgram::<Complex32>::from_nfft(nfft).unwrap();
         let mut rng = rand::thread_rng();
         for _ in 0..num_symbols {
             let s = (rng.gen::<u32>() & ((1 << bps) - 1)) as usize;
