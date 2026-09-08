@@ -69,7 +69,7 @@ impl DotProd<f32> for [f32] {
     }
 
     #[cfg(feature = "simd")]
-    fn plan(len: usize) -> super::DotProdKernel<f32, f32, f32> {
+    fn plan(len: usize) -> super::DotProdKernel<[f32], f32, f32> {
         // use the const 128 impl for lengths up to 47.
         // at 48, the wider dynamic paths catch up
         if let Some(f) = plan_dotprod_rrr_const_f32x4!(

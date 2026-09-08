@@ -9,7 +9,7 @@ use crate::error::{Error, Result};
 #[derive(Clone, Debug)]
 pub(crate) struct DotProductPlan<T, Coeff> {
     len: usize,
-    executor: DotProdKernel<T, Coeff, T>,
+    executor: DotProdKernel<[T], Coeff, T>,
     block: Option<DotProdBlockPlan<[T], Coeff, T>>,
 }
 

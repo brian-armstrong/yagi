@@ -80,7 +80,7 @@ impl DotProd<f32> for [Complex<f32>] {
     }
 
     #[cfg(feature = "simd")]
-    fn plan(len: usize) -> super::DotProdKernel<Complex<f32>, f32, Complex<f32>> {
+    fn plan(len: usize) -> super::DotProdKernel<[Complex<f32>], f32, Complex<f32>> {
         if let Some(f) = plan_dotprod_crc_const_f32x4!(
             len;
               1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
