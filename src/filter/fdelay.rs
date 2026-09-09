@@ -24,28 +24,37 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
     [T]: DotProd<Coeff, Output = T>,
 {
-    pub fn new(nmax: usize, m: usize, npfb: usize) -> Result<Self> {
-        if nmax == 0 {
+    pub fn new(maximum_delay: usize, filter_semi_length: usize, num_filters: usize) -> Result<Self> {
+        if maximum_delay == 0 {
             return Err(Error::Config("maximum delay must be greater than zero".into()));
         }
-        if m == 0 {
+        if filter_semi_length == 0 {
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
-        if npfb == 0 {
+        if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
         }
 
-        let w = Window::new(nmax + 1)?;
-        let pfb = FirPolyphaseFilter::new_kaiser_simple(npfb, m)?;
+        let w = Window::new(maximum_delay + 1)?;
+        let pfb = FirPolyphaseFilter::new_kaiser_simple(num_filters, filter_semi_length)?;
 
-        let mut q = Self { nmax, m, npfb, delay: 0.0, w, pfb, w_index: nmax - 1, f_index: 0 };
+        let mut q = Self {
+            nmax: maximum_delay,
+            m: filter_semi_length,
+            npfb: num_filters,
+            delay: 0.0,
+            w,
+            pfb,
+            w_index: maximum_delay - 1,
+            f_index: 0,
+        };
 
         q.reset();
         Ok(q)
     }
 
-    pub fn from_max_delay(nmax: usize) -> Result<Self> {
-        Self::new(nmax, 8, 64)
+    pub fn from_max_delay(maximum_delay: usize) -> Result<Self> {
+        Self::new(maximum_delay, 8, 64)
     }
 
     pub fn reset(&mut self) {

@@ -30,29 +30,42 @@ impl CpfskDemodulator {
     ///
     /// # Arguments
     ///
-    /// * `bps` - bits per symbol, bps > 0
-    /// * `h` - modulation index, h > 0
-    /// * `k` - samples/symbol, k > 1, k even
-    /// * `m` - filter delay (symbols), m > 0
-    /// * `beta` - filter bandwidth parameter, 0 < beta <= 1
+    /// * `bits_per_symbol` - bits per symbol; must be greater than zero
+    /// * `modulation_index` - modulation index; must be greater than zero
+    /// * `samples_per_symbol` - samples per symbol; must be greater than one and even
+    /// * `filter_delay` - filter delay in symbols; must be greater than zero
+    /// * `excess_bandwidth` - filter bandwidth parameter; must be in (0, 1]
     /// * `filter_type` - filter type (e.g. CpfskFilterType::Square)
-    pub fn new(bps: usize, h: f32, k: usize, m: usize, beta: f32, filter_type: CpfskFilterType) -> Result<Self> {
+    pub fn new(
+        bits_per_symbol: usize,
+        modulation_index: f32,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        filter_type: CpfskFilterType,
+    ) -> Result<Self> {
         // validate input
-        if bps == 0 {
+        if bits_per_symbol == 0 {
             return Err(Error::Config("bits/symbol must be greater than 0".into()));
         }
-        if h <= 0.0 {
+        if modulation_index <= 0.0 {
             return Err(Error::Config("modulation index must be greater than 0".into()));
         }
-        if k < 2 || !k.is_multiple_of(2) {
+        if samples_per_symbol < 2 || !samples_per_symbol.is_multiple_of(2) {
             return Err(Error::Config("samples/symbol must be greater than 2 and even".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if beta <= 0.0 || beta > 1.0 {
+        if excess_bandwidth <= 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("filter roll-off must be in (0,1]".into()));
         }
+
+        let bps = bits_per_symbol;
+        let h = modulation_index;
+        let k = samples_per_symbol;
+        let m = filter_delay;
+        let beta = excess_bandwidth;
 
         let m_size = 1 << bps;
 

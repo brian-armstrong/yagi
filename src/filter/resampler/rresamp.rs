@@ -21,49 +21,63 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    pub fn new(interp: usize, decim: usize, m: usize, h: &[Coeff]) -> Result<Self> {
-        if interp == 0 {
+    pub fn new(
+        interpolation_factor: usize,
+        decimation_factor: usize,
+        filter_semi_length: usize,
+        coefficients: &[Coeff],
+    ) -> Result<Self> {
+        if interpolation_factor == 0 {
             return Err(Error::Config("interpolation rate must be greater than zero".into()));
         }
-        if decim == 0 {
+        if decimation_factor == 0 {
             return Err(Error::Config("decimation rate must be greater than zero".into()));
         }
-        if m == 0 {
+        if filter_semi_length == 0 {
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
 
-        let pfb = FirPolyphaseFilter::new(interp, &h[..2 * interp * m])?;
+        let pfb = FirPolyphaseFilter::new(
+            interpolation_factor,
+            &coefficients[..2 * interpolation_factor * filter_semi_length],
+        )?;
 
-        let mut q = Self { p: interp, q: decim, m, block_len: 1, pfb };
+        let mut q = Self { p: interpolation_factor, q: decimation_factor, m: filter_semi_length, block_len: 1, pfb };
 
         q.reset();
         Ok(q)
     }
 
-    pub fn new_kaiser(interp: usize, decim: usize, m: usize, bw: f32, as_: f32) -> Result<Self> {
-        let gcd = gcd(interp as u32, decim as u32)? as usize;
-        let interp = interp / gcd;
-        let decim = decim / gcd;
+    pub fn new_kaiser(
+        interpolation_factor: usize,
+        decimation_factor: usize,
+        filter_semi_length: usize,
+        bandwidth: f32,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
+        let gcd = gcd(interpolation_factor as u32, decimation_factor as u32)? as usize;
+        let interp = interpolation_factor / gcd;
+        let decim = decimation_factor / gcd;
 
-        let bw = if bw < 0.0 {
+        let bandwidth = if bandwidth < 0.0 {
             if interp > decim {
                 0.5
             } else {
                 0.5 * interp as f32 / decim as f32
             }
-        } else if bw > 0.5 {
-            return Err(Error::Config(format!("invalid bandwidth ({}), must be less than 0.5", bw)));
+        } else if bandwidth > 0.5 {
+            return Err(Error::Config(format!("invalid bandwidth ({}), must be less than 0.5", bandwidth)));
         } else {
-            bw
+            bandwidth
         };
 
-        let h_len = 2 * interp * m + 1;
-        let hf = filter::fir_design_kaiser(h_len, bw / interp as f32, as_, 0.0)?;
+        let h_len = 2 * interp * filter_semi_length + 1;
+        let hf = filter::fir_design_kaiser(h_len, bandwidth / interp as f32, stopband_attenuation, 0.0)?;
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 
-        let mut q = Self::new(interp, decim, m, &h)?;
-        q.set_scale((2.0 * bw * ((q.q as f32) / (q.p as f32)).sqrt()).into());
+        let mut q = Self::new(interp, decim, filter_semi_length, &h)?;
+        q.set_scale((2.0 * bandwidth * ((q.q as f32) / (q.p as f32)).sqrt()).into());
         q.block_len = gcd;
 
         Ok(q)

@@ -34,27 +34,27 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + std::ops::Mul<f32, Output = T> + Default,
     [T]: DotProd<f32, Output = T>,
 {
-    pub fn new(k: usize, m: usize, coefficients: &[f32]) -> Result<Self> {
-        if k < 2 {
+    pub fn new(samples_per_symbol: usize, num_filters: usize, coefficients: &[f32]) -> Result<Self> {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
-        if m == 0 {
+        if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than 0".into()));
         }
         if coefficients.is_empty() {
             return Err(Error::Config("filter length must be greater than 0".into()));
         }
         let h_len = coefficients.len();
-        if !(h_len - 1).is_multiple_of(m) {
+        if !(h_len - 1).is_multiple_of(num_filters) {
             return Err(Error::Config("filter length must be of the form: h_len = m*k + 1".into()));
         }
 
         // same as set_output_rate(1)
         let k_out = 1;
-        let rate = k as f32 / k_out as f32;
+        let rate = samples_per_symbol as f32 / k_out as f32;
         let del = rate;
 
-        let npfb = m;
+        let npfb = num_filters;
 
         let mut dh = vec![0.0f32; h_len];
         let mut hdh_max = 0.0;
@@ -84,7 +84,7 @@ where
         let pll = IirSecondOrderSection::new(&b_coeff, &a_coeff)?;
 
         let mut q = Self {
-            k,
+            k: samples_per_symbol,
             k_out,
             npfb,
             mf,
@@ -110,50 +110,67 @@ where
         Ok(q)
     }
 
-    pub fn new_rnyquist(ftype: FirFilterShape, k: usize, m: usize, beta: f32, num_filters: usize) -> Result<Self> {
-        if k < 2 {
+    pub fn new_rnyquist(
+        filter_type: FirFilterShape,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        num_filters: usize,
+    ) -> Result<Self> {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than 0".into()));
         }
 
-        let h = filter::fir_design_prototype(ftype, k * num_filters, m, beta, 0.0)?;
+        let h = filter::fir_design_prototype(
+            filter_type,
+            samples_per_symbol * num_filters,
+            filter_delay,
+            excess_bandwidth,
+            0.0,
+        )?;
 
-        Self::new(k, num_filters, &h)
+        Self::new(samples_per_symbol, num_filters, &h)
     }
 
-    pub fn new_kaiser(k: usize, m: usize, beta: f32, num_filters: usize) -> Result<Self> {
-        if k < 2 {
+    pub fn new_kaiser(
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        num_filters: usize,
+    ) -> Result<Self> {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if beta <= 0.0 || beta > 1.0 {
+        if excess_bandwidth <= 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than 0".into()));
         }
 
-        let h_len = 2 * num_filters * k * m + 1;
+        let h_len = 2 * num_filters * samples_per_symbol * filter_delay + 1;
 
         let fc = 0.75f32;
         let as_ = 40.0f32;
-        let mut h = filter::fir_design_kaiser(h_len, fc / (k as f32 * num_filters as f32), as_, 0.0)?;
+        let mut h = filter::fir_design_kaiser(h_len, fc / (samples_per_symbol as f32 * num_filters as f32), as_, 0.0)?;
 
         for c in h.iter_mut() {
             *c *= 2.0 * fc;
         }
 
-        Self::new(k, num_filters, &h)
+        Self::new(samples_per_symbol, num_filters, &h)
     }
 
     pub fn reset(&mut self) {

@@ -16,17 +16,20 @@ pub struct FskDemodulator {
 }
 
 impl FskDemodulator {
-    pub fn new(m: usize, k: usize, bandwidth: f32) -> Result<Self> {
+    pub fn new(bits_per_symbol: usize, samples_per_symbol: usize, bandwidth: f32) -> Result<Self> {
         // Validate input
-        if m == 0 {
+        if bits_per_symbol == 0 {
             return Err(Error::Config("bits/symbol must be greater than 0".into()));
         }
-        if !(2..=2048).contains(&k) {
+        if !(2..=2048).contains(&samples_per_symbol) {
             return Err(Error::Config("samples/symbol must be in [2^m, 2048]".into()));
         }
         if !(0.0..0.5).contains(&bandwidth) {
             return Err(Error::Config("bandwidth must be in (0,0.5)".into()));
         }
+
+        let m = bits_per_symbol;
+        let k = samples_per_symbol;
 
         let m_size = 1 << m;
         let m2 = 0.5 * (m_size - 1) as f32;

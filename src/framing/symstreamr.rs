@@ -21,18 +21,24 @@ impl ArbitraryRateSymbolStream {
         Self::new_linear(FirFilterShape::Arkaiser, 0.5, 7, 0.3, ModulationScheme::Qpsk)
     }
 
-    pub fn new_linear(ftype: FirFilterShape, bw: f32, m: usize, beta: f32, ms: ModulationScheme) -> Result<Self> {
+    pub fn new_linear(
+        filter_type: FirFilterShape,
+        bandwidth: f32,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        modulation_scheme: ModulationScheme,
+    ) -> Result<Self> {
         const BW_MIN: f32 = 0.001;
         const BW_MAX: f32 = 1.000;
-        if !(BW_MIN..=BW_MAX).contains(&bw) {
-            return Err(Error::Config(format!("symbol bandwidth ({}) must be in [{},{}]", bw, BW_MIN, BW_MAX)));
+        if !(BW_MIN..=BW_MAX).contains(&bandwidth) {
+            return Err(Error::Config(format!("symbol bandwidth ({}) must be in [{},{}]", bandwidth, BW_MIN, BW_MAX)));
         }
 
-        let symstream = SymbolStream::new_linear(ftype, 2, m, beta, ms)?;
-        let rate = 0.5 / bw;
+        let symstream = SymbolStream::new_linear(filter_type, 2, filter_delay, excess_bandwidth, modulation_scheme)?;
+        let rate = 0.5 / bandwidth;
         let resamp = MultiStageResampler::new(rate, 60.0)?;
 
-        let buf_len = 1 << nextpow2((0.5 / bw).ceil() as u32)?;
+        let buf_len = 1 << nextpow2((0.5 / bandwidth).ceil() as u32)?;
         let buf = vec![Complex32::new(0.0, 0.0); buf_len];
 
         let mut q = Self { symstream, resamp, buf, buf_size: 0, buf_index: 0 };

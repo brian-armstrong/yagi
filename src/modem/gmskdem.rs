@@ -43,31 +43,50 @@ impl GmskDemodulator {
     ///
     /// # Arguments
     ///
-    /// * `k` - samples per symbol (must be >= 2)
-    /// * `m` - filter delay in symbols (must be >= 1)
-    /// * `bt` - bandwidth-time product (must be in (0, 1))
-    pub fn new(k: usize, m: usize, bt: f32) -> Result<Self> {
-        if k < 2 {
+    /// * `samples_per_symbol` - samples per symbol (must be >= 2)
+    /// * `filter_delay` - filter delay in symbols (must be >= 1)
+    /// * `bandwidth_time_product` - bandwidth-time product (must be in (0, 1))
+    pub fn new(samples_per_symbol: usize, filter_delay: usize, bandwidth_time_product: f32) -> Result<Self> {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
-        if m < 1 {
+        if filter_delay < 1 {
             return Err(Error::Config("symbol delay must be at least 1".into()));
         }
-        if bt <= 0.0 || bt >= 1.0 {
+        if bandwidth_time_product <= 0.0 || bandwidth_time_product >= 1.0 {
             return Err(Error::Config("bandwidth/time product must be in (0, 1)".into()));
         }
 
         let filter = if GMSKDEM_USE_EQUALIZER {
-            let mut eq = LeastMeanSquaresEqualizer::<f32>::new_rnyquist(FirFilterShape::Gmskrx, k, m, bt, 0.0)?;
+            let mut eq = LeastMeanSquaresEqualizer::<f32>::new_rnyquist(
+                FirFilterShape::Gmskrx,
+                samples_per_symbol,
+                filter_delay,
+                bandwidth_time_product,
+                0.0,
+            )?;
             eq.set_bw(0.01)?; // default learning rate
             FilterState::Equalizer(eq)
         } else {
-            let h = fir_design_prototype(FirFilterShape::Gmskrx, k, m, bt, 0.0)?;
+            let h = fir_design_prototype(
+                FirFilterShape::Gmskrx,
+                samples_per_symbol,
+                filter_delay,
+                bandwidth_time_product,
+                0.0,
+            )?;
             FilterState::Fir(FirFilter::new(&h)?)
         };
 
-        let mut q =
-            Self { k, m, bt, k_inv: 1.0 / k as f32, filter, x_prime: Complex32::new(0.0, 0.0), num_symbols_demod: 0 };
+        let mut q = Self {
+            k: samples_per_symbol,
+            m: filter_delay,
+            bt: bandwidth_time_product,
+            k_inv: 1.0 / samples_per_symbol as f32,
+            filter,
+            x_prime: Complex32::new(0.0, 0.0),
+            num_symbols_demod: 0,
+        };
 
         q.reset();
         Ok(q)

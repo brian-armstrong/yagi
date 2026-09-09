@@ -43,21 +43,29 @@ where
     ///
     /// * `num_channels` - number of output channels in channelizer
     /// * `decim_rate` - output decimation factor (output rate is 1/P the input)
-    /// * `m` - prototype filter semi-length, length=2*M*m
-    /// * `h` - prototype filter coefficient array, [size: 2*M*m x 1]
-    pub fn new(num_channels: usize, decim_rate: usize, m: usize, h: &[f32]) -> Result<Self> {
+    /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m
+    /// * `coefficients` - prototype filter coefficient array, [size: 2*M*m x 1]
+    pub fn new(
+        num_channels: usize,
+        decim_rate: usize,
+        filter_semi_length: usize,
+        coefficients: &[f32],
+    ) -> Result<Self> {
         if num_channels < 2 {
             return Err(Error::Config("number of channels must be at least 2".into()));
         }
         if decim_rate < 1 {
             return Err(Error::Config("decimation rate must be at least 1".into()));
         }
-        if m < 1 {
+        if filter_semi_length < 1 {
             return Err(Error::Config("filter semi-length must be at least 1".into()));
         }
-        if h.is_empty() {
+        if coefficients.is_empty() {
             return Err(Error::Config("filter coefficients cannot be null".into()));
         }
+
+        let m = filter_semi_length;
+        let h = coefficients;
 
         // generate bank of sub-sampled filters
         let mut dp = Vec::with_capacity(num_channels);
@@ -95,21 +103,29 @@ where
     ///
     /// * `num_channels` - number of output channels in channelizer
     /// * `decim_rate` - output decimation factor (output rate is 1/P the input)
-    /// * `m` - prototype filter semi-length, length=2*M*m
-    /// * `as_` - filter stop-band attenuation [dB]
-    pub fn new_kaiser(num_channels: usize, decim_rate: usize, m: usize, as_: f32) -> Result<Self> {
+    /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m
+    /// * `stopband_attenuation` - filter stop-band attenuation [dB]
+    pub fn new_kaiser(
+        num_channels: usize,
+        decim_rate: usize,
+        filter_semi_length: usize,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
         if num_channels < 2 {
             return Err(Error::Config("number of channels must be at least 2".into()));
         }
         if decim_rate < 1 {
             return Err(Error::Config("decimation rate must be at least 1".into()));
         }
-        if m < 1 {
+        if filter_semi_length < 1 {
             return Err(Error::Config("filter semi-length must be at least 1".into()));
         }
-        if as_ <= 0.0 {
+        if stopband_attenuation <= 0.0 {
             return Err(Error::Config("stop-band suppression out of range".into()));
         }
+
+        let m = filter_semi_length;
+        let as_ = stopband_attenuation;
 
         // design prototype filter
         let h_len = 2 * num_channels * m + 1;

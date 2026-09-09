@@ -28,7 +28,7 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    pub fn new(rate: f32, as_: f32) -> Result<Self> {
+    pub fn new(rate: f32, stopband_attenuation: f32) -> Result<Self> {
         if rate <= 0.0 {
             return Err(Error::Config("resampling rate must be greater than zero".into()));
         }
@@ -57,11 +57,17 @@ where
         let buffer = vec![T::default(); buffer_len];
 
         // TODO: Compute appropriate cut-off frequency
-        let halfband_resamp = MultiStageHalfBandResampler::new(type_, num_halfband_stages, 0.4, 0.0, as_)?;
+        let halfband_resamp =
+            MultiStageHalfBandResampler::new(type_, num_halfband_stages, 0.4, 0.0, stopband_attenuation)?;
 
         // TODO: Compute appropriate parameters
-        let arbitrary_resamp =
-            ArbitraryResampler::new(rate_arbitrary, 7, f32::min(0.515 * rate_arbitrary, 0.49), as_, 256)?;
+        let arbitrary_resamp = ArbitraryResampler::new(
+            rate_arbitrary,
+            7,
+            f32::min(0.515 * rate_arbitrary, 0.49),
+            stopband_attenuation,
+            256,
+        )?;
 
         Ok(Self {
             rate,

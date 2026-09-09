@@ -10,13 +10,16 @@ pub struct FrequencyDemodulator {
 }
 
 impl FrequencyDemodulator {
-    pub fn new(kf: f32) -> Result<Self> {
+    pub fn new(modulation_sensitivity: f32) -> Result<Self> {
         // Validate input
-        if kf <= 0.0 {
-            return Err(Error::Config(format!("modulation factor {:.4e} must be greater than 0", kf)));
+        if modulation_sensitivity <= 0.0 {
+            return Err(Error::Config(format!(
+                "modulation factor {:.4e} must be greater than 0",
+                modulation_sensitivity
+            )));
         }
 
-        let mut q = Self { ref_: 1.0 / (2.0 * PI * kf), r_prime: Complex32::new(0.0, 0.0) };
+        let mut q = Self { ref_: 1.0 / (2.0 * PI * modulation_sensitivity), r_prime: Complex32::new(0.0, 0.0) };
 
         q.reset()?;
         Ok(q)

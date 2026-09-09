@@ -22,22 +22,44 @@ impl SymbolStream {
         Self::new_linear(FirFilterShape::Arkaiser, 2, 7, 0.3, ModulationScheme::Qpsk)
     }
 
-    pub fn new_linear(ftype: FirFilterShape, k: usize, m: usize, beta: f32, ms: ModulationScheme) -> Result<Self> {
-        if k < 2 {
+    pub fn new_linear(
+        filter_type: FirFilterShape,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        modulation_scheme: ModulationScheme,
+    ) -> Result<Self> {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than zero".into()));
         }
-        if !(0.0..=1.0).contains(&beta) {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("filter excess bandwidth must be in (0,1]".into()));
         }
 
-        let mod_ = Modem::new(ms)?;
-        let interp = FirInterpolationFilter::new_prototype(ftype, k, m, beta, 0.0)?;
-        let buf = vec![Complex32::default(); k];
+        let mod_ = Modem::new(modulation_scheme)?;
+        let interp = FirInterpolationFilter::new_prototype(
+            filter_type,
+            samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+            0.0,
+        )?;
+        let buf = vec![Complex32::default(); samples_per_symbol];
 
-        let mut q = Self { filter_type: ftype, k, m, beta, modem: mod_, gain: 1.0, interp, buf, buf_index: 0 };
+        let mut q = Self {
+            filter_type,
+            k: samples_per_symbol,
+            m: filter_delay,
+            beta: excess_bandwidth,
+            modem: mod_,
+            gain: 1.0,
+            interp,
+            buf,
+            buf_index: 0,
+        };
 
         q.reset();
         Ok(q)

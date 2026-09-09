@@ -12,14 +12,17 @@ pub struct FrequencyModulator {
 }
 
 impl FrequencyModulator {
-    pub fn new(kf: f32) -> Result<Self> {
+    pub fn new(modulation_sensitivity: f32) -> Result<Self> {
         // Validate input
-        if kf <= 0.0 {
-            return Err(Error::Config(format!("modulation factor {:.4e} must be greater than 0", kf)));
+        if modulation_sensitivity <= 0.0 {
+            return Err(Error::Config(format!(
+                "modulation factor {:.4e} must be greater than 0",
+                modulation_sensitivity
+            )));
         }
 
         let mut q = Self {
-            ref_: kf * (1 << 16) as f32,
+            ref_: modulation_sensitivity * (1 << 16) as f32,
             sincos_table_len: 1024,
             sincos_table_phase: 0,
             sincos_table: Vec::with_capacity(1024),

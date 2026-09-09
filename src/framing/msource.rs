@@ -41,35 +41,40 @@ impl MultiSignalSource {
     ///
     /// # Arguments
     ///
-    /// * `m_channels` - number of channels in synthesis channelizer
-    /// * `m` - channelizer filter semi-length
-    /// * `as_` - channelizer filter stop-band suppression (dB)
-    pub fn new(m_channels: usize, m: usize, as_: f32) -> Result<Self> {
-        if m_channels < 2 {
+    /// * `num_channels` - number of channels in synthesis channelizer
+    /// * `filter_semi_length` - channelizer filter semi-length
+    /// * `stopband_attenuation` - channelizer filter stop-band suppression (dB)
+    pub fn new(num_channels: usize, filter_semi_length: usize, stopband_attenuation: f32) -> Result<Self> {
+        if num_channels < 2 {
             return Err(Error::Config("number of subcarriers must be at least 2".into()));
         }
-        if !m_channels.is_multiple_of(2) {
+        if !num_channels.is_multiple_of(2) {
             return Err(Error::Config("number of subcarriers must be even".into()));
         }
-        if m == 0 {
+        if filter_semi_length == 0 {
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
 
-        let ch = OversampledPolyphaseChannelizer::new_kaiser(ChannelizerType::Synthesizer, m_channels, m, as_)?;
+        let ch = OversampledPolyphaseChannelizer::new_kaiser(
+            ChannelizerType::Synthesizer,
+            num_channels,
+            filter_semi_length,
+            stopband_attenuation,
+        )?;
 
-        let buf_freq = vec![Complex32::new(0.0, 0.0); m_channels];
-        let buf_time = vec![Complex32::new(0.0, 0.0); m_channels / 2];
+        let buf_freq = vec![Complex32::new(0.0, 0.0); num_channels];
+        let buf_time = vec![Complex32::new(0.0, 0.0); num_channels / 2];
 
         Ok(Self {
             sources: Vec::new(),
             id_counter: 0,
-            m_channels,
-            m,
-            as_,
+            m_channels: num_channels,
+            m: filter_semi_length,
+            as_: stopband_attenuation,
             ch,
             buf_freq,
             buf_time,
-            read_index: m_channels / 2, // indicate buffer is empty
+            read_index: num_channels / 2, // indicate buffer is empty
             num_samples: 0,
         })
     }

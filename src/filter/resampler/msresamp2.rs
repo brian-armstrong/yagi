@@ -39,25 +39,31 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    pub fn new(type_: ResampType, num_stages: usize, fc: f32, f0: f32, as_: f32) -> Result<Self> {
+    pub fn new(
+        resampler_type: ResampType,
+        num_stages: usize,
+        cutoff_frequency: f32,
+        center_frequency: f32,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
         if num_stages > 16 {
             return Err(Error::Config("number of stages should not exceed 16".into()));
         }
-        if fc <= 0.0 || fc >= 0.5 {
+        if cutoff_frequency <= 0.0 || cutoff_frequency >= 0.5 {
             return Err(Error::Config("cut-off frequency must be in (0,0.5)".into()));
         }
-        if f0 != 0.0 {
+        if center_frequency != 0.0 {
             return Err(Error::Config("non-zero center frequency not yet supported".into()));
         }
 
         let rate = 1 << num_stages;
         let mut q = Self {
-            type_,
+            type_: resampler_type,
             num_stages,
             rate,
-            fc,
-            f0,
-            as_,
+            fc: cutoff_frequency,
+            f0: center_frequency,
+            as_: stopband_attenuation,
             zeta: (1.0 / rate as f32).into(),
             buffer0: vec![T::default(); rate],
             buffer1: vec![T::default(); rate],

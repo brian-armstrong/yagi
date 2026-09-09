@@ -45,15 +45,23 @@ where
     ///
     /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
     /// * `num_channels` - number of channels (must be even)
-    /// * `m` - prototype filter semi-length, length=2*M*m
-    /// * `h` - prototype filter coefficient array
-    pub fn new(channelizer_type: ChannelizerType, num_channels: usize, m: usize, h: &[f32]) -> Result<Self> {
+    /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m
+    /// * `coefficients` - prototype filter coefficient array
+    pub fn new(
+        channelizer_type: ChannelizerType,
+        num_channels: usize,
+        filter_semi_length: usize,
+        coefficients: &[f32],
+    ) -> Result<Self> {
         if num_channels < 2 || !num_channels.is_multiple_of(2) {
             return Err(Error::Config("number of channels must be greater than 2 and even".into()));
         }
-        if m < 1 {
+        if filter_semi_length < 1 {
             return Err(Error::Config("filter semi-length must be at least 1".into()));
         }
+
+        let m = filter_semi_length;
+        let h = coefficients;
 
         // set input parameters
         let num_channels_half = num_channels / 2;
@@ -96,15 +104,23 @@ where
     ///
     /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
     /// * `num_channels` - number of channels (must be even)
-    /// * `m` - prototype filter semi-length, length=2*M*m+1
-    /// * `as_` - filter stop-band attenuation [dB]
-    pub fn new_kaiser(channelizer_type: ChannelizerType, num_channels: usize, m: usize, as_: f32) -> Result<Self> {
+    /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m+1
+    /// * `stopband_attenuation` - filter stop-band attenuation [dB]
+    pub fn new_kaiser(
+        channelizer_type: ChannelizerType,
+        num_channels: usize,
+        filter_semi_length: usize,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
         if num_channels < 2 || !num_channels.is_multiple_of(2) {
             return Err(Error::Config("number of channels must be greater than 2 and even".into()));
         }
-        if m < 1 {
+        if filter_semi_length < 1 {
             return Err(Error::Config("filter semi-length must be at least 1".into()));
         }
+
+        let m = filter_semi_length;
+        let as_ = stopband_attenuation;
 
         // design prototype filter
         let h_len = 2 * num_channels * m + 1;

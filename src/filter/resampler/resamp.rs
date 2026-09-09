@@ -24,42 +24,48 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    pub fn new(rate: f32, m: usize, fc: f32, as_: f32, npfb: usize) -> Result<Self> {
+    pub fn new(
+        rate: f32,
+        filter_semi_length: usize,
+        cutoff_frequency: f32,
+        stopband_attenuation: f32,
+        num_filters: usize,
+    ) -> Result<Self> {
         if rate <= 0.0 {
             return Err(Error::Config("resampling rate must be greater than zero".into()));
         }
-        if m == 0 {
+        if filter_semi_length == 0 {
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
-        if fc <= 0.0 || fc >= 0.5 {
+        if cutoff_frequency <= 0.0 || cutoff_frequency >= 0.5 {
             return Err(Error::Config("filter cutoff must be in (0,0.5)".into()));
         }
-        if as_ <= 0.0 {
+        if stopband_attenuation <= 0.0 {
             return Err(Error::Config("filter stop-band suppression must be greater than zero".into()));
         }
 
-        let bits = nextpow2(npfb as u32)? as usize;
+        let bits = nextpow2(num_filters as u32)? as usize;
         if !(1..=16).contains(&bits) {
             return Err(Error::Config("number of filter banks must be in (2^0,2^16)".into()));
         }
 
-        let npfb = 1 << bits;
+        let num_filters = 1 << bits;
 
         // design filter
-        let n = 2 * m * npfb + 1;
-        let hf = filter::fir_design_kaiser(n, fc / (npfb as f32), as_, 0.0)?;
+        let n = 2 * filter_semi_length * num_filters + 1;
+        let hf = filter::fir_design_kaiser(n, cutoff_frequency / (num_filters as f32), stopband_attenuation, 0.0)?;
 
         // normalize filter coefficients by DC gain
         let gain = hf.iter().sum::<f32>();
-        let gain = (npfb as f32) / gain;
+        let gain = (num_filters as f32) / gain;
 
         // copy to type-specific array, applying gain
         let h: Vec<Coeff> = hf.iter().map(|&x| (x * gain).into()).collect();
 
-        let bank = FirPolyphaseFilterBank::new(npfb, &h[..n - 1])?;
+        let bank = FirPolyphaseFilterBank::new(num_filters, &h[..n - 1])?;
         let w = Window::new(bank.filter_len())?;
 
-        let mut q = Self { m, r: rate, step: 0, phase: 0, bits_index: bits, w, bank };
+        let mut q = Self { m: filter_semi_length, r: rate, step: 0, phase: 0, bits_index: bits, w, bank };
 
         q.set_rate(rate)?;
 

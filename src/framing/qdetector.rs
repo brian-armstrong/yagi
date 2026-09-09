@@ -58,16 +58,16 @@ impl FrameDetector {
     ///
     /// # Arguments
     ///
-    /// * `s` - sample sequence
-    pub fn new(s: &[Complex32]) -> Result<Self> {
-        if s.is_empty() {
+    /// * `sequence` - sample sequence
+    pub fn new(sequence: &[Complex32]) -> Result<Self> {
+        if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
 
-        let s_len = s.len();
+        let s_len = sequence.len();
 
         // compute sum{ |s|^2 }
-        let s2_sum: f32 = sumsqcf(s);
+        let s2_sum: f32 = sumsqcf(sequence);
 
         // prepare transforms
         let nfft = 1 << nextpow2(2 * s_len as u32)?;
@@ -78,7 +78,7 @@ impl FrameDetector {
         // create frequency-domain template
         let mut buf_time_0 = vec![Complex32::new(0.0, 0.0); nfft];
         let mut buf_freq_0 = vec![Complex32::new(0.0, 0.0); nfft];
-        buf_time_0[..s_len].copy_from_slice(s);
+        buf_time_0[..s_len].copy_from_slice(sequence);
         fft.run(&buf_time_0, &mut buf_freq_0);
 
         // store conjugate of S for cross-correlation
@@ -89,7 +89,7 @@ impl FrameDetector {
 
         let mut q = Self {
             s_len,
-            s: s.to_vec(),
+            s: sequence.to_vec(),
             s_conj_freq,
             s2_sum,
             buf_time_0,
@@ -124,33 +124,45 @@ impl FrameDetector {
     /// # Arguments
     ///
     /// * `sequence` - symbol sequence
-    /// * `ftype` - filter prototype
-    /// * `k` - samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - excess bandwidth factor
-    pub fn new_linear(sequence: &[Complex32], ftype: FirFilterShape, k: usize, m: usize, beta: f32) -> Result<Self> {
+    /// * `filter_type` - filter prototype
+    /// * `samples_per_symbol` - samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - excess bandwidth factor
+    pub fn new_linear(
+        sequence: &[Complex32],
+        filter_type: FirFilterShape,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+    ) -> Result<Self> {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
-        if !(2..=80).contains(&k) {
+        if !(2..=80).contains(&samples_per_symbol) {
             return Err(Error::Config("samples per symbol must be in [2,80]".into()));
         }
-        if !(1..=100).contains(&m) {
+        if !(1..=100).contains(&filter_delay) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
 
         let sequence_len = sequence.len();
-        let s_len = k * (sequence_len + 2 * m);
+        let s_len = samples_per_symbol * (sequence_len + 2 * filter_delay);
         let mut s = vec![Complex32::new(0.0, 0.0); s_len];
 
-        let mut interp = FirInterpolationFilter::<Complex32, f32>::new_prototype(ftype, k, m, beta, 0.0)?;
+        let mut interp = FirInterpolationFilter::<Complex32, f32>::new_prototype(
+            filter_type,
+            samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+            0.0,
+        )?;
 
-        for i in 0..(sequence_len + 2 * m) {
+        for i in 0..(sequence_len + 2 * filter_delay) {
             let sym = if i < sequence_len { sequence[i] } else { Complex32::new(0.0, 0.0) };
-            interp.execute(sym, &mut s[k * i..k * (i + 1)])?;
+            interp.execute(sym, &mut s[samples_per_symbol * i..samples_per_symbol * (i + 1)])?;
         }
 
         Self::new(&s)
@@ -161,32 +173,37 @@ impl FrameDetector {
     /// # Arguments
     ///
     /// * `sequence` - bit sequence
-    /// * `k` - samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - excess bandwidth factor
-    pub fn new_gmsk(sequence: &[u8], k: usize, m: usize, beta: f32) -> Result<Self> {
+    /// * `samples_per_symbol` - samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - excess bandwidth factor
+    pub fn new_gmsk(
+        sequence: &[u8],
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+    ) -> Result<Self> {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
-        if !(2..=80).contains(&k) {
+        if !(2..=80).contains(&samples_per_symbol) {
             return Err(Error::Config("samples per symbol must be in [2,80]".into()));
         }
-        if !(1..=100).contains(&m) {
+        if !(1..=100).contains(&filter_delay) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
 
         let sequence_len = sequence.len();
-        let s_len = k * (sequence_len + 2 * m);
+        let s_len = samples_per_symbol * (sequence_len + 2 * filter_delay);
         let mut s = vec![Complex32::new(0.0, 0.0); s_len];
 
-        let mut modulator = GmskModulator::new(k, m, beta)?;
+        let mut modulator = GmskModulator::new(samples_per_symbol, filter_delay, excess_bandwidth)?;
 
-        for i in 0..(sequence_len + 2 * m) {
+        for i in 0..(sequence_len + 2 * filter_delay) {
             let bit = if i < sequence_len { sequence[i] } else { 0 };
-            modulator.modulate(bit, &mut s[k * i..k * (i + 1)])?;
+            modulator.modulate(bit, &mut s[samples_per_symbol * i..samples_per_symbol * (i + 1)])?;
         }
 
         Self::new(&s)
@@ -197,43 +214,50 @@ impl FrameDetector {
     /// # Arguments
     ///
     /// * `sequence` - symbol sequence
-    /// * `bps` - bits per symbol
-    /// * `h` - modulation index
-    /// * `k` - samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - filter bandwidth parameter
+    /// * `bits_per_symbol` - bits per symbol
+    /// * `modulation_index` - modulation index
+    /// * `samples_per_symbol` - samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - filter bandwidth parameter
     /// * `filter_type` - filter type
     pub fn new_cpfsk(
         sequence: &[u8],
-        bps: usize,
-        h: f32,
-        k: usize,
-        m: usize,
-        beta: f32,
+        bits_per_symbol: usize,
+        modulation_index: f32,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
         filter_type: CpfskFilterType,
     ) -> Result<Self> {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
         }
-        if !(2..=80).contains(&k) {
+        if !(2..=80).contains(&samples_per_symbol) {
             return Err(Error::Config("samples per symbol must be in [2,80]".into()));
         }
-        if !(1..=100).contains(&m) {
+        if !(1..=100).contains(&filter_delay) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
 
         let sequence_len = sequence.len();
-        let s_len = k * (sequence_len + 2 * m);
+        let s_len = samples_per_symbol * (sequence_len + 2 * filter_delay);
         let mut s = vec![Complex32::new(0.0, 0.0); s_len];
 
-        let mut modulator = CpfskModulator::new(bps, h, k, m, beta, filter_type)?;
+        let mut modulator = CpfskModulator::new(
+            bits_per_symbol,
+            modulation_index,
+            samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+            filter_type,
+        )?;
 
-        for i in 0..(sequence_len + 2 * m) {
+        for i in 0..(sequence_len + 2 * filter_delay) {
             let sym = if i < sequence_len { sequence[i] as usize } else { 0 };
-            modulator.modulate(sym, &mut s[k * i..k * (i + 1)])?;
+            modulator.modulate(sym, &mut s[samples_per_symbol * i..samples_per_symbol * (i + 1)])?;
         }
 
         Self::new(&s)

@@ -43,37 +43,47 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    pub fn new(m: usize, f0: f32, as_: f32) -> Result<Self> {
-        if m < 2 {
+    pub fn new(filter_semi_length: usize, center_frequency: f32, stopband_attenuation: f32) -> Result<Self> {
+        if filter_semi_length < 2 {
             return Err(Error::Config("filter semi-length must be at least 2".into()));
         }
-        if f0 < -0.5 || f0 > 0.5 {
-            return Err(Error::Config(format!("f0 ({}) must be in [-0.5,0.5]", f0)));
+        if center_frequency < -0.5 || center_frequency > 0.5 {
+            return Err(Error::Config(format!("center frequency ({}) must be in [-0.5,0.5]", center_frequency)));
         }
-        if as_ < 0.0 {
-            return Err(Error::Config(format!("as ({}) must be greater than zero", as_)));
+        if stopband_attenuation < 0.0 {
+            return Err(Error::Config(format!(
+                "stopband attenuation ({}) must be greater than zero",
+                stopband_attenuation
+            )));
         }
 
-        let h_len = 4 * m + 1;
+        let h_len = 4 * filter_semi_length + 1;
         let mut h = vec![Coeff::zero(); h_len];
-        let hf = filter::fir_design_pm_halfband_stopband_attenuation(m, as_)?;
+        let hf = filter::fir_design_pm_halfband_stopband_attenuation(filter_semi_length, stopband_attenuation)?;
 
         for (i, hi) in h.iter_mut().enumerate() {
             let t = i as f32 - (h_len - 1) as f32 / 2.0;
-            *hi = Coeff::for_halfband(hf[i], t, f0);
+            *hi = Coeff::for_halfband(hf[i], t, center_frequency);
         }
 
-        let h1_len = 2 * m;
+        let h1_len = 2 * filter_semi_length;
         let mut h1 = vec![Coeff::zero(); h1_len];
         for (i, h1i) in h1.iter_mut().enumerate() {
             *h1i = h[h_len - 2 * i - 2];
         }
 
-        let w0 = Window::new(2 * m)?;
-        let w1 = Window::new(2 * m)?;
+        let w0 = Window::new(2 * filter_semi_length)?;
+        let w1 = Window::new(2 * filter_semi_length)?;
 
-        let mut q =
-            Self { m, dp: DotProduct::new(&h1)?, w0, w1, decim_phase: Vec::new(), scale: Coeff::one(), toggle: false };
+        let mut q = Self {
+            m: filter_semi_length,
+            dp: DotProduct::new(&h1)?,
+            w0,
+            w1,
+            decim_phase: Vec::new(),
+            scale: Coeff::one(),
+            toggle: false,
+        };
 
         q.reset();
         Ok(q)

@@ -238,42 +238,42 @@ impl SignalSource {
     ///
     /// # Arguments
     ///
-    /// * `m_channels` - number of channels in parent object's synthesis channelizer
-    /// * `m` - channelizer filter semi-length
-    /// * `as_` - channelizer filter stop-band suppression (dB)
-    /// * `fc` - signal normalized center frequency [-0.5, 0.5]
-    /// * `bw` - signal normalized bandwidth [0, 1]
-    /// * `gain` - signal gain (dB)
+    /// * `num_channels` - number of channels in parent object's synthesis channelizer
+    /// * `filter_semi_length` - channelizer filter semi-length
+    /// * `stopband_attenuation` - channelizer filter stop-band suppression (dB)
+    /// * `center_frequency` - signal normalized center frequency [-0.5, 0.5]
+    /// * `bandwidth` - signal normalized bandwidth [0, 1]
+    /// * `gain_db` - signal gain (dB)
     /// * `config` - source type configuration
     pub fn new(
-        m_channels: usize,
-        m: usize,
-        as_: f32,
-        fc: f32,
-        bw: f32,
-        gain: f32,
+        num_channels: usize,
+        filter_semi_length: usize,
+        stopband_attenuation: f32,
+        center_frequency: f32,
+        bandwidth: f32,
+        gain_db: f32,
         config: SignalSourceConfig,
     ) -> Result<Self> {
-        if m_channels < 2 || !m_channels.is_multiple_of(2) {
+        if num_channels < 2 || !num_channels.is_multiple_of(2) {
             return Err(Error::Config("invalid channelizer size; must be even and greater than 1".into()));
         }
-        if m == 0 {
+        if filter_semi_length == 0 {
             return Err(Error::Config("invalid channelizer filter semi-length; must be greater than 0".into()));
         }
-        if fc < -0.5 || fc > 0.5 {
+        if center_frequency < -0.5 || center_frequency > 0.5 {
             return Err(Error::Config("invalid frequency offset; must be in [-0.5, 0.5]".into()));
         }
-        if bw < 0.0 || bw > 1.0 {
+        if bandwidth < 0.0 || bandwidth > 1.0 {
             return Err(Error::Config("invalid bandwidth; must be in [0, 1]".into()));
         }
 
         // set channelizer values appropriately
-        let p_channels = (2.0 * (0.5 * bw * m_channels as f32).ceil()) as usize;
+        let p_channels = (2.0 * (0.5 * bandwidth * num_channels as f32).ceil()) as usize;
         let p_channels = p_channels.max(2);
 
         // create resampler to correct for rate offset
-        let rate = if bw == 0.0 { 1.0 } else { bw * (m_channels as f32) / (p_channels as f32) };
-        let resamp = ArbitraryResampler::new(rate, 12, 0.45, as_, 64)?;
+        let rate = if bandwidth == 0.0 { 1.0 } else { bandwidth * (num_channels as f32) / (p_channels as f32) };
+        let resamp = ArbitraryResampler::new(rate, 12, 0.45, stopband_attenuation, 64)?;
 
         // create mixer for frequency offset correction
         let mixer = Nco::new(NcoBackend::InterpolatedLookupTable);
@@ -285,17 +285,22 @@ impl SignalSource {
         let buf_freq = vec![Complex32::new(0.0, 0.0); p_channels];
 
         // create analysis channelizer
-        let ch = OversampledPolyphaseChannelizer::new_kaiser(ChannelizerType::Analyzer, p_channels, m, as_)?;
+        let ch = OversampledPolyphaseChannelizer::new_kaiser(
+            ChannelizerType::Analyzer,
+            p_channels,
+            filter_semi_length,
+            stopband_attenuation,
+        )?;
 
         // channelizer gain correction
-        let gain_ch = ((p_channels as f32) / (m_channels as f32)).sqrt();
+        let gain_ch = ((p_channels as f32) / (num_channels as f32)).sqrt();
 
         // Initialize source state from config
         let source = match config {
             SignalSourceConfig::Tone => SourceState::Tone,
             SignalSourceConfig::Chirp { duration, negate, single } => {
                 let mut nco = Nco::new(NcoBackend::InterpolatedLookupTable);
-                let num = (duration * bw).round() as u64;
+                let num = (duration * bandwidth).round() as u64;
                 let df = 2.0 * PI / (num as f32) * (if negate { -1.0 } else { 1.0 });
                 nco.set_frequency(if negate { PI } else { -PI });
                 SourceState::Chirp(ChirpState { nco, df, negate, single, num, timer: num })
@@ -327,16 +332,16 @@ impl SignalSource {
 
         let mut q = Self {
             id: -1,
-            m_channels,
+            m_channels: num_channels,
             p_channels,
-            m,
-            as_,
-            fc,
-            bw,
+            m: filter_semi_length,
+            as_: stopband_attenuation,
+            fc: center_frequency,
+            bw: bandwidth,
             index: 0,
             resamp,
             mixer,
-            gain: 10.0f32.powf(gain / 20.0),
+            gain: 10.0f32.powf(gain_db / 20.0),
             gain_ch,
             buf,
             buf_time,
@@ -347,7 +352,7 @@ impl SignalSource {
             source,
         };
 
-        q.set_frequency(fc)?;
+        q.set_frequency(center_frequency)?;
         q.reset();
         Ok(q)
     }

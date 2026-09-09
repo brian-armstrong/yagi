@@ -48,15 +48,23 @@ where
     ///
     /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
     /// * `num_channels` - number of channels
-    /// * `p` - filter length (symbols)
-    /// * `h` - filter coefficients, [size: num_channels * p x 1]
-    pub fn new(channelizer_type: ChannelizerType, num_channels: usize, p: usize, h: &[Coeff]) -> Result<Self> {
+    /// * `filter_length` - filter length (symbols)
+    /// * `coefficients` - filter coefficients, [size: num_channels * filter_length x 1]
+    pub fn new(
+        channelizer_type: ChannelizerType,
+        num_channels: usize,
+        filter_length: usize,
+        coefficients: &[Coeff],
+    ) -> Result<Self> {
         if num_channels == 0 {
             return Err(Error::Config("number of channels must be greater than 0".into()));
         }
-        if p == 0 {
+        if filter_length == 0 {
             return Err(Error::Config("filter size must be greater than 0".into()));
         }
+
+        let p = filter_length;
+        let h = coefficients;
 
         // create bank of filters
         let mut dp = Vec::with_capacity(num_channels);
@@ -101,17 +109,23 @@ where
     ///
     /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
     /// * `num_channels` - number of channels
-    /// * `m` - filter delay (symbols)
-    /// * `as_` - stop-band attenuation [dB]
-    pub fn new_kaiser(channelizer_type: ChannelizerType, num_channels: usize, m: usize, as_: f32) -> Result<Self> {
+    /// * `filter_delay` - filter delay (symbols)
+    /// * `stopband_attenuation` - stop-band attenuation [dB]
+    pub fn new_kaiser(
+        channelizer_type: ChannelizerType,
+        num_channels: usize,
+        filter_delay: usize,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
         if num_channels == 0 {
             return Err(Error::Config("number of channels must be greater than 0".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter size must be greater than 0".into()));
         }
 
-        let as_ = as_.abs();
+        let m = filter_delay;
+        let as_ = stopband_attenuation.abs();
 
         // design filter
         let h_len = 2 * num_channels * m + 1;
@@ -133,22 +147,26 @@ where
     ///
     /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
     /// * `num_channels` - number of channels
-    /// * `m` - filter delay (symbols)
-    /// * `beta` - filter excess bandwidth factor, in [0,1]
-    /// * `ftype` - filter prototype (rrcos, rkaiser, etc.)
+    /// * `filter_delay` - filter delay (symbols)
+    /// * `excess_bandwidth` - filter excess bandwidth factor, in [0,1]
+    /// * `filter_type` - filter prototype (rrcos, rkaiser, etc.)
     pub fn new_rnyquist(
         channelizer_type: ChannelizerType,
         num_channels: usize,
-        m: usize,
-        beta: f32,
-        ftype: filter::FirFilterShape,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        filter_type: filter::FirFilterShape,
     ) -> Result<Self> {
         if num_channels == 0 {
             return Err(Error::Config("number of channels must be greater than 0".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter size must be greater than 0".into()));
         }
+
+        let m = filter_delay;
+        let beta = excess_bandwidth;
+        let ftype = filter_type;
 
         // design filter based on requested prototype
         let h = filter::fir_design_prototype(ftype, num_channels, m, beta, 0.0)?;
