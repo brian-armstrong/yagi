@@ -221,6 +221,7 @@ where
         Ok(())
     }
 
+    #[allow(clippy::misnamed_getters)]
     pub fn tau(&self) -> f32 {
         self.tau_decim
     }
