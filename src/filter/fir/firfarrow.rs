@@ -51,35 +51,40 @@ where
     ///
     /// # Arguments
     ///
-    /// * `h_len` - filter length, `h_len >= 2`
-    /// * `p` - polynomial order, `p >= 1`
-    /// * `fc` - filter cutoff frequency, `0 <= fc <= 0.5`
-    /// * `as_` - stop-band attenuation [dB], `as_ > 0`
-    pub fn new(h_len: usize, p: usize, fc: f32, as_: f32) -> Result<Self> {
-        if h_len < 2 {
+    /// * `filter_length` - filter length, `filter_length >= 2`
+    /// * `polynomial_order` - polynomial order, `polynomial_order >= 1`
+    /// * `cutoff_frequency` - filter cutoff frequency, `0 <= cutoff_frequency <= 0.5`
+    /// * `stopband_attenuation` - non-negative stop-band attenuation [dB]
+    pub fn new(
+        filter_length: usize,
+        polynomial_order: usize,
+        cutoff_frequency: f32,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
+        if filter_length < 2 {
             return Err(Error::Config("filter length must be greater than 1".into()));
         }
-        if p < 1 {
+        if polynomial_order < 1 {
             return Err(Error::Config("polynomial order must be at least 1".into()));
         }
-        if fc < 0.0 || fc > 0.5 {
+        if cutoff_frequency < 0.0 || cutoff_frequency > 0.5 {
             return Err(Error::Config("filter cutoff must be in [0,0.5]".into()));
         }
-        if as_ < 0.0 {
-            return Err(Error::Config("filter stop-band attenuation must be greater than zero".into()));
+        if stopband_attenuation < 0.0 {
+            return Err(Error::Config("filter stop-band attenuation must be non-negative".into()));
         }
 
         let mut q = Self {
-            h: vec![<Coeff as From<f32>>::from(0.0); h_len],
-            h_rev: vec![<Coeff as From<f32>>::from(0.0); h_len],
-            htmp: vec![0.0; h_len],
-            h_len,
-            fc,
-            as_,
-            q: p,
-            p: vec![0.0; h_len * (p + 1)],
+            h: vec![<Coeff as From<f32>>::from(0.0); filter_length],
+            h_rev: vec![<Coeff as From<f32>>::from(0.0); filter_length],
+            htmp: vec![0.0; filter_length],
+            h_len: filter_length,
+            fc: cutoff_frequency,
+            as_: stopband_attenuation,
+            q: polynomial_order,
+            p: vec![0.0; filter_length * (polynomial_order + 1)],
             gamma: 1.0,
-            w: Window::new(h_len)?,
+            w: Window::new(filter_length)?,
         };
 
         q.reset();

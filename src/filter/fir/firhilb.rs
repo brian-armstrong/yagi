@@ -29,25 +29,25 @@ impl FirHilbertFilter {
     ///
     /// # Arguments
     ///
-    /// * `m` - filter semi-length, delay is 2*m+1
-    /// * `as_` - filter stop-band attenuation \[dB\]
+    /// * `filter_semi_length` - filter semi-length, delay is `2 * filter_semi_length + 1`
+    /// * `stopband_attenuation` - filter stop-band attenuation \[dB\]
     ///
     /// # Returns
     ///
     /// A new FIR Hilbert transform object
-    pub fn new(m: usize, as_: f32) -> Result<Self> {
-        if m < 2 {
-            return Err(Error::Config("filter semi-length (m) must be at least 2".into()));
+    pub fn new(filter_semi_length: usize, stopband_attenuation: f32) -> Result<Self> {
+        if filter_semi_length < 2 {
+            return Err(Error::Config("filter semi-length must be at least 2".into()));
         }
 
-        let h_len = 4 * m + 1;
+        let h_len = 4 * filter_semi_length + 1;
         let mut hc = vec![Complex32::zero(); h_len];
-        let hq_len = 2 * m;
+        let hq_len = 2 * filter_semi_length;
         let mut hq = vec![0.0; hq_len];
-        let as_ = as_.abs();
+        let stopband_attenuation = stopband_attenuation.abs();
 
         // compute filter coefficients for half-band filter
-        let mut h = filter::fir_design_kaiser(h_len, 0.25, as_, 0.0)?;
+        let mut h = filter::fir_design_kaiser(h_len, 0.25, stopband_attenuation, 0.0)?;
 
         // alternate sign of non-zero elements
         for i in 0..h_len {
@@ -62,12 +62,12 @@ impl FirHilbertFilter {
         }
 
         // create windows for upper and lower polyphase filter branches
-        let w0 = Window::new(2 * m)?;
-        let w1 = Window::new(2 * m)?;
-        let w2 = Window::new(2 * m)?;
-        let w3 = Window::new(2 * m)?;
+        let w0 = Window::new(2 * filter_semi_length)?;
+        let w1 = Window::new(2 * filter_semi_length)?;
+        let w2 = Window::new(2 * filter_semi_length)?;
+        let w3 = Window::new(2 * filter_semi_length)?;
 
-        let mut q = Self { m, dpq: DotProduct::new(&hq)?, w0, w1, w2, w3, toggle: false };
+        let mut q = Self { m: filter_semi_length, dpq: DotProduct::new(&hq)?, w0, w1, w2, w3, toggle: false };
 
         q.reset();
         Ok(q)

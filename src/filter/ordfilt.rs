@@ -14,24 +14,24 @@ impl<T> OrderStatisticFilter<T>
 where
     T: Clone + Copy + PartialOrd + Default,
 {
-    pub fn new(n: usize, k: usize) -> Result<Self> {
-        if n == 0 {
+    pub fn new(filter_length: usize, rank: usize) -> Result<Self> {
+        if filter_length == 0 {
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
-        if k >= n {
-            return Err(Error::Config("filter index must be in [0,n-1]".into()));
+        if rank >= filter_length {
+            return Err(Error::Config("filter rank must be less than the filter length".into()));
         }
 
-        let buf = Window::new(n)?;
-        let buf_sorted = vec![T::default(); n];
+        let buf = Window::new(filter_length)?;
+        let buf_sorted = vec![T::default(); filter_length];
 
-        let mut q = Self { k, buf, buf_sorted };
+        let mut q = Self { k: rank, buf, buf_sorted };
         q.reset();
         Ok(q)
     }
 
-    pub fn new_medfilt(m: usize) -> Result<Self> {
-        Self::new(2 * m + 1, m)
+    pub fn new_medfilt(filter_semi_length: usize) -> Result<Self> {
+        Self::new(2 * filter_semi_length + 1, filter_semi_length)
     }
 
     pub fn reset(&mut self) {

@@ -56,14 +56,14 @@ where
         stopband_attenuation: f32,
     ) -> Result<Self> {
         let gcd = gcd(interpolation_factor as u32, decimation_factor as u32)? as usize;
-        let interp = interpolation_factor / gcd;
-        let decim = decimation_factor / gcd;
+        let interpolation_factor = interpolation_factor / gcd;
+        let decimation_factor = decimation_factor / gcd;
 
         let bandwidth = if bandwidth < 0.0 {
-            if interp > decim {
+            if interpolation_factor > decimation_factor {
                 0.5
             } else {
-                0.5 * interp as f32 / decim as f32
+                0.5 * interpolation_factor as f32 / decimation_factor as f32
             }
         } else if bandwidth > 0.5 {
             return Err(Error::Config(format!("invalid bandwidth ({}), must be less than 0.5", bandwidth)));
@@ -71,43 +71,46 @@ where
             bandwidth
         };
 
-        let h_len = 2 * interp * filter_semi_length + 1;
-        let hf = filter::fir_design_kaiser(h_len, bandwidth / interp as f32, stopband_attenuation, 0.0)?;
+        let h_len = 2 * interpolation_factor * filter_semi_length + 1;
+        let hf = filter::fir_design_kaiser(h_len, bandwidth / interpolation_factor as f32, stopband_attenuation, 0.0)?;
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 
-        let mut q = Self::new(interp, decim, filter_semi_length, &h)?;
+        let mut q = Self::new(interpolation_factor, decimation_factor, filter_semi_length, &h)?;
         q.set_scale((2.0 * bandwidth * ((q.q as f32) / (q.p as f32)).sqrt()).into());
         q.block_len = gcd;
 
         Ok(q)
     }
 
-    pub fn new_prototype(ftype: FirFilterShape, interp: usize, decim: usize, m: usize, beta: f32) -> Result<Self> {
-        let gcd = gcd(interp as u32, decim as u32)? as usize;
-        let interp = interp / gcd;
-        let decim = decim / gcd;
+    pub fn new_prototype(
+        filter_type: FirFilterShape,
+        interpolation_factor: usize,
+        decimation_factor: usize,
+        filter_semi_length: usize,
+        excess_bandwidth: f32,
+    ) -> Result<Self> {
+        let gcd = gcd(interpolation_factor as u32, decimation_factor as u32)? as usize;
+        let interpolation_factor = interpolation_factor / gcd;
+        let decimation_factor = decimation_factor / gcd;
 
-        let decim_flag = interp < decim;
-        let k = if decim_flag { decim } else { interp };
-        let hf = filter::fir_design_prototype(ftype, k, m, beta, 0.0)?;
+        let is_decimating = interpolation_factor < decimation_factor;
+        let prototype_rate = if is_decimating { decimation_factor } else { interpolation_factor };
+        let hf = filter::fir_design_prototype(filter_type, prototype_rate, filter_semi_length, excess_bandwidth, 0.0)?;
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 
-        let mut q = Self::new(interp, decim, m, &h)?;
+        let mut q = Self::new(interpolation_factor, decimation_factor, filter_semi_length, &h)?;
         q.block_len = gcd;
 
         let rate = q.rate();
-        q.set_scale((if decim_flag { rate.sqrt() } else { 1.0 / rate.sqrt() }).into());
+        q.set_scale((if is_decimating { rate.sqrt() } else { 1.0 / rate.sqrt() }).into());
 
         Ok(q)
     }
 
-    pub fn new_kaiser_simple(interp: usize, decim: usize) -> Result<Self> {
-        let m = 12;
-        let bw = 0.5;
-        let as_ = 60.0;
-        Self::new_kaiser(interp, decim, m, bw, as_)
+    pub fn new_kaiser_simple(interpolation_factor: usize, decimation_factor: usize) -> Result<Self> {
+        Self::new_kaiser(interpolation_factor, decimation_factor, 12, 0.5, 60.0)
     }
 
     pub fn reset(&mut self) {

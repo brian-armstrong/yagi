@@ -160,27 +160,27 @@ where
     ///
     /// # Arguments
     ///
-    /// * `interp` - interpolation factor
-    /// * `m` - filter semi-length
+    /// * `interpolation_factor` - interpolation factor
+    /// * `filter_semi_length` - filter semi-length
     ///
     /// # Returns
     ///
     /// A new window interpolator
-    pub fn new_window(interp: usize, m: usize) -> Result<Self> {
-        if interp < 1 {
+    pub fn new_window(interpolation_factor: usize, filter_semi_length: usize) -> Result<Self> {
+        if interpolation_factor < 1 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
         }
-        if m < 1 {
+        if filter_semi_length < 1 {
             return Err(Error::Config("filter semi-length must be greater than 0".into()));
         }
 
-        let h_len = 2 * m * interp;
+        let h_len = 2 * filter_semi_length * interpolation_factor;
         let mut hc = vec![Coeff::zero(); h_len];
         for (i, hci) in hc.iter_mut().enumerate() {
-            *hci = (PI * i as f32 / (2 * m * interp) as f32).sin().powi(2).into();
+            *hci = (PI * i as f32 / (2 * filter_semi_length * interpolation_factor) as f32).sin().powi(2).into();
         }
 
-        Self::new(interp, &hc)
+        Self::new(interpolation_factor, &hc)
     }
 
     /// Reset the interpolator

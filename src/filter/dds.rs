@@ -36,19 +36,27 @@ pub struct DirectDigitalSynthesizer {
 }
 
 impl DirectDigitalSynthesizer {
-    pub fn new(num_stages: usize, fc: f32, bw: f32, as_: f32) -> Result<Self> {
+    /// Create a direct digital synthesizer
+    ///
+    /// # Arguments
+    ///
+    /// * `num_stages` - number of half-band stages
+    /// * `center_frequency` - normalized input carrier frequency in `[-0.5, 0.5]`
+    /// * `bandwidth` - normalized input signal bandwidth in `(0, 1)`
+    /// * `stopband_attenuation` - non-negative stop-band attenuation in dB
+    pub fn new(num_stages: usize, center_frequency: f32, bandwidth: f32, stopband_attenuation: f32) -> Result<Self> {
         // error checking
         if num_stages > 20 {
             return Err(Error::Config(format!("number of stages {} exceeds reasonable maximum (20)", num_stages)));
         }
-        if fc > 0.5 || fc < -0.5 {
-            return Err(Error::Config(format!("frequency {} is out of range [-0.5,0.5]", fc)));
+        if center_frequency > 0.5 || center_frequency < -0.5 {
+            return Err(Error::Config(format!("frequency {} is out of range [-0.5,0.5]", center_frequency)));
         }
-        if bw <= 0.0 || bw >= 1.0 {
-            return Err(Error::Config(format!("bandwidth {} is out of range (0,1)", bw)));
+        if bandwidth <= 0.0 || bandwidth >= 1.0 {
+            return Err(Error::Config(format!("bandwidth {} is out of range (0,1)", bandwidth)));
         }
-        if as_ < 0.0 {
-            return Err(Error::Config(format!("stop-band suppression {} must be greater than zero", as_)));
+        if stopband_attenuation < 0.0 {
+            return Err(Error::Config(format!("stop-band suppression {} must be non-negative", stopband_attenuation)));
         }
 
         let rate = 1 << num_stages;
@@ -59,8 +67,8 @@ impl DirectDigitalSynthesizer {
         let mut as_vec = vec![0.0f32; num_stages];
         let mut m_vec = vec![0usize; num_stages];
 
-        let mut fc_current = 0.5 * (1 << num_stages) as f32 * fc;
-        let mut bw_current = bw;
+        let mut fc_current = 0.5 * (1 << num_stages) as f32 * center_frequency;
+        let mut bw_current = bandwidth;
 
         // TODO : compute/set filter bandwidths, lengths appropriately
         for i in 0..num_stages {
@@ -77,7 +85,7 @@ impl DirectDigitalSynthesizer {
             if ft_vec[i] > 0.45 {
                 ft_vec[i] = 0.45;
             }
-            as_vec[i] = as_;
+            as_vec[i] = stopband_attenuation;
 
             // compute (estimate) required filter length
             m_vec[i] = estimate_req_filter_len(ft_vec[i], as_vec[i])?;
@@ -104,7 +112,7 @@ impl DirectDigitalSynthesizer {
         // create NCO and set frequency
         let mut ncox = Nco::new(NcoBackend::InterpolatedLookupTable);
         // TODO : ensure range is in [-pi,pi]
-        ncox.set_frequency(2.0 * PI * (rate as f32) * fc);
+        ncox.set_frequency(2.0 * PI * (rate as f32) * center_frequency);
 
         Ok(Self { num_stages, rate, halfband_resamp, m: m_vec, buffer0, buffer1, ncox, zeta, scale })
     }
