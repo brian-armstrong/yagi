@@ -61,26 +61,26 @@ where
     /// # Arguments
     ///
     /// * `decimation_factor` - The decimation factor
-    /// * `m` - The filter delay
-    /// * `as_` - The stop-band attenuation
+    /// * `filter_delay` - The filter delay
+    /// * `stopband_attenuation` - The stop-band attenuation
     ///
     /// # Returns
     ///
     /// A new decimation filter
-    pub fn new_kaiser(decimation_factor: usize, m: usize, as_: f32) -> Result<Self> {
+    pub fn new_kaiser(decimation_factor: usize, filter_delay: usize, stopband_attenuation: f32) -> Result<Self> {
         if decimation_factor < 2 {
             return Err(Error::Config("decim factor must be greater than 1".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if as_ < 0.0 {
+        if stopband_attenuation < 0.0 {
             return Err(Error::Config("stop-band attenuation must be positive".into()));
         }
 
-        let h_len = 2 * decimation_factor * m + 1;
+        let h_len = 2 * decimation_factor * filter_delay + 1;
         let fc = 0.5 / decimation_factor as f32;
-        let hf = design::fir_design_kaiser(h_len, fc, as_, 0.0)?;
+        let hf = design::fir_design_kaiser(h_len, fc, stopband_attenuation, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| Coeff::from(x).unwrap()).collect();
         Self::new(decimation_factor, &hc)
@@ -92,9 +92,9 @@ where
     ///
     /// * `filter_type` - The filter type
     /// * `decimation_factor` - The decimation factor
-    /// * `m` - The filter delay
-    /// * `beta` - The excess bandwidth factor
-    /// * `dt` - The fractional sample delay
+    /// * `filter_delay` - The filter delay
+    /// * `excess_bandwidth` - The excess bandwidth factor
+    /// * `fractional_delay` - The fractional sample delay
     ///
     /// # Returns
     ///
@@ -102,24 +102,30 @@ where
     pub fn new_prototype(
         filter_type: design::FirFilterShape,
         decimation_factor: usize,
-        m: usize,
-        beta: f32,
-        dt: f32,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        fractional_delay: f32,
     ) -> Result<Self> {
         if decimation_factor < 2 {
             return Err(Error::Config("decimation factor must be greater than 1".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
-        if dt < -1.0 || dt > 1.0 {
+        if fractional_delay < -1.0 || fractional_delay > 1.0 {
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h = design::fir_design_prototype(filter_type, decimation_factor, m, beta, dt)?;
+        let h = design::fir_design_prototype(
+            filter_type,
+            decimation_factor,
+            filter_delay,
+            excess_bandwidth,
+            fractional_delay,
+        )?;
 
         let hc: Vec<Coeff> = h.iter().map(|&x| Coeff::from(x).unwrap()).collect();
         Self::new(decimation_factor, &hc)

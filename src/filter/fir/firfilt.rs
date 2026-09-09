@@ -282,16 +282,21 @@ where
     ///
     /// # Arguments
     ///
-    /// * `n` - filter length
-    /// * `fc` - cutoff frequency
-    /// * `as_` - stop-band attenuation
-    /// * `mu` - fractional sample offset
+    /// * `filter_length` - filter length
+    /// * `cutoff_frequency` - cutoff frequency
+    /// * `stopband_attenuation` - stop-band attenuation
+    /// * `fractional_delay` - fractional sample offset
     ///
     /// # Returns
     ///
     /// A new `Firfilt` object.
-    pub fn new_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Self> {
-        let h = fir_filter_design_kaiser(n, fc, as_, mu)?;
+    pub fn new_kaiser(
+        filter_length: usize,
+        cutoff_frequency: f32,
+        stopband_attenuation: f32,
+        fractional_delay: f32,
+    ) -> Result<Self> {
+        let h = fir_filter_design_kaiser(filter_length, cutoff_frequency, stopband_attenuation, fractional_delay)?;
         Self::new(&h)
     }
 
@@ -299,17 +304,29 @@ where
     ///
     /// # Arguments
     ///
-    /// * `ftype` - filter type
-    /// * `k` - nominal samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - rolloff factor
-    /// * `mu` - fractional sample offset
+    /// * `filter_type` - filter type
+    /// * `samples_per_symbol` - nominal samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - rolloff factor
+    /// * `fractional_delay` - fractional sample offset
     ///
     /// # Returns
     ///
     /// A new `Firfilt` object.
-    pub fn new_rnyquist(ftype: filter::FirFilterShape, k: usize, m: usize, beta: f32, mu: f32) -> Result<Self> {
-        let h = fir_filter_design_rnyquist(ftype, k, m, beta, mu)?;
+    pub fn new_rnyquist(
+        filter_type: filter::FirFilterShape,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        fractional_delay: f32,
+    ) -> Result<Self> {
+        let h = fir_filter_design_rnyquist(
+            filter_type,
+            samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+            fractional_delay,
+        )?;
         Self::new(&h)
     }
 
@@ -317,15 +334,15 @@ where
     ///
     /// # Arguments
     ///
-    /// * `h_len` - filter length
-    /// * `fc` - cutoff frequency
-    /// * `as_` - stop-band attenuation
+    /// * `filter_length` - filter length
+    /// * `cutoff_frequency` - cutoff frequency
+    /// * `stopband_attenuation` - stop-band attenuation
     ///
     /// # Returns
     ///
     /// A new `Firfilt` object.
-    pub fn new_firdespm(h_len: usize, fc: f32, as_: f32) -> Result<Self> {
-        let h = fir_filter_design_firdespm(h_len, fc, as_)?;
+    pub fn new_firdespm(filter_length: usize, cutoff_frequency: f32, stopband_attenuation: f32) -> Result<Self> {
+        let h = fir_filter_design_firdespm(filter_length, cutoff_frequency, stopband_attenuation)?;
         Self::new(&h)
     }
 
@@ -333,13 +350,13 @@ where
     ///
     /// # Arguments
     ///
-    /// * `n` - filter length
+    /// * `filter_length` - filter length
     ///
     /// # Returns
     ///
     /// A new `Firfilt` object.
-    pub fn new_rect(n: usize) -> Result<Self> {
-        let h = fir_filter_design_rect(n)?;
+    pub fn new_rect(filter_length: usize) -> Result<Self> {
+        let h = fir_filter_design_rect(filter_length)?;
         Self::new(&h)
     }
 
@@ -347,14 +364,14 @@ where
     ///
     /// # Arguments
     ///
-    /// * `m` - filter delay
-    /// * `as_` - stop-band attenuation
+    /// * `filter_delay` - filter delay
+    /// * `stopband_attenuation` - stop-band attenuation
     ///
     /// # Returns
     ///
     /// A new `Firfilt` object.
-    pub fn new_dc_blocker(m: usize, as_: f32) -> Result<Self> {
-        let h = fir_filter_design_dc_blocker(m, as_)?;
+    pub fn new_dc_blocker(filter_delay: usize, stopband_attenuation: f32) -> Result<Self> {
+        let h = fir_filter_design_dc_blocker(filter_delay, stopband_attenuation)?;
         Self::new(&h)
     }
 
@@ -362,15 +379,15 @@ where
     ///
     /// # Arguments
     ///
-    /// * `m` - filter delay
-    /// * `as_` - stop-band attenuation
-    /// * `f0` - center frequency
+    /// * `filter_delay` - filter delay
+    /// * `stopband_attenuation` - stop-band attenuation
+    /// * `center_frequency` - center frequency
     ///
     /// # Returns
     ///
     /// A new `Firfilt` object.
-    pub fn new_notch(m: usize, as_: f32, f0: f32) -> Result<Self> {
-        let h = fir_filter_design_notch(m, as_, f0)?;
+    pub fn new_notch(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Self> {
+        let h = fir_filter_design_notch(filter_delay, stopband_attenuation, center_frequency)?;
         Self::new(&h)
     }
 

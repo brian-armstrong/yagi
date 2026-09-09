@@ -96,13 +96,13 @@ where
     /// # Arguments
     ///
     /// * `num_filters` - number of filters in the bank
-    /// * `m` - filter delay
+    /// * `filter_delay` - filter delay
     ///
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn new_kaiser_simple(num_filters: usize, m: usize) -> Result<Self> {
-        Self::new_kaiser(num_filters, m, 0.5, 60.0)
+    pub fn new_kaiser_simple(num_filters: usize, filter_delay: usize) -> Result<Self> {
+        Self::new_kaiser(num_filters, filter_delay, 0.5, 60.0)
     }
 
     /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
@@ -110,29 +110,34 @@ where
     /// # Arguments
     ///
     /// * `num_filters` - number of filters in the bank
-    /// * `m` - filter delay
-    /// * `fc` - filter normalized cut-off frequency
-    /// * `as_` - filter stop-band suppression \[dB\]
+    /// * `filter_delay` - filter delay
+    /// * `cutoff_frequency` - filter normalized cut-off frequency
+    /// * `stopband_attenuation` - filter stop-band suppression \[dB\]
     ///
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn new_kaiser(num_filters: usize, m: usize, fc: f32, as_: f32) -> Result<Self> {
+    pub fn new_kaiser(
+        num_filters: usize,
+        filter_delay: usize,
+        cutoff_frequency: f32,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if fc <= 0.0 || fc > 0.5 {
+        if cutoff_frequency <= 0.0 || cutoff_frequency > 0.5 {
             return Err(Error::Config("filter cut-off frequency must be in (0,0.5)".into()));
         }
-        if as_ < 0.0 {
+        if stopband_attenuation < 0.0 {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
 
-        let h_len = 2 * num_filters * m + 1;
-        let hf = filter::fir_design_kaiser(h_len, fc / num_filters as f32, as_, 0.0)?;
+        let h_len = 2 * num_filters * filter_delay + 1;
+        let hf = filter::fir_design_kaiser(h_len, cutoff_frequency / num_filters as f32, stopband_attenuation, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
         Self::new(num_filters, &hc)
@@ -144,9 +149,9 @@ where
     ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
-    /// * `k` - samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - excess bandwidth factor
+    /// * `samples_per_symbol` - samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - excess bandwidth factor
     ///
     /// # Returns
     ///
@@ -154,24 +159,30 @@ where
     pub fn new_rnyquist(
         filter_type: filter::FirFilterShape,
         num_filters: usize,
-        k: usize,
-        m: usize,
-        beta: f32,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
     ) -> Result<Self> {
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
         }
-        if k < 2 {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("filter samples/symbol must be greater than 1".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
 
-        let hf = filter::fir_design_prototype(filter_type, num_filters * k, m, beta, 0.0)?;
+        let hf = filter::fir_design_prototype(
+            filter_type,
+            num_filters * samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+            0.0,
+        )?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
         Self::new(num_filters, &hc)
@@ -183,9 +194,9 @@ where
     ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
-    /// * `k` - samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - excess bandwidth factor
+    /// * `samples_per_symbol` - samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - excess bandwidth factor
     ///
     /// # Returns
     ///
@@ -193,25 +204,31 @@ where
     pub fn new_drnyquist(
         filter_type: filter::FirFilterShape,
         num_filters: usize,
-        k: usize,
-        m: usize,
-        beta: f32,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
     ) -> Result<Self> {
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
         }
-        if k < 2 {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("filter samples/symbol must be greater than 1".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
 
-        let h_len = 2 * num_filters * k * m + 1;
-        let hf = filter::fir_design_prototype(filter_type, num_filters * k, m, beta, 0.0)?;
+        let h_len = 2 * num_filters * samples_per_symbol * filter_delay + 1;
+        let hf = filter::fir_design_prototype(
+            filter_type,
+            num_filters * samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+            0.0,
+        )?;
 
         let mut dhf = vec![0.0; h_len];
         let mut hdh_max: f32 = 0.0;
@@ -396,13 +413,13 @@ where
     /// # Arguments
     ///
     /// * `num_filters` - number of filters in the bank
-    /// * `m` - filter delay
+    /// * `filter_delay` - filter delay
     ///
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn new_kaiser_simple(num_filters: usize, m: usize) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_kaiser_simple(num_filters, m)?)
+    pub fn new_kaiser_simple(num_filters: usize, filter_delay: usize) -> Result<Self> {
+        Self::from_bank(FirPolyphaseFilterBank::new_kaiser_simple(num_filters, filter_delay)?)
     }
 
     /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
@@ -410,15 +427,25 @@ where
     /// # Arguments
     ///
     /// * `num_filters` - number of filters in the bank
-    /// * `m` - filter delay
-    /// * `fc` - filter normalized cut-off frequency
-    /// * `as_` - filter stop-band suppression \[dB\]
+    /// * `filter_delay` - filter delay
+    /// * `cutoff_frequency` - filter normalized cut-off frequency
+    /// * `stopband_attenuation` - filter stop-band suppression \[dB\]
     ///
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn new_kaiser(num_filters: usize, m: usize, fc: f32, as_: f32) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_kaiser(num_filters, m, fc, as_)?)
+    pub fn new_kaiser(
+        num_filters: usize,
+        filter_delay: usize,
+        cutoff_frequency: f32,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
+        Self::from_bank(FirPolyphaseFilterBank::new_kaiser(
+            num_filters,
+            filter_delay,
+            cutoff_frequency,
+            stopband_attenuation,
+        )?)
     }
 
     /// Create a new FIR PFB filter bank using square-root Nyquist prototype filter design
@@ -427,9 +454,9 @@ where
     ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
-    /// * `k` - samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - excess bandwidth factor
+    /// * `samples_per_symbol` - samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - excess bandwidth factor
     ///
     /// # Returns
     ///
@@ -437,11 +464,17 @@ where
     pub fn new_rnyquist(
         filter_type: filter::FirFilterShape,
         num_filters: usize,
-        k: usize,
-        m: usize,
-        beta: f32,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
     ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_rnyquist(filter_type, num_filters, k, m, beta)?)
+        Self::from_bank(FirPolyphaseFilterBank::new_rnyquist(
+            filter_type,
+            num_filters,
+            samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+        )?)
     }
 
     /// Create a new FIR PFB filter bank using square-root derivative Nyquist prototype filter design
@@ -450,9 +483,9 @@ where
     ///
     /// * `filter_type` - filter type
     /// * `num_filters` - number of filters in the bank
-    /// * `k` - samples/symbol
-    /// * `m` - filter delay
-    /// * `beta` - excess bandwidth factor
+    /// * `samples_per_symbol` - samples/symbol
+    /// * `filter_delay` - filter delay
+    /// * `excess_bandwidth` - excess bandwidth factor
     ///
     /// # Returns
     ///
@@ -460,11 +493,17 @@ where
     pub fn new_drnyquist(
         filter_type: filter::FirFilterShape,
         num_filters: usize,
-        k: usize,
-        m: usize,
-        beta: f32,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
     ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_drnyquist(filter_type, num_filters, k, m, beta)?)
+        Self::from_bank(FirPolyphaseFilterBank::new_drnyquist(
+            filter_type,
+            num_filters,
+            samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+        )?)
     }
 
     /// Wrap a coefficient bank with newly reset internal history

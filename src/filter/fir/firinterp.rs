@@ -62,30 +62,30 @@ where
     ///
     /// # Arguments
     ///
-    /// * `interp` - interpolation factor
-    /// * `m` - filter delay
-    /// * `as_` - stop-band attenuation \[dB\]
+    /// * `interpolation_factor` - interpolation factor
+    /// * `filter_delay` - filter delay
+    /// * `stopband_attenuation` - stop-band attenuation \[dB\]
     ///
     /// # Returns
     ///
     /// A new interpolator
-    pub fn new_kaiser(interp: usize, m: usize, as_: f32) -> Result<Self> {
-        if interp < 2 {
+    pub fn new_kaiser(interpolation_factor: usize, filter_delay: usize, stopband_attenuation: f32) -> Result<Self> {
+        if interpolation_factor < 2 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if as_ < 0.0 {
+        if stopband_attenuation < 0.0 {
             return Err(Error::Config("stop-band attenuation must be positive".into()));
         }
 
-        let h_len = 2 * interp * m + 1;
-        let fc = 0.5 / interp as f32;
-        let hf = filter::fir_design_kaiser(h_len, fc, as_, 0.0)?;
+        let h_len = 2 * interpolation_factor * filter_delay + 1;
+        let cutoff_frequency = 0.5 / interpolation_factor as f32;
+        let hf = filter::fir_design_kaiser(h_len, cutoff_frequency, stopband_attenuation, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
-        Self::new(interp, &hc[..h_len - 1])
+        Self::new(interpolation_factor, &hc[..h_len - 1])
     }
 
     /// Create a new interpolator from a filter prototype
@@ -93,61 +93,67 @@ where
     /// # Arguments
     ///
     /// * `filter_type` - filter type
-    /// * `interp` - interpolation factor
-    /// * `m` - filter delay (symbols)
-    /// * `beta` - excess bandwidth factor
-    /// * `dt` - fractional sample delay
+    /// * `interpolation_factor` - interpolation factor
+    /// * `filter_delay` - filter delay (symbols)
+    /// * `excess_bandwidth` - excess bandwidth factor
+    /// * `fractional_delay` - fractional sample delay
     ///
     /// # Returns
     ///
     /// A new interpolator
     pub fn new_prototype(
         filter_type: filter::FirFilterShape,
-        interp: usize,
-        m: usize,
-        beta: f32,
-        dt: f32,
+        interpolation_factor: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        fractional_delay: f32,
     ) -> Result<Self> {
-        if interp < 2 {
+        if interpolation_factor < 2 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if beta < 0.0 || beta > 1.0 {
+        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
-        if dt < -1.0 || dt > 1.0 {
+        if fractional_delay < -1.0 || fractional_delay > 1.0 {
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h = filter::fir_design_prototype(filter_type, interp, m, beta, dt)?;
+        let h = filter::fir_design_prototype(
+            filter_type,
+            interpolation_factor,
+            filter_delay,
+            excess_bandwidth,
+            fractional_delay,
+        )?;
 
         let hc: Vec<Coeff> = h.iter().map(|&x| x.into()).collect();
-        Self::new(interp, &hc)
+        Self::new(interpolation_factor, &hc)
     }
 
     /// Create a new linear interpolator
     ///
     /// # Arguments
     ///
-    /// * `interp` - interpolation factor
+    /// * `interpolation_factor` - interpolation factor
     ///
     /// # Returns
     ///
     /// A new linear interpolator
-    pub fn new_linear(interp: usize) -> Result<Self> {
-        if interp < 1 {
+    pub fn new_linear(interpolation_factor: usize) -> Result<Self> {
+        if interpolation_factor < 1 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
         }
 
-        let mut hc = vec![Coeff::zero(); 2 * interp];
-        for i in 0..interp {
-            hc[i] = (i as f32 / interp as f32).into();
-            hc[interp + i] = (1.0 - i as f32 / interp as f32).into();
+        let mut hc = vec![Coeff::zero(); 2 * interpolation_factor];
+        for i in 0..interpolation_factor {
+            hc[i] = (i as f32 / interpolation_factor as f32).into();
+            hc[interpolation_factor + i] = (1.0 - i as f32 / interpolation_factor as f32).into();
         }
 
-        Self::new(interp, &hc)
+        Self::new(interpolation_factor, &hc)
     }
 
     /// Create a new window interpolator
