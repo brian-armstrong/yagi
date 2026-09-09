@@ -131,11 +131,11 @@ where
         1.0 / self.g
     }
 
-    pub fn set_signal_level(&mut self, x2: f32) -> Result<()> {
-        if x2 <= 0.0 {
+    pub fn set_signal_level(&mut self, signal_level: f32) -> Result<()> {
+        if signal_level <= 0.0 {
             return Err(Error::Config("signal level must be greater than zero".into()));
         }
-        self.g = 1.0 / x2;
+        self.g = 1.0 / signal_level;
         self.y2_prime = 1.0;
         Ok(())
     }

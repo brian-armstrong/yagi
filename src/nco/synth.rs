@@ -93,20 +93,20 @@ impl TableOscillator {
     }
 
     /// adjust frequency
-    pub fn adjust_frequency(&mut self, df: f32) {
-        self.d_theta += df;
+    pub fn adjust_frequency(&mut self, frequency_offset: f32) {
+        self.d_theta += frequency_offset;
     }
 
     /// set phase
-    pub fn set_phase(&mut self, phi: f32) {
-        self.theta = phi;
+    pub fn set_phase(&mut self, phase: f32) {
+        self.theta = phase;
         self.constrain_phase();
         self.compute_synth();
     }
 
     /// adjust phase
-    pub fn adjust_phase(&mut self, dphi: f32) {
-        self.theta += dphi;
+    pub fn adjust_phase(&mut self, phase_offset: f32) {
+        self.theta += phase_offset;
         self.constrain_phase();
     }
 

@@ -904,8 +904,8 @@ impl OfdmFrameSynchronizer {
     }
 
     /// set receiver carrier frequency offset estimate
-    pub fn set_cfo(&mut self, cfo: f32) {
-        self.frontend.nco.set_frequency(cfo);
+    pub fn set_cfo(&mut self, carrier_frequency_offset: f32) {
+        self.frontend.nco.set_frequency(carrier_frequency_offset);
     }
 
     /// Select the channel estimator used when the frame is acquired

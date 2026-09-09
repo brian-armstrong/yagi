@@ -67,23 +67,23 @@ impl Nco {
     }
 
     /// Set frequency
-    pub fn set_frequency(&mut self, dtheta: f32) {
-        self.d_theta = Self::constrain(dtheta);
+    pub fn set_frequency(&mut self, frequency: f32) {
+        self.d_theta = Self::constrain(frequency);
     }
 
     /// Adjust frequency
-    pub fn adjust_frequency(&mut self, df: f32) {
-        self.d_theta = self.d_theta.wrapping_add(Self::constrain(df));
+    pub fn adjust_frequency(&mut self, frequency_offset: f32) {
+        self.d_theta = self.d_theta.wrapping_add(Self::constrain(frequency_offset));
     }
 
     /// Set phase
-    pub fn set_phase(&mut self, phi: f32) {
-        self.theta = Self::constrain(phi);
+    pub fn set_phase(&mut self, phase: f32) {
+        self.theta = Self::constrain(phase);
     }
 
     /// Adjust phase
-    pub fn adjust_phase(&mut self, dphi: f32) {
-        self.theta = self.theta.wrapping_add(Self::constrain(dphi));
+    pub fn adjust_phase(&mut self, phase_offset: f32) {
+        self.theta = self.theta.wrapping_add(Self::constrain(phase_offset));
     }
 
     /// Increment internal phase

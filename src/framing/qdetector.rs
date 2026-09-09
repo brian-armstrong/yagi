@@ -269,12 +269,12 @@ impl FrameDetector {
     }
 
     /// Set carrier offset search range
-    pub fn set_range(&mut self, dphi_max: f32) -> Result<()> {
-        if dphi_max < 0.0 || dphi_max > 0.5 {
-            return Err(Error::Config(format!("carrier offset search range ({}) out of range", dphi_max)));
+    pub fn set_range(&mut self, carrier_offset_range: f32) -> Result<()> {
+        if carrier_offset_range < 0.0 || carrier_offset_range > 0.5 {
+            return Err(Error::Config(format!("carrier offset search range ({}) out of range", carrier_offset_range)));
         }
-        self.dphi_max = dphi_max;
-        self.range = (dphi_max * self.nfft as f32 / (2.0 * PI)) as i32;
+        self.dphi_max = carrier_offset_range;
+        self.range = (carrier_offset_range * self.nfft as f32 / (2.0 * PI)) as i32;
         if self.range < 0 {
             self.range = 0;
         }

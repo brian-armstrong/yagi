@@ -91,11 +91,11 @@ where
         self.lambda
     }
 
-    pub fn set_bw(&mut self, lambda: f32) -> Result<()> {
-        if !(0.0..=1.0).contains(&lambda) {
-            return Err(Error::Config("learning rate must be in (0,1)".into()));
+    pub fn set_bw(&mut self, forgetting_factor: f32) -> Result<()> {
+        if !(0.0..=1.0).contains(&forgetting_factor) {
+            return Err(Error::Config("forgetting factor must be in (0,1)".into()));
         }
-        self.lambda = lambda;
+        self.lambda = forgetting_factor;
         Ok(())
     }
 
