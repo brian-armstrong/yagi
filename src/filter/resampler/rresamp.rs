@@ -32,7 +32,7 @@ where
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
 
-        let pfb = FirPolyphaseFilter::new(interp, h, 2 * interp * m)?;
+        let pfb = FirPolyphaseFilter::new(interp, &h[..2 * interp * m])?;
 
         let mut q = Self { p: interp, q: decim, m, block_len: 1, pfb };
 

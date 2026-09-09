@@ -39,42 +39,41 @@ where
     /// # Arguments
     ///
     /// * `num_filters` - number of filters in the bank
-    /// * `h` - filter coefficients
-    /// * `h_len` - filter length
+    /// * `coefficients` - filter coefficients
     ///
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn new(num_filters: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
+    pub fn new(num_filters: usize, coefficients: &[Coeff]) -> Result<Self> {
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
         }
-        if h_len == 0 {
+        if coefficients.is_empty() {
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
 
-        let filter_len = h_len / num_filters;
+        let filter_len = coefficients.len() / num_filters;
         if filter_len == 0 {
             return Err(Error::Config("filter length must be at least the number of filters".into()));
         }
 
         // store the coefficients in a flat array
-        let mut coefficients = Vec::with_capacity(num_filters * filter_len);
+        let mut filter_coefficients = Vec::with_capacity(num_filters * filter_len);
 
         for i in 0..num_filters {
-            let start = coefficients.len();
-            coefficients.resize(start + filter_len, Coeff::zero());
-            let h_sub = &mut coefficients[start..];
+            let start = filter_coefficients.len();
+            filter_coefficients.resize(start + filter_len, Coeff::zero());
+            let h_sub = &mut filter_coefficients[start..];
             for n in 0..filter_len {
                 // load filter in reverse order
-                h_sub[filter_len - n - 1] = h[i + n * num_filters];
+                h_sub[filter_len - n - 1] = coefficients[i + n * num_filters];
             }
         }
 
         let plan = DotProductPlan::new(filter_len);
         let packed_len = plan.packed_len();
-        let mut block_coefficients = vec![coefficients[0]; num_filters * packed_len];
-        for (i, h) in coefficients.chunks_exact(filter_len).enumerate() {
+        let mut block_coefficients = vec![filter_coefficients[0]; num_filters * packed_len];
+        for (i, h) in filter_coefficients.chunks_exact(filter_len).enumerate() {
             let start = i * packed_len;
             plan.repack(h, &mut block_coefficients[start..start + packed_len]);
         }
@@ -82,7 +81,7 @@ where
         Ok(Self {
             num_filters,
             filter_len,
-            coefficients,
+            coefficients: filter_coefficients,
             block_coefficients,
             plan,
             scale: Coeff::one(),
@@ -136,7 +135,7 @@ where
         let hf = filter::fir_design_kaiser(h_len, fc / num_filters as f32, as_, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
-        Self::new(num_filters, &hc, h_len)
+        Self::new(num_filters, &hc)
     }
 
     /// Create a new FIR PFB filter bank using square-root Nyquist prototype filter design
@@ -172,11 +171,10 @@ where
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
 
-        let h_len = 2 * num_filters * k * m + 1;
         let hf = filter::fir_design_prototype(filter_type, num_filters * k, m, beta, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
-        Self::new(num_filters, &hc, h_len)
+        Self::new(num_filters, &hc)
     }
 
     /// Create a new FIR PFB filter bank using square-root derivative Nyquist prototype filter design
@@ -230,7 +228,7 @@ where
         }
 
         let hc: Vec<Coeff> = dhf.iter().map(|&x| (x * 0.06 / hdh_max).into()).collect();
-        Self::new(num_filters, &hc, h_len)
+        Self::new(num_filters, &hc)
     }
 
     /// Returns the number of coefficient phases in the bank
@@ -382,14 +380,13 @@ where
     /// # Arguments
     ///
     /// * `num_filters` - number of filters in the bank
-    /// * `h` - filter coefficients
-    /// * `h_len` - filter length
+    /// * `coefficients` - filter coefficients
     ///
     /// # Returns
     ///
     /// A new FIR PFB filter bank
-    pub fn new(num_filters: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new(num_filters, h, h_len)?)
+    pub fn new(num_filters: usize, coefficients: &[Coeff]) -> Result<Self> {
+        Self::from_bank(FirPolyphaseFilterBank::new(num_filters, coefficients)?)
     }
 
     /// Create a new FIR PFB filter bank using Kaiser-Bessel design with default parameters
@@ -616,7 +613,7 @@ mod tests {
         ];
 
         // Load filter coefficients externally
-        let mut f = FirPolyphaseFilter::<f32, f32>::new(4, &h, 48).unwrap();
+        let mut f = FirPolyphaseFilter::<f32, f32>::new(4, &h).unwrap();
 
         for &n in noise.iter() {
             f.push(n);
@@ -672,7 +669,7 @@ mod tests {
         let num_filters = 4;
         let filter_len = 5;
         let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 1) as f32 * 0.17).sin()).collect();
-        let mut bank = FirPolyphaseFilterBank::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
+        let mut bank = FirPolyphaseFilterBank::<Complex32, f32>::new(num_filters, &h).unwrap();
         bank.set_scale(0.73);
 
         assert_eq!(bank.num_filters(), num_filters);
@@ -697,14 +694,14 @@ mod tests {
 
     #[test]
     fn test_firpfb_bank_invalid_phase() {
-        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0]).unwrap();
         assert!(bank.execute(2, &[0.0, 0.0]).is_err());
     }
 
     #[test]
     #[should_panic(expected = "Invalid filterbank history length")]
     fn test_firpfb_bank_invalid_history_length() {
-        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0]).unwrap();
         let _ = bank.execute(0, &[0.0]);
     }
 
@@ -714,7 +711,7 @@ mod tests {
         let filter_len = 35;
         let num_outputs = 67;
         let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 3) as f32 * 0.137).sin()).collect();
-        let mut bank = FirPolyphaseFilterBank::<f32, f32>::new(num_filters, &h, h.len()).unwrap();
+        let mut bank = FirPolyphaseFilterBank::<f32, f32>::new(num_filters, &h).unwrap();
         bank.set_scale(0.73);
 
         let history: Vec<f32> = (0..num_outputs + filter_len - 1).map(|i| ((i + 7) as f32 * 0.091).cos()).collect();
@@ -739,7 +736,7 @@ mod tests {
         let filter_len = 17;
         let num_outputs = 61;
         let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 5) as f32 * 0.113).cos()).collect();
-        let mut bank = FirPolyphaseFilterBank::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
+        let mut bank = FirPolyphaseFilterBank::<Complex32, f32>::new(num_filters, &h).unwrap();
         bank.set_scale(0.61);
 
         let history: Vec<Complex32> = (0..num_outputs + filter_len - 1)
@@ -769,7 +766,7 @@ mod tests {
         let h: Vec<Complex32> = (0..num_filters * filter_len)
             .map(|i| Complex32::new(((i + 7) as f32 * 0.097).cos(), ((i + 4) as f32 * 0.131).sin()))
             .collect();
-        let mut bank = FirPolyphaseFilterBank::<Complex32, Complex32>::new(num_filters, &h, h.len()).unwrap();
+        let mut bank = FirPolyphaseFilterBank::<Complex32, Complex32>::new(num_filters, &h).unwrap();
         bank.set_scale(Complex32::new(0.61, -0.13));
 
         let history: Vec<Complex32> = (0..num_outputs + filter_len - 1)
@@ -796,7 +793,7 @@ mod tests {
         let num_filters = 4;
         let filter_len = 17;
         let h: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 1) as f32 * 0.123).sin()).collect();
-        let mut sample_filter = FirPolyphaseFilter::<Complex32, f32>::new(num_filters, &h, h.len()).unwrap();
+        let mut sample_filter = FirPolyphaseFilter::<Complex32, f32>::new(num_filters, &h).unwrap();
         sample_filter.set_scale(0.79);
         let mut block_filter = sample_filter.clone();
 
@@ -828,14 +825,14 @@ mod tests {
 
     #[test]
     fn test_firpfb_bank_execute_block_invalid_phase() {
-        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0]).unwrap();
         assert!(bank.execute_block(2, &[0.0, 0.0], &mut [0.0]).is_err());
     }
 
     #[test]
     #[should_panic(expected = "Invalid sliding dot product block length")]
     fn test_firpfb_bank_execute_block_invalid_history_length() {
-        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0], 4).unwrap();
+        let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0]).unwrap();
         bank.execute_block(0, &[0.0, 0.0], &mut [0.0, 0.0]).unwrap();
     }
 }

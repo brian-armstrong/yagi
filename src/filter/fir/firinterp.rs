@@ -29,34 +29,33 @@ where
     ///
     /// # Arguments
     ///
-    /// * `interp` - interpolation factor
-    /// * `h` - filter coefficients
-    /// * `h_len` - filter length
+    /// * `interpolation_factor` - interpolation factor
+    /// * `coefficients` - filter coefficients
     ///
     /// # Returns
     ///
     /// A new interpolator
-    pub fn new(interp: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
-        if interp < 2 {
+    pub fn new(interpolation_factor: usize, coefficients: &[Coeff]) -> Result<Self> {
+        if interpolation_factor < 2 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
         }
-        if h_len < interp {
+        if coefficients.len() < interpolation_factor {
             return Err(Error::Config("filter length cannot be less than interp factor".into()));
         }
 
         let mut h_sub_len = 0;
-        while interp * h_sub_len < h_len {
+        while interpolation_factor * h_sub_len < coefficients.len() {
             h_sub_len += 1;
         }
 
-        let h_len_padded = interp * h_sub_len;
+        let h_len_padded = interpolation_factor * h_sub_len;
         let mut h_padded = vec![Coeff::zero(); h_len_padded];
-        h_padded[..h_len].clone_from_slice(&h[..h_len]);
+        h_padded[..coefficients.len()].clone_from_slice(coefficients);
 
         let w = Window::new(h_sub_len)?;
-        let bank = filter::FirPolyphaseFilterBank::new(interp, &h_padded, h_len_padded)?;
+        let bank = filter::FirPolyphaseFilterBank::new(interpolation_factor, &h_padded)?;
 
-        Ok(Self { h_sub_len, interpolation_factor: interp, w, bank, block_scratch: Vec::new() })
+        Ok(Self { h_sub_len, interpolation_factor, w, bank, block_scratch: Vec::new() })
     }
 
     /// Create a new interpolator from a Kaiser prototype
@@ -86,7 +85,7 @@ where
         let hf = filter::fir_design_kaiser(h_len, fc, as_, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
-        Self::new(interp, &hc, h_len - 1)
+        Self::new(interp, &hc[..h_len - 1])
     }
 
     /// Create a new interpolator from a filter prototype
@@ -122,11 +121,10 @@ where
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h_len = 2 * interp * m + 1;
         let h = filter::fir_design_prototype(filter_type, interp, m, beta, dt)?;
 
         let hc: Vec<Coeff> = h.iter().map(|&x| x.into()).collect();
-        Self::new(interp, &hc, h_len)
+        Self::new(interp, &hc)
     }
 
     /// Create a new linear interpolator
@@ -149,7 +147,7 @@ where
             hc[interp + i] = (1.0 - i as f32 / interp as f32).into();
         }
 
-        Self::new(interp, &hc, 2 * interp)
+        Self::new(interp, &hc)
     }
 
     /// Create a new window interpolator
@@ -176,7 +174,7 @@ where
             *hci = (PI * i as f32 / (2 * m * interp) as f32).sin().powi(2).into();
         }
 
-        Self::new(interp, &hc, h_len)
+        Self::new(interp, &hc)
     }
 
     /// Reset the interpolator
@@ -320,7 +318,7 @@ mod tests {
         ];
 
         let m = 4; // firinterp factor
-        let mut interp = FirInterpolationFilter::<f32, f32>::new(m, &h, h.len()).unwrap();
+        let mut interp = FirInterpolationFilter::<f32, f32>::new(m, &h).unwrap();
 
         let x = [1.0, -1.0, 1.0, 1.0];
         let mut y = [0.0; 16];
@@ -373,7 +371,7 @@ mod tests {
         ];
 
         let m = 4; // firinterp factor
-        let mut interp = FirInterpolationFilter::<Complex32, f32>::new(m, &h, h.len()).unwrap();
+        let mut interp = FirInterpolationFilter::<Complex32, f32>::new(m, &h).unwrap();
 
         //  x = [1+j*0.2, -0.2+j*1.3, 0.5+j*0.3, 1.1-j*0.2]
         #[rustfmt::skip]

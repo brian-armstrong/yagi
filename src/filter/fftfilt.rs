@@ -44,25 +44,25 @@ where
     T: Clone + Default + ComplexFloat<Real = f32> + FromComplex32,
     Complex32: From<Coeff> + From<T>,
 {
-    pub fn new(h: &[Coeff], n: usize) -> Result<Self> {
-        let h_len = h.len();
+    pub fn new(coefficients: &[Coeff], block_length: usize) -> Result<Self> {
+        let h_len = coefficients.len();
         if h_len == 0 {
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
-        if n < h_len - 1 {
-            return Err(Error::Config(format!("block length must be greater than h_len-1 ({})", h_len - 1)));
+        if block_length < h_len - 1 {
+            return Err(Error::Config(format!("block length must be at least filter length - 1 ({})", h_len - 1)));
         }
 
         let mut q = Self {
-            h: h.to_vec(),
+            h: coefficients.to_vec(),
             h_len,
-            n,
-            time_buf: vec![Complex32::zero(); 2 * n],
-            freq_buf: vec![Complex32::zero(); 2 * n],
-            h_freq: vec![Complex32::zero(); 2 * n],
-            w: vec![Complex32::zero(); n],
-            fft: Fft::new(2 * n, Direction::Forward),
-            ifft: Fft::new(2 * n, Direction::Backward),
+            n: block_length,
+            time_buf: vec![Complex32::zero(); 2 * block_length],
+            freq_buf: vec![Complex32::zero(); 2 * block_length],
+            h_freq: vec![Complex32::zero(); 2 * block_length],
+            w: vec![Complex32::zero(); block_length],
+            fft: Fft::new(2 * block_length, Direction::Forward),
+            ifft: Fft::new(2 * block_length, Direction::Backward),
             scale: Coeff::one(),
             _phantom: std::marker::PhantomData,
         };

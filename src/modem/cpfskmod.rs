@@ -102,7 +102,7 @@ impl CpfskModulator {
             *coeff = (*coeff as f64 * scale) as f32;
         }
 
-        let interp = FirInterpolationFilter::new(k, &ht, ht_len)?;
+        let interp = FirInterpolationFilter::new(k, &ht[..ht_len])?;
         let phase_interp = vec![0.0; k];
 
         let mut q = Self {

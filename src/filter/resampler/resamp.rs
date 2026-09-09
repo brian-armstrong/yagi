@@ -56,7 +56,7 @@ where
         // copy to type-specific array, applying gain
         let h: Vec<Coeff> = hf.iter().map(|&x| (x * gain).into()).collect();
 
-        let bank = FirPolyphaseFilterBank::new(npfb, &h, n - 1)?;
+        let bank = FirPolyphaseFilterBank::new(npfb, &h[..n - 1])?;
         let w = Window::new(bank.filter_len())?;
 
         let mut q = Self { m, r: rate, step: 0, phase: 0, bits_index: bits, w, bank };

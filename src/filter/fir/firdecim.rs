@@ -29,14 +29,13 @@ where
     /// # Arguments
     ///
     /// * `decimation_factor` - The decimation factor
-    /// * `h` - The filter coefficients
-    /// * `h_len` - The length of the filter coefficients
+    /// * `coefficients` - The filter coefficients
     ///
     /// # Returns
     ///
     /// A new decimation filter
-    pub fn new(decimation_factor: usize, h: &[Coeff], h_len: usize) -> Result<Self> {
-        if h_len == 0 {
+    pub fn new(decimation_factor: usize, coefficients: &[Coeff]) -> Result<Self> {
+        if coefficients.is_empty() {
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
         if decimation_factor == 0 {
@@ -44,10 +43,10 @@ where
         }
 
         let mut q = Self {
-            h: h[..h_len].to_vec(),
-            dp: DotProduct::new_rev(&h[..h_len])?,
+            h: coefficients.to_vec(),
+            dp: DotProduct::new_rev(coefficients)?,
             decimation_factor,
-            w: Window::new(h_len)?,
+            w: Window::new(coefficients.len())?,
             scale: Coeff::zero(),
         };
 
@@ -84,7 +83,7 @@ where
         let hf = design::fir_design_kaiser(h_len, fc, as_, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| Coeff::from(x).unwrap()).collect();
-        Self::new(decimation_factor, &hc, h_len)
+        Self::new(decimation_factor, &hc)
     }
 
     /// Create a new decimation filter from a filter prototype
@@ -120,11 +119,10 @@ where
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h_len = 2 * decimation_factor * m + 1;
         let h = design::fir_design_prototype(filter_type, decimation_factor, m, beta, dt)?;
 
         let hc: Vec<Coeff> = h.iter().map(|&x| Coeff::from(x).unwrap()).collect();
-        Self::new(decimation_factor, &hc, h_len)
+        Self::new(decimation_factor, &hc)
     }
 
     /// Reset the filter state
@@ -256,7 +254,7 @@ mod tests {
 
         let h: Vec<f32> = (0..21).map(|i| (i as f32 * 0.31).sin() * (1.0 - i as f32 / 40.0)).collect();
 
-        let q = FirDecimationFilter::<Complex32, f32>::new(3, &h, h.len()).unwrap();
+        let q = FirDecimationFilter::<Complex32, f32>::new(3, &h).unwrap();
         let r = FirFilter::<Complex32, f32>::new(&h).unwrap();
 
         for k in -8..=8 {
@@ -280,8 +278,8 @@ mod tests {
         let h = design::fir_design_windowf(wtype, h_len, 0.2, 0.0).unwrap();
 
         // check that estimate methods return None for invalid configs
-        assert!(FirDecimationFilter::<Complex32, f32>::new(0, &h, h_len).is_err()); // M cannot be 0
-        assert!(FirDecimationFilter::<Complex32, f32>::new(m, &h, 0).is_err()); // h_len cannot be 0
+        assert!(FirDecimationFilter::<Complex32, f32>::new(0, &h).is_err()); // M cannot be 0
+        assert!(FirDecimationFilter::<Complex32, f32>::new(m, &[]).is_err()); // coefficients cannot be empty
 
         assert!(FirDecimationFilter::<Complex32, f32>::new_kaiser(1, 12, 60.0).is_err()); // M too small
         assert!(FirDecimationFilter::<Complex32, f32>::new_kaiser(4, 0, 60.0).is_err()); // m too small
@@ -395,7 +393,7 @@ mod tests {
         let tol = 0.001f32;
 
         // load filter coefficients externally
-        let mut q = FirDecimationFilter::<f32, f32>::new(m, h, h.len()).unwrap();
+        let mut q = FirDecimationFilter::<f32, f32>::new(m, h).unwrap();
 
         // allocate memory for output
         let mut y_test = vec![0.0; y.len()];
@@ -456,7 +454,7 @@ mod tests {
         let tol = 0.001f32;
 
         // load filter coefficients externally
-        let mut q = FirDecimationFilter::<Complex32, f32>::new(m, h, h.len()).unwrap();
+        let mut q = FirDecimationFilter::<Complex32, f32>::new(m, h).unwrap();
 
         // allocate memory for output
         let mut y_test = vec![Complex32::new(0.0, 0.0); y.len()];
@@ -518,7 +516,7 @@ mod tests {
         let tol = 0.001f32;
 
         // load filter coefficients externally
-        let mut q = FirDecimationFilter::<Complex32, Complex32>::new(m, h, h.len()).unwrap();
+        let mut q = FirDecimationFilter::<Complex32, Complex32>::new(m, h).unwrap();
 
         // allocate memory for output
         let mut y_test = vec![Complex32::new(0.0, 0.0); y.len()];

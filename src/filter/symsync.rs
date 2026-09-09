@@ -34,16 +34,17 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + std::ops::Mul<f32, Output = T> + Default,
     [T]: DotProd<f32, Output = T>,
 {
-    pub fn new(k: usize, m: usize, h: &[f32], h_len: usize) -> Result<Self> {
+    pub fn new(k: usize, m: usize, coefficients: &[f32]) -> Result<Self> {
         if k < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
         if m == 0 {
             return Err(Error::Config("number of filters must be greater than 0".into()));
         }
-        if h_len == 0 {
+        if coefficients.is_empty() {
             return Err(Error::Config("filter length must be greater than 0".into()));
         }
+        let h_len = coefficients.len();
         if !(h_len - 1).is_multiple_of(m) {
             return Err(Error::Config("filter length must be of the form: h_len = m*k + 1".into()));
         }
@@ -59,15 +60,15 @@ where
         let mut hdh_max = 0.0;
         for i in 0..h_len {
             if i == 0 {
-                dh[i] = h[i + 1] - h[h_len - 1];
+                dh[i] = coefficients[i + 1] - coefficients[h_len - 1];
             } else if i == h_len - 1 {
-                dh[i] = h[0] - h[i - 1];
+                dh[i] = coefficients[0] - coefficients[i - 1];
             } else {
-                dh[i] = h[i + 1] - h[i - 1];
+                dh[i] = coefficients[i + 1] - coefficients[i - 1];
             }
 
-            if (h[i] * dh[i]).abs() > hdh_max || i == 0 {
-                hdh_max = (h[i] * dh[i]).abs();
+            if (coefficients[i] * dh[i]).abs() > hdh_max || i == 0 {
+                hdh_max = (coefficients[i] * dh[i]).abs();
             }
         }
 
@@ -75,8 +76,8 @@ where
             *dhi *= 0.06f32 / hdh_max;
         }
 
-        let mf = FirPolyphaseFilter::new(npfb, h, h_len)?;
-        let dmf = FirPolyphaseFilter::new(npfb, &dh, h_len)?;
+        let mf = FirPolyphaseFilter::new(npfb, coefficients)?;
+        let dmf = FirPolyphaseFilter::new(npfb, &dh)?;
 
         let a_coeff = [1.0, 0.0, 0.0];
         let b_coeff = [0.0, 0.0, 0.0];
@@ -123,11 +124,9 @@ where
             return Err(Error::Config("number of filters must be greater than 0".into()));
         }
 
-        let h_len = 2 * num_filters * k * m + 1;
-
         let h = filter::fir_design_prototype(ftype, k * num_filters, m, beta, 0.0)?;
 
-        Self::new(k, num_filters, &h, h_len)
+        Self::new(k, num_filters, &h)
     }
 
     pub fn new_kaiser(k: usize, m: usize, beta: f32, num_filters: usize) -> Result<Self> {
@@ -154,7 +153,7 @@ where
             *c *= 2.0 * fc;
         }
 
-        Self::new(k, num_filters, &h, h_len)
+        Self::new(k, num_filters, &h)
     }
 
     pub fn reset(&mut self) {
@@ -365,10 +364,10 @@ mod tests {
         // test copying/creating invalid objects
         // assert!(SymbolSynchronizer::<Complex32>::copy(&None).is_err());
 
-        assert!(SymbolSynchronizer::<Complex32>::new(0, 12, &[], 48).is_err()); // k is too small
-        assert!(SymbolSynchronizer::<Complex32>::new(2, 0, &[], 48).is_err()); // M is too small
-        assert!(SymbolSynchronizer::<Complex32>::new(2, 12, &[], 0).is_err()); // h_len is too small
-        assert!(SymbolSynchronizer::<Complex32>::new(2, 12, &[], 47).is_err()); // h_len is not divisible by M
+        assert!(SymbolSynchronizer::<Complex32>::new(0, 12, &[]).is_err()); // k is too small
+        assert!(SymbolSynchronizer::<Complex32>::new(2, 0, &[]).is_err()); // M is too small
+        assert!(SymbolSynchronizer::<Complex32>::new(2, 12, &[]).is_err()); // coefficients cannot be empty
+        assert!(SymbolSynchronizer::<Complex32>::new(2, 12, &[0.0; 48]).is_err()); // coefficient count is invalid
 
         assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 0, 12, 0.2, 48).is_err()); // k is too small
         assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 0, 0.2, 48).is_err()); // m is too small
