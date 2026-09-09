@@ -39,7 +39,14 @@ where
     }
 
     /// set internal filter coefficients
-    pub fn set_coefficients(&mut self, b: &[Coeff; 3], a: &[Coeff; 3]) -> Result<()> {
+    pub fn set_coefficients(
+        &mut self,
+        numerator_coefficients: &[Coeff; 3],
+        denominator_coefficients: &[Coeff; 3],
+    ) -> Result<()> {
+        let b = numerator_coefficients;
+        let a = denominator_coefficients;
+
         // retain a0 coefficient for normalization
         let a0 = a[0];
 

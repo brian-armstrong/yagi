@@ -180,12 +180,12 @@ impl BinarySequence {
     }
 
     // return the i-th bit of the sequence
-    pub fn index(&self, i: usize) -> Result<u32> {
-        if i >= self.num_bits {
-            return Err(Error::Config(format!("invalid index {}", i)));
+    pub fn index(&self, index: usize) -> Result<u32> {
+        if index >= self.num_bits {
+            return Err(Error::Config(format!("invalid index {}", index)));
         }
-        let k = self.s.len() - 1 - i / 32;
-        Ok((self.s[k] >> (i % 32)) & 1)
+        let k = self.s.len() - 1 - index / 32;
+        Ok((self.s[k] >> (index % 32)) & 1)
     }
 }
 

@@ -312,8 +312,8 @@ impl MultiSignalSource {
     }
 
     /// Set frequency of a source by ID
-    pub fn set_frequency(&mut self, id: SourceId, fc: f32) -> Result<()> {
-        self.source_mut(id)?.set_frequency(fc)
+    pub fn set_frequency(&mut self, id: SourceId, frequency: f32) -> Result<()> {
+        self.source_mut(id)?.set_frequency(frequency)
     }
 
     /// Get frequency of a source by ID

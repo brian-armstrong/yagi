@@ -88,8 +88,8 @@ impl TableOscillator {
     }
 
     /// set frequency
-    pub fn set_frequency(&mut self, f: f32) {
-        self.d_theta = f;
+    pub fn set_frequency(&mut self, frequency: f32) {
+        self.d_theta = frequency;
     }
 
     /// adjust frequency

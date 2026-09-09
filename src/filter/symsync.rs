@@ -183,11 +183,11 @@ where
         self.is_locked
     }
 
-    pub fn set_output_rate(&mut self, k_out: usize) -> Result<()> {
-        if k_out == 0 {
+    pub fn set_output_rate(&mut self, output_rate: usize) -> Result<()> {
+        if output_rate == 0 {
             return Err(Error::Config("output rate must be greater than 0".into()));
         }
-        self.k_out = k_out;
+        self.k_out = output_rate;
         self.rate = self.k as f32 / self.k_out as f32;
         self.del = self.rate;
         Ok(())

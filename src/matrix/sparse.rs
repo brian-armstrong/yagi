@@ -194,15 +194,15 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     }
 
     /// determine if element is set
-    pub fn isset(&self, m: usize, n: usize) -> Result<bool> {
-        if m >= self.m || n >= self.n {
+    pub fn isset(&self, row: usize, column: usize) -> Result<bool> {
+        if row >= self.m || column >= self.n {
             return Err(Error::Range(format!(
                 "smatrix_isset({},{}), index exceeds matrix dimension ({},{})",
-                m, n, self.m, self.n
+                row, column, self.m, self.n
             )));
         }
 
-        Ok(self.mlist[m].contains(&(n as u16)))
+        Ok(self.mlist[row].contains(&(column as u16)))
     }
 
     // insert element at index
@@ -246,37 +246,37 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     }
 
     /// delete element at index
-    pub fn delete(&mut self, m: usize, n: usize) -> Result<()> {
-        if m > self.m || n > self.n {
+    pub fn delete(&mut self, row: usize, column: usize) -> Result<()> {
+        if row > self.m || column > self.n {
             return Err(Error::Range(format!(
                 "smatrix_delete({},{}), index exceeds matrix dimension ({},{})",
-                m, n, self.m, self.n
+                row, column, self.m, self.n
             )));
         }
 
         // check to see if element is already not set
-        if !self.isset(m, n)? {
+        if !self.isset(row, column)? {
             return Ok(());
         }
 
         // remove value from mlist
-        let mindex = self.mlist[m].iter().position(|&x| x == n as u16).unwrap();
-        self.mlist[m].remove(mindex);
+        let mindex = self.mlist[row].iter().position(|&x| x == column as u16).unwrap();
+        self.mlist[row].remove(mindex);
 
         // remove value from nlist
-        let nindex = self.nlist[n].iter().position(|&x| x == m as u16).unwrap();
-        self.nlist[n].remove(nindex);
+        let nindex = self.nlist[column].iter().position(|&x| x == row as u16).unwrap();
+        self.nlist[column].remove(nindex);
 
         // reduce sizes
-        self.num_mlist[m] -= 1;
-        self.num_nlist[n] -= 1;
+        self.num_mlist[row] -= 1;
+        self.num_nlist[column] -= 1;
 
         // reset maxima
-        if self.max_num_mlist == self.num_mlist[m] + 1 {
+        if self.max_num_mlist == self.num_mlist[row] + 1 {
             self.reset_max_mlist();
         }
 
-        if self.max_num_nlist == self.num_nlist[n] + 1 {
+        if self.max_num_nlist == self.num_nlist[column] + 1 {
             self.reset_max_nlist();
         }
 
@@ -284,33 +284,33 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
     }
 
     /// set element value at index
-    pub fn set(&mut self, m: usize, n: usize, v: T) {
-        if m >= self.m || n >= self.n {
-            panic!("smatrix_set({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n);
+    pub fn set(&mut self, row: usize, column: usize, value: T) {
+        if row >= self.m || column >= self.n {
+            panic!("smatrix_set({},{}), index exceeds matrix dimension ({},{})", row, column, self.m, self.n);
         }
 
         // insert new element if not already allocated
-        if !self.isset(m, n).unwrap() {
-            self.insert(m, n, v).unwrap();
+        if !self.isset(row, column).unwrap() {
+            self.insert(row, column, value).unwrap();
             return;
         }
 
         // set value
-        let mindex = self.mlist[m].iter().position(|&x| x == n as u16).unwrap();
-        self.mvals[m][mindex] = v;
+        let mindex = self.mlist[row].iter().position(|&x| x == column as u16).unwrap();
+        self.mvals[row][mindex] = value;
 
-        let nindex = self.nlist[n].iter().position(|&x| x == m as u16).unwrap();
-        self.nvals[n][nindex] = v;
+        let nindex = self.nlist[column].iter().position(|&x| x == row as u16).unwrap();
+        self.nvals[column][nindex] = value;
     }
 
     /// get element value at index (return zero if not set)
-    pub fn get(&self, m: usize, n: usize) -> T {
-        if m >= self.m || n >= self.n {
-            panic!("smatrix_get({},{}), index exceeds matrix dimension ({},{})", m, n, self.m, self.n);
+    pub fn get(&self, row: usize, column: usize) -> T {
+        if row >= self.m || column >= self.n {
+            panic!("smatrix_get({},{}), index exceeds matrix dimension ({},{})", row, column, self.m, self.n);
         }
 
-        if let Some(mindex) = self.mlist[m].iter().position(|&x| x == n as u16) {
-            self.mvals[m][mindex]
+        if let Some(mindex) = self.mlist[row].iter().position(|&x| x == column as u16) {
+            self.mvals[row][mindex]
         } else {
             T::default()
         }

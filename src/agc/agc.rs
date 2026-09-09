@@ -118,12 +118,12 @@ where
         self.bandwidth
     }
 
-    pub fn set_bandwidth(&mut self, bt: f32) -> Result<()> {
-        if !(0.0..=1.0).contains(&bt) {
+    pub fn set_bandwidth(&mut self, bandwidth: f32) -> Result<()> {
+        if !(0.0..=1.0).contains(&bandwidth) {
             return Err(Error::Config("bandwidth must be in [0, 1]".into()));
         }
-        self.bandwidth = bt;
-        self.alpha = bt;
+        self.bandwidth = bandwidth;
+        self.alpha = bandwidth;
         Ok(())
     }
 

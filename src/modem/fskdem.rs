@@ -123,13 +123,13 @@ impl FskDemodulator {
         (vp - vm) / v0
     }
 
-    pub fn symbol_energy(&self, s: usize, range: usize) -> Result<f32> {
-        if s >= self.m_size {
-            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", s, self.m_size)));
+    pub fn symbol_energy(&self, symbol: usize, range: usize) -> Result<f32> {
+        if symbol >= self.m_size {
+            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", symbol, self.m_size)));
         }
 
         let range = range.min(self.k_size);
-        let index = self.demod_map[s];
+        let index = self.demod_map[symbol];
 
         // Compute energy around FFT bin
         let mut energy = self.buf_freq[index].norm_sqr();

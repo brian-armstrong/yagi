@@ -107,13 +107,13 @@ impl GmskDemodulator {
     /// Set equalizer bandwidth (learning rate)
     ///
     /// Only effective when using equalizer mode.
-    pub fn set_eq_bw(&mut self, bw: f32) -> Result<()> {
-        if bw < 0.0 || bw > 0.5 {
+    pub fn set_eq_bw(&mut self, learning_rate: f32) -> Result<()> {
+        if learning_rate < 0.0 || learning_rate > 0.5 {
             return Err(Error::Config("bandwidth must be in [0, 0.5]".into()));
         }
 
         match &mut self.filter {
-            FilterState::Equalizer(eq) => eq.set_bw(bw),
+            FilterState::Equalizer(eq) => eq.set_bw(learning_rate),
             FilterState::Fir(_) => Err(Error::Config("equalizer is disabled".into())),
         }
     }

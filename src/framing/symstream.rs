@@ -65,8 +65,8 @@ impl SymbolStream {
         self.beta
     }
 
-    pub fn set_scheme(&mut self, ms: ModulationScheme) -> Result<()> {
-        self.modem = Modem::new(ms)?;
+    pub fn set_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
+        self.modem = Modem::new(modulation_scheme)?;
         Ok(())
     }
 

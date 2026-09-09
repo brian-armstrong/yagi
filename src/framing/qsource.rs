@@ -404,22 +404,23 @@ impl SignalSource {
     }
 
     /// Set signal center frequency
-    pub fn set_frequency(&mut self, fc: f32) -> Result<()> {
-        if fc < -0.5 || fc > 0.5 {
+    pub fn set_frequency(&mut self, frequency: f32) -> Result<()> {
+        if frequency < -0.5 || frequency > 0.5 {
             return Err(Error::Config("invalid frequency offset; must be in [-0.5, 0.5]".into()));
         }
 
-        self.fc = fc;
+        self.fc = frequency;
 
         // set channelizer index appropriately
-        self.index =
-            ((if fc < 0.0 { fc + 1.0 } else { fc }) * self.m_channels as f32).round() as usize % self.m_channels;
+        self.index = ((if frequency < 0.0 { frequency + 1.0 } else { frequency }) * self.m_channels as f32).round()
+            as usize
+            % self.m_channels;
 
         // compute frequency applied by channelizer alignment
         let fc_index = self.frequency_index();
 
         // compute residual frequency needed by mixer
-        let fc_mixer = fc - fc_index;
+        let fc_mixer = frequency - fc_index;
 
         // apply mixer frequency (in radians), scaled by resampling ratio
         self.mixer.set_frequency(2.0 * PI * fc_mixer * (self.m_channels as f32) / (self.p_channels as f32));

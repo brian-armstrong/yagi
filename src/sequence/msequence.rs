@@ -143,8 +143,8 @@ impl MaximalLengthSequence {
         self.state
     }
 
-    pub fn set_state(&mut self, a: u32) {
-        self.state = a;
+    pub fn set_state(&mut self, state: u32) {
+        self.state = state;
     }
 
     pub fn measure_period(&mut self) -> u32 {

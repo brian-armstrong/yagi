@@ -254,19 +254,24 @@ where
     ///
     /// # Arguments
     ///
-    /// * `h` - filter coefficients
+    /// * `coefficients` - filter coefficients
     ///
     /// # Returns
     ///
     /// A new `Firfilt` object.
-    pub fn new(h: &[Coeff]) -> Result<Self> {
-        let h_len = h.len();
+    pub fn new(coefficients: &[Coeff]) -> Result<Self> {
+        let h_len = coefficients.len();
         if h_len == 0 {
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
 
-        let mut q =
-            Self { h: h.to_vec(), dp: DotProduct::new_rev(h)?, h_len, w: Window::new(h_len)?, scale: Coeff::one() };
+        let mut q = Self {
+            h: coefficients.to_vec(),
+            dp: DotProduct::new_rev(coefficients)?,
+            h_len,
+            w: Window::new(h_len)?,
+            scale: Coeff::one(),
+        };
 
         q.reset();
 
@@ -374,17 +379,17 @@ where
     /// # Arguments
     ///
     /// * `h` - filter coefficients
-    pub fn set_coefficients(&mut self, h: &[Coeff]) -> Result<()> {
+    pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
         // aka recreate
-        let n = h.len();
+        let n = coefficients.len();
         if n != self.h_len {
             self.h_len = n;
             self.h.resize(n, Coeff::default());
             self.w.resize(n)?;
         }
 
-        self.h.copy_from_slice(h);
-        self.dp.set_coefficients_rev(h)?;
+        self.h.copy_from_slice(coefficients);
+        self.dp.set_coefficients_rev(coefficients)?;
         self.reset();
 
         Ok(())

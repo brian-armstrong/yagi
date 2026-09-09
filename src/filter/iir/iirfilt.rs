@@ -594,7 +594,14 @@ where
     }
 
     /// set coefficients for filter
-    pub fn set_coefficients(&mut self, b: &[Coeff], a: &[Coeff]) -> Result<()> {
+    pub fn set_coefficients(
+        &mut self,
+        numerator_coefficients: &[Coeff],
+        denominator_coefficients: &[Coeff],
+    ) -> Result<()> {
+        let b = numerator_coefficients;
+        let a = denominator_coefficients;
+
         if self.filter_type == IirFilterType::Sos && self.qsos.len() == 1 {
             return self.qsos[0].set_coefficients(&[b[0], b[1], b[2]], &[a[0], a[1], a[2]]);
         }

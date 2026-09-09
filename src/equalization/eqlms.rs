@@ -104,11 +104,11 @@ where
         self.mu
     }
 
-    pub fn set_bw(&mut self, mu: f32) -> Result<()> {
-        if mu < 0.0 {
+    pub fn set_bw(&mut self, learning_rate: f32) -> Result<()> {
+        if learning_rate < 0.0 {
             return Err(Error::Config("learning rate cannot be less than zero".into()));
         }
-        self.mu = mu;
+        self.mu = learning_rate;
         Ok(())
     }
 

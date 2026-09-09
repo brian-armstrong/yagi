@@ -113,9 +113,9 @@ where
     ///
     /// # Arguments
     ///
-    /// * `mu` - fractional sample delay, `-1 <= mu <= 1`
-    pub fn set_delay(&mut self, mu: f32) -> Result<()> {
-        if mu < -1.0 || mu > 1.0 {
+    /// * `fractional_delay` - fractional sample delay, `-1 <= fractional_delay <= 1`
+    pub fn set_delay(&mut self, fractional_delay: f32) -> Result<()> {
+        if fractional_delay < -1.0 || fractional_delay > 1.0 {
             return Err(Error::Config("delay must be in [-1,1]".into()));
         }
 
@@ -124,9 +124,9 @@ where
         let mut sum = 0.0f32;
         for i in 0..self.h_len {
             let n = i * (self.q + 1);
-            // the polynomials are fit against mu, but evaluated at -mu: a
+            // the polynomials are fit against fractional_delay, but evaluated at -fractional_delay: a
             // positive delay shifts the sinc the other way.
-            let v = poly_val(&self.p[n..n + self.q + 1], self.q + 1, -mu);
+            let v = poly_val(&self.p[n..n + self.q + 1], self.q + 1, -fractional_delay);
             self.htmp[i] = v;
             sum += v;
         }

@@ -94,7 +94,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `h` - coefficients array
+    /// * `coefficients` - coefficients array
     pub fn new(h: &[Coeff]) -> Result<Self> {
         let h = Self::checked(h)?;
         Ok(Self::from_coefficients(h.to_vec()))
@@ -104,7 +104,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `h` - time-reversed coefficients array
+    /// * `coefficients` - time-reversed coefficients array
     pub fn new_rev(h: &[Coeff]) -> Result<Self> {
         let h = Self::checked(h)?;
         let h: Vec<_> = h.iter().rev().copied().collect();
@@ -124,13 +124,13 @@ where
     /// # Arguments
     ///
     /// * `h` - coefficients array
-    pub fn set_coefficients(&mut self, h: &[Coeff]) -> Result<()> {
-        let h = Self::checked(h)?;
-        if h.len() != self.h.len() {
-            self.plan = DotProductPlan::new(h.len());
+    pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
+        let coefficients = Self::checked(coefficients)?;
+        if coefficients.len() != self.h.len() {
+            self.plan = DotProductPlan::new(coefficients.len());
         }
         self.h.clear();
-        self.h.extend_from_slice(h);
+        self.h.extend_from_slice(coefficients);
         self.block_h.clear();
         self.block_h.resize(self.plan.packed_len(), self.h[0]);
         self.plan.repack(&self.h, &mut self.block_h);
@@ -143,13 +143,13 @@ where
     /// # Arguments
     ///
     /// * `h` - time-reversed coefficients array
-    pub fn set_coefficients_rev(&mut self, h: &[Coeff]) -> Result<()> {
-        let h = Self::checked(h)?;
-        if h.len() != self.h.len() {
-            self.plan = DotProductPlan::new(h.len());
+    pub fn set_coefficients_rev(&mut self, coefficients: &[Coeff]) -> Result<()> {
+        let coefficients = Self::checked(coefficients)?;
+        if coefficients.len() != self.h.len() {
+            self.plan = DotProductPlan::new(coefficients.len());
         }
         self.h.clear();
-        self.h.extend(h.iter().rev().copied());
+        self.h.extend(coefficients.iter().rev().copied());
         self.block_h.clear();
         self.block_h.resize(self.plan.packed_len(), self.h[0]);
         self.plan.repack(&self.h, &mut self.block_h);

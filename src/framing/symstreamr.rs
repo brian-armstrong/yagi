@@ -64,8 +64,8 @@ impl ArbitraryRateSymbolStream {
         self.symstream.beta()
     }
 
-    pub fn set_scheme(&mut self, ms: ModulationScheme) -> Result<()> {
-        self.symstream.set_scheme(ms)
+    pub fn set_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
+        self.symstream.set_scheme(modulation_scheme)
     }
 
     pub fn modulation_scheme(&self) -> ModulationScheme {

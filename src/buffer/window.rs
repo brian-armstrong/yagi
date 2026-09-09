@@ -71,15 +71,15 @@ impl<T: Default + Clone + Copy> Window<T> {
         false
     }
 
-    pub fn index(&self, i: usize) -> Result<T> {
-        if i >= self.len {
+    pub fn index(&self, index: usize) -> Result<T> {
+        if index >= self.len {
             return Err(Error::Range("index value out of range".to_string()));
         }
-        Ok(self.v[self.read_index + i])
+        Ok(self.v[self.read_index + index])
     }
 
-    pub fn set(&mut self, i: usize, value: T) {
-        self.v[self.read_index + i] = value;
+    pub fn set(&mut self, index: usize, value: T) {
+        self.v[self.read_index + index] = value;
     }
 
     pub fn push(&mut self, value: T) {
