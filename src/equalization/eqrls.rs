@@ -28,49 +28,61 @@ where
     T: Clone + Copy + From<f32> + Default + FloatComplex,
     [T]: DotProd<T, Output = T>,
 {
-    pub fn new(h: Option<&[T]>, p: usize) -> Result<Self> {
-        if p == 0 {
-            return Err(Error::Config("equalizer length must be greater than 0".into()));
-        }
-
-        let mut q = Self {
-            p,
-            lambda: 0.99,
-            delta: 0.1,
-            h0: vec![0.0.into(); p],
-            w0: vec![0.0.into(); p],
-            w1: vec![0.0.into(); p],
-            p0: vec![0.0.into(); p * p],
-            p1: vec![0.0.into(); p * p],
-            g: vec![0.0.into(); p],
-            xp0: vec![0.0.into(); p],
-            zeta: 0.0.into(),
-            gxl: vec![0.0.into(); p * p],
-            gxlp0: vec![0.0.into(); p * p],
-            n: 0,
-            buffer: Window::new(p)?,
-        };
-
-        if let Some(h) = h {
-            q.h0.copy_from_slice(h);
-        } else {
-            q.h0[p - 1] = 1.0.into();
-        }
-
+    /// Create an equalizer of the specified length with a unit coefficient at
+    /// the final tap
+    pub fn new(filter_length: usize) -> Result<Self> {
+        let mut q = Self::new_base(filter_length)?;
+        q.h0[filter_length - 1] = 1.0.into();
         q.reset();
         Ok(q)
     }
 
-    pub fn recreate(&mut self, h: Option<&[T]>, p: usize) -> Result<()> {
-        if self.p == p {
-            if let Some(h) = h {
-                self.h0.copy_from_slice(h);
-            }
-            Ok(())
-        } else {
-            *self = Self::new(h, p)?;
-            Ok(())
+    /// Create an equalizer with the specified initial coefficients
+    pub fn from_coefficients(coefficients: &[T]) -> Result<Self> {
+        let mut q = Self::new_base(coefficients.len())?;
+        q.h0.copy_from_slice(coefficients);
+        q.reset();
+        Ok(q)
+    }
+
+    fn new_base(filter_length: usize) -> Result<Self> {
+        if filter_length == 0 {
+            return Err(Error::Config("equalizer length must be greater than 0".into()));
         }
+
+        Ok(Self {
+            p: filter_length,
+            lambda: 0.99,
+            delta: 0.1,
+            h0: vec![0.0.into(); filter_length],
+            w0: vec![0.0.into(); filter_length],
+            w1: vec![0.0.into(); filter_length],
+            p0: vec![0.0.into(); filter_length * filter_length],
+            p1: vec![0.0.into(); filter_length * filter_length],
+            g: vec![0.0.into(); filter_length],
+            xp0: vec![0.0.into(); filter_length],
+            zeta: 0.0.into(),
+            gxl: vec![0.0.into(); filter_length * filter_length],
+            gxlp0: vec![0.0.into(); filter_length * filter_length],
+            n: 0,
+            buffer: Window::new(filter_length)?,
+        })
+    }
+
+    /// Replace the equalizer coefficients without clearing its buffered input
+    /// or adaptive state
+    pub fn set_coefficients(&mut self, coefficients: &[T]) -> Result<()> {
+        if coefficients.len() != self.p {
+            return Err(Error::Config(format!(
+                "coefficient length must match equalizer length: {} != {}",
+                coefficients.len(),
+                self.p
+            )));
+        }
+
+        self.h0.copy_from_slice(coefficients);
+        self.w0.copy_from_slice(coefficients);
+        Ok(())
     }
 
     pub fn reset(&mut self) {
@@ -151,7 +163,7 @@ where
             return Err(Error::Config("output weights array length must match filter order".into()));
         }
         for i in 0..self.p {
-            w[i] = self.w1[self.p - i - 1];
+            w[i] = self.w0[self.p - i - 1];
         }
         Ok(())
     }
@@ -215,7 +227,7 @@ mod tests {
         let mut w = vec![0.0f32; p]; // equalizer filter coefficients
 
         // create equalizer
-        let mut eq = RecursiveLeastSquaresEqualizer::<f32>::new(None, p).unwrap();
+        let mut eq = RecursiveLeastSquaresEqualizer::<f32>::new(p).unwrap();
 
         // create channel filter
         h[0] = 1.0f32;
@@ -248,7 +260,7 @@ mod tests {
         for i in 0..9 {
             h[i] = randnf();
         }
-        let mut q0 = RecursiveLeastSquaresEqualizer::<f32>::new(Some(&h), 9).unwrap();
+        let mut q0 = RecursiveLeastSquaresEqualizer::<f32>::from_coefficients(&h).unwrap();
 
         // create channel filter
         let hc = [1.0f32, -0.08f32, 0.32f32, 0.01f32, -0.06f32, 0.07f32, -0.03f32];
@@ -294,5 +306,35 @@ mod tests {
         q0.weights(&mut w0).unwrap();
         q1.weights(&mut w1).unwrap();
         assert_eq!(w0, w1);
+    }
+
+    #[test]
+    fn test_eqrls_constructor_variants() {
+        assert!(RecursiveLeastSquaresEqualizer::<f32>::new(0).is_err());
+        assert!(RecursiveLeastSquaresEqualizer::<f32>::from_coefficients(&[]).is_err());
+
+        let coefficients = [1.0f32, 0.5, -0.25];
+        let equalizer = RecursiveLeastSquaresEqualizer::from_coefficients(&coefficients).unwrap();
+        let mut weights = [0.0f32; 3];
+        equalizer.weights(&mut weights).unwrap();
+        assert_eq!(weights, [-0.25, 0.5, 1.0]);
+    }
+
+    #[test]
+    fn test_eqrls_set_coefficients_preserves_buffered_input() {
+        let mut equalizer = RecursiveLeastSquaresEqualizer::<f32>::new(3).unwrap();
+        equalizer.push(1.0);
+        equalizer.push(2.0);
+        equalizer.push(3.0);
+        assert_eq!(equalizer.execute().unwrap(), 3.0);
+
+        equalizer.set_coefficients(&[1.0, 0.0, 0.0]).unwrap();
+        assert_eq!(equalizer.execute().unwrap(), 1.0);
+        let mut weights = [0.0f32; 3];
+        equalizer.weights(&mut weights).unwrap();
+        assert_eq!(weights, [0.0, 0.0, 1.0]);
+
+        assert!(equalizer.set_coefficients(&[1.0, 0.0]).is_err());
+        assert_eq!(equalizer.execute().unwrap(), 1.0);
     }
 }

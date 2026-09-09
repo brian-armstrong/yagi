@@ -30,30 +30,66 @@ where
         + std::ops::Div<f32, Output = T>,
     f32: std::ops::Mul<T, Output = T>,
 {
-    pub fn new(h: Option<&[T]>, h_len: usize) -> Result<Self> {
-        let mut q = Self {
-            h_len,
-            mu: 0.5,
-            h0: vec![T::default(); h_len],
-            w0: vec![T::default(); h_len],
-            w1: vec![T::default(); h_len],
-            count: 0,
-            buf_full: false,
-            buffer: Window::new(h_len)?,
-            x2: WindowedDelay::new(h_len)?,
-            x2_sum: 0.0,
-        };
+    /// Create an equalizer of the specified length with a unit coefficient at
+    /// its center.
+    pub fn new(filter_length: usize) -> Result<Self> {
+        let mut q = Self::new_base(filter_length)?;
+        q.h0[filter_length / 2] = 1.0.into();
+        q.reset();
+        Ok(q)
+    }
 
-        if let Some(h) = h {
-            for (i, val) in q.h0.iter_mut().enumerate() {
-                *val = h[h_len - i - 1].conj();
-            }
-        } else {
-            q.h0[h_len / 2] = 1.0.into();
+    /// Create an equalizer with the specified initial coefficients.
+    pub fn from_coefficients(coefficients: &[T]) -> Result<Self> {
+        let filter_length = coefficients.len();
+        let mut q = Self::new_base(filter_length)?;
+
+        for (initial_coefficient, &coefficient) in q.h0.iter_mut().zip(coefficients.iter().rev()) {
+            *initial_coefficient = coefficient.conj();
         }
 
         q.reset();
         Ok(q)
+    }
+
+    /// Replace the equalizer coefficients without clearing its buffered input
+    /// or adaptive state.
+    pub fn set_coefficients(&mut self, coefficients: &[T]) -> Result<()> {
+        if coefficients.len() != self.h_len {
+            return Err(Error::Config(format!(
+                "coefficient length must match equalizer length: {} != {}",
+                coefficients.len(),
+                self.h_len
+            )));
+        }
+
+        for ((initial_coefficient, active_weight), &coefficient) in
+            self.h0.iter_mut().zip(self.w0.iter_mut()).zip(coefficients.iter().rev())
+        {
+            let coefficient = coefficient.conj();
+            *initial_coefficient = coefficient;
+            *active_weight = coefficient;
+        }
+        Ok(())
+    }
+
+    fn new_base(filter_length: usize) -> Result<Self> {
+        if filter_length == 0 {
+            return Err(Error::Config("equalizer length must be greater than 0".into()));
+        }
+
+        Ok(Self {
+            h_len: filter_length,
+            mu: 0.5,
+            h0: vec![T::default(); filter_length],
+            w0: vec![T::default(); filter_length],
+            w1: vec![T::default(); filter_length],
+            count: 0,
+            buf_full: false,
+            buffer: Window::new(filter_length)?,
+            x2: WindowedDelay::new(filter_length)?,
+            x2_sum: 0.0,
+        })
     }
 
     pub fn new_rnyquist(filter_type: filter::FirFilterShape, k: usize, m: usize, beta: f32, dt: f32) -> Result<Self> {
@@ -70,11 +106,10 @@ where
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h_len = 2 * k * m + 1;
         let h = filter::fir_design_prototype(filter_type, k, m, beta, dt)?;
         let hc: Vec<T> = h.iter().map(|&x| (x / k as f32).into()).collect();
 
-        Self::new(Some(&hc), h_len)
+        Self::from_coefficients(&hc)
     }
 
     pub fn new_lowpass(h_len: usize, fc: f32) -> Result<Self> {
@@ -88,7 +123,7 @@ where
         let h = filter::fir_design_kaiser(h_len, fc, 40.0, 0.0)?;
         let hc: Vec<T> = h.iter().map(|&x| x * 2.0.into() * fc).collect();
 
-        Self::new(Some(&hc), h_len)
+        Self::from_coefficients(&hc)
     }
 
     pub fn reset(&mut self) {
@@ -253,8 +288,8 @@ mod tests {
         let mut eq = match init {
             0 => LeastMeanSquaresEqualizer::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, k, p, beta, 0.0),
             1 => LeastMeanSquaresEqualizer::<Complex<f32>>::new_lowpass(2 * k * p + 1, 0.5 / (k as f32)),
-            2 => LeastMeanSquaresEqualizer::<Complex<f32>>::new(Some(&hp), 2 * k * p + 1),
-            _ => LeastMeanSquaresEqualizer::<Complex<f32>>::new(None, 2 * k * p + 1),
+            2 => LeastMeanSquaresEqualizer::<Complex<f32>>::from_coefficients(&hp),
+            _ => LeastMeanSquaresEqualizer::<Complex<f32>>::new(2 * k * p + 1),
         }
         .unwrap();
         eq.set_bw(mu).unwrap();
@@ -390,6 +425,8 @@ mod tests {
     #[autotest_annotate(autotest_eqlms_config)]
     fn autotest_eqlms_config() {
         // check that object returns None for invalid configurations
+        assert!(LeastMeanSquaresEqualizer::<Complex<f32>>::new(0).is_err());
+        assert!(LeastMeanSquaresEqualizer::<Complex<f32>>::from_coefficients(&[]).is_err());
         assert!(
             LeastMeanSquaresEqualizer::<Complex<f32>>::new_rnyquist(FirFilterShape::Arkaiser, 0, 12, 0.3, 0.0).is_err()
         );
@@ -409,7 +446,7 @@ mod tests {
         let k = 2;
         let m = 3;
         let h_len = 2 * k * m + 1;
-        let mut q = LeastMeanSquaresEqualizer::<Complex<f32>>::new(None, h_len).unwrap();
+        let mut q = LeastMeanSquaresEqualizer::<Complex<f32>>::new(h_len).unwrap();
         // assert_eq!(q.print(), Ok(()));
 
         // test getting/setting properties
@@ -431,6 +468,22 @@ mod tests {
         for (i, &coeff) in w.iter().enumerate() {
             assert_eq!(coeff, if i == k * m { Complex::new(1.0, 0.0) } else { Complex::new(0.0, 0.0) });
         }
+    }
+
+    #[test]
+    fn test_eqlms_set_coefficients_preserves_buffered_input() {
+        let mut equalizer = LeastMeanSquaresEqualizer::<f32>::new(3).unwrap();
+        equalizer.push(1.0);
+        equalizer.push(2.0);
+        equalizer.push(3.0);
+        assert_eq!(equalizer.execute().unwrap(), 2.0);
+
+        equalizer.set_coefficients(&[1.0, 0.0, 0.0]).unwrap();
+        assert_eq!(equalizer.execute().unwrap(), 3.0);
+        assert_eq!(equalizer.weights(), [1.0, 0.0, 0.0]);
+
+        assert!(equalizer.set_coefficients(&[1.0, 0.0]).is_err());
+        assert_eq!(equalizer.execute().unwrap(), 3.0);
     }
 
     #[test]
