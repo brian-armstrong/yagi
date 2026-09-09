@@ -8,7 +8,7 @@ pub fn autotest_annotate(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut i: syn::Item = syn::parse(item).unwrap();
     let fn_item = match &mut i {
         syn::Item::Fn(fn_item) => fn_item,
-        _ => panic!("expected fn")
+        _ => panic!("expected fn"),
     };
     let fn_name = fn_item.sig.ident.to_string();
     let anno_name = attr.to_string();
