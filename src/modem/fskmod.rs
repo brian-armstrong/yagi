@@ -40,27 +40,27 @@ impl FskModulator {
         Ok(())
     }
 
-    pub fn modulate(&mut self, s: usize, y: &mut [Complex32]) -> Result<()> {
+    pub fn modulate(&mut self, symbol: usize, output: &mut [Complex32]) -> Result<()> {
         // Validate input
-        if s >= self.m_size {
-            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", s, self.m_size)));
+        if symbol >= self.m_size {
+            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", symbol, self.m_size)));
         }
-        if y.len() != self.k {
+        if output.len() != self.k {
             return Err(Error::Range(format!(
                 "output buffer length ({}) must match samples/symbol ({})",
-                y.len(),
+                output.len(),
                 self.k
             )));
         }
 
         // Compute appropriate frequency
-        let dphi = ((s as f32) - self.m2) * 2.0 * PI * self.bandwidth / self.m2;
+        let dphi = ((symbol as f32) - self.m2) * 2.0 * PI * self.bandwidth / self.m2;
 
         // Set frequency appropriately
         self.oscillator.set_frequency(dphi);
 
         // Generate output tone
-        for yi in &mut y[..self.k] {
+        for yi in &mut output[..self.k] {
             // Compute complex output
             *yi = self.oscillator.cexp();
 

@@ -86,13 +86,13 @@ impl FskDemodulator {
         Ok(())
     }
 
-    pub fn demodulate(&mut self, y: &[Complex32]) -> Result<usize> {
-        if y.len() != self.k {
+    pub fn demodulate(&mut self, input: &[Complex32]) -> Result<usize> {
+        if input.len() != self.k {
             return Err(Error::Range("input length must match samples/symbol".into()));
         }
 
         // Copy input to internal time buffer
-        self.buf_time[..self.k].copy_from_slice(y);
+        self.buf_time[..self.k].copy_from_slice(input);
 
         // Compute transform
         self.fft.run(&self.buf_time, &mut self.buf_freq);

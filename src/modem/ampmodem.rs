@@ -115,11 +115,11 @@ impl AmplitudeModem {
         self.mixer.pll_set_bandwidth(bandwidth);
     }
 
-    pub fn modulate(&mut self, x: f32) -> Result<Complex32> {
+    pub fn modulate(&mut self, input: f32) -> Result<Complex32> {
         let x_hat = match self.mod_type {
-            AmpmodemType::Dsb => Complex32::new(x, 0.0),
+            AmpmodemType::Dsb => Complex32::new(input, 0.0),
             AmpmodemType::Usb | AmpmodemType::Lsb => {
-                let mut x_hat = self.hilbert.r2c_execute(x)?;
+                let mut x_hat = self.hilbert.r2c_execute(input)?;
                 if self.mod_type == AmpmodemType::Lsb {
                     x_hat = x_hat.conj();
                 }
@@ -131,33 +131,33 @@ impl AmplitudeModem {
             + if self.suppressed_carrier { Complex32::new(0.0, 0.0) } else { Complex32::new(1.0, 0.0) })
     }
 
-    pub fn modulate_block(&mut self, m: &[f32], s: &mut [Complex32]) -> Result<()> {
-        if m.len() != s.len() {
+    pub fn modulate_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
-        for (x, y) in m.iter().zip(s.iter_mut()) {
-            *y = self.modulate(*x)?;
+        for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
+            *output_sample = self.modulate(*input_sample)?;
         }
         Ok(())
     }
 
-    pub fn demodulate(&mut self, y: Complex32) -> Result<f32> {
+    pub fn demodulate(&mut self, input: Complex32) -> Result<f32> {
         match self.demod_type {
-            AmpmodemDemodType::DsbPllCarrier => self.demod_dsb_pll_carrier(y),
-            AmpmodemDemodType::DsbPllCostas => self.demod_dsb_pll_costas(y),
-            AmpmodemDemodType::DemodSsb => self.demod_ssb(y),
-            AmpmodemDemodType::DemodSsbPllCarrier => self.demod_ssb_pll_carrier(y),
+            AmpmodemDemodType::DsbPllCarrier => self.demod_dsb_pll_carrier(input),
+            AmpmodemDemodType::DsbPllCostas => self.demod_dsb_pll_costas(input),
+            AmpmodemDemodType::DemodSsb => self.demod_ssb(input),
+            AmpmodemDemodType::DemodSsbPllCarrier => self.demod_ssb_pll_carrier(input),
         }
     }
 
-    pub fn demodulate_block(&mut self, y: &[Complex32], x: &mut [f32]) -> Result<()> {
-        if y.len() != x.len() {
+    pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
-        for (y_val, x_val) in y.iter().zip(x.iter_mut()) {
-            *x_val = self.demodulate(*y_val)?;
+        for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
+            *output_sample = self.demodulate(*input_sample)?;
         }
         Ok(())
     }

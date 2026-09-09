@@ -229,18 +229,18 @@ impl Channel {
     ///
     /// # Arguments
     ///
-    /// * `x` - input sample
+    /// * `input` - input sample
     ///
     /// # Returns
     ///
     /// The impaired output sample
-    pub fn execute(&mut self, x: Complex32) -> Complex32 {
+    pub fn execute(&mut self, input: Complex32) -> Complex32 {
         // apply filter
         let mut r = if self.enabled_multipath {
-            self.channel_filter.push(x);
+            self.channel_filter.push(input);
             self.channel_filter.execute()
         } else {
-            x
+            input
         };
 
         // apply shadowing if enabled
@@ -272,14 +272,14 @@ impl Channel {
     ///
     /// # Arguments
     ///
-    /// * `x` - input array
-    /// * `y` - output array, same length as `x`
-    pub fn execute_block(&mut self, x: &[Complex32], y: &mut [Complex32]) -> Result<()> {
-        if x.len() != y.len() {
+    /// * `input` - input array
+    /// * `output` - output array, same length as `input`
+    pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Config("channel_execute_block(), input and output lengths must match".into()));
         }
         // apply channel effects on each input sample
-        for (x_i, y_i) in x.iter().zip(y.iter_mut()) {
+        for (x_i, y_i) in input.iter().zip(output.iter_mut()) {
             *y_i = self.execute(*x_i);
         }
         Ok(())

@@ -70,25 +70,25 @@ impl RealToRealFft {
         Self { n, kind, transform }
     }
 
-    pub fn run(&self, x: &[f32], y: &mut [f32]) {
-        assert_eq!(x.len(), self.n);
-        assert_eq!(y.len(), self.n);
+    pub fn run(&self, input: &[f32], output: &mut [f32]) {
+        assert_eq!(input.len(), self.n);
+        assert_eq!(output.len(), self.n);
 
-        y.copy_from_slice(x);
+        output.copy_from_slice(input);
 
         match &self.transform {
-            DctDst::Dct1(dct) => dct.process_dct1(y),
-            DctDst::Dct2(dct) => dct.process_dct2(y),
-            DctDst::Dct3(dct) => dct.process_dct3(y),
-            DctDst::Dct4(dct) => dct.process_dct4(y),
-            DctDst::Dst1(dst) => dst.process_dst1(y),
-            DctDst::Dst2(dst) => dst.process_dst2(y),
-            DctDst::Dst3(dst) => dst.process_dst3(y),
-            DctDst::Dst4(dst) => dst.process_dst4(y),
+            DctDst::Dct1(dct) => dct.process_dct1(output),
+            DctDst::Dct2(dct) => dct.process_dct2(output),
+            DctDst::Dct3(dct) => dct.process_dct3(output),
+            DctDst::Dct4(dct) => dct.process_dct4(output),
+            DctDst::Dst1(dst) => dst.process_dst1(output),
+            DctDst::Dst2(dst) => dst.process_dst2(output),
+            DctDst::Dst3(dst) => dst.process_dst3(output),
+            DctDst::Dst4(dst) => dst.process_dst4(output),
         }
 
         // Apply scaling factor of 2 to match FFTW/liquid-dsp convention
-        for yi in y.iter_mut() {
+        for yi in output.iter_mut() {
             *yi *= 2.0;
         }
     }

@@ -680,10 +680,10 @@ where
     /// execute iir filter, switching to type-specific function
     ///  _x      :   input sample
     ///  _y      :   output sample
-    pub fn execute(&mut self, x: T) -> T {
+    pub fn execute(&mut self, input: T) -> T {
         match self.filter_type {
-            IirFilterType::Norm => self.execute_norm(x),
-            IirFilterType::Sos => self.execute_sos(x),
+            IirFilterType::Norm => self.execute_norm(input),
+            IirFilterType::Sos => self.execute_sos(input),
         }
     }
 
@@ -705,27 +705,27 @@ where
     }
 
     /// execute filter block
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        if x.len() != y.len() {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Config("input and output block lengths must be equal".into()));
         }
 
         match self.filter_type {
             IirFilterType::Norm => {
-                for (x_s, y_s) in x.iter().zip(y.iter_mut()) {
+                for (x_s, y_s) in input.iter().zip(output.iter_mut()) {
                     *y_s = self.execute_norm(*x_s);
                 }
             }
             IirFilterType::Sos => match self.qsos.len() {
-                1 => self.execute_sos_block_const::<1>(x, y),
-                2 => self.execute_sos_block_const::<2>(x, y),
-                3 => self.execute_sos_block_const::<3>(x, y),
-                4 => self.execute_sos_block_const::<4>(x, y),
-                5 => self.execute_sos_block_const::<5>(x, y),
-                6 => self.execute_sos_block_const::<6>(x, y),
-                7 => self.execute_sos_block_const::<7>(x, y),
-                8 => self.execute_sos_block_const::<8>(x, y),
-                _ => self.execute_sos_block_dynamic(x, y),
+                1 => self.execute_sos_block_const::<1>(input, output),
+                2 => self.execute_sos_block_const::<2>(input, output),
+                3 => self.execute_sos_block_const::<3>(input, output),
+                4 => self.execute_sos_block_const::<4>(input, output),
+                5 => self.execute_sos_block_const::<5>(input, output),
+                6 => self.execute_sos_block_const::<6>(input, output),
+                7 => self.execute_sos_block_const::<7>(input, output),
+                8 => self.execute_sos_block_const::<8>(input, output),
+                _ => self.execute_sos_block_dynamic(input, output),
             },
         }
 

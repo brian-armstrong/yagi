@@ -18,9 +18,9 @@ impl PeakHold {
         self.previous = vec![f32::MIN; self.hold];
     }
 
-    pub fn execute(&mut self, x: f32) -> f32 {
-        self.current.push(x);
-        self.current_max = self.current_max.max(x);
+    pub fn execute(&mut self, input: f32) -> f32 {
+        self.current.push(input);
+        self.current_max = self.current_max.max(input);
 
         let previous_max = self.previous.pop().unwrap();
 

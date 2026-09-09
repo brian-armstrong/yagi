@@ -154,9 +154,9 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - channelizer input, [size: num_channels/2 x 1]
-    /// * `y` - channelizer output, [size: num_channels x 1]
-    pub fn execute_analyzer(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    /// * `input` - channelizer input, [size: num_channels/2 x 1]
+    /// * `output` - channelizer output, [size: num_channels x 1]
+    pub fn execute_analyzer(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.channelizer_type != ChannelizerType::Analyzer {
             return Err(Error::Config("cannot execute analyzer on synthesizer channelizer".into()));
         }
@@ -166,7 +166,7 @@ where
         let base_index = if self.flag { self.num_channels } else { self.num_channels_half };
         for i in 0..self.num_channels_half {
             // push sample into buffer at filter index
-            self.w0[base_index - i - 1].push(x[i]);
+            self.w0[base_index - i - 1].push(input[i]);
         }
 
         // execute filter outputs
@@ -185,7 +185,7 @@ where
 
         // scale result by 1/num_channels (C transform)
         let scale = 1.0 / self.num_channels as f32;
-        for (yi, &xo) in y[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
+        for (yi, &xo) in output[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
             *yi = <T as From<Complex32>>::from(xo * scale);
         }
 
@@ -198,15 +198,15 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - channelizer input, [size: num_channels x 1]
-    /// * `y` - channelizer output, [size: num_channels/2 x 1]
-    pub fn execute_synthesizer(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    /// * `input` - channelizer input, [size: num_channels x 1]
+    /// * `output` - channelizer output, [size: num_channels/2 x 1]
+    pub fn execute_synthesizer(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.channelizer_type != ChannelizerType::Synthesizer {
             return Err(Error::Config("cannot execute synthesizer on analyzer channelizer".into()));
         }
 
         // copy input array to internal IFFT input buffer
-        for (local, &input) in self.x[..self.num_channels].iter_mut().zip(&x[..self.num_channels]) {
+        for (local, &input) in self.x[..self.num_channels].iter_mut().zip(&input[..self.num_channels]) {
             *local = input.into();
         }
 
@@ -242,7 +242,7 @@ where
             let y1: T = self.dp[i + self.num_channels_half].dotprod(p1);
 
             // save output
-            y[i] = <T as From<Complex32>>::from(y0.into() + y1.into());
+            output[i] = <T as From<Complex32>>::from(y0.into() + y1.into());
         }
 
         self.flag = !self.flag;
@@ -252,10 +252,10 @@ where
     /// Execute filterbank channelizer
     /// ANALYZER: input: M/2, output: M
     /// SYNTHESIZER: input: M, output: M/2
-    pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         match self.channelizer_type {
-            ChannelizerType::Analyzer => self.execute_analyzer(x, y),
-            ChannelizerType::Synthesizer => self.execute_synthesizer(x, y),
+            ChannelizerType::Analyzer => self.execute_analyzer(input, output),
+            ChannelizerType::Synthesizer => self.execute_synthesizer(input, output),
         }
     }
 }

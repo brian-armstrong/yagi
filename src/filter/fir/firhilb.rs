@@ -86,18 +86,18 @@ impl FirHilbertFilter {
     ///
     /// # Arguments
     ///
-    /// * `x` - real-valued input sample
+    /// * `input` - real-valued input sample
     ///
     /// # Returns
     ///
     /// A complex-valued output sample
-    pub fn r2c_execute(&mut self, x: f32) -> Result<Complex32> {
+    pub fn r2c_execute(&mut self, input: f32) -> Result<Complex32> {
         let yi; // in-phase component
 
         // quadrature component
         let yq = if !self.toggle {
             // push sample into upper branch
-            self.w0.push(x);
+            self.w0.push(input);
 
             // upper branch (delay)
             yi = self.w0.index(self.m - 1)?;
@@ -109,7 +109,7 @@ impl FirHilbertFilter {
             self.dpq.execute(r)
         } else {
             // push sample into lower branch
-            self.w1.push(x);
+            self.w1.push(input);
 
             // upper branch (delay)
             yi = self.w1.index(self.m - 1)?;
@@ -130,19 +130,19 @@ impl FirHilbertFilter {
     ///
     /// # Arguments
     ///
-    /// * `x` - complex-valued input sample
+    /// * `input` - complex-valued input sample
     ///
     /// # Returns
     ///
     /// A tuple of two real-valued output samples
     ///    (lower side-band retained, upper side-band retained)
-    pub fn c2r_execute(&mut self, x: Complex32) -> Result<(f32, f32)> {
+    pub fn c2r_execute(&mut self, input: Complex32) -> Result<(f32, f32)> {
         let yi; // in-phase component
 
         let yq = if !self.toggle {
             // push samples into appropriate buffers
-            self.w0.push(x.re);
-            self.w1.push(x.im);
+            self.w0.push(input.re);
+            self.w1.push(input.im);
 
             // delay branch
             yi = self.w0.index(self.m - 1)?;
@@ -152,8 +152,8 @@ impl FirHilbertFilter {
             self.dpq.execute(r)
         } else {
             // push samples into appropriate buffers
-            self.w2.push(x.re);
-            self.w3.push(x.im);
+            self.w2.push(input.re);
+            self.w3.push(input.im);
 
             // delay branch
             yi = self.w2.index(self.m - 1)?;
@@ -172,19 +172,19 @@ impl FirHilbertFilter {
     ///
     /// # Arguments
     ///
-    /// * `x` - real-valued input array, [size: 2 x 1]
+    /// * `input` - real-valued input array, [size: 2 x 1]
     ///
     /// # Returns
     ///
     /// A complex-valued output sample
-    pub fn decim_execute(&mut self, x: &[f32]) -> Result<Complex32> {
+    pub fn decim_execute(&mut self, input: &[f32]) -> Result<Complex32> {
         // compute quadrature component (filter branch)
-        self.w1.push(x[0]);
+        self.w1.push(input[0]);
         let r = self.w1.read();
         let yq = self.dpq.execute(r);
 
         // delay branch (in-phase component)
-        self.w0.push(x[1]);
+        self.w0.push(input[1]);
         let yi = self.w0.index(self.m - 1)?;
 
         // set return value
@@ -200,12 +200,12 @@ impl FirHilbertFilter {
     ///
     /// # Arguments
     ///
-    /// * `x` - real-valued input array, [size: 2*n x 1]
+    /// * `input` - real-valued input array, [size: 2*n x 1]
     /// * `n` - number of output samples
-    /// * `y` - complex-valued output array, [size: n x 1]
-    pub fn decim_execute_block(&mut self, x: &[f32], n: usize, y: &mut [Complex32]) -> Result<()> {
+    /// * `output` - complex-valued output array, [size: n x 1]
+    pub fn decim_execute_block(&mut self, input: &[f32], n: usize, output: &mut [Complex32]) -> Result<()> {
         for i in 0..n {
-            y[i] = self.decim_execute(&x[2 * i..2 * i + 2])?;
+            output[i] = self.decim_execute(&input[2 * i..2 * i + 2])?;
         }
         Ok(())
     }
@@ -214,20 +214,20 @@ impl FirHilbertFilter {
     ///
     /// # Arguments
     ///
-    /// * `x` - complex-valued input sample
-    /// * `y` - real-valued output array, [size: 2 x 1]
-    pub fn interp_execute(&mut self, x: Complex32, y: &mut [f32]) -> Result<()> {
-        let vi = if self.toggle { -x.re } else { x.re };
-        let vq = if self.toggle { -x.im } else { x.im };
+    /// * `input` - complex-valued input sample
+    /// * `output` - real-valued output array, [size: 2 x 1]
+    pub fn interp_execute(&mut self, input: Complex32, output: &mut [f32]) -> Result<()> {
+        let vi = if self.toggle { -input.re } else { input.re };
+        let vq = if self.toggle { -input.im } else { input.im };
 
         // compute delay branch
         self.w0.push(vq);
-        y[0] = self.w0.index(self.m - 1)?;
+        output[0] = self.w0.index(self.m - 1)?;
 
         // compute filter branch
         self.w1.push(vi);
         let r = self.w1.read();
-        y[1] = self.dpq.execute(r);
+        output[1] = self.dpq.execute(r);
 
         self.toggle = !self.toggle;
         Ok(())
@@ -237,12 +237,12 @@ impl FirHilbertFilter {
     ///
     /// # Arguments
     ///
-    /// * `x` - complex-valued input array, [size: n x 1]
+    /// * `input` - complex-valued input array, [size: n x 1]
     /// * `n` - number of output samples
-    /// * `y` - real-valued output array, [size: 2*n x 1]
-    pub fn interp_execute_block(&mut self, x: &[Complex32], n: usize, y: &mut [f32]) -> Result<()> {
+    /// * `output` - real-valued output array, [size: 2*n x 1]
+    pub fn interp_execute_block(&mut self, input: &[Complex32], n: usize, output: &mut [f32]) -> Result<()> {
         for i in 0..n {
-            self.interp_execute(x[i], &mut y[2 * i..2 * i + 2])?;
+            self.interp_execute(input[i], &mut output[2 * i..2 * i + 2])?;
         }
         Ok(())
     }

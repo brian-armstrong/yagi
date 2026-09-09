@@ -178,21 +178,21 @@ impl TableOscillator {
     // mixing functions
 
     /// rotate input sample up by the current table value (no stepping)
-    pub fn mix_up(&self, x: Complex32) -> Complex32 {
-        x * self.current
+    pub fn mix_up(&self, input: Complex32) -> Complex32 {
+        input * self.current
     }
 
     /// rotate input sample down by the current table value (no stepping)
-    pub fn mix_down(&self, x: Complex32) -> Complex32 {
-        x * self.current.conj()
+    pub fn mix_down(&self, input: Complex32) -> Complex32 {
+        input * self.current.conj()
     }
 
     /// rotate input block up by the table value, stepping each sample
-    pub fn mix_block_up(&mut self, x: &[Complex32], y: &mut [Complex32]) -> Result<()> {
-        if x.len() != y.len() {
+    pub fn mix_block_up(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Range("input and output must have the same length".into()));
         }
-        for (xi, yi) in x.iter().zip(y.iter_mut()) {
+        for (xi, yi) in input.iter().zip(output.iter_mut()) {
             // mix single sample up
             *yi = self.mix_up(*xi);
 
@@ -203,11 +203,11 @@ impl TableOscillator {
     }
 
     /// rotate input block down by the table value, stepping each sample
-    pub fn mix_block_down(&mut self, x: &[Complex32], y: &mut [Complex32]) -> Result<()> {
-        if x.len() != y.len() {
+    pub fn mix_block_down(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Range("input and output must have the same length".into()));
         }
-        for (xi, yi) in x.iter().zip(y.iter_mut()) {
+        for (xi, yi) in input.iter().zip(output.iter_mut()) {
             // mix single sample down
             *yi = self.mix_down(*xi);
 
@@ -220,13 +220,13 @@ impl TableOscillator {
     /// spread a single symbol across a full table cycle
     ///
     /// `y` must hold at least [`Self::length`] samples.
-    pub fn spread(&mut self, x: Complex32, y: &mut [Complex32]) -> Result<()> {
-        if y.len() < self.tab.len() {
+    pub fn spread(&mut self, input: Complex32, output: &mut [Complex32]) -> Result<()> {
+        if output.len() < self.tab.len() {
             return Err(Error::Range("synth spread output too small".into()));
         }
 
-        for yi in y[..self.tab.len()].iter_mut() {
-            *yi = self.mix_up(x);
+        for yi in output[..self.tab.len()].iter_mut() {
+            *yi = self.mix_up(input);
 
             self.step();
         }
@@ -235,18 +235,18 @@ impl TableOscillator {
 
     /// despread a full table cycle back into a single symbol
     ///
-    /// `x` must hold at least [`Self::length`] samples.
+    /// `input` must hold at least [`Self::length`] samples.
     ///
     /// The correlation is normalized by `sum(|x|*|tab|)` rather than by the code
     /// energy, so the result carries the symbol's *phase* at unit magnitude.
-    pub fn despread(&mut self, x: &[Complex32]) -> Result<Complex32> {
-        if x.len() < self.tab.len() {
+    pub fn despread(&mut self, input: &[Complex32]) -> Result<Complex32> {
+        if input.len() < self.tab.len() {
             return Err(Error::Range("synth despread input too small".into()));
         }
 
         let mut despread = Complex32::new(0.0, 0.0);
         let mut sum = 0.0f32;
-        for &xi in &x[..self.tab.len()] {
+        for &xi in &input[..self.tab.len()] {
             let temp = self.mix_down(xi);
 
             despread += temp;
@@ -260,11 +260,11 @@ impl TableOscillator {
     /// despread with early, punctual and late correlators
     ///
     /// The early and late outputs use the half-sample midpoints, giving a timing
-    /// discriminant. `x` must hold at least [`Self::length`] samples.
+    /// discriminant. `input` must hold at least [`Self::length`] samples.
     ///
     /// Returns `(early, punctual, late)`.
-    pub fn despread_triple(&mut self, x: &[Complex32]) -> Result<(Complex32, Complex32, Complex32)> {
-        if x.len() < self.tab.len() {
+    pub fn despread_triple(&mut self, input: &[Complex32]) -> Result<(Complex32, Complex32, Complex32)> {
+        if input.len() < self.tab.len() {
             return Err(Error::Range("synth despread input too small".into()));
         }
 
@@ -276,7 +276,7 @@ impl TableOscillator {
         let mut sum_punctual = 0.0f32;
         let mut sum_late = 0.0f32;
 
-        for &xi in &x[..self.tab.len()] {
+        for &xi in &input[..self.tab.len()] {
             despread_early += xi * self.prev_half.conj();
             despread_punctual += xi * self.current.conj();
             despread_late += xi * self.next_half.conj();

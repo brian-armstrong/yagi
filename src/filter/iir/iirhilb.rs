@@ -48,26 +48,26 @@ impl IirHilbertFilter {
         self.state = 0;
     }
 
-    pub fn r2c_execute(&mut self, x: f32) -> Complex32 {
+    pub fn r2c_execute(&mut self, input: f32) -> Complex32 {
         let y = match self.state {
             0 => {
-                let yi = self.filt_0.execute(x);
+                let yi = self.filt_0.execute(input);
                 let yq = self.filt_1.execute(0.0);
                 2.0 * Complex32::new(yi, yq)
             }
             1 => {
                 let yi = self.filt_0.execute(0.0);
-                let yq = self.filt_1.execute(-x);
+                let yq = self.filt_1.execute(-input);
                 2.0 * Complex32::new(-yq, yi)
             }
             2 => {
-                let yi = self.filt_0.execute(-x);
+                let yi = self.filt_0.execute(-input);
                 let yq = self.filt_1.execute(0.0);
                 2.0 * Complex32::new(-yi, -yq)
             }
             3 => {
                 let yi = self.filt_0.execute(0.0);
-                let yq = self.filt_1.execute(x);
+                let yq = self.filt_1.execute(input);
                 2.0 * Complex32::new(yq, -yi)
             }
             _ => unreachable!(),
@@ -77,28 +77,28 @@ impl IirHilbertFilter {
         y
     }
 
-    pub fn r2c_execute_block(&mut self, x: &[f32], y: &mut [Complex32]) {
-        for (&xi, yi) in x.iter().zip(y.iter_mut()) {
+    pub fn r2c_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) {
+        for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             *yi = self.r2c_execute(xi);
         }
     }
 
-    pub fn c2r_execute(&mut self, x: Complex32) -> f32 {
+    pub fn c2r_execute(&mut self, input: Complex32) -> f32 {
         let y = match self.state {
             0 => {
-                let (yi, _yq) = (self.filt_0.execute(x.re), self.filt_1.execute(x.im));
+                let (yi, _yq) = (self.filt_0.execute(input.re), self.filt_1.execute(input.im));
                 yi
             }
             1 => {
-                let (_yi, yq) = (self.filt_0.execute(x.im), self.filt_1.execute(-x.re));
+                let (_yi, yq) = (self.filt_0.execute(input.im), self.filt_1.execute(-input.re));
                 -yq
             }
             2 => {
-                let (yi, _yq) = (self.filt_0.execute(-x.re), self.filt_1.execute(-x.im));
+                let (yi, _yq) = (self.filt_0.execute(-input.re), self.filt_1.execute(-input.im));
                 -yi
             }
             3 => {
-                let (_yi, yq) = (self.filt_0.execute(-x.im), self.filt_1.execute(x.re));
+                let (_yi, yq) = (self.filt_0.execute(-input.im), self.filt_1.execute(input.re));
                 yq
             }
             _ => unreachable!(),
@@ -108,15 +108,15 @@ impl IirHilbertFilter {
         y
     }
 
-    pub fn c2r_execute_block(&mut self, x: &[Complex32], y: &mut [f32]) {
-        for (&xi, yi) in x.iter().zip(y.iter_mut()) {
+    pub fn c2r_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) {
+        for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             *yi = self.c2r_execute(xi);
         }
     }
 
-    pub fn decim_execute(&mut self, x: &[f32]) -> Complex32 {
-        let xi = if self.state != 0 { -x[0] } else { x[0] };
-        let xq = if self.state != 0 { x[1] } else { -x[1] };
+    pub fn decim_execute(&mut self, input: &[f32]) -> Complex32 {
+        let xi = if self.state != 0 { -input[0] } else { input[0] };
+        let xq = if self.state != 0 { input[1] } else { -input[1] };
 
         let yi0 = self.filt_0.execute(xi);
         let _yi1 = self.filt_0.execute(0.0);
@@ -130,27 +130,27 @@ impl IirHilbertFilter {
         y
     }
 
-    pub fn decim_execute_block(&mut self, x: &[f32], y: &mut [Complex32]) {
-        for (x_chunk, yi) in x.as_chunks::<2>().0.iter().zip(y.iter_mut()) {
+    pub fn decim_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) {
+        for (x_chunk, yi) in input.as_chunks::<2>().0.iter().zip(output.iter_mut()) {
             *yi = self.decim_execute(x_chunk);
         }
     }
 
-    pub fn interp_execute(&mut self, x: Complex32, y: &mut [f32]) {
-        let yi0 = self.filt_0.execute(x.re);
+    pub fn interp_execute(&mut self, input: Complex32, output: &mut [f32]) {
+        let yi0 = self.filt_0.execute(input.re);
         let _yi1 = self.filt_0.execute(0.0);
 
-        let _yq0 = self.filt_1.execute(x.im);
+        let _yq0 = self.filt_1.execute(input.im);
         let yq1 = self.filt_1.execute(0.0);
 
-        y[0] = if self.state != 0 { -2.0 * yi0 } else { 2.0 * yi0 };
-        y[1] = if self.state != 0 { 2.0 * yq1 } else { -2.0 * yq1 };
+        output[0] = if self.state != 0 { -2.0 * yi0 } else { 2.0 * yi0 };
+        output[1] = if self.state != 0 { 2.0 * yq1 } else { -2.0 * yq1 };
 
         self.state = 1 - self.state;
     }
 
-    pub fn interp_execute_block(&mut self, x: &[Complex32], y: &mut [f32]) {
-        for (&xi, yi) in x.iter().zip(y.as_chunks_mut::<2>().0) {
+    pub fn interp_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) {
+        for (&xi, yi) in input.iter().zip(output.as_chunks_mut::<2>().0) {
             self.interp_execute(xi, yi);
         }
     }

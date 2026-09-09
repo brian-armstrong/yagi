@@ -124,9 +124,9 @@ where
         self.w0.iter().rev().map(|&x| x.conj()).collect()
     }
 
-    pub fn push(&mut self, x: T) {
-        self.buffer.push(x);
-        self.update_sumsq(x);
+    pub fn push(&mut self, input: T) {
+        self.buffer.push(input);
+        self.update_sumsq(input);
         self.count += 1;
     }
 
@@ -141,26 +141,26 @@ where
         Ok(self.w0.iter().zip(r).map(|(&w, &x)| w.conj() * x).sum())
     }
 
-    pub fn decim_execute(&mut self, x: &[T], k: usize) -> Result<T> {
+    pub fn decim_execute(&mut self, input: &[T], k: usize) -> Result<T> {
         if k == 0 {
             return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
         }
 
-        self.push(x[0]);
+        self.push(input[0]);
         let y = self.execute()?;
-        self.push_block(&x[1..k]);
+        self.push_block(&input[1..k]);
         Ok(y)
     }
 
-    pub fn execute_block(&mut self, k: usize, x: &[T], y: &mut [T]) -> Result<()> {
+    pub fn execute_block(&mut self, k: usize, input: &[T], output: &mut [T]) -> Result<()> {
         if k == 0 {
             return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
         }
 
-        for (i, &xi) in x.iter().enumerate() {
+        for (i, &xi) in input.iter().enumerate() {
             self.push(xi);
             let d_hat = self.execute()?;
-            y[i] = d_hat;
+            output[i] = d_hat;
 
             if (self.count + k - 1).is_multiple_of(k) {
                 self.step_blind(d_hat);

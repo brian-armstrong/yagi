@@ -316,9 +316,9 @@ where
     /// # Panics
     ///
     /// Panics unless `history.len() == y.len() + self.filter_len() - 1`.
-    pub fn execute_block(&self, i: usize, history: &[T], y: &mut [T]) -> Result<()> {
+    pub fn execute_block(&self, i: usize, history: &[T], output: &mut [T]) -> Result<()> {
         let (h, block_h) = self.phase_coefficients(i)?;
-        self.execute_block_with_coefficients(history, y, h, block_h);
+        self.execute_block_with_coefficients(history, output, h, block_h);
         Ok(())
     }
 
@@ -523,18 +523,18 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input sample
-    pub fn push(&mut self, x: T) {
-        self.w.push(x)
+    /// * `input` - input sample
+    pub fn push(&mut self, input: T) {
+        self.w.push(input)
     }
 
     /// Write a block of samples into the filter bank
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples
-    pub fn write(&mut self, x: &[T]) {
-        self.w.write(x)
+    /// * `input` - input samples
+    pub fn write(&mut self, input: &[T]) {
+        self.w.write(input)
     }
 
     /// Execute the filter bank on a single input sample
@@ -555,14 +555,14 @@ where
     /// # Arguments
     ///
     /// * `i` - index of filter to use
-    /// * `x` - input samples
-    /// * `y` - output samples
-    pub fn execute_block(&mut self, i: usize, x: &[T], y: &mut [T]) -> Result<()> {
+    /// * `input` - input samples
+    /// * `output` - output samples
+    pub fn execute_block(&mut self, i: usize, input: &[T], output: &mut [T]) -> Result<()> {
         let (h, block_h) = self.bank.phase_coefficients(i)?;
-        let n = x.len().min(y.len());
+        let n = input.len().min(output.len());
         let bank = &self.bank;
-        self.w.execute_block_contiguous(&x[..n], |indices, history| {
-            bank.execute_block_with_coefficients(history, &mut y[indices], h, block_h);
+        self.w.execute_block_contiguous(&input[..n], |indices, history| {
+            bank.execute_block_with_coefficients(history, &mut output[indices], h, block_h);
         });
         Ok(())
     }

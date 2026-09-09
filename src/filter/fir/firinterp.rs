@@ -225,11 +225,11 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input sample
-    /// * `y` - output samples (size: `interp` x 1)
-    pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<()> {
-        self.w.push(x);
-        self.bank.execute_all(self.w.read(), &mut y[..self.interpolation_factor]);
+    /// * `input` - input sample
+    /// * `output` - output samples (size: `interp` x 1)
+    pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
+        self.w.push(input);
+        self.bank.execute_all(self.w.read(), &mut output[..self.interpolation_factor]);
         Ok(())
     }
 
@@ -241,20 +241,20 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples (size: `n` x 1)
-    /// * `y` - output samples (size: `n * interp` x 1)
+    /// * `input` - input samples (size: `n` x 1)
+    /// * `output` - output samples (size: `n * interp` x 1)
     ///
     /// Returns the number of output samples written, `n * interp`.
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let num_output = x
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let num_output = input
             .len()
             .checked_mul(self.interpolation_factor)
             .ok_or_else(|| Error::Range("interpolator output length overflow".into()))?;
-        if y.len() < num_output {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), num_output,)));
+        if output.len() < num_output {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), num_output,)));
         }
 
-        let block_len = x.len().saturating_sub(self.h_sub_len - 1);
+        let block_len = input.len().saturating_sub(self.h_sub_len - 1);
         if block_len > self.block_scratch.len() {
             self.block_scratch.resize(block_len, T::default());
         }
@@ -263,10 +263,10 @@ where
         let bank = &self.bank;
         let scratch = &mut self.block_scratch;
 
-        self.w.execute_block_contiguous(x, |indices, history| {
+        self.w.execute_block_contiguous(input, |indices, history| {
             let output_start = indices.start * interpolation_factor;
             let output_end = indices.end * interpolation_factor;
-            bank.execute_block_all(history, &mut y[output_start..output_end], scratch);
+            bank.execute_block_all(history, &mut output[output_start..output_end], scratch);
         });
 
         Ok(num_output)
@@ -276,9 +276,9 @@ where
     ///
     /// # Arguments
     ///
-    /// * `y` - output samples (size: `interp` x 1)
-    pub fn flush(&mut self, y: &mut [T]) -> Result<()> {
-        self.execute(T::zero(), y)
+    /// * `output` - output samples (size: `interp` x 1)
+    pub fn flush(&mut self, output: &mut [T]) -> Result<()> {
+        self.execute(T::zero(), output)
     }
 }
 

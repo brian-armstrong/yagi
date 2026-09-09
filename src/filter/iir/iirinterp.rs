@@ -90,26 +90,26 @@ where
     }
 
     /// execute interpolator
-    pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<()> {
-        if y.len() != self.m {
+    pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
+        if output.len() != self.m {
             return Err(Error::Config("output array must be of length m".into()));
         }
 
         // TODO: use iirpfb
-        for (i, yi) in y.iter_mut().enumerate() {
-            *yi = self.iirfilt.execute(if i == 0 { x } else { T::default() });
+        for (i, yi) in output.iter_mut().enumerate() {
+            *yi = self.iirfilt.execute(if i == 0 { input } else { T::default() });
         }
         Ok(())
     }
 
     /// execute interpolation on block of input samples
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        if y.len() != x.len() * self.m {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        if output.len() != input.len() * self.m {
             return Err(Error::Config("output array must be of length n * m".into()));
         }
 
-        for (i, &xi) in x.iter().enumerate() {
-            self.execute(xi, &mut y[i * self.m..(i + 1) * self.m])?;
+        for (i, &xi) in input.iter().enumerate() {
+            self.execute(xi, &mut output[i * self.m..(i + 1) * self.m])?;
         }
         Ok(())
     }

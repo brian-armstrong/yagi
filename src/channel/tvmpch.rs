@@ -86,7 +86,7 @@ impl TimeVaryingMultipathChannel {
     }
 
     /// push sample into the filter object's internal buffer
-    pub fn push(&mut self, x: Complex32) {
+    pub fn push(&mut self, input: Complex32) {
         // update coefficients
         let n = self.h.len();
         for i in 0..n - 1 {
@@ -95,7 +95,7 @@ impl TimeVaryingMultipathChannel {
         }
 
         // push sample into window buffer
-        self.w.push(x);
+        self.w.push(input);
     }
 
     /// compute output sample
@@ -104,8 +104,8 @@ impl TimeVaryingMultipathChannel {
     }
 
     /// execute filter on one sample, equivalent to `push()` then `execute()`
-    pub fn execute_one(&mut self, x: Complex32) -> Complex32 {
-        self.push(x);
+    pub fn execute_one(&mut self, input: Complex32) -> Complex32 {
+        self.push(input);
         self.execute()
     }
 
@@ -113,13 +113,13 @@ impl TimeVaryingMultipathChannel {
     ///
     /// # Arguments
     ///
-    /// * `x` - input array
-    /// * `y` - output array, same length as `x`
-    pub fn execute_block(&mut self, x: &[Complex32], y: &mut [Complex32]) -> Result<()> {
-        if x.len() != y.len() {
+    /// * `input` - input array
+    /// * `output` - output array, same length as `input`
+    pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Config("tvmpch_execute_block(), input and output lengths must match".into()));
         }
-        for (x_i, y_i) in x.iter().zip(y.iter_mut()) {
+        for (x_i, y_i) in input.iter().zip(output.iter_mut()) {
             *y_i = self.execute_one(*x_i);
         }
         Ok(())

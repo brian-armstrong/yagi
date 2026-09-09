@@ -242,11 +242,11 @@ where
         self.q_hat
     }
 
-    pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let mut ny = 0;
 
-        for &xi in x.iter() {
-            let k = self.step(xi, &mut y[ny..])?;
+        for &xi in input.iter() {
+            let k = self.step(xi, &mut output[ny..])?;
             ny += k;
         }
 

@@ -79,13 +79,13 @@ where
     }
 
     /// push sample into auto-correlator object
-    pub fn push(&mut self, x: T) {
+    pub fn push(&mut self, input: T) {
         // push input sample into buffers
-        self.w.push(x); // non-delayed buffer
-        self.wdelay.push(x.conj()); // delayed buffer
+        self.w.push(input); // non-delayed buffer
+        self.wdelay.push(input.conj()); // delayed buffer
 
-        // push |x|^2 into buffer at appropriate location
-        let e2 = (x * x.conj()).re();
+        // push |input|^2 into buffer at appropriate location
+        let e2 = (input * input.conj()).re();
         self.e2_sum -= self.we2[self.ie2];
         self.e2_sum += e2;
         self.we2[self.ie2] = e2;
@@ -94,9 +94,9 @@ where
 
     /// write block of samples to auto-correlator object
     ///
-    ///  x      :   input array
-    pub fn write(&mut self, x: &[T]) {
-        for &xi in x {
+    ///  input      :   input array
+    pub fn write(&mut self, input: &[T]) {
+        for &xi in input {
             self.push(xi);
         }
     }
@@ -113,14 +113,14 @@ where
 
     /// compute auto-correlation on block of samples
     ///
-    ///  x      :   input array
+    ///  input      :   input array
     ///  rxx    :   output array
-    pub fn execute_block(&mut self, x: &[T], rxx: &mut [T]) -> Result<()> {
-        if rxx.len() < x.len() {
+    pub fn execute_block(&mut self, input: &[T], rxx: &mut [T]) -> Result<()> {
+        if rxx.len() < input.len() {
             return Err(Error::Range("autocorr output array too small".into()));
         }
 
-        for (i, &xi) in x.iter().enumerate() {
+        for (i, &xi) in input.iter().enumerate() {
             // push input sample into auto-correlator
             self.push(xi);
 

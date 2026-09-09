@@ -187,22 +187,22 @@ impl CpfskModulator {
     ///
     /// # Arguments
     ///
-    /// * `s` - input symbol
-    /// * `y` - output sample array [size: k x 1]
-    pub fn modulate(&mut self, s: usize, y: &mut [Complex32]) -> Result<()> {
-        if s >= self.m_size {
-            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", s, self.m_size)));
+    /// * `symbol` - input symbol
+    /// * `output` - output sample array [size: k x 1]
+    pub fn modulate(&mut self, symbol: usize, output: &mut [Complex32]) -> Result<()> {
+        if symbol >= self.m_size {
+            return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", symbol, self.m_size)));
         }
-        if y.len() < self.k {
+        if output.len() < self.k {
             return Err(Error::Range(format!(
                 "output buffer length ({}) must be at least samples/symbol ({})",
-                y.len(),
+                output.len(),
                 self.k
             )));
         }
 
         // run interpolator
-        let v = 2.0 * s as f32 - self.m_size as f32 + 1.0;
+        let v = 2.0 * symbol as f32 - self.m_size as f32 + 1.0;
         self.interp.execute(v, &mut self.phase_interp)?;
 
         // integrate phase state
@@ -221,7 +221,7 @@ impl CpfskModulator {
             }
 
             // compute output
-            y[i] = Complex32::from_polar(1.0, theta);
+            output[i] = Complex32::from_polar(1.0, theta);
         }
 
         Ok(())

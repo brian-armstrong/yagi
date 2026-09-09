@@ -38,12 +38,12 @@ where
         self.buf.reset();
     }
 
-    pub fn push(&mut self, x: T) {
-        self.buf.push(x);
+    pub fn push(&mut self, input: T) {
+        self.buf.push(input);
     }
 
-    pub fn write(&mut self, x: &[T]) {
-        self.buf.write(x);
+    pub fn write(&mut self, input: &[T]) {
+        self.buf.write(input);
     }
 
     pub fn execute(&mut self) -> Result<T> {
@@ -53,13 +53,13 @@ where
         Ok(self.buf_sorted[self.k])
     }
 
-    pub fn execute_one(&mut self, x: T) -> Result<T> {
-        self.push(x);
+    pub fn execute_one(&mut self, input: T) -> Result<T> {
+        self.push(input);
         self.execute()
     }
 
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        for (&xi, yi) in x.iter().zip(y.iter_mut()) {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             *yi = self.execute_one(xi)?;
         }
         Ok(())

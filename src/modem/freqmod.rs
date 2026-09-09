@@ -40,10 +40,11 @@ impl FrequencyModulator {
         Ok(())
     }
 
-    pub fn modulate(&mut self, m: f32) -> Result<Complex32> {
+    pub fn modulate(&mut self, input: f32) -> Result<Complex32> {
         // Accumulate phase; this wraps around a 16-bit boundary and ensures
         // that negative numbers are mapped to positive numbers
-        self.sincos_table_phase = (self.sincos_table_phase as i32 + (1 << 16) + (self.ref_ * m).round() as i32) as u16;
+        self.sincos_table_phase =
+            (self.sincos_table_phase as i32 + (1 << 16) + (self.ref_ * input).round() as i32) as u16;
 
         // Compute table index: mask out 10 most significant bits with rounding
         // (adding 0x0020 effectively rounds to nearest value with 10 bits of precision)
@@ -53,13 +54,13 @@ impl FrequencyModulator {
         Ok(self.sincos_table[index as usize])
     }
 
-    pub fn modulate_block(&mut self, m: &[f32], s: &mut [Complex32]) -> Result<()> {
-        if m.len() != s.len() {
+    pub fn modulate_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
-        for (x, y) in m.iter().zip(s.iter_mut()) {
-            *y = self.modulate(*x)?;
+        for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
+            *output_sample = self.modulate(*input_sample)?;
         }
         Ok(())
     }

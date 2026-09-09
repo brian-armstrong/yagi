@@ -324,10 +324,10 @@ impl FrameDetector {
     /// Execute detector on single sample
     ///
     /// Returns Some(&[Complex32]) when frame is detected, pointing to the aligned buffer
-    pub fn execute(&mut self, x: Complex32) -> Option<&[Complex32]> {
+    pub fn execute(&mut self, input: Complex32) -> Option<&[Complex32]> {
         match self.state {
-            QdetectorState::Seek => self.execute_seek(x),
-            QdetectorState::Align => self.execute_align(x),
+            QdetectorState::Seek => self.execute_seek(input),
+            QdetectorState::Align => self.execute_align(input),
         }
 
         if self.frame_detected {

@@ -175,26 +175,26 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input array
+    /// * `input` - input array
     ///
     /// # Panics
     ///
-    /// Panics if `x` is not the same length as the coefficients.
+    /// Panics if `input` is not the same length as the coefficients.
     #[inline]
-    pub fn execute(&self, x: &[T]) -> T {
-        assert_eq!(x.len(), self.h.len(), "Slices must have equal length");
-        unsafe { self.plan.execute_unchecked(x, &self.h) }
+    pub fn execute(&self, input: &[T]) -> T {
+        assert_eq!(input.len(), self.h.len(), "Slices must have equal length");
+        unsafe { self.plan.execute_unchecked(input, &self.h) }
     }
 
     /// Execute overlapping dot products over a contiguous input span.
     ///
-    /// Produces `y[i] = self.execute(&x[i..i + self.len()])` for every output.
+    /// Produces `output[i] = self.execute(&input[i..i + self.len()])` for every output.
     ///
     /// # Panics
     ///
-    /// Panics unless `x.len() == y.len() + self.len() - 1`.
-    pub fn execute_block(&self, x: &[T], y: &mut [T]) {
-        self.plan.execute_block(x, &self.h, &self.block_h, y);
+    /// Panics unless `input.len() == output.len() + self.len() - 1`.
+    pub fn execute_block(&self, input: &[T], output: &mut [T]) {
+        self.plan.execute_block(input, &self.h, &self.block_h, output);
     }
 
     fn checked(h: &[Coeff]) -> Result<&[Coeff]> {

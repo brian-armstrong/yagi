@@ -178,15 +178,15 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - The input samples
+    /// * `input` - The input samples
     ///
     /// # Returns
     ///
     /// The output sample
-    pub fn execute(&mut self, x: &[T]) -> Result<T> {
+    pub fn execute(&mut self, input: &[T]) -> Result<T> {
         let mut y = T::zero();
         for i in 0..self.decimation_factor {
-            self.w.push(x[i]);
+            self.w.push(input[i]);
 
             if i == 0 {
                 let r = self.w.read();
@@ -201,26 +201,26 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - The input samples (size: `n * decimation_factor`)
+    /// * `input` - The input samples (size: `n * decimation_factor`)
     /// * `n` - The number of output samples
-    /// * `y` - The output samples (destination) (size: `n`)
+    /// * `output` - The output samples (destination) (size: `n`)
     ///
     /// Returns the number of output samples written, `n`.
-    pub fn execute_block(&mut self, x: &[T], n: usize, y: &mut [T]) -> Result<usize> {
+    pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<usize> {
         let input_len = n
             .checked_mul(self.decimation_factor)
             .ok_or_else(|| Error::Range("decimator input length overflow".into()))?;
-        if x.len() < input_len {
-            return Err(Error::Config(format!("input length ({}) must be at least {}", x.len(), input_len,)));
+        if input.len() < input_len {
+            return Err(Error::Config(format!("input length ({}) must be at least {}", input.len(), input_len,)));
         }
-        if y.len() < n {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n,)));
+        if output.len() < n {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n,)));
         }
 
         let decimation_factor = self.decimation_factor;
         let filter_len = self.dp.len();
         let dp = &self.dp;
-        self.w.execute_block_contiguous(&x[..input_len], |indices, samples| {
+        self.w.execute_block_contiguous(&input[..input_len], |indices, samples| {
             // execute() produces an output after the first sample in each
             // decimation group, then retains the rest for the next group
             let offset = (decimation_factor - indices.start % decimation_factor) % decimation_factor;
@@ -230,11 +230,11 @@ where
 
             let output_start = (indices.start + offset) / decimation_factor;
             for (i, history) in samples[offset..].windows(filter_len).step_by(decimation_factor).enumerate() {
-                y[output_start + i] = dp.execute(history);
+                output[output_start + i] = dp.execute(history);
             }
         });
 
-        for yi in &mut y[..n] {
+        for yi in &mut output[..n] {
             *yi = *yi * self.scale;
         }
 

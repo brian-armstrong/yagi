@@ -154,20 +154,20 @@ where
         self.pfb.write(buf)
     }
 
-    pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         for i in 0..self.block_len {
             let q = self.q;
             let p = self.p;
-            self.execute_primitive(&x[i * q..(i + 1) * q], &mut y[i * p..(i + 1) * p])?;
+            self.execute_primitive(&input[i * q..(i + 1) * q], &mut output[i * p..(i + 1) * p])?;
         }
         Ok(())
     }
 
-    pub fn execute_block(&mut self, x: &[T], n: usize, y: &mut [T]) -> Result<()> {
+    pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<()> {
         for i in 0..n {
             let q = self.q;
             let p = self.p;
-            self.execute(&x[i * q..(i + 1) * q], &mut y[i * p..(i + 1) * p])?;
+            self.execute(&input[i * q..(i + 1) * q], &mut output[i * p..(i + 1) * p])?;
         }
         Ok(())
     }

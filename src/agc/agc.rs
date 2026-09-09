@@ -68,8 +68,8 @@ where
         };
     }
 
-    pub fn execute(&mut self, x: T) -> Result<T> {
-        let y = x * self.g;
+    pub fn execute(&mut self, input: T) -> Result<T> {
+        let y = input * self.g;
         let y2 = (y * y.conj()).re();
 
         self.y2_prime = (1.0 - self.alpha) * self.y2_prime + self.alpha * y2;
@@ -88,15 +88,15 @@ where
         Ok(y * self.scale)
     }
 
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        for (x_i, y_i) in x.iter().zip(y.iter_mut()) {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        for (x_i, y_i) in input.iter().zip(output.iter_mut()) {
             *y_i = self.execute(*x_i)?;
         }
         Ok(())
     }
 
-    pub fn execute_input_block(&mut self, x: &[T]) -> Result<()> {
-        for x_i in x.iter() {
+    pub fn execute_input_block(&mut self, input: &[T]) -> Result<()> {
+        for x_i in input.iter() {
             self.execute(*x_i)?;
         }
         Ok(())

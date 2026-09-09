@@ -204,15 +204,15 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - channelized input, [size: num_channels x 1]
-    /// * `y` - output time series, [size: num_channels x 1]
-    pub fn synthesizer_execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    /// * `input` - channelized input, [size: num_channels x 1]
+    /// * `output` - output time series, [size: num_channels x 1]
+    pub fn synthesizer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.channelizer_type != ChannelizerType::Synthesizer {
             return Err(Error::Config("cannot execute synthesizer on analyzer channelizer".into()));
         }
 
         // copy channelized symbols to transform input
-        for (local, &input) in self.x[..self.num_channels].iter_mut().zip(&x[..self.num_channels]) {
+        for (local, &input) in self.x[..self.num_channels].iter_mut().zip(&input[..self.num_channels]) {
             *local = input.into();
         }
 
@@ -223,7 +223,7 @@ where
         for i in 0..self.num_channels {
             self.w[i].push(<T as From<Complex32>>::from(self.x_out[i]));
             let r = self.w[i].read();
-            y[i] = self.dp[i].execute(r);
+            output[i] = self.dp[i].execute(r);
         }
 
         Ok(())
@@ -233,21 +233,21 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input time series, [size: num_channels x 1]
-    /// * `y` - channelized output, [size: num_channels x 1]
-    pub fn analyzer_execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    /// * `input` - input time series, [size: num_channels x 1]
+    /// * `output` - channelized output, [size: num_channels x 1]
+    pub fn analyzer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.channelizer_type != ChannelizerType::Analyzer {
             return Err(Error::Config("cannot execute analyzer on synthesizer channelizer".into()));
         }
 
         // push samples into buffers
-        for &xi in &x[..self.num_channels] {
+        for &xi in &input[..self.num_channels] {
             self.analyzer_push(xi);
         }
 
         // execute analysis filters on the given input starting
         // with filterbank at index zero
-        self.analyzer_run(0, y)
+        self.analyzer_run(0, output)
     }
 
     /// Push single sample into analysis filterbank, updating index

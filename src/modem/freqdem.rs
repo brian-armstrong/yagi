@@ -27,23 +27,23 @@ impl FrequencyDemodulator {
         Ok(())
     }
 
-    pub fn demodulate(&mut self, r: Complex32) -> Result<f32> {
+    pub fn demodulate(&mut self, input: Complex32) -> Result<f32> {
         // Compute phase difference and normalize by modulation index
-        let m = (self.r_prime.conj() * r).arg() * self.ref_;
+        let output = (self.r_prime.conj() * input).arg() * self.ref_;
 
         // Save previous input sample
-        self.r_prime = r;
+        self.r_prime = input;
 
-        Ok(m)
+        Ok(output)
     }
 
-    pub fn demodulate_block(&mut self, r: &[Complex32], m: &mut [f32]) -> Result<()> {
-        if r.len() != m.len() {
+    pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Range("input and output arrays must be same length".into()));
         }
 
-        for (x, y) in r.iter().zip(m.iter_mut()) {
-            *y = self.demodulate(*x)?;
+        for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
+            *output_sample = self.demodulate(*input_sample)?;
         }
         Ok(())
     }

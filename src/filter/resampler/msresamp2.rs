@@ -140,26 +140,26 @@ where
         delay
     }
 
-    pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
+    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.num_stages == 0 {
-            y[0] = x[0];
+            output[0] = input[0];
             return Ok(());
         }
 
         match self.type_ {
-            ResampType::Interp => self.interp_execute(x[0], y),
+            ResampType::Interp => self.interp_execute(input[0], output),
             ResampType::Decim => {
-                y[0] = self.decim_execute(x)?;
+                output[0] = self.decim_execute(input)?;
                 Ok(())
             }
         }
     }
 
-    pub fn interp_execute(&mut self, x: T, y: &mut [T]) -> Result<()> {
+    pub fn interp_execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
         let mut b0 = self.buffer0.as_mut_slice();
         let mut b1 = self.buffer1.as_mut_slice();
 
-        b0[0] = x;
+        b0[0] = input;
 
         for s in 0..self.num_stages {
             let k = 1 << s;
@@ -172,12 +172,12 @@ where
         }
 
         let k = 1 << self.num_stages;
-        let (y, _) = y.split_at_mut(k);
-        y.copy_from_slice(b0);
+        let (output, _) = output.split_at_mut(k);
+        output.copy_from_slice(b0);
         Ok(())
     }
 
-    pub fn decim_execute(&mut self, x: &[T]) -> Result<T> {
+    pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
 
@@ -186,8 +186,8 @@ where
             let g = self.num_stages - s - 1;
 
             // first stage reads the input directly. later stages read the prior
-            // buffer. sourcing stage 0 from `x` avoids copying it into a scratch buffer.
-            let src: &[T] = if s == 0 { x } else { b0 };
+            // buffer. sourcing stage 0 from `input` avoids copying it into a scratch buffer.
+            let src: &[T] = if s == 0 { input } else { b0 };
 
             for i in 0..k {
                 b1[i] = self.resamp2[g].decim_execute(&src[2 * i..2 * i + 2])?;
@@ -269,57 +269,61 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples: `n` for interp, `rate * n` for decim
-    /// * `y` - output samples: `rate * n` for interp, `n` for decim
+    /// * `input` - input samples: `n` for interp, `rate * n` for decim
+    /// * `output` - output samples: `rate * n` for interp, `n` for decim
     ///
     /// Returns the number of output samples written.
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        if self.type_ == ResampType::Decim && !x.len().is_multiple_of(self.rate) {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if self.type_ == ResampType::Decim && !input.len().is_multiple_of(self.rate) {
             return Err(Error::Config(format!(
                 "decimation input length ({}) must be a multiple of the rate ({})",
-                x.len(),
+                input.len(),
                 self.rate,
             )));
         }
 
         let required_output = match self.type_ {
-            ResampType::Interp => x
+            ResampType::Interp => input
                 .len()
                 .checked_mul(self.rate)
                 .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?,
-            ResampType::Decim => x.len() / self.rate,
+            ResampType::Decim => input.len() / self.rate,
         };
-        if y.len() < required_output {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), required_output,)));
+        if output.len() < required_output {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                output.len(),
+                required_output,
+            )));
         }
 
         if self.num_stages == 0 {
-            let n = x.len();
-            y[..n].copy_from_slice(x);
+            let n = input.len();
+            output[..n].copy_from_slice(input);
             return Ok(n);
         }
 
         match self.type_ {
-            ResampType::Interp => self.interp_execute_block(x, y),
-            ResampType::Decim => self.decim_execute_block(x, y),
+            ResampType::Interp => self.interp_execute_block(input, output),
+            ResampType::Decim => self.decim_execute_block(input, output),
         }
     }
 
-    pub fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n = x.len();
+    pub fn interp_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let n = input.len();
         let n_out = n << self.num_stages;
 
         let (cap0, cap1) = self.interp_block_caps(n);
         self.grow_block_scratch(cap0, cap1);
 
-        // specializations: the first read reads directly from x, the last
-        // write writes directly into y. in all other cases, use the b0/b1 scratch
+        // specializations: the first read reads directly from input, the last
+        // write writes directly into output. in all other cases, use the b0/b1 scratch
         let mut len = n;
         for s in 0..self.num_stages {
             let last = s == self.num_stages - 1;
-            let src: &[T] = if s == 0 { x } else { &self.block0[..len] };
+            let src: &[T] = if s == 0 { input } else { &self.block0[..len] };
             if last {
-                self.resamp2[s].interp_execute_block(&src[..len], &mut y[..2 * len])?;
+                self.resamp2[s].interp_execute_block(&src[..len], &mut output[..2 * len])?;
             } else {
                 self.resamp2[s].interp_execute_block(&src[..len], &mut self.block1[..2 * len])?;
                 std::mem::swap(&mut self.block0, &mut self.block1);
@@ -335,21 +339,21 @@ where
         Ok(n_out)
     }
 
-    pub fn decim_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n_in = x.len();
+    pub fn decim_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let n_in = input.len();
         let n_out = n_in >> self.num_stages;
 
         let (cap0, cap1) = self.decim_block_caps(n_in);
         self.grow_block_scratch(cap0, cap1);
 
-        // same specializations as interp_execute_block (read x, write y)
+        // same specializations as interp_execute_block (read input, write output)
         let mut len = n_in;
         for s in 0..self.num_stages {
             let g = self.num_stages - s - 1;
             let last = s == self.num_stages - 1;
-            let src: &[T] = if s == 0 { x } else { &self.block0[..len] };
+            let src: &[T] = if s == 0 { input } else { &self.block0[..len] };
             if last {
-                self.resamp2[g].decim_execute_block(&src[..len], &mut y[..len / 2])?;
+                self.resamp2[g].decim_execute_block(&src[..len], &mut output[..len / 2])?;
             } else {
                 self.resamp2[g].decim_execute_block(&src[..len], &mut self.block1[..len / 2])?;
                 std::mem::swap(&mut self.block0, &mut self.block1);
@@ -357,7 +361,7 @@ where
             len /= 2;
         }
 
-        for yi in y[..n_out].iter_mut() {
+        for yi in output[..n_out].iter_mut() {
             *yi = *yi * self.zeta;
         }
 

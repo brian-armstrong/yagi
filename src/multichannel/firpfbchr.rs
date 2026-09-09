@@ -156,10 +156,10 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - channelizer input, [size: decim_rate x 1]
-    pub fn push(&mut self, x: &[T]) {
+    /// * `input` - channelizer input, [size: decim_rate x 1]
+    pub fn push(&mut self, input: &[T]) {
         // load buffers in blocks of P in the reverse direction
-        for &xi in &x[..self.decim_rate] {
+        for &xi in &input[..self.decim_rate] {
             // push sample into buffer at filter index
             self.w[self.base_index].push(xi);
 
@@ -172,8 +172,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `y` - channelizer output, [size: num_channels x 1]
-    pub fn execute(&mut self, y: &mut [T]) {
+    /// * `output` - channelizer output, [size: num_channels x 1]
+    pub fn execute(&mut self, output: &mut [T]) {
         // execute filter outputs
         for i in 0..self.num_channels {
             // buffer index
@@ -192,7 +192,7 @@ where
 
         // copy result to output, scale result by 1/num_channels (C transform)
         let g = 1.0 / self.num_channels as f32;
-        for (yi, &xo) in y[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
+        for (yi, &xo) in output[..self.num_channels].iter_mut().zip(&self.x_out[..self.num_channels]) {
             *yi = <T as From<Complex32>>::from(xo * g);
         }
     }

@@ -151,7 +151,7 @@ impl DirectDigitalSynthesizer {
         delay
     }
 
-    pub fn decim_execute(&mut self, x: &[Complex32]) -> Result<Complex32> {
+    pub fn decim_execute(&mut self, input: &[Complex32]) -> Result<Complex32> {
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
 
@@ -161,7 +161,7 @@ impl DirectDigitalSynthesizer {
             let g = self.num_stages - s - 1;
 
             // first stage reads the input directly, later stages read the prior buffer
-            let src: &[Complex32] = if s == 0 { x } else { b0 };
+            let src: &[Complex32] = if s == 0 { input } else { b0 };
 
             for i in 0..k {
                 b1[i] = self.halfband_resamp[g].decim_execute(&src[2 * i..2 * i + 2])?;
@@ -181,16 +181,16 @@ impl DirectDigitalSynthesizer {
         Ok(y * self.zeta * self.scale)
     }
 
-    pub fn interp_execute(&mut self, x: Complex32, y: &mut [Complex32]) -> Result<()> {
+    pub fn interp_execute(&mut self, input: Complex32, output: &mut [Complex32]) -> Result<()> {
         // increment NCO
-        let x = x * self.scale;
-        let x = self.ncox.mix_up(x);
+        let input = input * self.scale;
+        let input = self.ncox.mix_up(input);
         self.ncox.step();
 
         let mut b0 = self.buffer0.as_mut_slice();
         let mut b1 = self.buffer1.as_mut_slice();
 
-        b0[0] = x;
+        b0[0] = input;
 
         // iterate through each stage
         for s in 0..self.num_stages {
@@ -204,7 +204,7 @@ impl DirectDigitalSynthesizer {
         }
 
         // copy output data
-        y[..self.rate].copy_from_slice(&b0[..self.rate]);
+        output[..self.rate].copy_from_slice(&b0[..self.rate]);
         Ok(())
     }
 }

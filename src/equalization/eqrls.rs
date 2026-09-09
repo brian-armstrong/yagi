@@ -99,8 +99,8 @@ where
         Ok(())
     }
 
-    pub fn push(&mut self, x: T) {
-        self.buffer.push(x)
+    pub fn push(&mut self, input: T) {
+        self.buffer.push(input)
     }
 
     pub fn execute(&self) -> Result<T> {

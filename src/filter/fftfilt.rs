@@ -97,13 +97,13 @@ where
         self.scale * (2.0 * self.n as f32).into()
     }
 
-    pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        if x.len() != self.n || y.len() != self.n {
+    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        if input.len() != self.n || output.len() != self.n {
             return Err(Error::Config("input and output lengths must match filter block size".into()));
         }
 
         // copy input
-        for (tb, &xi) in self.time_buf[..self.n].iter_mut().zip(&x[..self.n]) {
+        for (tb, &xi) in self.time_buf[..self.n].iter_mut().zip(&input[..self.n]) {
             *tb = Complex32::from(xi);
         }
 
@@ -115,7 +115,7 @@ where
         // run forward transform
         self.fft.run(&self.time_buf, &mut self.freq_buf);
 
-        // compute inner product between FFT{ x } and FFT{ H }
+        // compute inner product between FFT{ input } and FFT{ H }
         for i in 0..2 * self.n {
             self.freq_buf[i] *= self.h_freq[i];
         }
@@ -124,7 +124,7 @@ where
         self.ifft.run(&self.freq_buf, &mut self.time_buf);
 
         // copy output summed with buffer
-        for (yi, (&tb, &wi)) in y[..self.n].iter_mut().zip(self.time_buf[..self.n].iter().zip(&self.w[..self.n])) {
+        for (yi, (&tb, &wi)) in output[..self.n].iter_mut().zip(self.time_buf[..self.n].iter().zip(&self.w[..self.n])) {
             *yi = T::from_complex32((tb + wi) * Complex32::from(self.scale));
         }
 

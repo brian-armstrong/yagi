@@ -103,13 +103,13 @@ where
         self.npfb
     }
 
-    pub fn push(&mut self, x: T) {
-        self.w.push(x);
+    pub fn push(&mut self, input: T) {
+        self.w.push(input);
         self.pfb.push(self.w.index(self.w_index).unwrap());
     }
 
-    pub fn write(&mut self, x: &[T]) {
-        for &xi in x {
+    pub fn write(&mut self, input: &[T]) {
+        for &xi in input {
             self.push(xi);
         }
     }
@@ -118,20 +118,20 @@ where
         self.pfb.execute(self.f_index)
     }
 
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        let n = x.len().min(y.len());
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        let n = input.len().min(output.len());
         let w_index = self.w_index;
         let f_index = self.f_index;
         let pfb = &mut self.pfb;
         let mut result = Ok(());
 
-        self.w.execute_block_contiguous(&x[..n], |indices, samples| {
+        self.w.execute_block_contiguous(&input[..n], |indices, samples| {
             if result.is_err() {
                 return;
             }
 
             let delayed = &samples[w_index..w_index + indices.len()];
-            result = pfb.execute_block(f_index, delayed, &mut y[indices]);
+            result = pfb.execute_block(f_index, delayed, &mut output[indices]);
         });
 
         result

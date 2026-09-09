@@ -135,14 +135,14 @@ impl GmskDemodulator {
     ///
     /// # Arguments
     ///
-    /// * `x` - input buffer (length k)
+    /// * `input` - input buffer (length k)
     ///
     /// # Returns
     ///
     /// Demodulated symbol (0 or 1)
-    pub fn demodulate(&mut self, x: &[Complex32]) -> Result<u8> {
-        if x.len() < self.k {
-            return Err(Error::Config(format!("input buffer too small: {} < {}", x.len(), self.k)));
+    pub fn demodulate(&mut self, input: &[Complex32]) -> Result<u8> {
+        if input.len() < self.k {
+            return Err(Error::Config(format!("input buffer too small: {} < {}", input.len(), self.k)));
         }
 
         self.num_symbols_demod += 1;
@@ -152,8 +152,8 @@ impl GmskDemodulator {
                 let mut d_hat = 0.0f32;
                 for i in 0..self.k {
                     // compute phase difference
-                    let phi = (self.x_prime.conj() * x[i]).arg();
-                    self.x_prime = x[i];
+                    let phi = (self.x_prime.conj() * input[i]).arg();
+                    self.x_prime = input[i];
 
                     // run through matched filter
                     filter.push(phi);
@@ -169,8 +169,8 @@ impl GmskDemodulator {
                 let mut d_hat = 0.0f32;
                 for i in 0..self.k {
                     // compute phase difference
-                    let phi = (self.x_prime.conj() * x[i]).arg();
-                    self.x_prime = x[i];
+                    let phi = (self.x_prime.conj() * input[i]).arg();
+                    self.x_prime = input[i];
 
                     // run through equalizer
                     eq.push(phi);

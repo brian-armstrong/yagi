@@ -118,14 +118,14 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - The input samples
+    /// * `input` - The input samples
     ///
     /// # Returns
     ///
     /// The output sample
-    pub fn execute(&mut self, x: &[T]) -> T {
+    pub fn execute(&mut self, input: &[T]) -> T {
         let mut y = T::default();
-        for (i, &xi) in x.iter().enumerate() {
+        for (i, &xi) in input.iter().enumerate() {
             let v = self.iirfilt.execute(xi);
             if i == 0 {
                 y = v;
@@ -138,11 +138,11 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - The input samples (size: `n * decimation_factor`)
-    /// * `y` - The output samples (size: `n`)
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) {
-        for (i, xi) in x.chunks(self.decimation_factor).enumerate() {
-            y[i] = self.execute(xi);
+    /// * `input` - The input samples (size: `n * decimation_factor`)
+    /// * `output` - The output samples (size: `n`)
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) {
+        for (i, xi) in input.chunks(self.decimation_factor).enumerate() {
+            output[i] = self.execute(xi);
         }
     }
 

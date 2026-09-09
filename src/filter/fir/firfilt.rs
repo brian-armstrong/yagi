@@ -399,18 +399,18 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - single input sample
-    pub fn push(&mut self, x: T) {
-        self.w.push(x);
+    /// * `input` - single input sample
+    pub fn push(&mut self, input: T) {
+        self.w.push(input);
     }
 
     /// write block of samples into filter object's internal buffer
     ///
     /// # Arguments
     ///
-    /// * `x` - buffer of input samples
-    pub fn write(&mut self, x: &[T]) {
-        for x_i in x.iter() {
+    /// * `input` - buffer of input samples
+    pub fn write(&mut self, input: &[T]) {
+        for x_i in input.iter() {
             self.push(*x_i);
         }
     }
@@ -430,13 +430,13 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - single input sample
+    /// * `input` - single input sample
     ///
     /// # Returns
     ///
     /// The output sample
-    pub fn execute_one(&mut self, x: T) -> T {
-        self.push(x);
+    pub fn execute_one(&mut self, input: T) -> T {
+        self.push(input);
         self.execute()
     }
 
@@ -448,23 +448,23 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - buffer of input samples
-    /// * `y` - buffer of output samples
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        if x.len() != y.len() {
+    /// * `input` - buffer of input samples
+    /// * `output` - buffer of output samples
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        if input.len() != output.len() {
             return Err(Error::Config("input and output block lengths must be equal".into()));
         }
 
         let dp = &self.dp;
-        self.w.execute_block_contiguous(x, |indices, history| {
+        self.w.execute_block_contiguous(input, |indices, history| {
             if indices.len() == 1 {
-                y[indices.start] = dp.execute(history);
+                output[indices.start] = dp.execute(history);
             } else {
-                dp.execute_block(history, &mut y[indices]);
+                dp.execute_block(history, &mut output[indices]);
             }
         });
 
-        for yi in y {
+        for yi in output {
             *yi = *yi * self.scale;
         }
 

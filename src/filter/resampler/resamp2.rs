@@ -107,15 +107,15 @@ where
         }
     }
 
-    pub fn filter_execute(&mut self, x: T) -> Result<(T, T)> {
+    pub fn filter_execute(&mut self, input: T) -> Result<(T, T)> {
         let (yi, yq) = if !self.toggle {
-            self.w0.push(x);
+            self.w0.push(input);
             let yi = self.w0.index(self.m - 1)?;
             let r = self.w1.read();
             let yq = self.dp.execute(r);
             (yi, yq)
         } else {
-            self.w1.push(x);
+            self.w1.push(input);
             let yi = self.w1.index(self.m - 1)?;
             let r = self.w0.read();
             let yq = self.dp.execute(r);
@@ -129,52 +129,52 @@ where
         Ok((y0, y1))
     }
 
-    pub fn analyzer_execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        self.w1.push(Into::<T>::into(0.5) * x[0]);
+    pub fn analyzer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        self.w1.push(Into::<T>::into(0.5) * input[0]);
         let r = self.w1.read();
         let y1 = self.dp.execute(r);
 
-        self.w0.push(Into::<T>::into(0.5) * x[1]);
+        self.w0.push(Into::<T>::into(0.5) * input[1]);
         let y0 = self.w0.index(self.m - 1)?;
 
-        y[0] = (y1 + y0) * self.scale;
-        y[1] = (y1 - y0) * self.scale;
+        output[0] = (y1 + y0) * self.scale;
+        output[1] = (y1 - y0) * self.scale;
         Ok(())
     }
 
-    pub fn synthesizer_execute(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
-        let x0 = x[0] + x[1];
-        let x1 = x[0] - x[1];
+    pub fn synthesizer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        let x0 = input[0] + input[1];
+        let x1 = input[0] - input[1];
 
         self.w0.push(x0);
-        y[0] = self.w0.index(self.m - 1)? * self.scale;
+        output[0] = self.w0.index(self.m - 1)? * self.scale;
 
         self.w1.push(x1);
         let r = self.w1.read();
-        y[1] = self.dp.execute(r) * self.scale;
+        output[1] = self.dp.execute(r) * self.scale;
 
         Ok(())
     }
 
-    pub fn decim_execute(&mut self, x: &[T]) -> Result<T> {
-        self.w1.push(x[0]);
+    pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
+        self.w1.push(input[0]);
         let r = self.w1.read();
         let y1 = self.dp.execute(r);
 
-        self.w0.push(x[1]);
+        self.w0.push(input[1]);
         let y0 = self.w0.index(self.m - 1)?;
 
         let y = (y0 + y1) * self.scale;
         Ok(y)
     }
 
-    pub fn interp_execute(&mut self, x: T, y: &mut [T]) -> Result<()> {
-        self.w0.push(x);
-        y[0] = self.w0.index(self.m - 1)? * self.scale;
+    pub fn interp_execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
+        self.w0.push(input);
+        output[0] = self.w0.index(self.m - 1)? * self.scale;
 
-        self.w1.push(x);
+        self.w1.push(input);
         let r = self.w1.read();
-        y[1] = self.dp.execute(r) * self.scale;
+        output[1] = self.dp.execute(r) * self.scale;
 
         Ok(())
     }
@@ -183,19 +183,19 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples (size: `n`)
-    /// * `y` - output samples (size: `2 * n`)
+    /// * `input` - input samples (size: `n`)
+    /// * `output` - output samples (size: `2 * n`)
     ///
-    /// Returns the number of output samples written, `2 * x.len()`.
-    pub fn filter_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n_out = x.len().checked_mul(2).ok_or_else(|| Error::Range("filter output length overflow".into()))?;
-        if y.len() < n_out {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
+    /// Returns the number of output samples written, `2 * input.len()`.
+    pub fn filter_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let n_out = input.len().checked_mul(2).ok_or_else(|| Error::Range("filter output length overflow".into()))?;
+        if output.len() < n_out {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n_out,)));
         }
-        for (i, &xi) in x.iter().enumerate() {
+        for (i, &xi) in input.iter().enumerate() {
             let (y0, y1) = self.filter_execute(xi)?;
-            y[2 * i] = y0;
-            y[2 * i + 1] = y1;
+            output[2 * i] = y0;
+            output[2 * i + 1] = y1;
         }
         Ok(n_out)
     }
@@ -204,18 +204,18 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples (size: `2 * n`)
-    /// * `y` - output samples (size: `2 * n`)
+    /// * `input` - input samples (size: `2 * n`)
+    /// * `output` - output samples (size: `2 * n`)
     ///
-    /// Returns the number of output samples written, `x.len()`.
-    pub fn analyzer_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n = x.len() / 2;
+    /// Returns the number of output samples written, `input.len()`.
+    pub fn analyzer_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let n = input.len() / 2;
         let n_out = 2 * n;
-        if y.len() < n_out {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
+        if output.len() < n_out {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n_out,)));
         }
         for i in 0..n {
-            self.analyzer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
+            self.analyzer_execute(&input[2 * i..2 * i + 2], &mut output[2 * i..2 * i + 2])?;
         }
         Ok(n_out)
     }
@@ -224,18 +224,18 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples (size: `2 * n`)
-    /// * `y` - output samples (size: `2 * n`)
+    /// * `input` - input samples (size: `2 * n`)
+    /// * `output` - output samples (size: `2 * n`)
     ///
-    /// Returns the number of output samples written, `x.len()`.
-    pub fn synthesizer_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n = x.len() / 2;
+    /// Returns the number of output samples written, `input.len()`.
+    pub fn synthesizer_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let n = input.len() / 2;
         let n_out = 2 * n;
-        if y.len() < n_out {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
+        if output.len() < n_out {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n_out,)));
         }
         for i in 0..n {
-            self.synthesizer_execute(&x[2 * i..2 * i + 2], &mut y[2 * i..2 * i + 2])?;
+            self.synthesizer_execute(&input[2 * i..2 * i + 2], &mut output[2 * i..2 * i + 2])?;
         }
         Ok(n_out)
     }
@@ -244,17 +244,17 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples (size: `2 * n`)
-    /// * `y` - output samples (size: `n`)
+    /// * `input` - input samples (size: `2 * n`)
+    /// * `output` - output samples (size: `n`)
     ///
-    /// Returns the number of output samples written, `x.len() / 2`.
-    pub fn decim_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n = x.len() / 2;
-        if y.len() < n {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n,)));
+    /// Returns the number of output samples written, `input.len() / 2`.
+    pub fn decim_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let n = input.len() / 2;
+        if output.len() < n {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n,)));
         }
 
-        self.reserve_decim_block(x.len());
+        self.reserve_decim_block(input.len());
 
         let m = self.m;
         let scale = self.scale;
@@ -265,31 +265,31 @@ where
         // by `m` samples. both branches are `n` samples long.
 
         // pack the even samples into a contiguous phase
-        for (i, pair) in x[..2 * n].as_chunks::<2>().0.iter().enumerate() {
+        for (i, pair) in input[..2 * n].as_chunks::<2>().0.iter().enumerate() {
             phase[i] = pair[0];
         }
 
         // compute the dotprod of the even samples as a single block
-        // we're storing these in y, but y will still need the contribution
+        // we're storing these in output, but output will still need the contribution
         // from the odd samples
         let dp = &self.dp;
         self.w1.execute_block_contiguous(phase, |indices, history| {
-            dp.execute_block(history, &mut y[indices]);
+            dp.execute_block(history, &mut output[indices]);
         });
 
         // for the odd samples, we'll fetch the sample and then add and apply scale
 
-        // the first `m` samples of the odd branch are fetched from w0, not x
+        // the first `m` samples of the odd branch are fetched from w0, not input
         let prefix_len = n.min(m);
-        for (yi, &odd) in y[..prefix_len].iter_mut().zip(&self.w0.read()[m..m + prefix_len]) {
+        for (yi, &odd) in output[..prefix_len].iter_mut().zip(&self.w0.read()[m..m + prefix_len]) {
             *yi = (*yi + odd) * scale;
         }
 
         let direct_end = n.saturating_sub(m);
         let retain_start = n.saturating_sub(self.w0.len());
-        for (i, pair) in x[..2 * n].as_chunks::<2>().0.iter().enumerate() {
+        for (i, pair) in input[..2 * n].as_chunks::<2>().0.iter().enumerate() {
             if i < direct_end {
-                y[i + m] = (y[i + m] + pair[1]) * scale;
+                output[i + m] = (output[i + m] + pair[1]) * scale;
             }
             if i >= retain_start {
                 self.w0.push(pair[1]);
@@ -303,41 +303,43 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples (size: `n`)
-    /// * `y` - output samples (size: `2 * n`)
+    /// * `input` - input samples (size: `n`)
+    /// * `output` - output samples (size: `2 * n`)
     ///
-    /// Returns the number of output samples written, `2 * x.len()`.
-    pub fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let n_out =
-            x.len().checked_mul(2).ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
-        if y.len() < n_out {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), n_out,)));
+    /// Returns the number of output samples written, `2 * input.len()`.
+    pub fn interp_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let n_out = input
+            .len()
+            .checked_mul(2)
+            .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
+        if output.len() < n_out {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n_out,)));
         }
 
         let m = self.m;
         let scale = self.scale;
 
-        // compute the odd branch contiguously into the first half of y
+        // compute the odd branch contiguously into the first half of output
         let dp = &self.dp;
-        self.w1.execute_block_contiguous(x, |indices, history| {
-            dp.execute_block(history, &mut y[indices]);
+        self.w1.execute_block_contiguous(input, |indices, history| {
+            dp.execute_block(history, &mut output[indices]);
         });
 
         // expand the temporary results in place in reverse
-        // this prevents overwriting of the dotprod in the first half of y
+        // this prevents overwriting of the dotprod in the first half of output
         let history = self.w0.read();
-        for i in (0..x.len()).rev() {
+        for i in (0..input.len()).rev() {
             // the even output branch is an m-sample delay
-            let even = if i < m { history[m + i] } else { x[i - m] };
+            let even = if i < m { history[m + i] } else { input[i - m] };
             // the odd output branch is the dotprod we computed above
-            let odd = y[i];
-            y[2 * i] = even * scale;
-            y[2 * i + 1] = odd * scale;
+            let odd = output[i];
+            output[2 * i] = even * scale;
+            output[2 * i + 1] = odd * scale;
         }
 
         // retain tailing w0.len() samples
-        let retain_from = x.len().saturating_sub(self.w0.len());
-        self.w0.write(&x[retain_from..]);
+        let retain_from = input.len().saturating_sub(self.w0.len());
+        self.w0.write(&input[retain_from..]);
 
         Ok(n_out)
     }

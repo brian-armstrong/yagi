@@ -146,13 +146,13 @@ where
     }
 
     /// push a sample into the filter's internal buffer
-    pub fn push(&mut self, x: T) {
-        self.w.push(x);
+    pub fn push(&mut self, input: T) {
+        self.w.push(input);
     }
 
     /// write a block of samples into the filter's internal buffer
-    pub fn write(&mut self, x: &[T]) {
-        self.w.write(x);
+    pub fn write(&mut self, input: &[T]) {
+        self.w.write(input);
     }
 
     /// execute the dot product on the filter's internal buffer
@@ -161,8 +161,8 @@ where
     }
 
     /// execute the filter on a block of samples
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) {
-        for (&xi, yi) in x.iter().zip(y.iter_mut()) {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) {
+        for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             self.push(xi);
             *yi = self.execute();
         }

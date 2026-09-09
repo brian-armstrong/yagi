@@ -69,15 +69,15 @@ impl GmskModulator {
     ///
     /// # Arguments
     ///
-    /// * `s` - input symbol (0 or 1)
-    /// * `y` - output buffer (length k)
-    pub fn modulate(&mut self, s: u8, y: &mut [Complex32]) -> Result<()> {
-        if y.len() < self.k {
-            return Err(Error::Config(format!("output buffer too small: {} < {}", y.len(), self.k)));
+    /// * `symbol` - input symbol (0 or 1)
+    /// * `output` - output buffer (length k)
+    pub fn modulate(&mut self, symbol: u8, output: &mut [Complex32]) -> Result<()> {
+        if output.len() < self.k {
+            return Err(Error::Config(format!("output buffer too small: {} < {}", output.len(), self.k)));
         }
 
         // generate sample from symbol
-        let x = if s == 0 { -self.k_inv } else { self.k_inv };
+        let x = if symbol == 0 { -self.k_inv } else { self.k_inv };
 
         // run interpolator
         let mut phi = vec![0.0f32; self.k];
@@ -96,7 +96,7 @@ impl GmskModulator {
             }
 
             // compute output
-            y[i] = Complex32::new(self.theta.cos(), self.theta.sin());
+            output[i] = Complex32::new(self.theta.cos(), self.theta.sin());
         }
 
         Ok(())

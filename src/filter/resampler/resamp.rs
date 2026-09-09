@@ -152,13 +152,13 @@ where
         }
     }
 
-    pub fn execute(&mut self, x: T, y: &mut [T]) -> Result<usize> {
-        self.w.push(x);
+    pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<usize> {
+        self.w.push(input);
 
         let mut n = 0;
         while self.phase <= 0x00ffffff {
             let index = self.phase >> (24 - self.bits_index);
-            y[n] = self.bank.execute(index as usize, self.w.read())?;
+            output[n] = self.bank.execute(index as usize, self.w.read())?;
             n += 1;
             self.phase += self.step;
         }
@@ -167,7 +167,7 @@ where
         Ok(n)
     }
 
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let mut ny = 0;
         let step = self.step;
         let bits_index = self.bits_index;
@@ -176,11 +176,11 @@ where
         let filter_len = bank.filter_len();
         debug_assert!((0x00ffffff >> (24 - bits_index)) < bank.num_filters());
 
-        self.w.execute_block_contiguous(x, |_, samples| {
+        self.w.execute_block_contiguous(input, |_, samples| {
             for history in samples.windows(filter_len) {
                 while *phase <= 0x00ffffff {
                     let index = *phase >> (24 - bits_index);
-                    y[ny] = unsafe { bank.execute_unchecked(index as usize, history) };
+                    output[ny] = unsafe { bank.execute_unchecked(index as usize, history) };
                     ny += 1;
                     *phase += step;
                 }

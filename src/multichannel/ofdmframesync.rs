@@ -927,11 +927,11 @@ impl OfdmFrameSynchronizer {
     /// Push samples through the synchronizer until one payload symbol is
     /// recovered or the input is exhausted.
     ///
-    /// When a symbol is returned, resume with `&x[output.consumed..]` after the
+    /// When a symbol is returned, resume with `&input[output.consumed..]` after the
     /// borrowed symbol is no longer needed. If it completes the logical frame,
     /// call [`Self::reset`] before resuming so the next preamble can be found.
-    pub fn execute<'a>(&'a mut self, x: &[Complex32]) -> Result<OfdmFrameSynchronizerOutput<'a>> {
-        for (i, &xi) in x.iter().enumerate() {
+    pub fn execute<'a>(&'a mut self, input: &[Complex32]) -> Result<OfdmFrameSynchronizerOutput<'a>> {
+        for (i, &xi) in input.iter().enumerate() {
             let mix_down = match self.mode {
                 FrameSyncMode::Acquiring => self.acquisition.should_mix_down(),
                 FrameSyncMode::Receiving => true,
@@ -973,7 +973,7 @@ impl OfdmFrameSynchronizer {
             }
         }
 
-        Ok(OfdmFrameSynchronizerOutput { consumed: x.len(), symbol: None })
+        Ok(OfdmFrameSynchronizerOutput { consumed: input.len(), symbol: None })
     }
 
     /// Push samples through the synchronizer and copy as many recovered payload
@@ -990,7 +990,7 @@ impl OfdmFrameSynchronizer {
     /// next frame can be interpreted as additional payload symbols.
     pub fn execute_symbols_into(
         &mut self,
-        x: &[Complex32],
+        input: &[Complex32],
         symbols: &mut [Complex32],
     ) -> Result<OfdmFrameSynchronizerBlockOutput> {
         let m = self.num_subcarriers();
@@ -1005,8 +1005,8 @@ impl OfdmFrameSynchronizer {
         let mut consumed = 0;
         let mut symbols_written = 0;
 
-        while consumed < x.len() && symbols_written < capacity {
-            let output = self.execute(&x[consumed..])?;
+        while consumed < input.len() && symbols_written < capacity {
+            let output = self.execute(&input[consumed..])?;
             consumed += output.consumed;
 
             let Some(symbol) = output.symbol else {

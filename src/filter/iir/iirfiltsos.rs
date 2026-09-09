@@ -73,16 +73,16 @@ where
 
     /// compute filter output
     #[inline]
-    pub fn execute(&mut self, x: T) -> T {
-        self.execute_df2(x)
+    pub fn execute(&mut self, input: T) -> T {
+        self.execute_df2(input)
     }
 
     /// compute filter output, direct form I method
-    pub fn execute_df1(&mut self, x: T) -> T {
-        // advance buffer x
+    pub fn execute_df1(&mut self, input: T) -> T {
+        // advance buffer input
         self.x[2] = self.x[1];
         self.x[1] = self.x[0];
-        self.x[0] = x;
+        self.x[0] = input;
 
         // advance buffer y
         self.y[2] = self.y[1];
@@ -102,13 +102,13 @@ where
 
     /// compute filter output, direct form II method
     #[inline]
-    pub fn execute_df2(&mut self, x: T) -> T {
+    pub fn execute_df2(&mut self, input: T) -> T {
         // advance buffer
         self.v[2] = self.v[1];
         self.v[1] = self.v[0];
 
         // compute new v[0]
-        self.v[0] = x - self.a[1] * self.v[1] - self.a[2] * self.v[2];
+        self.v[0] = input - self.a[1] * self.v[1] - self.a[2] * self.v[2];
 
         // compute output y
         self.b[0] * self.v[0] + self.b[1] * self.v[1] + self.b[2] * self.v[2]

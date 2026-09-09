@@ -182,23 +182,23 @@ impl CpfskDemodulator {
     ///
     /// # Arguments
     ///
-    /// * `y` - input sample array [size: k x 1]
+    /// * `input` - input sample array [size: k x 1]
     ///
     /// # Returns
     ///
     /// Demodulated symbol
-    pub fn demodulate(&mut self, y: &[Complex32]) -> Result<usize> {
-        if y.len() < self.k {
+    pub fn demodulate(&mut self, input: &[Complex32]) -> Result<usize> {
+        if input.len() < self.k {
             return Err(Error::Range(format!(
                 "input buffer length ({}) must be at least samples/symbol ({})",
-                y.len(),
+                input.len(),
                 self.k
             )));
         }
 
         let mut sym_out = 0;
 
-        for (i, &yi) in y.iter().enumerate() {
+        for (i, &yi) in input.iter().enumerate() {
             // push input sample through filter
             self.mf.push(yi);
 

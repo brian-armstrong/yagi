@@ -46,11 +46,11 @@ impl Limiter {
         }
     }
 
-    pub fn execute(&mut self, x: f32) -> f32 {
-        self.delay.push(x);
+    pub fn execute(&mut self, input: f32) -> f32 {
+        self.delay.push(input);
 
         // hard limit the gain
-        let magnitude = x.abs();
+        let magnitude = input.abs();
         let hold_magnitude = self.peak_hold.execute(magnitude);
         let peak_min_gain = if hold_magnitude <= self.limit { 1.0 } else { self.limit / hold_magnitude };
 
@@ -75,7 +75,7 @@ impl Limiter {
         // perform a delay
         let delayed_x = self.delay.read();
 
-        // println!("x: {}, peak_min_gain: {}, last_release: {}, filtered_gain: {}, delayed_x: {}", x, peak_min_gain, self.last_release, filtered_gain, delayed_x);
+        // println!("input: {}, peak_min_gain: {}, last_release: {}, filtered_gain: {}, delayed_x: {}", input, peak_min_gain, self.last_release, filtered_gain, delayed_x);
 
         delayed_x * filtered_gain
     }

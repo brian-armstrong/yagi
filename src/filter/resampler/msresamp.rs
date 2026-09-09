@@ -137,10 +137,10 @@ where
         }
     }
 
-    pub fn execute(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         match self.type_ {
-            ResampType::Interp => self.interp_execute(x, y),
-            ResampType::Decim => self.decim_execute(x, y),
+            ResampType::Interp => self.interp_execute(input, output),
+            ResampType::Decim => self.decim_execute(input, output),
         }
     }
 
@@ -213,24 +213,28 @@ where
     ///
     /// # Arguments
     ///
-    /// * `x` - input samples
-    /// * `y` - output samples
+    /// * `input` - input samples
+    /// * `output` - output samples
     ///
     /// Returns the number of output samples written.
-    pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let required_output = self.num_output(x.len());
-        if y.len() < required_output {
-            return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), required_output,)));
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let required_output = self.num_output(input.len());
+        if output.len() < required_output {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                output.len(),
+                required_output,
+            )));
         }
 
         if self.num_halfband_stages == 0 {
             // arbitrary-only mode
-            return self.arbitrary_resamp.execute_block(x, y);
+            return self.arbitrary_resamp.execute_block(input, output);
         }
 
         match self.type_ {
-            ResampType::Interp => self.interp_execute_block(x, y),
-            ResampType::Decim => self.decim_execute_block(x, y),
+            ResampType::Interp => self.interp_execute_block(input, output),
+            ResampType::Decim => self.decim_execute_block(input, output),
         }
     }
 
