@@ -32,18 +32,22 @@ where
     /// # Arguments
     ///
     /// * `decimation_factor` - The decimation factor
-    /// * `b` - The feed-forward coefficients
-    /// * `a` - The feed-back coefficients
+    /// * `numerator_coefficients` - The feed-forward coefficients
+    /// * `denominator_coefficients` - The feed-back coefficients
     ///
     /// # Returns
     ///
     /// A new IIR decimation filter
-    pub fn new(decimation_factor: usize, b: &[Coeff], a: &[Coeff]) -> Result<Self> {
+    pub fn new(
+        decimation_factor: usize,
+        numerator_coefficients: &[Coeff],
+        denominator_coefficients: &[Coeff],
+    ) -> Result<Self> {
         if decimation_factor < 2 {
             return Err(Error::Config("decimation factor must be greater than 1".into()));
         }
 
-        let iirfilt = IirFilter::new(b, a)?;
+        let iirfilt = IirFilter::new(numerator_coefficients, denominator_coefficients)?;
 
         Ok(Self { decimation_factor, iirfilt })
     }

@@ -21,7 +21,7 @@ where
     Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T>,
 {
     /// create iirfiltsos object
-    pub fn new(b: &[Coeff; 3], a: &[Coeff; 3]) -> Result<Self> {
+    pub fn new(numerator_coefficients: &[Coeff; 3], denominator_coefficients: &[Coeff; 3]) -> Result<Self> {
         let mut filter = IirSecondOrderSection {
             b: [Coeff::default(); 3],
             a: [Coeff::default(); 3],
@@ -31,7 +31,7 @@ where
         };
 
         // set the internal coefficients
-        filter.set_coefficients(b, a)?;
+        filter.set_coefficients(numerator_coefficients, denominator_coefficients)?;
 
         // clear filter state and return object
         filter.reset();

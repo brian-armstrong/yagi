@@ -412,13 +412,16 @@ where
     ///
     /// # Arguments
     ///
-    /// * `b` - The numerator coefficients
-    /// * `a` - The denominator coefficients
+    /// * `numerator_coefficients` - The numerator coefficients
+    /// * `denominator_coefficients` - The denominator coefficients
     ///
     /// # Returns
     ///
     /// A new IIR filter
-    pub fn new(b: &[Coeff], a: &[Coeff]) -> Result<Self> {
+    pub fn new(numerator_coefficients: &[Coeff], denominator_coefficients: &[Coeff]) -> Result<Self> {
+        let b = numerator_coefficients;
+        let a = denominator_coefficients;
+
         if b.is_empty() {
             return Err(Error::Config("numerator length cannot be zero".into()));
         }
@@ -460,16 +463,23 @@ where
     }
 
     /// create iirfilt object based on second-order sections form
-    /// _B      :   numerator, feed-forward coefficients [size: _nsos x 3]
-    /// _A      :   denominator, feed-back coefficients  [size: _nsos x 3]
-    /// _nsos   :   number of second-order sections
+    /// `numerator_coefficients` : Numerator, feed-forward coefficients [size: `num_sections` x 3]
+    /// `denominator_coefficients` : Denominator, feed-back coefficients [size: `num_sections` x 3]
+    /// `num_sections` : Number of second-order sections
     /// NOTE: The number of second-order sections can be computed from the
     /// filter's order, n, as such:
     ///   r = n % 2
     ///   L = (n-r)/2
-    ///   nsos = L+r
-    pub fn new_sos(b: &[Coeff], a: &[Coeff], nsos: usize) -> Result<Self> {
-        if nsos == 0 {
+    ///   num_sections = L+r
+    pub fn new_sos(
+        numerator_coefficients: &[Coeff],
+        denominator_coefficients: &[Coeff],
+        num_sections: usize,
+    ) -> Result<Self> {
+        let b = numerator_coefficients;
+        let a = denominator_coefficients;
+
+        if num_sections == 0 {
             return Err(Error::Config("filter must have at least one 2nd-order section".into()));
         }
 
@@ -479,15 +489,15 @@ where
             a: a.to_vec(),
             dpa: DotProduct::new_rev(a)?,
             v: Window::new(1)?,
-            n: nsos * 2,
+            n: num_sections * 2,
             nb: 0,
             na: 0,
             filter_type: IirFilterType::Sos,
-            qsos: Vec::with_capacity(nsos),
+            qsos: Vec::with_capacity(num_sections),
             scale: Coeff::one(),
         };
 
-        for i in 0..nsos {
+        for i in 0..num_sections {
             let bt = [b[3 * i], b[3 * i + 1], b[3 * i + 2]];
             let at = [a[3 * i], a[3 * i + 1], a[3 * i + 2]];
             filter.qsos.push(IirSecondOrderSection::<T, Coeff>::new(&bt, &at)?);

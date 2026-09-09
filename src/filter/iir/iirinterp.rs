@@ -18,16 +18,20 @@ where
     f32: Into<Coeff>,
 {
     /// create interpolator from external coefficients
-    pub fn new(m: usize, b: &[Coeff], a: &[Coeff]) -> Result<Self> {
+    pub fn new(
+        interpolation_factor: usize,
+        numerator_coefficients: &[Coeff],
+        denominator_coefficients: &[Coeff],
+    ) -> Result<Self> {
         // validate input
-        if m < 2 {
+        if interpolation_factor < 2 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
         }
 
         // create filter
-        let iirfilt = IirFilter::new(b, a)?;
+        let iirfilt = IirFilter::new(numerator_coefficients, denominator_coefficients)?;
 
-        Ok(IirInterpolationFilter { m, iirfilt })
+        Ok(IirInterpolationFilter { m: interpolation_factor, iirfilt })
     }
 
     /// create interpolator with default Butterworth prototype
