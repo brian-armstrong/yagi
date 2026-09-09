@@ -1,20 +1,93 @@
-name: Rust
+name: CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
+  # pin nightly for the simd feature (nightly only)
+  NIGHTLY: nightly-2026-07-12
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-
+  fmt:
+    name: rustfmt
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  msrv:
+    name: Rust 1.88 (default features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.88"
+      - run: cargo test --lib --verbose
+
+  stable:
+    name: stable (default features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --lib --verbose
+      - run: cargo test --lib --verbose
+
+  nightly-simd:
+    name: nightly (simd feature)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.NIGHTLY }}
+      - run: cargo build --lib --features simd --verbose
+      - run: cargo test --lib --features simd --verbose
+
+  asan:
+    name: address sanitizer (simd)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.NIGHTLY }}
+          components: rust-src
+      - name: Run SIMD tests under ASan
+        env:
+          RUSTFLAGS: -Zsanitizer=address -Cforce-frame-pointers=yes
+          ASAN_OPTIONS: detect_leaks=0
+        run: >
+          cargo test
+          -Zbuild-std
+          --target x86_64-unknown-linux-gnu
+          --lib
+          --features simd
+          --release
+
+  # TODO remove these allowed exceptions as codebase cleans up
+  clippy:
+    name: clippy (default features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: >
+          cargo clippy --lib --
+          -D warnings
+          -A clippy::needless_range_loop
+          -A clippy::too_many_arguments
+          -A clippy::module_inception
