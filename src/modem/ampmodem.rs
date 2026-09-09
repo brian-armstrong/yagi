@@ -81,14 +81,14 @@ impl AmplitudeModem {
         self.delay.reset();
     }
 
-    pub fn get_delay_mod(&self) -> usize {
+    pub fn delay_mod(&self) -> usize {
         match self.mod_type {
             AmpmodemType::Dsb => 0,
             AmpmodemType::Usb | AmpmodemType::Lsb => 2 * self.m,
         }
     }
 
-    pub fn get_delay_demod(&self) -> usize {
+    pub fn delay_demod(&self) -> usize {
         match self.mod_type {
             AmpmodemType::Dsb => {
                 if self.suppressed_carrier {
@@ -107,7 +107,7 @@ impl AmplitudeModem {
         }
     }
 
-    pub fn get_phase_error(&self) -> f32 {
+    pub fn phase_error(&self) -> f32 {
         self.phase_error
     }
 
@@ -280,7 +280,7 @@ mod tests {
         let mut demod = AmplitudeModem::new(mod_index, mod_type, suppressed_carrier)?;
 
         // compute end-to-end delay
-        let delay = mod_.get_delay_mod() + demod.get_delay_demod();
+        let delay = mod_.delay_mod() + demod.delay_demod();
         let mut message_delay = WindowedDelay::new(delay)?;
 
         // run trials

@@ -138,17 +138,17 @@ where
     }
 
     /// Get number of output channels to channelizer
-    pub fn get_num_channels(&self) -> usize {
+    pub fn num_channels(&self) -> usize {
         self.num_channels
     }
 
     /// Get decimation rate
-    pub fn get_decim_rate(&self) -> usize {
+    pub fn decim_rate(&self) -> usize {
         self.decim_rate
     }
 
     /// Get semi-length to channelizer filter prototype
-    pub fn get_m(&self) -> usize {
+    pub fn m(&self) -> usize {
         self.m
     }
 
@@ -229,9 +229,9 @@ mod tests {
 
         // create proper object and test configurations
         let q = RationalPolyphaseChannelizer::<Complex32>::new_kaiser(64, 76, 12, 60.0).unwrap();
-        assert_eq!(q.get_num_channels(), 64);
-        assert_eq!(q.get_decim_rate(), 76);
-        assert_eq!(q.get_m(), 12);
+        assert_eq!(q.num_channels(), 64);
+        assert_eq!(q.decim_rate(), 76);
+        assert_eq!(q.m(), 12);
     }
 
     #[test]

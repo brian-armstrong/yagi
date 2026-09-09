@@ -48,42 +48,42 @@ impl ArbitraryRateSymbolStream {
         self.buf_index = 0;
     }
 
-    pub fn get_ftype(&self) -> FirFilterShape {
-        self.symstream.get_ftype()
+    pub fn filter_shape(&self) -> FirFilterShape {
+        self.symstream.filter_shape()
     }
 
-    pub fn get_bw(&self) -> f32 {
-        1.0 / (self.resamp.get_rate() * self.symstream.get_k() as f32)
+    pub fn bw(&self) -> f32 {
+        1.0 / (self.resamp.rate() * self.symstream.k() as f32)
     }
 
-    pub fn get_m(&self) -> usize {
-        self.symstream.get_m()
+    pub fn m(&self) -> usize {
+        self.symstream.m()
     }
 
-    pub fn get_beta(&self) -> f32 {
-        self.symstream.get_beta()
+    pub fn beta(&self) -> f32 {
+        self.symstream.beta()
     }
 
     pub fn set_scheme(&mut self, ms: ModulationScheme) -> Result<()> {
         self.symstream.set_scheme(ms)
     }
 
-    pub fn get_scheme(&self) -> ModulationScheme {
-        self.symstream.get_scheme()
+    pub fn modulation_scheme(&self) -> ModulationScheme {
+        self.symstream.modulation_scheme()
     }
 
     pub fn set_gain(&mut self, gain: f32) {
         self.symstream.set_gain(gain);
     }
 
-    pub fn get_gain(&self) -> f32 {
-        self.symstream.get_gain()
+    pub fn gain(&self) -> f32 {
+        self.symstream.gain()
     }
 
-    pub fn get_delay(&self) -> f32 {
-        let p = self.symstream.get_delay() as f32;
-        let d = self.resamp.get_delay();
-        let r = self.resamp.get_rate();
+    pub fn delay(&self) -> f32 {
+        let p = self.symstream.delay() as f32;
+        let d = self.resamp.delay();
+        let r = self.resamp.rate();
         (p + d) * r
     }
 
@@ -132,7 +132,7 @@ mod tests {
         let beta = 0.30;
         let ms = ModulationScheme::Qpsk;
         let mut gen = ArbitraryRateSymbolStream::new_linear(ftype, bw, m, beta, ms).unwrap();
-        let delay = gen.get_delay();
+        let delay = gen.delay();
         let tol = 0.05; // error tolerance
 
         // compute buffer length based on delay
@@ -320,7 +320,7 @@ mod tests {
         }
 
         // compute power spectral density output
-        let psd = periodogram.get_psd();
+        let psd = periodogram.psd();
 
         // verify spectrum
         // TODO: sidelobe suppression based on internal msresamp object; should be more like -80 dB

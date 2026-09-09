@@ -87,7 +87,7 @@ where
         self.buffer.reset();
     }
 
-    pub fn get_bw(&self) -> f32 {
+    pub fn bw(&self) -> f32 {
         self.lambda
     }
 
@@ -146,7 +146,7 @@ where
         Ok(())
     }
 
-    pub fn get_weights(&self, w: &mut [T]) -> Result<()> {
+    pub fn weights(&self, w: &mut [T]) -> Result<()> {
         if w.len() != self.p {
             return Err(Error::Config("output weights array length must match filter order".into()));
         }
@@ -173,7 +173,7 @@ where
             self.step(d[i], d_hat)?;
         }
 
-        self.get_weights(w)
+        self.weights(w)
     }
 }
 
@@ -291,8 +291,8 @@ mod tests {
         // get and compare coefficients
         let mut w0 = vec![0.0f32; 9];
         let mut w1 = vec![0.0f32; 9];
-        q0.get_weights(&mut w0).unwrap();
-        q1.get_weights(&mut w1).unwrap();
+        q0.weights(&mut w0).unwrap();
+        q1.weights(&mut w1).unwrap();
         assert_eq!(w0, w1);
     }
 }

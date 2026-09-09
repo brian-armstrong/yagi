@@ -149,32 +149,32 @@ impl CpfskDemodulator {
     }
 
     /// Get demodulator's number of bits per symbol
-    pub fn get_bits_per_symbol(&self) -> usize {
+    pub fn bits_per_symbol(&self) -> usize {
         self.bps
     }
 
     /// Get demodulator's modulation index
-    pub fn get_modulation_index(&self) -> f32 {
+    pub fn modulation_index(&self) -> f32 {
         self.h
     }
 
     /// Get demodulator's number of samples per symbol
-    pub fn get_samples_per_symbol(&self) -> usize {
+    pub fn samples_per_symbol(&self) -> usize {
         self.k
     }
 
     /// Get demodulator's filter delay [symbols]
-    pub fn get_delay(&self) -> usize {
+    pub fn delay(&self) -> usize {
         self.symbol_delay
     }
 
     /// Get demodulator's bandwidth parameter
-    pub fn get_beta(&self) -> f32 {
+    pub fn beta(&self) -> f32 {
         self.beta
     }
 
     /// Get demodulator's filter type
-    pub fn get_type(&self) -> CpfskFilterType {
+    pub fn filter_type(&self) -> CpfskFilterType {
         self.filter_type
     }
 
@@ -253,19 +253,19 @@ mod tests {
 
         // create modulator object and check configuration
         let mod_ = CpfskModulator::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
-        assert_eq!(mod_.get_bits_per_symbol(), 1);
-        assert_abs_diff_eq!(mod_.get_modulation_index(), 0.5);
-        assert_eq!(mod_.get_samples_per_symbol(), 4);
-        assert_abs_diff_eq!(mod_.get_beta(), 0.5);
-        assert_eq!(mod_.get_type(), CpfskFilterType::Square);
+        assert_eq!(mod_.bits_per_symbol(), 1);
+        assert_abs_diff_eq!(mod_.modulation_index(), 0.5);
+        assert_eq!(mod_.samples_per_symbol(), 4);
+        assert_abs_diff_eq!(mod_.beta(), 0.5);
+        assert_eq!(mod_.filter_type(), CpfskFilterType::Square);
 
         // create demodulator object and check configuration
         let dem = CpfskDemodulator::new(1, 0.5, 4, 12, 0.5, CpfskFilterType::Square).unwrap();
-        assert_eq!(dem.get_bits_per_symbol(), 1);
-        assert_abs_diff_eq!(dem.get_modulation_index(), 0.5);
-        assert_eq!(dem.get_samples_per_symbol(), 4);
-        assert_abs_diff_eq!(dem.get_beta(), 0.5);
-        assert_eq!(dem.get_type(), CpfskFilterType::Square);
+        assert_eq!(dem.bits_per_symbol(), 1);
+        assert_abs_diff_eq!(dem.modulation_index(), 0.5);
+        assert_eq!(dem.samples_per_symbol(), 4);
+        assert_abs_diff_eq!(dem.beta(), 0.5);
+        assert_eq!(dem.filter_type(), CpfskFilterType::Square);
     }
 
     #[test]
@@ -307,9 +307,9 @@ mod tests {
         let result = CpfskDemodulator::new_msk(4);
         assert!(result.is_ok());
         let dem = result.unwrap();
-        assert_eq!(dem.get_bits_per_symbol(), 1);
-        assert_abs_diff_eq!(dem.get_modulation_index(), 0.5);
-        assert_eq!(dem.get_type(), CpfskFilterType::Square);
+        assert_eq!(dem.bits_per_symbol(), 1);
+        assert_abs_diff_eq!(dem.modulation_index(), 0.5);
+        assert_eq!(dem.filter_type(), CpfskFilterType::Square);
     }
 
     #[test]
@@ -317,16 +317,16 @@ mod tests {
         let result = CpfskDemodulator::new_gmsk(4, 3, 0.35);
         assert!(result.is_ok());
         let dem = result.unwrap();
-        assert_eq!(dem.get_bits_per_symbol(), 1);
-        assert_abs_diff_eq!(dem.get_modulation_index(), 0.5);
-        assert_eq!(dem.get_type(), CpfskFilterType::Gmsk);
+        assert_eq!(dem.bits_per_symbol(), 1);
+        assert_abs_diff_eq!(dem.modulation_index(), 0.5);
+        assert_eq!(dem.filter_type(), CpfskFilterType::Gmsk);
     }
 
     /// Helper function for mod/demod testing
     fn cpfskmodem_test_mod_demod(mut mod_: CpfskModulator, mut dem: CpfskDemodulator) {
-        let delay = mod_.get_delay() + dem.get_delay();
-        let k = mod_.get_samples_per_symbol();
-        let bps = mod_.get_bits_per_symbol();
+        let delay = mod_.delay() + dem.delay();
+        let k = mod_.samples_per_symbol();
+        let bps = mod_.bits_per_symbol();
 
         let num_symbols = 180 + delay;
         let mut buf = vec![Complex32::new(0.0, 0.0); k];
@@ -365,8 +365,8 @@ mod tests {
         let dem = CpfskDemodulator::new(bps, h, k, m, beta, filter_type).unwrap();
 
         // ensure values match
-        assert_eq!(mod_.get_samples_per_symbol(), k);
-        assert_eq!(dem.get_samples_per_symbol(), k);
+        assert_eq!(mod_.samples_per_symbol(), k);
+        assert_eq!(dem.samples_per_symbol(), k);
 
         // run modulation/demodulation tests
         cpfskmodem_test_mod_demod(mod_, dem);

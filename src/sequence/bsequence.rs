@@ -74,9 +74,9 @@ impl BinarySequence {
     }
 
     pub fn from_msequence(ms: &mut MaximalLengthSequence) -> Result<Self> {
-        let mut bs = BinarySequence::new(ms.get_length() as usize);
+        let mut bs = BinarySequence::new(ms.length() as usize);
         bs.reset();
-        for _ in 0..ms.get_length() {
+        for _ in 0..ms.length() {
             bs.push(ms.advance());
         }
         Ok(bs)
@@ -175,7 +175,7 @@ impl BinarySequence {
         self.s.iter().map(|&x| count_ones(x)).sum()
     }
 
-    pub fn get_length(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.num_bits
     }
 
@@ -237,7 +237,7 @@ mod tests {
         // create and initialize binary sequence on m-sequence
         let bs = BinarySequence::from_msequence(&mut ms).unwrap();
 
-        assert_eq!(bs.get_length(), ms.get_length() as usize);
+        assert_eq!(bs.length(), ms.length() as usize);
     }
 
     #[test]

@@ -45,7 +45,7 @@ impl PacketModem {
     ) -> Result<Self> {
         // create payload modem and get bits per symbol
         let mod_payload = Modem::new(ms)?;
-        let bits_per_symbol = mod_payload.get_bps();
+        let bits_per_symbol = mod_payload.bps();
 
         // create the symbolizer, which owns the packetizer
         let sym = PacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol)?;
@@ -111,13 +111,13 @@ impl PacketModem {
     }
 
     /// get modulation scheme
-    pub fn modscheme(&self) -> ModulationScheme {
-        self.mod_payload.get_scheme()
+    pub fn modulation_scheme(&self) -> ModulationScheme {
+        self.mod_payload.scheme()
     }
 
     /// get demodulator phase error (instantaneous) [radians]
     pub fn demodulator_phase_error(&self) -> f32 {
-        self.mod_payload.get_demodulator_phase_error()
+        self.mod_payload.demodulator_phase_error()
     }
 
     /// get demodulator error-vector magnitude after frame was received
@@ -246,7 +246,7 @@ impl PacketModem {
 
     /// accumulate the squared error vector magnitude for one symbol
     fn accumulate_evm(&mut self) {
-        let e = self.mod_payload.get_demodulator_evm();
+        let e = self.mod_payload.demodulator_evm();
         self.evm += e * e;
     }
 

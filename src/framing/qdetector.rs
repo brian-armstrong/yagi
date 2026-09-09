@@ -250,7 +250,7 @@ impl FrameDetector {
     }
 
     /// Get detection threshold
-    pub fn get_threshold(&self) -> f32 {
+    pub fn threshold(&self) -> f32 {
         self.threshold
     }
 
@@ -264,7 +264,7 @@ impl FrameDetector {
     }
 
     /// Get carrier offset search range
-    pub fn get_range(&self) -> f32 {
+    pub fn range(&self) -> f32 {
         self.dphi_max
     }
 
@@ -282,42 +282,42 @@ impl FrameDetector {
     }
 
     /// Get sequence length
-    pub fn get_seq_len(&self) -> usize {
+    pub fn sequence_len(&self) -> usize {
         self.s_len
     }
 
     /// Get pointer to sequence
-    pub fn get_sequence(&self) -> &[Complex32] {
+    pub fn sequence(&self) -> &[Complex32] {
         &self.s
     }
 
     /// Get buffer length
-    pub fn get_buf_len(&self) -> usize {
+    pub fn buf_len(&self) -> usize {
         self.nfft
     }
 
     /// Get correlator output
-    pub fn get_rxy(&self) -> f32 {
+    pub fn rxy(&self) -> f32 {
         self.rxy
     }
 
     /// Get fractional timing offset estimate
-    pub fn get_tau(&self) -> f32 {
+    pub fn tau(&self) -> f32 {
         self.tau_hat
     }
 
     /// Get channel gain
-    pub fn get_gamma(&self) -> f32 {
+    pub fn gamma(&self) -> f32 {
         self.gamma_hat
     }
 
     /// Get carrier frequency offset estimate
-    pub fn get_dphi(&self) -> f32 {
+    pub fn dphi(&self) -> f32 {
         self.dphi_hat
     }
 
     /// Get carrier phase offset estimate
-    pub fn get_phi(&self) -> f32 {
+    pub fn phi(&self) -> f32 {
         self.phi_hat
     }
 
@@ -583,8 +583,8 @@ mod tests {
         let dphi = 0.0; // carrier frequency offset
         let phi = 0.5; // carrier phase offset
 
-        let seq = q.get_sequence().to_vec();
-        let sequence_len = q.get_seq_len();
+        let seq = q.sequence().to_vec();
+        let sequence_len = q.sequence_len();
         let num_samples = 8 * sequence_len;
 
         // generate received signal with channel impairments
@@ -609,10 +609,10 @@ mod tests {
 
             if q.execute(sample).is_some() {
                 frame_detected = true;
-                tau_hat = q.get_tau();
-                gamma_hat = q.get_gamma();
-                dphi_hat = q.get_dphi();
-                phi_hat = q.get_phi();
+                tau_hat = q.tau();
+                gamma_hat = q.gamma();
+                dphi_hat = q.dphi();
+                phi_hat = q.phi();
                 break;
             }
         }
@@ -788,10 +788,10 @@ mod tests {
             match (v0.is_some(), v1.is_some()) {
                 (true, true) => {
                     frames_detected += 1;
-                    assert_eq!(q0.get_tau(), q1.get_tau());
-                    assert_eq!(q0.get_gamma(), q1.get_gamma());
-                    assert_eq!(q0.get_dphi(), q1.get_dphi());
-                    assert_eq!(q0.get_phi(), q1.get_phi());
+                    assert_eq!(q0.tau(), q1.tau());
+                    assert_eq!(q0.gamma(), q1.gamma());
+                    assert_eq!(q0.dphi(), q1.dphi());
+                    assert_eq!(q0.phi(), q1.phi());
                 }
                 (true, false) => panic!("frame detected on detector 0 but not detector 1"),
                 (false, true) => panic!("frame detected on detector 1 but not detector 0"),

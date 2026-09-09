@@ -257,7 +257,7 @@ where
     /// # Returns
     ///
     /// The scaling factor applied to each output sample
-    pub fn get_scale(&self) -> Coeff {
+    pub fn scale(&self) -> Coeff {
         self.scale
     }
 
@@ -515,8 +515,8 @@ where
     /// # Returns
     ///
     /// The scaling factor applied to each output sample
-    pub fn get_scale(&self) -> Coeff {
-        self.bank.get_scale()
+    pub fn scale(&self) -> Coeff {
+        self.bank.scale()
     }
 
     /// Push a sample into the filter bank

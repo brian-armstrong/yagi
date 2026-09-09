@@ -95,17 +95,17 @@ where
     }
 
     /// get the filter length (number of taps)
-    pub fn get_length(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.h_len
     }
 
     /// get the polynomial order
-    pub fn get_order(&self) -> usize {
+    pub fn order(&self) -> usize {
         self.q
     }
 
     /// get the coefficients for the current delay
-    pub fn get_coefficients(&self) -> &[Coeff] {
+    pub fn coefficients(&self) -> &[Coeff] {
         &self.h
     }
 
@@ -301,7 +301,7 @@ mod tests {
             for k in -16..=16 {
                 let mu = k as f32 / 16.0;
                 q.set_delay(mu).unwrap();
-                let sum: f32 = q.get_coefficients().iter().sum();
+                let sum: f32 = q.coefficients().iter().sum();
                 assert_abs_diff_eq!(sum, 1.0, epsilon = 1e-5);
             }
         }
@@ -314,7 +314,7 @@ mod tests {
         let mut q = FirFarrowFilter::<f32, f32>::new(h_len, 5, 0.45, 60.0).unwrap();
         for &mu in &[-0.5f32, -0.2, 0.0, 0.2, 0.5] {
             q.set_delay(mu).unwrap();
-            let h = q.get_coefficients();
+            let h = q.coefficients();
             for &f in &[0.05f32, 0.1, 0.2] {
                 let mut acc = Complex32::new(0.0, 0.0);
                 for (i, &h_i) in h.iter().enumerate() {
@@ -359,9 +359,9 @@ mod tests {
         assert!(FirFarrowFilter::<f32, f32>::new(19, 5, 0.45, -1.0).is_err());
 
         let mut q = FirFarrowFilter::<f32, f32>::new(19, 5, 0.45, 60.0).unwrap();
-        assert_eq!(q.get_length(), 19);
-        assert_eq!(q.get_order(), 5);
-        assert_eq!(q.get_coefficients().len(), 19);
+        assert_eq!(q.length(), 19);
+        assert_eq!(q.order(), 5);
+        assert_eq!(q.coefficients().len(), 19);
 
         // delay outside [-1,1]
         assert!(q.set_delay(1.01).is_err());

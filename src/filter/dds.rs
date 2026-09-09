@@ -121,19 +121,19 @@ impl DirectDigitalSynthesizer {
         self.scale = scale;
     }
 
-    pub fn get_scale(&self) -> Complex32 {
+    pub fn scale(&self) -> Complex32 {
         self.scale
     }
 
-    pub fn get_num_stages(&self) -> usize {
+    pub fn num_stages(&self) -> usize {
         self.num_stages
     }
 
-    pub fn get_rate(&self) -> usize {
+    pub fn rate(&self) -> usize {
         self.rate
     }
 
-    pub fn get_delay_interp(&self) -> usize {
+    pub fn delay_interp(&self) -> usize {
         let mut delay = 0usize;
         for i in 0..self.num_stages {
             delay *= 2;
@@ -142,7 +142,7 @@ impl DirectDigitalSynthesizer {
         delay
     }
 
-    pub fn get_delay_decim(&self) -> f32 {
+    pub fn delay_decim(&self) -> f32 {
         let mut delay = 0.0f32;
         for i in 0..self.num_stages {
             delay *= 0.5;
@@ -228,8 +228,8 @@ mod tests {
         let mut q = DirectDigitalSynthesizer::new(num_stages, fc, bw, as_).unwrap();
         q.set_scale(Complex32::new(1.0 / r as f32, 0.0));
 
-        let delay_interp = q.get_delay_interp();
-        let delay_decim = q.get_delay_decim();
+        let delay_interp = q.delay_interp();
+        let delay_decim = q.delay_decim();
         let h_len = 2 * r * m + 1; // pulse length
         let num_samples = h_len + delay_interp + delay_decim as usize + 8;
 
@@ -317,7 +317,7 @@ mod tests {
 
         // test setting/getting properties
         q.set_scale(Complex32::new(2.0, -3.0));
-        let scale = q.get_scale();
+        let scale = q.scale();
         assert_eq!(scale, Complex32::new(2.0, -3.0));
     }
 

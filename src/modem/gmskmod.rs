@@ -51,17 +51,17 @@ impl GmskModulator {
     }
 
     /// Get samples per symbol
-    pub fn get_k(&self) -> usize {
+    pub fn k(&self) -> usize {
         self.k
     }
 
     /// Get filter delay in symbols
-    pub fn get_m(&self) -> usize {
+    pub fn m(&self) -> usize {
         self.m
     }
 
     /// Get bandwidth-time product
-    pub fn get_bt(&self) -> f32 {
+    pub fn bt(&self) -> f32 {
         self.bt
     }
 
@@ -118,9 +118,9 @@ mod tests {
 
         // valid configuration
         let q = GmskModulator::new(4, 3, 0.25).unwrap();
-        assert_eq!(q.get_k(), 4);
-        assert_eq!(q.get_m(), 3);
-        assert!((q.get_bt() - 0.25).abs() < 1e-6);
+        assert_eq!(q.k(), 4);
+        assert_eq!(q.m(), 3);
+        assert!((q.bt() - 0.25).abs() < 1e-6);
     }
 
     #[test]

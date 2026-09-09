@@ -589,7 +589,7 @@ where
     }
 
     /// get output scaling for filter
-    pub fn get_scale(&self) -> Coeff {
+    pub fn scale(&self) -> Coeff {
         self.scale
     }
 
@@ -619,7 +619,7 @@ where
     }
 
     /// get coefficients for filter
-    pub fn get_coeffs(&self) -> (Vec<Coeff>, Vec<Coeff>) {
+    pub fn coeffs(&self) -> (Vec<Coeff>, Vec<Coeff>) {
         (self.b.clone(), self.a.clone())
     }
 
@@ -733,7 +733,7 @@ where
     }
 
     /// get filter length (order + 1)
-    pub fn get_length(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.n
     }
 
@@ -749,7 +749,7 @@ where
     }
 
     /// compute power spectral density response of filter object in dB
-    pub fn get_psd(&self, fc: f32) -> f32 {
+    pub fn psd(&self, fc: f32) -> f32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_get_psd(&self.b, &self.a, self.scale, fc)
         } else {
@@ -851,7 +851,7 @@ mod tests {
         }
 
         // verify result
-        let psd = q.get_psd();
+        let psd = q.psd();
         #[rustfmt::skip]
         let regions = [
             PsdRegion { fmin: -0.500, fmax: -0.200, pmin: -tol, pmax:   tol, test_lo:  true, test_hi: true },
@@ -924,9 +924,9 @@ mod tests {
 
         // check properties
         filter.set_scale(7.22);
-        let scale = filter.get_scale();
+        let scale = filter.scale();
         assert_eq!(scale, 7.22);
-        assert_eq!(filter.get_length(), 8); // 7+1
+        assert_eq!(filter.length(), 8); // 7+1
 
         // Rust automatically handles destruction of objects when they go out of scope
     }

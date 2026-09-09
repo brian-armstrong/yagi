@@ -113,7 +113,7 @@ impl FskDemodulator {
         Ok(self.s_demod)
     }
 
-    pub fn get_frequency_error(&self) -> f32 {
+    pub fn frequency_error(&self) -> f32 {
         // Get index of peak bin
         let vm = self.buf_freq[(self.s_demod + self.k_size - 1) % self.k_size].norm(); // previous
         let v0 = self.buf_freq[self.s_demod].norm(); // peak
@@ -123,7 +123,7 @@ impl FskDemodulator {
         (vp - vm) / v0
     }
 
-    pub fn get_symbol_energy(&self, s: usize, range: usize) -> Result<f32> {
+    pub fn symbol_energy(&self, s: usize, range: usize) -> Result<f32> {
         if s >= self.m_size {
             return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", s, self.m_size)));
         }

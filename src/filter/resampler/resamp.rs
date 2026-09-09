@@ -85,7 +85,7 @@ where
         self.w.reset();
     }
 
-    pub fn get_delay(&self) -> usize {
+    pub fn delay(&self) -> usize {
         self.m
     }
 
@@ -102,7 +102,7 @@ where
         Ok(())
     }
 
-    pub fn get_rate(&self) -> f32 {
+    pub fn rate(&self) -> f32 {
         self.r
     }
 
@@ -122,7 +122,7 @@ where
     //     unimplemented!()
     // }
 
-    pub fn get_num_output(&self, num_input: usize) -> usize {
+    pub fn num_output(&self, num_input: usize) -> usize {
         let mut phase = self.phase;
         let mut num_output = 0;
         for _ in 0..num_input {
@@ -135,7 +135,7 @@ where
         num_output
     }
 
-    pub fn get_max_input(&self, max_output: usize) -> usize {
+    pub fn max_input(&self, max_output: usize) -> usize {
         let mut phase = self.phase;
         let mut output_count = 0;
         let mut num_input = 0;
@@ -218,7 +218,7 @@ mod tests {
 
         // allocate buffers and copy input
         let num_input = pulse_len + 2 * m + 1;
-        let num_output = resamp.get_num_output(num_input);
+        let num_output = resamp.num_output(num_input);
         let mut buf_0 = vec![Complex32::new(0.0, 0.0); num_input];
         let mut buf_1 = vec![Complex32::new(0.0, 0.0); num_output];
 
@@ -325,7 +325,7 @@ mod tests {
         for _b in 0..8 {
             for (_i, &size) in sizes.iter().enumerate() {
                 let num_input = size;
-                let num_output = resamp.get_num_output(num_input);
+                let num_output = resamp.num_output(num_input);
                 let num_written = resamp.execute_block(&buf_0[..num_input], &mut buf_1).unwrap();
                 assert_eq!(num_output, num_written);
             }
@@ -432,12 +432,12 @@ mod tests {
         let buf_0 = vec![Complex32::new(0.0, 0.0); max_input];
         let mut buf_1 = vec![Complex32::new(0.0, 0.0); max_output];
 
-        // run blocks and verify get_max_input is consistent with get_num_output
+        // run blocks and verify max_input is consistent with num_output
         for output_limit in [1, 2, 3, 5, 10, 20, 50, 100] {
-            let num_input = resamp.get_max_input(output_limit);
-            let num_output = resamp.get_num_output(num_input);
+            let num_input = resamp.max_input(output_limit);
+            let num_output = resamp.num_output(num_input);
 
-            // get_max_input returns the max inputs that produce at most output_limit outputs
+            // max_input returns the max inputs that produce at most output_limit outputs
             assert!(
                 num_output <= output_limit,
                 "rate={}, limit={}, num_input={}, num_output={}",
@@ -448,7 +448,7 @@ mod tests {
             );
 
             // verify that one more input would exceed the limit
-            let num_output_more = resamp.get_num_output(num_input + 1);
+            let num_output_more = resamp.num_output(num_input + 1);
             assert!(
                 num_output_more > output_limit,
                 "rate={}, limit={}, num_input+1={}, num_output_more={}",
@@ -511,8 +511,8 @@ mod tests {
                 let x = &input[offset..offset + chunk_len];
                 offset += chunk_len;
 
-                let num_output = q_sample.get_num_output(x.len());
-                assert_eq!(q_block.get_num_output(x.len()), num_output);
+                let num_output = q_sample.num_output(x.len());
+                assert_eq!(q_block.num_output(x.len()), num_output);
 
                 let mut expected = vec![Complex32::default(); num_output];
                 let mut nw = 0;
@@ -535,7 +535,7 @@ mod tests {
         let mut q_block = q_sample.clone();
         let input: Vec<_> = (0..257).map(|i| ((i + 3) as f32 * 0.11).cos()).collect();
 
-        let num_output = q_sample.get_num_output(input.len());
+        let num_output = q_sample.num_output(input.len());
         let mut expected = vec![0.0; num_output];
         let mut nw = 0;
         for &xi in &input {

@@ -323,7 +323,7 @@ impl OfdmFrameAcquisition {
         self.is_frame_open()
     }
 
-    fn get_rssi(&self) -> f32 {
+    fn rssi(&self) -> f32 {
         // TODO this should be recomputed during other parts of acquisition, not just seekplcp
         -10.0 * self.g0.log10()
     }
@@ -893,14 +893,14 @@ impl OfdmFrameSynchronizer {
     }
 
     /// get receiver RSSI
-    pub fn get_rssi(&self) -> f32 {
-        // TODO: see note in acquisition.get_rssi()
-        self.acquisition.get_rssi()
+    pub fn rssi(&self) -> f32 {
+        // TODO: see note in acquisition.rssi()
+        self.acquisition.rssi()
     }
 
     /// get receiver carrier frequency offset estimate
-    pub fn get_cfo(&self) -> f32 {
-        self.frontend.nco.get_frequency()
+    pub fn cfo(&self) -> f32 {
+        self.frontend.nco.frequency()
     }
 
     /// set receiver carrier frequency offset estimate
@@ -1210,7 +1210,7 @@ mod tests {
 
         assert!(!q.is_frame_open());
         q.set_cfo(0.0);
-        assert_eq!(q.get_cfo(), 0.0);
+        assert_eq!(q.cfo(), 0.0);
     }
 
     #[test]
@@ -1235,7 +1235,7 @@ mod tests {
         let mut fg = new_framegen(m, cp_len, 0, Some(&p)).unwrap();
         let mut fs = new_framesync(m, cp_len, 0, Some(&p)).unwrap();
 
-        assert_eq!(fs.get_cfo(), 0.0, "cfo starts at zero");
+        assert_eq!(fs.cfo(), 0.0, "cfo starts at zero");
 
         let x: Vec<Complex32> =
             (0..m).map(|_| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * randf())).collect();
@@ -1257,7 +1257,7 @@ mod tests {
         assert!(!symbols.is_empty(), "no symbol recovered");
         assert!(symbols.len() == num_data, "wrong number of symbols received");
 
-        assert_abs_diff_eq!(fs.get_cfo(), dphi, epsilon = 1e-2);
+        assert_abs_diff_eq!(fs.cfo(), dphi, epsilon = 1e-2);
 
         let mut err_0 = 0.0f32;
         let mut err_last = 0.0f32;

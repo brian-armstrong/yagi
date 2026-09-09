@@ -131,7 +131,7 @@ where
     }
 
     /// return sum of squares of buffered samples
-    pub fn get_energy(&self) -> f32 {
+    pub fn energy(&self) -> f32 {
         // value is already computed; simply return value
         self.e2_sum
     }
@@ -253,24 +253,24 @@ mod tests {
         let mut q = Autocorrelator::new(window_size, 3).unwrap();
 
         // empty buffer has no energy
-        assert_abs_diff_eq!(q.get_energy(), 0.0, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.energy(), 0.0, epsilon = 1e-6);
 
         // fill with unit-magnitude samples: energy ramps to window_size
         for i in 1..=window_size {
             q.push(Complex32::new(0.0, 1.0));
-            assert_abs_diff_eq!(q.get_energy(), i as f32, epsilon = 1e-5);
+            assert_abs_diff_eq!(q.energy(), i as f32, epsilon = 1e-5);
         }
 
         // saturated: the running sum drops the oldest sample
         for _ in 0..window_size {
             q.push(Complex32::new(1.0, 0.0));
-            assert_abs_diff_eq!(q.get_energy(), window_size as f32, epsilon = 1e-5);
+            assert_abs_diff_eq!(q.energy(), window_size as f32, epsilon = 1e-5);
         }
 
         // pushing zeros drains it back down
         for i in (0..window_size).rev() {
             q.push(Complex32::new(0.0, 0.0));
-            assert_abs_diff_eq!(q.get_energy(), i as f32, epsilon = 1e-5);
+            assert_abs_diff_eq!(q.energy(), i as f32, epsilon = 1e-5);
         }
     }
 

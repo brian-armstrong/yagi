@@ -189,7 +189,7 @@ where
     /// # Returns
     ///
     /// The interpolation rate
-    pub fn get_interp_rate(&self) -> usize {
+    pub fn interp_rate(&self) -> usize {
         self.interpolation_factor
     }
 
@@ -198,7 +198,7 @@ where
     /// # Returns
     ///
     /// The sub-filter length
-    pub fn get_sub_len(&self) -> usize {
+    pub fn sub_len(&self) -> usize {
         self.h_sub_len
     }
 
@@ -216,8 +216,8 @@ where
     /// # Returns
     ///
     /// The output scaling factor
-    pub fn get_scale(&self) -> Coeff {
-        self.bank.get_scale()
+    pub fn scale(&self) -> Coeff {
+        self.bank.scale()
     }
 
     /// Execute the interpolator on a single input sample and write the
@@ -293,14 +293,14 @@ mod tests {
     #[autotest_annotate(autotest_firinterp_rrrf_common)]
     fn test_firinterp_rrrf_common() {
         let interp = FirInterpolationFilter::<f32, f32>::new_kaiser(17, 4, 60.0).unwrap();
-        assert_eq!(interp.get_interp_rate(), 17);
+        assert_eq!(interp.interp_rate(), 17);
     }
 
     #[test]
     #[autotest_annotate(autotest_firinterp_crcf_common)]
     fn test_firinterp_crcf_common() {
         let interp = FirInterpolationFilter::<Complex32, f32>::new_kaiser(7, 4, 60.0).unwrap();
-        assert_eq!(interp.get_interp_rate(), 7);
+        assert_eq!(interp.interp_rate(), 7);
     }
 
     #[test]

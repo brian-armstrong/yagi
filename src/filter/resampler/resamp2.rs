@@ -89,11 +89,11 @@ where
         self.scale = scale;
     }
 
-    pub fn get_scale(&self) -> Coeff {
+    pub fn scale(&self) -> Coeff {
         self.scale
     }
 
-    pub fn get_delay(&self) -> usize {
+    pub fn delay(&self) -> usize {
         2 * self.m - 1
     }
 
@@ -538,23 +538,23 @@ mod tests {
 
         // create proper object and test configurations
         let q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
-        assert_eq!(q.get_delay(), 2 * 4 - 1);
+        assert_eq!(q.delay(), 2 * 4 - 1);
         // q.print();
 
         // redesign filter with new length
         // nb there's no recreate
         // q = q.recreate(8, 0.0, 60.0);
         let q = HalfBandResampler::<Complex32, f32>::new(8, 0.0, 60.0).unwrap();
-        assert_eq!(q.get_delay(), 2 * 8 - 1);
+        assert_eq!(q.delay(), 2 * 8 - 1);
 
         // redesign filter with same length, but new stop-band suppression
         // q = q.recreate(8, 0.0, 80.0);
         let mut q = HalfBandResampler::<Complex32, f32>::new(8, 0.0, 80.0).unwrap();
-        assert_eq!(q.get_delay(), 2 * 8 - 1);
+        assert_eq!(q.delay(), 2 * 8 - 1);
 
         // test setting/getting properties
         q.set_scale(7.22);
-        let scale = q.get_scale();
+        let scale = q.scale();
         assert_eq!(scale, 7.22);
     }
 

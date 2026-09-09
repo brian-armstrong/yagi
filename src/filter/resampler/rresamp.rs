@@ -83,7 +83,7 @@ where
         let mut q = Self::new(interp, decim, m, &h)?;
         q.block_len = gcd;
 
-        let rate = q.get_rate();
+        let rate = q.rate();
         q.set_scale((if decim_flag { rate.sqrt() } else { 1.0 / rate.sqrt() }).into());
 
         Ok(q)
@@ -104,46 +104,46 @@ where
         self.pfb.set_scale(scale)
     }
 
-    pub fn get_scale(&self) -> Coeff {
-        self.pfb.get_scale()
+    pub fn scale(&self) -> Coeff {
+        self.pfb.scale()
     }
 
-    pub fn get_delay(&self) -> usize {
+    pub fn delay(&self) -> usize {
         self.m
     }
 
-    pub fn get_block_len(&self) -> usize {
+    pub fn block_len(&self) -> usize {
         self.block_len
     }
 
-    pub fn get_rate(&self) -> f32 {
+    pub fn rate(&self) -> f32 {
         self.p as f32 / self.q as f32
     }
 
-    pub fn get_p(&self) -> usize {
+    pub fn p(&self) -> usize {
         self.p * self.block_len
     }
 
-    pub fn get_interp(&self) -> usize {
+    pub fn interp(&self) -> usize {
         self.p
     }
 
-    pub fn get_q(&self) -> usize {
+    pub fn q(&self) -> usize {
         self.q * self.block_len
     }
 
-    pub fn get_decim(&self) -> usize {
+    pub fn decim(&self) -> usize {
         self.q
     }
 
-    pub fn get_num_output(&self, num_input: usize) -> usize {
+    pub fn num_output(&self, num_input: usize) -> usize {
         let input_block_size = self.q * self.block_len;
         let output_block_size = self.p * self.block_len;
         let num_blocks = num_input / input_block_size;
         num_blocks * output_block_size
     }
 
-    pub fn get_max_input(&self, max_output: usize) -> usize {
+    pub fn max_input(&self, max_output: usize) -> usize {
         let input_block_size = self.q * self.block_len;
         let output_block_size = self.p * self.block_len;
         let max_blocks = max_output / output_block_size;
@@ -304,7 +304,7 @@ mod tests {
             }
         };
 
-        let r = resamp.get_rate();
+        let r = resamp.rate();
 
         // create and configure objects
         let bw = 0.2f32; // target output bandwidth
@@ -317,7 +317,7 @@ mod tests {
         // generate samples and push through spgram object
         let mut buf_0 = vec![num_complex::Complex32::new(0.0, 0.0); decim]; // input buffer
         let mut buf_1 = vec![num_complex::Complex32::new(0.0, 0.0); interp]; // output buffer
-        while q.get_num_samples_total() < n {
+        while q.num_samples_total() < n {
             // generate block of samples
             gen.write_samples(&mut buf_0).unwrap();
 
@@ -329,7 +329,7 @@ mod tests {
         }
 
         // verify result
-        let psd = q.get_psd();
+        let psd = q.psd();
         #[rustfmt::skip]
         let regions = vec![
             PsdRegion { fmin: -0.5,    fmax: -0.6*bw, pmin:     0.0, pmax: -as_+tol, test_lo: false, test_hi: true },
@@ -440,8 +440,8 @@ mod tests {
 
     fn testbench_rresamp_crcf_num_output(interp: usize, decim: usize) {
         let mut resamp = RationalResampler::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
-        let q = resamp.get_q();
-        let p = resamp.get_p();
+        let q = resamp.q();
+        let p = resamp.p();
 
         // allocate buffers
         let max_blocks = 20;
@@ -453,7 +453,7 @@ mod tests {
             let num_input = num_blocks * q;
             let expected_output = num_blocks * p;
 
-            assert_eq!(resamp.get_num_output(num_input), expected_output);
+            assert_eq!(resamp.num_output(num_input), expected_output);
 
             // actually run the resampler to verify
             resamp.execute_block(&buf_in[..num_input], num_blocks, &mut buf_out[..expected_output]).unwrap();
@@ -482,14 +482,14 @@ mod tests {
 
     fn testbench_rresamp_crcf_max_input(interp: usize, decim: usize) {
         let resamp = RationalResampler::<Complex32, f32>::new_kaiser_simple(interp, decim).unwrap();
-        let q = resamp.get_q();
+        let q = resamp.q();
 
         // test various output limits
         for output_limit in [1, 2, 5, 10, 20, 50, 100] {
-            let max_input = resamp.get_max_input(output_limit);
-            let num_output = resamp.get_num_output(max_input);
+            let max_input = resamp.max_input(output_limit);
+            let num_output = resamp.num_output(max_input);
 
-            // get_max_input returns the max inputs that produce at most output_limit outputs
+            // max_input returns the max inputs that produce at most output_limit outputs
             assert!(
                 num_output <= output_limit,
                 "interp={}, decim={}, limit={}, max_input={}, num_output={}",
@@ -502,7 +502,7 @@ mod tests {
 
             // verify that one more block would exceed the limit
             let next_input = max_input + q;
-            let next_output = resamp.get_num_output(next_input);
+            let next_output = resamp.num_output(next_input);
             assert!(
                 next_output > output_limit,
                 "interp={}, decim={}, limit={}, next_input={}, next_output={}",

@@ -286,7 +286,7 @@ impl Channel {
     }
 
     /// get the multipath channel coefficients currently in use
-    pub fn get_multipath(&self) -> &[Complex32] {
+    pub fn multipath_coefficients(&self) -> &[Complex32] {
         &self.h
     }
 }
@@ -369,7 +369,7 @@ mod tests {
 
         let mut q = Channel::new();
         q.add_multipath_random(expected.len()).unwrap();
-        assert_eq!(q.get_multipath(), &expected);
+        assert_eq!(q.multipath_coefficients(), &expected);
     }
 
     #[test]

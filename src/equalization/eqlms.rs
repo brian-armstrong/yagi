@@ -100,7 +100,7 @@ where
         self.x2_sum = 0.0;
     }
 
-    pub fn get_bw(&self) -> f32 {
+    pub fn bw(&self) -> f32 {
         self.mu
     }
 
@@ -112,15 +112,15 @@ where
         Ok(())
     }
 
-    pub fn get_length(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.h_len
     }
 
-    pub fn get_coefficients(&self) -> &[T] {
+    pub fn coefficients(&self) -> &[T] {
         &self.w0
     }
 
-    pub fn get_weights(&self) -> Vec<T> {
+    pub fn weights(&self) -> Vec<T> {
         self.w0.iter().rev().map(|&x| x.conj()).collect()
     }
 
@@ -296,7 +296,7 @@ mod tests {
                     2 => {
                         // decision-directed
                         let _index = mod_.demodulate(sym_out).unwrap();
-                        let d_hat = mod_.get_demodulator_sample();
+                        let d_hat = mod_.demodulator_sample();
                         eq.step(d_hat, sym_out);
                     }
                     _ => {}
@@ -413,21 +413,21 @@ mod tests {
         // assert_eq!(q.print(), Ok(()));
 
         // test getting/setting properties
-        assert_eq!(q.get_length(), h_len);
+        assert_eq!(q.length(), h_len);
         let mu = 0.1;
         q.set_bw(mu).unwrap();
-        assert_eq!(q.get_bw(), mu);
+        assert_eq!(q.bw(), mu);
         assert!(q.set_bw(-1.0).is_err());
 
         // other configurations
         assert!(q.decim_execute(&[], 0).is_err());
 
         // test getting weights
-        let h = q.get_coefficients();
+        let h = q.coefficients();
         for (i, &coeff) in h.iter().enumerate() {
             assert_eq!(coeff, if i == k * m { Complex::new(1.0, 0.0) } else { Complex::new(0.0, 0.0) });
         }
-        let w = q.get_coefficients();
+        let w = q.coefficients();
         for (i, &coeff) in w.iter().enumerate() {
             assert_eq!(coeff, if i == k * m { Complex::new(1.0, 0.0) } else { Complex::new(0.0, 0.0) });
         }
@@ -469,8 +469,8 @@ mod tests {
         }
 
         // get and compare coefficients
-        let w0 = q0.get_coefficients();
-        let w1 = q1.get_coefficients();
+        let w0 = q0.coefficients();
+        let w1 = q1.coefficients();
         assert_eq!(w0, w1);
     }
 }

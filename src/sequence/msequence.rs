@@ -130,16 +130,16 @@ impl MaximalLengthSequence {
     }
 
     /// Getter methods
-    pub fn get_genpoly_length(&self) -> u32 {
+    pub fn genpoly_length(&self) -> u32 {
         self.m
     }
-    pub fn get_length(&self) -> u32 {
+    pub fn length(&self) -> u32 {
         self.n
     }
-    pub fn get_genpoly(&self) -> u32 {
+    pub fn genpoly(&self) -> u32 {
         self.g
     }
-    pub fn get_state(&self) -> u32 {
+    pub fn state(&self) -> u32 {
         self.state
     }
 
@@ -148,12 +148,12 @@ impl MaximalLengthSequence {
     }
 
     pub fn measure_period(&mut self) -> u32 {
-        let s = self.get_state();
+        let s = self.state();
         let mut period = 0;
         for _ in 0..=self.n {
             self.advance();
             period += 1;
-            if self.get_state() == s {
+            if self.state() == s {
                 break;
             }
         }
@@ -176,7 +176,7 @@ mod tests {
     fn msequence_test_autocorrelation(m: u32) {
         // create and initialize m-sequence
         let mut ms = MaximalLengthSequence::from_degree(m).unwrap();
-        let n = ms.get_length();
+        let n = ms.length();
 
         // create and initialize first binary sequence on m-sequence
         let bs1 = BinarySequence::from_msequence(&mut ms).unwrap();
@@ -185,8 +185,8 @@ mod tests {
         let mut bs2 = BinarySequence::from_msequence(&mut ms).unwrap();
 
         // ensure sequences are the same length
-        assert_eq!(bs1.get_length(), n as usize);
-        assert_eq!(bs2.get_length(), n as usize);
+        assert_eq!(bs1.length(), n as usize);
+        assert_eq!(bs2.length(), n as usize);
 
         // when sequences are aligned, autocorrelation is equal to length
         let mut rxy = bs1.correlate(&bs2).unwrap();
@@ -467,8 +467,8 @@ mod tests {
         // create proper object and test configurations
         let mut q = MaximalLengthSequence::from_genpoly(MSEQUENCE_GENPOLY_M11).unwrap();
 
-        assert_eq!(q.get_state(), 1);
+        assert_eq!(q.state(), 1);
         q.set_state(0x8a);
-        assert_eq!(q.get_state(), 0x8a);
+        assert_eq!(q.state(), 0x8a);
     }
 }

@@ -221,23 +221,23 @@ where
         Ok(())
     }
 
-    pub fn get_tau(&self) -> f32 {
+    pub fn tau(&self) -> f32 {
         self.tau_decim
     }
 
-    pub fn get_rate(&self) -> f32 {
+    pub fn rate(&self) -> f32 {
         self.rate
     }
 
-    pub fn get_del(&self) -> f32 {
+    pub fn del(&self) -> f32 {
         self.del
     }
 
-    pub fn get_q(&self) -> f32 {
+    pub fn q(&self) -> f32 {
         self.q
     }
 
-    pub fn get_q_hat(&self) -> f32 {
+    pub fn q_hat(&self) -> f32 {
         self.q_hat
     }
 
@@ -354,7 +354,7 @@ mod tests {
         assert_eq!(buf_0[..nw_0], buf_1[..nw_1]);
 
         // check other internal properties
-        assert_eq!(q0.get_tau(), q1.get_tau());
+        assert_eq!(q0.tau(), q1.tau());
     }
 
     // test errors and invalid configuration
@@ -763,7 +763,7 @@ mod tests {
 
         // Set rate to 0.5 - this means ~2 outputs per input
         sync.set_fractional_rate(0.5).unwrap();
-        assert!(sync.get_rate() < 1.0);
+        assert!(sync.rate() < 1.0);
 
         // Input buffer with 100 samples
         let x: Vec<Complex32> = (0..100).map(|i| Complex32::new(i as f32 * 0.1, 0.0)).collect();

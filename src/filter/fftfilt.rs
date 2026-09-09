@@ -93,7 +93,7 @@ where
         self.scale = scale / (2.0 * self.n as f32).into();
     }
 
-    pub fn get_scale(&self) -> Coeff {
+    pub fn scale(&self) -> Coeff {
         self.scale * (2.0 * self.n as f32).into()
     }
 
@@ -134,7 +134,7 @@ where
         Ok(())
     }
 
-    pub fn get_length(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.h_len
     }
 }
@@ -158,8 +158,8 @@ mod tests {
         let mut filt = FftFilter::<f32, f32>::new(&h_2, 64).unwrap();
 
         filt.set_scale(3.0);
-        assert_eq!(filt.get_scale(), 3.0);
-        assert_eq!(filt.get_length(), 9);
+        assert_eq!(filt.scale(), 3.0);
+        assert_eq!(filt.length(), 9);
     }
 
     #[test]

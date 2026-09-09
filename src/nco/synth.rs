@@ -19,7 +19,7 @@ const SYNTH_PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 /// correlates a received block against the sequence.
 ///
 /// The table is sampled at the *nearest* index rather than interpolated, so
-/// [`Self::get_current`] is always one of the table entries. The half-sample
+/// [`Self::current`] is always one of the table entries. The half-sample
 /// outputs are midpoints of adjacent entries, used for early/late timing
 /// discrimination in [`Self::despread_triple`].
 #[derive(Debug, Clone)]
@@ -118,32 +118,32 @@ impl TableOscillator {
     }
 
     /// get phase
-    pub fn get_phase(&self) -> f32 {
+    pub fn phase(&self) -> f32 {
         self.theta
     }
 
     /// get frequency
-    pub fn get_frequency(&self) -> f32 {
+    pub fn frequency(&self) -> f32 {
         self.d_theta
     }
 
     /// get table length
-    pub fn get_length(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.tab.len()
     }
 
     /// get table value at the current phase
-    pub fn get_current(&self) -> Complex32 {
+    pub fn current(&self) -> Complex32 {
         self.current
     }
 
     /// get midpoint between the current value and the previous table entry
-    pub fn get_half_previous(&self) -> Complex32 {
+    pub fn half_previous(&self) -> Complex32 {
         self.prev_half
     }
 
     /// get midpoint between the current value and the next table entry
-    pub fn get_half_next(&self) -> Complex32 {
+    pub fn half_next(&self) -> Complex32 {
         self.next_half
     }
 
@@ -219,7 +219,7 @@ impl TableOscillator {
 
     /// spread a single symbol across a full table cycle
     ///
-    /// `y` must hold at least [`Self::get_length`] samples.
+    /// `y` must hold at least [`Self::length`] samples.
     pub fn spread(&mut self, x: Complex32, y: &mut [Complex32]) -> Result<()> {
         if y.len() < self.tab.len() {
             return Err(Error::Range("synth spread output too small".into()));
@@ -235,7 +235,7 @@ impl TableOscillator {
 
     /// despread a full table cycle back into a single symbol
     ///
-    /// `x` must hold at least [`Self::get_length`] samples.
+    /// `x` must hold at least [`Self::length`] samples.
     ///
     /// The correlation is normalized by `sum(|x|*|tab|)` rather than by the code
     /// energy, so the result carries the symbol's *phase* at unit magnitude.
@@ -260,7 +260,7 @@ impl TableOscillator {
     /// despread with early, punctual and late correlators
     ///
     /// The early and late outputs use the half-sample midpoints, giving a timing
-    /// discriminant. `x` must hold at least [`Self::get_length`] samples.
+    /// discriminant. `x` must hold at least [`Self::length`] samples.
     ///
     /// Returns `(early, punctual, late)`.
     pub fn despread_triple(&mut self, x: &[Complex32]) -> Result<(Complex32, Complex32, Complex32)> {
@@ -352,7 +352,7 @@ mod tests {
     // a real +/-1 spreading code
     fn tab_bpsk(m: usize) -> Vec<Complex32> {
         let mut ms = MaximalLengthSequence::from_degree(m as u32).unwrap();
-        let n = ms.get_length() as usize;
+        let n = ms.length() as usize;
         (0..n)
             .map(|_| {
                 let chip = if ms.advance() == 0 { -1.0 } else { 1.0 };
@@ -367,11 +367,11 @@ mod tests {
 
         let tab = tab_cexp(8);
         let q = TableOscillator::new(&tab).unwrap();
-        assert_eq!(q.get_length(), 8);
+        assert_eq!(q.length(), 8);
 
         // default frequency visits each entry once per cycle
-        assert_abs_diff_eq!(q.get_frequency(), 2.0 * PI / 8.0, epsilon = 1e-6);
-        assert_abs_diff_eq!(q.get_phase(), 0.0, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.frequency(), 2.0 * PI / 8.0, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.phase(), 0.0, epsilon = 1e-6);
 
         // negative pll bandwidth is rejected, and leaves the object usable
         let mut q = TableOscillator::new(&tab).unwrap();
@@ -399,7 +399,7 @@ mod tests {
 
             for i in 0..3 * n {
                 let expected = tab[i % n];
-                let c = q.get_current();
+                let c = q.current();
                 assert_abs_diff_eq!(c.re, expected.re, epsilon = 1e-5);
                 assert_abs_diff_eq!(c.im, expected.im, epsilon = 1e-5);
                 q.step();
@@ -515,7 +515,7 @@ mod tests {
         let mut theta_ref = 0.0f32;
 
         for _ in 0..4000 {
-            let mut err = theta_ref - q.get_phase();
+            let mut err = theta_ref - q.phase();
             while err > PI {
                 err -= 2.0 * PI;
             }
@@ -532,6 +532,6 @@ mod tests {
             }
         }
 
-        assert_abs_diff_eq!(q.get_frequency(), f_ref, epsilon = 0.02);
+        assert_abs_diff_eq!(q.frequency(), f_ref, epsilon = 0.02);
     }
 }

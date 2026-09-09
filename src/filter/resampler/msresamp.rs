@@ -82,9 +82,9 @@ where
         self.buffer_index = 0;
     }
 
-    pub fn get_delay(&self) -> f32 {
-        let delay_halfband = self.halfband_resamp.get_delay();
-        let delay_arbitrary = self.arbitrary_resamp.get_delay() as f32;
+    pub fn delay(&self) -> f32 {
+        let delay_halfband = self.halfband_resamp.delay();
+        let delay_arbitrary = self.arbitrary_resamp.delay() as f32;
 
         // compute delay based on interpolation or decimation type
         if self.num_halfband_stages == 0 {
@@ -100,33 +100,33 @@ where
         }
     }
 
-    pub fn get_rate(&self) -> f32 {
+    pub fn rate(&self) -> f32 {
         self.rate
     }
 
-    pub fn get_num_output(&self, num_input: usize) -> usize {
+    pub fn num_output(&self, num_input: usize) -> usize {
         match self.type_ {
             ResampType::Interp => {
-                let n = self.arbitrary_resamp.get_num_output(num_input);
+                let n = self.arbitrary_resamp.num_output(num_input);
                 n * (1 << self.num_halfband_stages)
             }
             ResampType::Decim => {
                 let n = (self.buffer_index + num_input) >> self.num_halfband_stages;
-                self.arbitrary_resamp.get_num_output(n)
+                self.arbitrary_resamp.num_output(n)
             }
         }
     }
 
-    pub fn get_max_input(&self, max_output: usize) -> usize {
+    pub fn max_input(&self, max_output: usize) -> usize {
         match self.type_ {
             ResampType::Interp => {
                 let halfband_factor = 1 << self.num_halfband_stages;
                 let max_arbitrary_outputs = max_output / halfband_factor;
-                self.arbitrary_resamp.get_max_input(max_arbitrary_outputs)
+                self.arbitrary_resamp.max_input(max_arbitrary_outputs)
             }
             ResampType::Decim => {
                 let halfband_factor = 1 << self.num_halfband_stages;
-                let max_halfband_outputs = self.arbitrary_resamp.get_max_input(max_output);
+                let max_halfband_outputs = self.arbitrary_resamp.max_input(max_output);
 
                 if max_halfband_outputs == 0 {
                     halfband_factor - 1 - self.buffer_index
@@ -187,7 +187,7 @@ where
     pub fn reserve_block(&mut self, n: usize) {
         match self.type_ {
             ResampType::Interp => {
-                let n_arb = self.arbitrary_resamp.get_num_output(n);
+                let n_arb = self.arbitrary_resamp.num_output(n);
                 if n_arb > self.block_scratch.len() {
                     self.block_scratch.resize(n_arb, T::default());
                 }
@@ -218,7 +218,7 @@ where
     ///
     /// Returns the number of output samples written.
     pub fn execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let required_output = self.get_num_output(x.len());
+        let required_output = self.num_output(x.len());
         if y.len() < required_output {
             return Err(Error::Config(format!("output length ({}) must be at least {}", y.len(), required_output,)));
         }
@@ -236,7 +236,7 @@ where
 
     fn interp_execute_block(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
         // interp does arb -> halfband
-        let n_arb = self.arbitrary_resamp.get_num_output(x.len());
+        let n_arb = self.arbitrary_resamp.num_output(x.len());
         if n_arb > self.block_scratch.len() {
             self.block_scratch.resize(n_arb, T::default());
         }
@@ -330,7 +330,7 @@ mod tests {
         let buf_len = 256;
         let mut buf_0 = vec![Complex32::default(); buf_len]; // input buffer
         let mut buf_1 = vec![Complex32::default(); buf_len]; // output buffer
-        while q.get_num_samples_total() < n {
+        while q.num_samples_total() < n {
             // generate block of samples
             gen.write_samples(&mut buf_0).unwrap();
 
@@ -342,7 +342,7 @@ mod tests {
         }
 
         // verify result
-        let psd = q.get_psd();
+        let psd = q.psd();
         #[rustfmt::skip]
         let regions = vec![
             PsdRegion { fmin: -0.5,    fmax: -0.6*bw, pmin: 0.0,   pmax: -as_+tol, test_lo: false, test_hi: true },
@@ -393,7 +393,7 @@ mod tests {
         for _b in 0..8 {
             for (_i, &size) in sizes.iter().enumerate() {
                 let num_input = size;
-                let num_output = q.get_num_output(num_input);
+                let num_output = q.num_output(num_input);
                 let num_written = q.execute(&buf_0[..num_input], &mut buf_1[..]).unwrap();
                 assert_eq!(num_output, num_written);
             }
@@ -461,10 +461,10 @@ mod tests {
 
         // test various output limits
         for output_limit in [1, 2, 3, 5, 10, 20, 50, 100] {
-            let num_input = q.get_max_input(output_limit);
-            let num_output = q.get_num_output(num_input);
+            let num_input = q.max_input(output_limit);
+            let num_output = q.num_output(num_input);
 
-            // get_max_input returns the max inputs that produce at most output_limit outputs
+            // max_input returns the max inputs that produce at most output_limit outputs
             assert!(
                 num_output <= output_limit,
                 "rate={}, limit={}, num_input={}, num_output={}",
@@ -475,7 +475,7 @@ mod tests {
             );
 
             // verify that one more input would exceed the limit
-            let num_output_more = q.get_num_output(num_input + 1);
+            let num_output_more = q.num_output(num_input + 1);
             assert!(
                 num_output_more > output_limit,
                 "rate={}, limit={}, num_input+1={}, num_output_more={}",
@@ -575,7 +575,7 @@ mod tests {
         let x: Vec<Complex32> = (0..n_in).map(|_| Complex32::new(randnf(), randnf())).collect();
 
         // generous output allocation
-        let cap = q_sample.get_num_output(n_in) + 64;
+        let cap = q_sample.num_output(n_in) + 64;
         let mut y_ref = vec![Complex32::new(0.0, 0.0); cap];
         let mut y_block = vec![Complex32::new(0.0, 0.0); cap];
 
@@ -610,7 +610,7 @@ mod tests {
         let total: usize = chunks.iter().sum();
         let x: Vec<Complex32> = (0..total).map(|_| Complex32::new(randnf(), randnf())).collect();
 
-        let cap = q_sample.get_num_output(total) + 256;
+        let cap = q_sample.num_output(total) + 256;
         let mut y_ref = vec![Complex32::new(0.0, 0.0); cap];
         let mut y_block = vec![Complex32::new(0.0, 0.0); cap];
 
@@ -647,7 +647,7 @@ mod tests {
             let mut q = MultiStageResampler::<Complex32, f32>::new(rate, 60.0).unwrap();
             let mut q_ref = q.clone();
             let x: Vec<Complex32> = (0..100).map(|_| Complex32::new(randnf(), randnf())).collect();
-            let n_out = q.get_num_output(x.len());
+            let n_out = q.num_output(x.len());
 
             let mut short = vec![Complex32::default(); n_out - 1];
             assert!(q.execute_block(&x, &mut short).is_err());

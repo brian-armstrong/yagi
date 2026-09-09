@@ -49,19 +49,19 @@ impl SymbolStream {
         self.buf_index = 0;
     }
 
-    pub fn get_ftype(&self) -> FirFilterShape {
+    pub fn filter_shape(&self) -> FirFilterShape {
         self.filter_type
     }
 
-    pub fn get_k(&self) -> usize {
+    pub fn k(&self) -> usize {
         self.k
     }
 
-    pub fn get_m(&self) -> usize {
+    pub fn m(&self) -> usize {
         self.m
     }
 
-    pub fn get_beta(&self) -> f32 {
+    pub fn beta(&self) -> f32 {
         self.beta
     }
 
@@ -70,19 +70,19 @@ impl SymbolStream {
         Ok(())
     }
 
-    pub fn get_scheme(&self) -> ModulationScheme {
-        self.modem.get_scheme()
+    pub fn modulation_scheme(&self) -> ModulationScheme {
+        self.modem.scheme()
     }
 
     pub fn set_gain(&mut self, gain: f32) {
         self.gain = gain;
     }
 
-    pub fn get_gain(&self) -> f32 {
+    pub fn gain(&self) -> f32 {
         self.gain
     }
 
-    pub fn get_delay(&self) -> usize {
+    pub fn delay(&self) -> usize {
         self.k * self.m
     }
 
@@ -120,7 +120,7 @@ mod tests {
         let beta = 0.30;
         let ms = ModulationScheme::Qpsk;
         let mut gen = SymbolStream::new_linear(ftype, k, m, beta, ms).unwrap();
-        let delay = gen.get_delay();
+        let delay = gen.delay();
         let tol = 2.0 + k as f32; // error tolerance (fairly wide due to random signal)
 
         let mut i = 0;
@@ -287,7 +287,7 @@ mod tests {
         }
 
         // compute power spectral density output
-        let psd = periodogram.get_psd();
+        let psd = periodogram.psd();
 
         // verify spectrum
         let f0 = 0.5 * (1.0 - beta) / k as f32;

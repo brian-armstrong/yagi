@@ -104,22 +104,22 @@ where
         self.buffer1.iter_mut().for_each(|x| *x = T::default());
     }
 
-    pub fn get_rate(&self) -> f32 {
+    pub fn rate(&self) -> f32 {
         match self.type_ {
             ResampType::Interp => self.rate as f32,
             ResampType::Decim => 1.0 / self.rate as f32,
         }
     }
 
-    pub fn get_num_stages(&self) -> usize {
+    pub fn num_stages(&self) -> usize {
         self.num_stages
     }
 
-    pub fn get_type(&self) -> ResampType {
+    pub fn resampler_type(&self) -> ResampType {
         self.type_
     }
 
-    pub fn get_delay(&self) -> f32 {
+    pub fn delay(&self) -> f32 {
         let mut delay = 0.0;
         match self.type_ {
             ResampType::Interp => {
@@ -382,7 +382,7 @@ mod tests {
         // create and configure objects
         let mut resamp =
             MultiStageHalfBandResampler::<Complex32, f32>::new(ResampType::Interp, num_stages, fc, 0.0, as_).unwrap();
-        let delay = resamp.get_delay();
+        let delay = resamp.delay();
 
         // generate samples and push through spgram object
         let m = 1 << num_stages; // interpolation rate

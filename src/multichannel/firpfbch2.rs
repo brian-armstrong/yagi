@@ -136,17 +136,17 @@ where
     }
 
     /// Get channelizer type
-    pub fn get_type(&self) -> ChannelizerType {
+    pub fn channelizer_type(&self) -> ChannelizerType {
         self.channelizer_type
     }
 
     /// Get number of channels
-    pub fn get_num_channels(&self) -> usize {
+    pub fn num_channels(&self) -> usize {
         self.num_channels
     }
 
     /// Get prototype filter semi-length
-    pub fn get_m(&self) -> usize {
+    pub fn m(&self) -> usize {
         self.m
     }
 
@@ -418,8 +418,8 @@ mod tests {
         // create proper object and test configurations
         let q =
             OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, 76, 12, 60.0).unwrap();
-        assert_eq!(q.get_type(), ChannelizerType::Analyzer);
-        assert_eq!(q.get_num_channels(), 76);
-        assert_eq!(q.get_m(), 12);
+        assert_eq!(q.channelizer_type(), ChannelizerType::Analyzer);
+        assert_eq!(q.num_channels(), 76);
+        assert_eq!(q.m(), 12);
     }
 }

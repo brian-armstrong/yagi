@@ -213,15 +213,15 @@ where
         Ok(())
     }
 
-    pub fn get_num_steps(&self) -> usize {
+    pub fn num_steps(&self) -> usize {
         self.num_steps
     }
 
-    pub fn get_opt_v(&self) -> f32 {
+    pub fn opt_v(&self) -> f32 {
         self.v0
     }
 
-    pub fn get_opt_u(&self) -> f32 {
+    pub fn opt_u(&self) -> f32 {
         self.u0
     }
 }
@@ -264,8 +264,8 @@ mod tests {
         }
 
         // check result
-        assert_abs_diff_eq!(q.get_opt_v(), v_opt, epsilon = 1e-3);
-        assert_abs_diff_eq!(q.get_opt_u(), utility(v_opt, v_opt), epsilon = 1e-3);
+        assert_abs_diff_eq!(q.opt_v(), v_opt, epsilon = 1e-3);
+        assert_abs_diff_eq!(q.opt_u(), utility(v_opt, v_opt), epsilon = 1e-3);
     }
 
     // unbounded:
@@ -422,11 +422,11 @@ mod tests {
         assert!(q.execute().is_ok());
 
         // run a few steps
-        assert_eq!(0, q.get_num_steps());
+        assert_eq!(0, q.num_steps());
         q.step().unwrap();
         q.step().unwrap();
         q.step().unwrap();
-        assert_eq!(3, q.get_num_steps());
+        assert_eq!(3, q.num_steps());
 
         // No need to explicitly destroy objects in Rust
     }

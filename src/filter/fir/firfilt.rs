@@ -485,7 +485,7 @@ where
     /// # Returns
     ///
     /// The output scaling
-    pub fn get_scale(&self) -> Coeff {
+    pub fn scale(&self) -> Coeff {
         self.scale
     }
 
@@ -494,7 +494,7 @@ where
     /// # Returns
     ///
     /// The length of the filter
-    pub fn get_length(&self) -> usize {
+    pub fn length(&self) -> usize {
         self.h_len
     }
 
@@ -503,7 +503,7 @@ where
     /// # Returns
     ///
     /// The coefficients array
-    pub fn get_coefficients(&self) -> &[Coeff] {
+    pub fn coefficients(&self) -> &[Coeff] {
         &self.h
     }
 
@@ -529,7 +529,7 @@ where
     /// # Returns
     ///
     /// The power spectral density
-    pub fn get_psd(&self, fc: f32) -> f32 {
+    pub fn psd(&self, fc: f32) -> f32 {
         fir_filter_get_psd(&self.h, self.scale, fc)
     }
 
@@ -660,9 +660,9 @@ mod tests {
         // assert!(q.print().is_ok());
 
         q.set_scale(3.0);
-        let scale = q.get_scale();
+        let scale = q.scale();
         assert_eq!(scale, 3.0);
-        assert_eq!(q.get_length(), 11);
+        assert_eq!(q.length(), 11);
     }
 
     #[test]
@@ -693,11 +693,11 @@ mod tests {
         q.set_coefficients(&h1).unwrap();
 
         // assert the scale has not changed
-        let scale = q.get_scale();
+        let scale = q.scale();
         assert_eq!(scale, 3.0);
 
         // assert the coefficients are original scaled by 7.1
-        let h = q.get_coefficients();
+        let h = q.coefficients();
         for i in 0..n {
             assert_abs_diff_eq!(h[i], h0[i] * 7.1, epsilon = 1e-6);
         }
@@ -796,14 +796,14 @@ mod tests {
             let y_orig = filt_orig.execute_one(x);
             let y_copy = filt_copy.execute_one(x);
 
-            let h_orig = filt_orig.get_coefficients();
-            let h_copy = filt_copy.get_coefficients();
+            let h_orig = filt_orig.coefficients();
+            let h_copy = filt_copy.coefficients();
 
-            let scale_orig = filt_orig.get_scale();
-            let scale_copy = filt_copy.get_scale();
+            let scale_orig = filt_orig.scale();
+            let scale_copy = filt_copy.scale();
 
-            let h_len_orig = filt_orig.get_length();
-            let h_len_copy = filt_copy.get_length();
+            let h_len_orig = filt_orig.length();
+            let h_len_copy = filt_copy.length();
 
             let w_orig = &filt_orig.w;
             let w_copy = &filt_copy.w;
@@ -914,7 +914,7 @@ mod tests {
         // q.copy_coefficients(&mut h1);
 
         // copy coefficients from filter object
-        let h2 = q.get_coefficients();
+        let h2 = q.coefficients();
         h1.copy_from_slice(&h2);
 
         // ensure values are equal; no need for tolerance as values should be exact

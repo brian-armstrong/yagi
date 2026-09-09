@@ -117,7 +117,7 @@ pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
         for _ in 0..32 {
             optim.step()?;
         }
-        optim.get_opt_v()
+        optim.opt_v()
     };
 
     if let Some(error) = q.utility_error.take() {

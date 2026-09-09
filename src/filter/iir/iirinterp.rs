@@ -159,7 +159,7 @@ mod tests {
         let block_size = 10;
         let mut buf_0 = vec![Complex32::default(); block_size];
         let mut buf_1 = vec![Complex32::default(); block_size * interp_factor];
-        while q.get_num_samples_total() < n {
+        while q.num_samples_total() < n {
             // generate block of samples
             gen.write_samples(&mut buf_0).unwrap();
 
@@ -171,7 +171,7 @@ mod tests {
         }
 
         // verify result
-        let psd = q.get_psd();
+        let psd = q.psd();
         #[rustfmt::skip]
         let regions = vec![
             PsdRegion{ fmin: -0.5,    fmax: -0.6*bw, pmin: 0.0,     pmax: -as_+tol, test_lo: false, test_hi: true },

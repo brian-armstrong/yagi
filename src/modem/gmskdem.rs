@@ -85,22 +85,22 @@ impl GmskDemodulator {
     }
 
     /// Get samples per symbol
-    pub fn get_k(&self) -> usize {
+    pub fn k(&self) -> usize {
         self.k
     }
 
     /// Get filter delay in symbols
-    pub fn get_m(&self) -> usize {
+    pub fn m(&self) -> usize {
         self.m
     }
 
     /// Get bandwidth-time product
-    pub fn get_bt(&self) -> f32 {
+    pub fn bt(&self) -> f32 {
         self.bt
     }
 
     /// Get number of symbols demodulated
-    pub fn get_num_symbols_demod(&self) -> u64 {
+    pub fn num_symbols_demod(&self) -> u64 {
         self.num_symbols_demod
     }
 
@@ -119,9 +119,9 @@ impl GmskDemodulator {
     }
 
     /// Get equalizer bandwidth (learning rate)
-    pub fn get_eq_bw(&self) -> Option<f32> {
+    pub fn eq_bw(&self) -> Option<f32> {
         match &self.filter {
-            FilterState::Equalizer(eq) => Some(eq.get_bw()),
+            FilterState::Equalizer(eq) => Some(eq.bw()),
             FilterState::Fir(_) => None,
         }
     }
@@ -214,9 +214,9 @@ mod tests {
 
         // valid configuration
         let q = GmskDemodulator::new(4, 3, 0.25).unwrap();
-        assert_eq!(q.get_k(), 4);
-        assert_eq!(q.get_m(), 3);
-        assert!((q.get_bt() - 0.25).abs() < 1e-6);
+        assert_eq!(q.k(), 4);
+        assert_eq!(q.m(), 3);
+        assert!((q.bt() - 0.25).abs() < 1e-6);
         // Note: uses_equalizer() depends on GMSKDEM_USE_EQUALIZER const
         assert_eq!(q.uses_equalizer(), GMSKDEM_USE_EQUALIZER);
     }
@@ -228,11 +228,11 @@ mod tests {
         if q.uses_equalizer() {
             // With equalizer, set_eq_bw should succeed
             assert!(q.set_eq_bw(0.01).is_ok());
-            assert!((q.get_eq_bw().unwrap() - 0.01).abs() < 1e-6);
+            assert!((q.eq_bw().unwrap() - 0.01).abs() < 1e-6);
         } else {
             // With FIR filter, set_eq_bw should fail
             assert!(q.set_eq_bw(0.01).is_err());
-            assert!(q.get_eq_bw().is_none());
+            assert!(q.eq_bw().is_none());
         }
     }
 

@@ -191,47 +191,47 @@ where
     }
 
     /// get FFT size
-    pub fn get_nfft(&self) -> usize {
+    pub fn nfft(&self) -> usize {
         self.nfft
     }
 
     /// get window length
-    pub fn get_window_len(&self) -> usize {
+    pub fn window_len(&self) -> usize {
         self.window_len
     }
 
     /// get delay between transforms
-    pub fn get_delay(&self) -> usize {
+    pub fn delay(&self) -> usize {
         self.delay
     }
 
     /// get window type used for spectral estimation
-    pub fn get_wtype(&self) -> WindowType {
+    pub fn wtype(&self) -> WindowType {
         self.wtype
     }
 
     /// get number of samples processed since reset
-    pub fn get_num_samples(&self) -> u64 {
+    pub fn num_samples(&self) -> u64 {
         self.num_samples
     }
 
     /// get number of samples processed since start
-    pub fn get_num_samples_total(&self) -> u64 {
+    pub fn num_samples_total(&self) -> u64 {
         self.num_samples_total
     }
 
     /// get number of transforms processed since reset
-    pub fn get_num_transforms(&self) -> u64 {
+    pub fn num_transforms(&self) -> u64 {
         self.num_transforms
     }
 
     /// get number of transforms processed since start
-    pub fn get_num_transforms_total(&self) -> u64 {
+    pub fn num_transforms_total(&self) -> u64 {
         self.num_transforms_total
     }
 
     /// get forgetting factor (filter bandwidth)
-    pub fn get_alpha(&self) -> f32 {
+    pub fn alpha(&self) -> f32 {
         self.alpha
     }
 
@@ -298,7 +298,7 @@ where
 
     /// compute spectral periodogram output (fft-shifted values, linear)
     /// from current buffer contents
-    pub fn get_psd_mag(&self) -> Vec<f32> {
+    pub fn psd_mag(&self) -> Vec<f32> {
         let mut psd_mag = vec![0.0; self.nfft];
         self.read_psd_mag(&mut psd_mag).unwrap();
         psd_mag
@@ -327,7 +327,7 @@ where
 
     /// compute spectral periodogram output (fft-shifted values
     /// in dB) from current buffer contents
-    pub fn get_psd(&self) -> Vec<f32> {
+    pub fn psd(&self) -> Vec<f32> {
         let mut psd = vec![0.0; self.nfft];
         self.read_psd(&mut psd).unwrap();
         psd
@@ -351,7 +351,7 @@ where
             q.step();
         }
 
-        Ok(q.get_psd())
+        Ok(q.psd())
     }
 }
 
@@ -380,11 +380,11 @@ mod tests {
         }
 
         // verify number of samples processed
-        assert_eq!(q.get_num_samples(), num_samples as u64);
-        assert_eq!(q.get_num_samples_total(), num_samples as u64);
+        assert_eq!(q.num_samples(), num_samples as u64);
+        assert_eq!(q.num_samples_total(), num_samples as u64);
 
         // compute power spectral density output
-        let psd = q.get_psd();
+        let psd = q.psd();
 
         // verify result
         for p in psd.iter() {
@@ -535,7 +535,7 @@ mod tests {
         }
 
         // verify result
-        let psd = q.get_psd();
+        let psd = q.psd();
         let sn = 10.0 * (10f32.powf((snr_db + n0) / 10.0) + 10f32.powf(n0 / 10.0)).log10();
 
         #[rustfmt::skip]
@@ -597,17 +597,17 @@ mod tests {
 
         // check setting bandwidth
         assert!(q.set_alpha(0.1).is_ok());
-        assert_abs_diff_eq!(q.get_alpha(), 0.1, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.alpha(), 0.1, epsilon = 1e-6);
         assert!(q.set_alpha(-7.0).is_err());
-        assert_abs_diff_eq!(q.get_alpha(), 0.1, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.alpha(), 0.1, epsilon = 1e-6);
         assert!(q.set_alpha(alpha).is_ok());
-        assert_abs_diff_eq!(q.get_alpha(), alpha, epsilon = 1e-6);
+        assert_abs_diff_eq!(q.alpha(), alpha, epsilon = 1e-6);
 
         // check parameters
-        assert_eq!(q.get_nfft(), nfft);
-        assert_eq!(q.get_window_len(), wlen);
-        assert_eq!(q.get_delay(), delay);
-        assert_abs_diff_eq!(q.get_alpha(), alpha, epsilon = 1e-6);
+        assert_eq!(q.nfft(), nfft);
+        assert_eq!(q.window_len(), wlen);
+        assert_eq!(q.delay(), delay);
+        assert_abs_diff_eq!(q.alpha(), alpha, epsilon = 1e-6);
 
         let block_len = 1117;
         let num_blocks = 1123;
@@ -619,10 +619,10 @@ mod tests {
         }
 
         // verify number of samples and transforms processed
-        assert_eq!(q.get_num_samples(), num_samples as u64);
-        assert_eq!(q.get_num_samples_total(), num_samples as u64);
-        assert_eq!(q.get_num_transforms(), num_transforms as u64);
-        assert_eq!(q.get_num_transforms_total(), num_transforms as u64);
+        assert_eq!(q.num_samples(), num_samples as u64);
+        assert_eq!(q.num_samples_total(), num_samples as u64);
+        assert_eq!(q.num_transforms(), num_transforms as u64);
+        assert_eq!(q.num_transforms_total(), num_transforms as u64);
 
         // clear object and run in blocks
         q.clear();
@@ -635,17 +635,17 @@ mod tests {
         }
 
         // re-verify number of samples and transforms processed
-        assert_eq!(q.get_num_samples(), num_samples as u64);
-        assert_eq!(q.get_num_samples_total(), (num_samples * 2) as u64);
-        assert_eq!(q.get_num_transforms(), num_transforms as u64);
-        assert_eq!(q.get_num_transforms_total(), (num_transforms * 2) as u64);
+        assert_eq!(q.num_samples(), num_samples as u64);
+        assert_eq!(q.num_samples_total(), (num_samples * 2) as u64);
+        assert_eq!(q.num_transforms(), num_transforms as u64);
+        assert_eq!(q.num_transforms_total(), (num_transforms * 2) as u64);
 
         // reset object and ensure counters are zero
         q.reset();
-        assert_eq!(q.get_num_samples(), 0);
-        assert_eq!(q.get_num_samples_total(), 0);
-        assert_eq!(q.get_num_transforms(), 0);
-        assert_eq!(q.get_num_transforms_total(), 0);
+        assert_eq!(q.num_samples(), 0);
+        assert_eq!(q.num_samples_total(), 0);
+        assert_eq!(q.num_transforms(), 0);
+        assert_eq!(q.num_transforms_total(), 0);
     }
 
     #[test]
@@ -745,19 +745,19 @@ mod tests {
         }
 
         // get spectrum and compare outputs
-        let psd_0 = q0.get_psd();
-        let psd_1 = q1.get_psd();
+        let psd_0 = q0.psd();
+        let psd_1 = q1.psd();
         assert_eq!(psd_0, psd_1);
 
         // check parameters
-        assert_eq!(q0.get_nfft(), q1.get_nfft());
-        assert_eq!(q0.get_window_len(), q1.get_window_len());
-        assert_eq!(q0.get_delay(), q1.get_delay());
-        assert_eq!(q0.get_wtype(), q1.get_wtype());
-        assert_eq!(q0.get_num_samples(), q1.get_num_samples());
-        assert_eq!(q0.get_num_samples_total(), q1.get_num_samples_total());
-        assert_eq!(q0.get_num_transforms(), q1.get_num_transforms());
-        assert_eq!(q0.get_num_transforms_total(), q1.get_num_transforms_total());
+        assert_eq!(q0.nfft(), q1.nfft());
+        assert_eq!(q0.window_len(), q1.window_len());
+        assert_eq!(q0.delay(), q1.delay());
+        assert_eq!(q0.wtype(), q1.wtype());
+        assert_eq!(q0.num_samples(), q1.num_samples());
+        assert_eq!(q0.num_samples_total(), q1.num_samples_total());
+        assert_eq!(q0.num_transforms(), q1.num_transforms());
+        assert_eq!(q0.num_transforms_total(), q1.num_transforms_total());
     }
 
     #[test]
@@ -797,8 +797,8 @@ mod tests {
         }
 
         // The out-of-window garbage must not have changed anything.
-        assert_eq!(q_clean.get_psd(), q_garbage.get_psd());
-        assert!(q_clean.get_num_transforms() > 0);
+        assert_eq!(q_clean.psd(), q_garbage.psd());
+        assert!(q_clean.num_transforms() > 0);
     }
 
     #[test]

@@ -136,7 +136,7 @@ impl TimeVaryingMultipathChannel {
     }
 
     /// get the current channel coefficients, in impulse-response order
-    pub fn get_coefficients(&self) -> Vec<Complex32> {
+    pub fn coefficients(&self) -> Vec<Complex32> {
         self.h.iter().rev().copied().collect()
     }
 }
@@ -192,7 +192,7 @@ mod tests {
         for i in 0..500 {
             q.execute_one(Complex32::new(i as f32, 0.0));
         }
-        let h = q.get_coefficients();
+        let h = q.coefficients();
         assert_eq!(h[0], Complex32::new(1.0, 0.0));
         // and the fading taps have actually moved
         assert!(h[1..].iter().any(|v| v.norm() > 1e-3), "expected the echo taps to have faded in");

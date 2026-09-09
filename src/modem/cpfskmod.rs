@@ -154,32 +154,32 @@ impl CpfskModulator {
     }
 
     /// Get modulator's number of bits per symbol
-    pub fn get_bits_per_symbol(&self) -> usize {
+    pub fn bits_per_symbol(&self) -> usize {
         self.bps
     }
 
     /// Get modulator's modulation index
-    pub fn get_modulation_index(&self) -> f32 {
+    pub fn modulation_index(&self) -> f32 {
         self.h
     }
 
     /// Get modulator's number of samples per symbol
-    pub fn get_samples_per_symbol(&self) -> usize {
+    pub fn samples_per_symbol(&self) -> usize {
         self.k
     }
 
     /// Get modulator's filter delay [symbols]
-    pub fn get_delay(&self) -> usize {
+    pub fn delay(&self) -> usize {
         self.symbol_delay
     }
 
     /// Get modulator's bandwidth parameter
-    pub fn get_beta(&self) -> f32 {
+    pub fn beta(&self) -> f32 {
         self.beta
     }
 
     /// Get modulator's filter type
-    pub fn get_type(&self) -> CpfskFilterType {
+    pub fn filter_type(&self) -> CpfskFilterType {
         self.filter_type
     }
 
@@ -330,9 +330,9 @@ mod tests {
         let result = CpfskModulator::new_msk(4);
         assert!(result.is_ok());
         let mod_ = result.unwrap();
-        assert_eq!(mod_.get_bits_per_symbol(), 1);
-        assert_abs_diff_eq!(mod_.get_modulation_index(), 0.5);
-        assert_eq!(mod_.get_type(), CpfskFilterType::Square);
+        assert_eq!(mod_.bits_per_symbol(), 1);
+        assert_abs_diff_eq!(mod_.modulation_index(), 0.5);
+        assert_eq!(mod_.filter_type(), CpfskFilterType::Square);
     }
 
     #[test]
@@ -340,9 +340,9 @@ mod tests {
         let result = CpfskModulator::new_gmsk(4, 3, 0.35);
         assert!(result.is_ok());
         let mod_ = result.unwrap();
-        assert_eq!(mod_.get_bits_per_symbol(), 1);
-        assert_abs_diff_eq!(mod_.get_modulation_index(), 0.5);
-        assert_eq!(mod_.get_type(), CpfskFilterType::Gmsk);
+        assert_eq!(mod_.bits_per_symbol(), 1);
+        assert_abs_diff_eq!(mod_.modulation_index(), 0.5);
+        assert_eq!(mod_.filter_type(), CpfskFilterType::Gmsk);
     }
 
     #[test]

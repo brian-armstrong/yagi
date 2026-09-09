@@ -584,15 +584,15 @@ impl Modem {
         }
     }
 
-    pub fn get_bps(&self) -> usize {
+    pub fn bps(&self) -> usize {
         self.bits_per_symbol
     }
 
-    pub fn get_scheme(&self) -> ModulationScheme {
+    pub fn scheme(&self) -> ModulationScheme {
         self.scheme
     }
 
-    pub fn get_constellation_size(&self) -> usize {
+    pub fn constellation_size(&self) -> usize {
         self.constellation_size
     }
 
@@ -631,15 +631,15 @@ impl Modem {
         Ok(symbol_out)
     }
 
-    pub fn get_demodulator_sample(&self) -> Complex32 {
+    pub fn demodulator_sample(&self) -> Complex32 {
         self.x_hat
     }
 
-    pub fn get_demodulator_phase_error(&self) -> f32 {
+    pub fn demodulator_phase_error(&self) -> f32 {
         (self.r * self.x_hat.conj()).im
     }
 
-    pub fn get_demodulator_evm(&self) -> f32 {
+    pub fn demodulator_evm(&self) -> f32 {
         (self.x_hat - self.r).norm()
     }
 
@@ -944,7 +944,7 @@ mod tests {
         let mut demod = Modem::new(ms).unwrap();
 
         // run the test
-        let m = 1 << modem.get_bps();
+        let m = 1 << modem.bps();
         let mut e = 0.0f32;
         for i in 0..m {
             let x = modem.modulate(i as u32).unwrap();
@@ -952,9 +952,9 @@ mod tests {
             // println!("i: {}, x: {}, s: {}", i, x, s);
             assert_eq!(s, i as u32);
 
-            assert_abs_diff_eq!(demod.get_demodulator_phase_error(), 0.0f32, epsilon = 1e-3);
+            assert_abs_diff_eq!(demod.demodulator_phase_error(), 0.0f32, epsilon = 1e-3);
 
-            assert_abs_diff_eq!(demod.get_demodulator_evm(), 0.0f32, epsilon = 1e-3);
+            assert_abs_diff_eq!(demod.demodulator_evm(), 0.0f32, epsilon = 1e-3);
 
             e += (x * x.conj()).re;
         }
@@ -1286,7 +1286,7 @@ mod tests {
         let mut demodulator = Modem::new(ms).unwrap();
 
         // get bits per symbol
-        let bps = demodulator.get_bps();
+        let bps = demodulator.bps();
 
         // run the test
         let m = 1 << bps;
@@ -1307,8 +1307,8 @@ mod tests {
             assert_eq!(sym_soft, i);
 
             // check phase error, evm, etc.
-            assert_abs_diff_eq!(demodulator.get_demodulator_phase_error(), 0.0, epsilon = 1e-3);
-            assert_abs_diff_eq!(demodulator.get_demodulator_evm(), 0.0, epsilon = 1e-3);
+            assert_abs_diff_eq!(demodulator.demodulator_phase_error(), 0.0, epsilon = 1e-3);
+            assert_abs_diff_eq!(demodulator.demodulator_evm(), 0.0, epsilon = 1e-3);
         }
     }
 
@@ -1635,7 +1635,7 @@ mod tests {
         let mut demodulator = Modem::new(ms).unwrap();
 
         // run the test
-        let m = modulator.get_bps();
+        let m = modulator.bps();
         let constellation_size = 1 << m;
         let phi = 0.01f32;
 
@@ -1665,7 +1665,7 @@ mod tests {
                 println!("Warning: modem_test_demodstats(), output symbol does not match");
             }
 
-            let demodstats = demodulator.get_demodulator_phase_error();
+            let demodstats = demodulator.demodulator_phase_error();
             assert!(demodstats > 0.0);
         }
 
@@ -1696,7 +1696,7 @@ mod tests {
                 println!("Warning: modem_test_demodstats(), output symbol does not match");
             }
 
-            let demodstats = demodulator.get_demodulator_phase_error();
+            let demodstats = demodulator.demodulator_phase_error();
             assert!(demodstats < 0.0);
         }
     }
@@ -2021,7 +2021,7 @@ mod tests {
     fn modemcf_test_copy(ms: ModulationScheme) {
         // create modem and randomize internal state
         let mut modem_0 = Modem::new(ms).unwrap();
-        let m = 1 << modem_0.get_bps();
+        let m = 1 << modem_0.bps();
 
         for _ in 0..10 {
             // modulate random symbol
@@ -2469,7 +2469,7 @@ mod tests {
             assert_eq!(scheme.bits_per_symbol(), bps, "bits_per_symbol({})", name);
 
             let modem = Modem::new(scheme).unwrap();
-            assert_eq!(modem.get_bps(), bps, "{}: modem disagrees with scheme", name);
+            assert_eq!(modem.bps(), bps, "{}: modem disagrees with scheme", name);
         }
     }
 
@@ -2524,7 +2524,7 @@ mod tests {
         assert!(Modem::from_table(&[Complex32::new(0.0, 0.0); 3]).is_err());
 
         let mut q = Modem::new(ModulationScheme::Qam64).unwrap();
-        let m = 1 << q.get_bps();
+        let m = 1 << q.bps();
         assert_eq!(m, 64);
 
         // modulating a symbol outside the constellation

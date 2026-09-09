@@ -92,12 +92,12 @@ impl Nco {
     }
 
     /// Get phase
-    pub fn get_phase(&self) -> f32 {
+    pub fn phase(&self) -> f32 {
         2.0 * PI * self.theta as f32 / ((1u64 << 32) as f32)
     }
 
     /// Get frequency
-    pub fn get_frequency(&self) -> f32 {
+    pub fn frequency(&self) -> f32 {
         let d_theta = 2.0 * PI * self.d_theta as f32 / (1u64 << 32) as f32;
         if d_theta > PI {
             d_theta - 2.0 * PI
@@ -395,11 +395,11 @@ mod tests {
         }
 
         // Ensure phase of oscillators is locked
-        let phase_error = pll_error(nco_tx.get_phase(), nco_rx.get_phase());
+        let phase_error = pll_error(nco_tx.phase(), nco_rx.phase());
         assert!((phase_error).abs() < tol, "Phase error: {}", phase_error);
 
         // Ensure frequency of oscillators is locked
-        let freq_error = pll_error(nco_tx.get_frequency(), nco_rx.get_frequency());
+        let freq_error = pll_error(nco_tx.frequency(), nco_rx.frequency());
         assert!((freq_error).abs() < tol, "Frequency error: {}", freq_error);
 
         println!(
@@ -803,9 +803,9 @@ mod tests {
 
         let mut psd = SpectralPeriodogram::new(nfft, WindowType::BlackmanHarris, nfft, nfft / 2).unwrap();
 
-        while psd.get_num_samples_total() < num_samples {
+        while psd.num_samples_total() < num_samples {
             nco.mix_block_up(&buf_0, &mut buf_1).unwrap();
-            if psd.get_num_samples_total() == 0 {
+            if psd.num_samples_total() == 0 {
                 for i in 0..buf_len {
                     buf_1[i] *= hann(i, 2 * buf_len).unwrap();
                 }

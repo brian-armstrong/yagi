@@ -56,7 +56,7 @@ where
         self.pfb.reset();
     }
 
-    pub fn get_delay(&self) -> f32 {
+    pub fn delay(&self) -> f32 {
         self.delay
     }
 
@@ -91,15 +91,15 @@ where
         self.set_delay(self.delay + delta)
     }
 
-    pub fn get_nmax(&self) -> usize {
+    pub fn nmax(&self) -> usize {
         self.nmax
     }
 
-    pub fn get_m(&self) -> usize {
+    pub fn m(&self) -> usize {
         self.m
     }
 
-    pub fn get_npfb(&self) -> usize {
+    pub fn npfb(&self) -> usize {
         self.npfb
     }
 
@@ -155,10 +155,10 @@ mod tests {
         q.adjust_delay(delay * 0.3).unwrap();
 
         // ensure object is configured properly
-        assert_eq!(q.get_nmax(), nmax);
-        assert_eq!(q.get_m(), m);
-        assert_eq!(q.get_npfb(), npfb);
-        assert_abs_diff_eq!(q.get_delay(), delay, epsilon = 1e-6);
+        assert_eq!(q.nmax(), nmax);
+        assert_eq!(q.m(), m);
+        assert_eq!(q.npfb(), npfb);
+        assert_abs_diff_eq!(q.delay(), delay, epsilon = 1e-6);
 
         // generate impulse and propagate through object
         let mut x = vec![0.0f32; num_samples];

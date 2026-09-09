@@ -114,7 +114,7 @@ where
         self.is_locked
     }
 
-    pub fn get_bandwidth(&self) -> f32 {
+    pub fn bandwidth(&self) -> f32 {
         self.bandwidth
     }
 
@@ -127,7 +127,7 @@ where
         Ok(())
     }
 
-    pub fn get_signal_level(&self) -> f32 {
+    pub fn signal_level(&self) -> f32 {
         1.0 / self.g
     }
 
@@ -140,7 +140,7 @@ where
         Ok(())
     }
 
-    pub fn get_rssi(&self) -> f32 {
+    pub fn rssi(&self) -> f32 {
         -20.0 * self.g.log10()
     }
 
@@ -151,7 +151,7 @@ where
         Ok(())
     }
 
-    pub fn get_gain(&self) -> f32 {
+    pub fn gain(&self) -> f32 {
         self.g
     }
 
@@ -163,7 +163,7 @@ where
         Ok(())
     }
 
-    pub fn get_scale(&self) -> f32 {
+    pub fn scale(&self) -> f32 {
         self.scale
     }
 
@@ -200,7 +200,7 @@ where
         self.squelch_threshold = threshold;
     }
 
-    pub fn squelch_get_threshold(&self) -> f32 {
+    pub fn squelch_threshold(&self) -> f32 {
         self.squelch_threshold
     }
 
@@ -208,16 +208,16 @@ where
         self.squelch_timeout = timeout;
     }
 
-    pub fn squelch_get_timeout(&self) -> usize {
+    pub fn squelch_timeout(&self) -> usize {
         self.squelch_timeout
     }
 
-    pub fn squelch_get_status(&self) -> AgcSquelchMode {
+    pub fn squelch_status(&self) -> AgcSquelchMode {
         self.squelch_mode
     }
 
     fn squelch_update_mode(&mut self) -> Result<()> {
-        let threshold_exceeded = self.get_rssi() > self.squelch_threshold;
+        let threshold_exceeded = self.rssi() > self.squelch_threshold;
 
         self.squelch_mode = match self.squelch_mode {
             AgcSquelchMode::Enabled => {
@@ -305,11 +305,11 @@ mod tests {
         // Check results
         assert_abs_diff_eq!(y.re, 1.0f32, epsilon = tol);
         assert_abs_diff_eq!(y.im, 0.0f32, epsilon = tol);
-        assert_abs_diff_eq!(q.get_gain(), 1.0f32 / gamma, epsilon = tol);
+        assert_abs_diff_eq!(q.gain(), 1.0f32 / gamma, epsilon = tol);
 
         // explicitly set gain and check result
         q.set_gain(1.0f32).unwrap();
-        assert_eq!(q.get_gain(), 1.0f32);
+        assert_eq!(q.gain(), 1.0f32);
 
         // AGC object will be automatically destroyed when it goes out of scope
     }
@@ -325,7 +325,7 @@ mod tests {
         let mut q = Agc::new();
         q.set_bandwidth(0.1f32).unwrap();
         q.set_scale(scale).unwrap();
-        assert_eq!(q.get_scale(), scale);
+        assert_eq!(q.scale(), scale);
 
         let x = Complex32::new(0.1f32, 0.0); // input sample
         let mut y = Complex32::new(0.0, 0.0); // output sample
@@ -359,11 +359,11 @@ mod tests {
         }
 
         if cfg!(test) {
-            println!("gamma : {:.8}, rssi : {:.8}", gamma, q.get_signal_level());
+            println!("gamma : {:.8}, rssi : {:.8}", gamma, q.signal_level());
         }
 
         // Check results
-        assert_abs_diff_eq!(q.get_gain(), 1.0f32 / gamma, epsilon = tol);
+        assert_abs_diff_eq!(q.gain(), 1.0f32 / gamma, epsilon = tol);
     }
 
     #[test]
@@ -390,7 +390,7 @@ mod tests {
         }
 
         // get received signal strength indication
-        let rssi = q.get_signal_level();
+        let rssi = q.signal_level();
 
         if cfg!(test) {
             println!("gamma : {:.8}, rssi : {:.8}", gamma, rssi);
@@ -427,7 +427,7 @@ mod tests {
         }
 
         // get received signal strength indication
-        let rssi = q.get_rssi();
+        let rssi = q.rssi();
 
         if cfg!(test) {
             println!("gamma : {:.8}, rssi : {:.8}", gamma, rssi);
@@ -453,8 +453,8 @@ mod tests {
         q.squelch_set_threshold(-50.0); // threshold for detection [dB]
         q.squelch_set_timeout(100); // timeout for hysteresis
         assert!(q.squelch_is_enabled());
-        assert_eq!(q.squelch_get_threshold(), -50.0);
-        assert_eq!(q.squelch_get_timeout(), 100);
+        assert_eq!(q.squelch_threshold(), -50.0);
+        assert_eq!(q.squelch_timeout(), 100);
 
         // run agc
         let num_samples = 2000; // total number of samples to run
@@ -477,7 +477,7 @@ mod tests {
             let _y = q.execute(x).unwrap();
 
             // get squelch mode
-            let mode = q.squelch_get_status();
+            let mode = q.squelch_status();
 
             // check certain conditions based on sample input (assuming 2000 samples)
             match i {
@@ -507,26 +507,26 @@ mod tests {
         let mut buf_1 = vec![Complex32::new(0.0, 0.0); 4];
 
         // basic tests
-        assert_abs_diff_eq!(q.get_bandwidth(), 0.1f32);
+        assert_abs_diff_eq!(q.bandwidth(), 0.1f32);
         // assert!(q.print().is_ok());
         q.set_rssi(0.0).unwrap();
 
         // lock AGC and show it is not tracking
-        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol); // base signal level is 0 dB
+        assert_abs_diff_eq!(q.rssi(), 0.0, epsilon = tol); // base signal level is 0 dB
         assert!(!q.is_locked()); // not locked
         q.lock();
         assert!(q.is_locked()); // locked
         for _ in 0..256 {
             q.execute_block(&buf_0, &mut buf_1).unwrap();
         }
-        assert_abs_diff_eq!(q.get_rssi(), 0.0, epsilon = tol); // signal level has not changed
+        assert_abs_diff_eq!(q.rssi(), 0.0, epsilon = tol); // signal level has not changed
 
         // unlock AGC and show it is tracking
         q.unlock();
         assert!(!q.is_locked()); // unlocked
         q.init(&buf_0).unwrap();
         // agc tracks to signal level
-        assert_abs_diff_eq!(q.get_rssi(), 20.0 * gamma.log10(), epsilon = tol);
+        assert_abs_diff_eq!(q.rssi(), 20.0 * gamma.log10(), epsilon = tol);
     }
 
     #[test]

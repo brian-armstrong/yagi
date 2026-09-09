@@ -137,7 +137,7 @@ where
     /// # Returns
     ///
     /// The decimation rate
-    pub fn get_decim_rate(&self) -> usize {
+    pub fn decim_rate(&self) -> usize {
         self.decimation_factor
     }
 
@@ -155,7 +155,7 @@ where
     /// # Returns
     ///
     /// The scaling factor
-    pub fn get_scale(&self) -> Coeff {
+    pub fn scale(&self) -> Coeff {
         self.scale
     }
 
@@ -296,7 +296,7 @@ mod tests {
         // create valid object and test configuration
         let mut decim = FirDecimationFilter::<Complex32, f32>::new_kaiser(m, n, 60.0).unwrap();
         decim.set_scale(8.0);
-        assert_eq!(decim.get_scale(), 8.0);
+        assert_eq!(decim.scale(), 8.0);
     }
 
     #[test]
@@ -379,14 +379,14 @@ mod tests {
     #[autotest_annotate(autotest_firdecim_rrrf_common)]
     fn test_firdecim_rrrf_common() {
         let decim = FirDecimationFilter::<f32, f32>::new_kaiser(17, 4, 60.0).unwrap();
-        assert_eq!(decim.get_decim_rate(), 17);
+        assert_eq!(decim.decim_rate(), 17);
     }
 
     #[test]
     #[autotest_annotate(autotest_firdecim_crcf_common)]
     fn test_firdecim_crcf_common() {
         let decim = FirDecimationFilter::<Complex32, f32>::new_kaiser(7, 4, 60.0).unwrap();
-        assert_eq!(decim.get_decim_rate(), 7);
+        assert_eq!(decim.decim_rate(), 7);
     }
 
     include!("firdecim_test_data.rs");
