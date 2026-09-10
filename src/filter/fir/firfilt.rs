@@ -395,20 +395,18 @@ where
     ///
     /// # Arguments
     ///
-    /// * `h` - filter coefficients
+    /// * `coefficients` - filter coefficients
     pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
-        // aka recreate
-        let n = coefficients.len();
-        if n != self.h_len {
-            self.h_len = n;
-            self.h.resize(n, Coeff::default());
-            self.w.resize(n)?;
+        if coefficients.len() != self.h_len {
+            return Err(Error::Config(format!(
+                "coefficient length must match filter length: {} != {}",
+                coefficients.len(),
+                self.h_len
+            )));
         }
 
         self.h.copy_from_slice(coefficients);
         self.dp.set_coefficients_rev(coefficients)?;
-        self.reset();
-
         Ok(())
     }
 
@@ -698,7 +696,7 @@ mod tests {
             h0[i] = (0.3 * i as f32).cos() + (2.0f32.sqrt() * i as f32).sin();
         }
 
-        let mut q = FirFilter::new(&h0).unwrap();
+        let mut q = FirFilter::<Complex32, f32>::new(&h0).unwrap();
 
         // assert!(q.print().is_ok());
         q.set_scale(3.0);
@@ -723,21 +721,22 @@ mod tests {
         for i in 0..n {
             assert_abs_diff_eq!(h[i], h0[i] * 7.1, epsilon = 1e-6);
         }
+    }
 
-        // re-create with longer coefficients array and test impulse response
-        let mut h2 = vec![0.0f32; 2 * n + 1]; // new random-ish coefficients
-        for i in 0..(2 * n + 1) {
-            h2[i] = (0.2 * i as f32 + 1.0).cos() + (2.0f32.ln() * i as f32).sin();
-        }
-        q.set_coefficients(&h2).unwrap();
+    #[test]
+    fn test_firfilt_set_coefficients_preserves_history() {
+        let mut filter = FirFilter::<f32, f32>::new(&[1.0, 0.0, 0.0]).unwrap();
+        filter.push(1.0);
+        filter.push(2.0);
+        filter.push(3.0);
+        assert_eq!(filter.execute(), 3.0);
 
-        for i in 0..(2 * n + 1) {
-            q.push(Complex32::new(if i == 0 { 1.0 } else { 0.0 }, 0.0));
-            let v = q.execute();
-            // output is same as input, subject to scaling factor
-            assert_abs_diff_eq!(v.re, h2[i] * scale, epsilon = 1e-6);
-            assert_abs_diff_eq!(v.im, 0.0, epsilon = 1e-6);
-        }
+        filter.set_coefficients(&[0.0, 0.0, 1.0]).unwrap();
+        assert_eq!(filter.execute(), 1.0);
+
+        assert!(filter.set_coefficients(&[1.0, 0.0]).is_err());
+        assert_eq!(filter.coefficients(), [0.0, 0.0, 1.0]);
+        assert_eq!(filter.execute(), 1.0);
     }
 
     #[test]
