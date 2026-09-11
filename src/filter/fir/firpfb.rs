@@ -39,7 +39,8 @@ where
     /// # Arguments
     ///
     /// * `num_filters` - number of filters in the bank
-    /// * `coefficients` - filter coefficients
+    /// * `coefficients` - filter coefficients. incomplete polyphase branches
+    ///   are padded with zeros.
     ///
     /// # Returns
     ///
@@ -52,10 +53,7 @@ where
             return Err(Error::Config("filter length must be greater than zero".into()));
         }
 
-        let filter_len = coefficients.len() / num_filters;
-        if filter_len == 0 {
-            return Err(Error::Config("filter length must be at least the number of filters".into()));
-        }
+        let filter_len = coefficients.len().div_ceil(num_filters);
 
         // store the coefficients in a flat array
         let mut filter_coefficients = Vec::with_capacity(num_filters * filter_len);
@@ -66,7 +64,9 @@ where
             let h_sub = &mut filter_coefficients[start..];
             for n in 0..filter_len {
                 // load filter in reverse order
-                h_sub[filter_len - n - 1] = coefficients[i + n * num_filters];
+                if let Some(&coefficient) = coefficients.get(i + n * num_filters) {
+                    h_sub[filter_len - n - 1] = coefficient;
+                }
             }
         }
 
@@ -256,6 +256,42 @@ where
     /// Returns the number of input samples consumed by each phase
     pub fn filter_len(&self) -> usize {
         self.filter_len
+    }
+
+    /// Replace the coefficients without changing the number or length of the
+    /// polyphase filters.
+    ///
+    /// # Arguments
+    ///
+    /// * `coefficients` - filter coefficients. incomplete polyphase branches
+    ///   are padded with zeros, and the resulting per-phase length must match
+    ///   the existing filter bank
+    pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
+        let filter_len = coefficients.len().div_ceil(self.num_filters);
+        if filter_len != self.filter_len {
+            return Err(Error::Config(format!(
+                "coefficient phase length must match filter bank: {} != {}",
+                filter_len, self.filter_len
+            )));
+        }
+
+        self.coefficients.fill(Coeff::zero());
+        for phase in 0..self.num_filters {
+            let start = phase * self.filter_len;
+            let phase_coefficients = &mut self.coefficients[start..start + self.filter_len];
+            for n in 0..self.filter_len {
+                if let Some(&coefficient) = coefficients.get(phase + n * self.num_filters) {
+                    phase_coefficients[self.filter_len - n - 1] = coefficient;
+                }
+            }
+        }
+
+        let packed_len = self.plan.packed_len();
+        for (phase, coefficients) in self.coefficients.chunks_exact(self.filter_len).enumerate() {
+            let start = phase * packed_len;
+            self.plan.repack(coefficients, &mut self.block_coefficients[start..start + packed_len]);
+        }
+        Ok(())
     }
 
     /// Set the output scaling for the filter bank
@@ -537,6 +573,16 @@ where
         self.bank.filter_len()
     }
 
+    /// Replace the coefficients without clearing the internal sample history
+    /// or changing the filter bank shape.
+    ///
+    /// # Arguments
+    ///
+    /// * `coefficients` - filter coefficients
+    pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
+        self.bank.set_coefficients(coefficients)
+    }
+
     /// Set the output scaling for the filter bank
     ///
     /// # Arguments
@@ -729,6 +775,104 @@ mod tests {
                 assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-6);
             }
         }
+    }
+
+    #[test]
+    fn test_firpfb_set_coefficients_preserves_history() {
+        let mut filter = FirPolyphaseFilter::<f32, f32>::new(
+            2,
+            &[
+                1.0, 0.0, // newest coefficients for phases 0 and 1
+                0.0, 1.0, // middle coefficients
+                0.0, 0.0, // oldest coefficients
+            ],
+        )
+        .unwrap();
+        filter.push(1.0);
+        filter.push(2.0);
+        filter.push(3.0);
+        assert_eq!(filter.execute(0).unwrap(), 3.0);
+
+        filter
+            .set_coefficients(&[
+                0.0, 0.0, // newest coefficients
+                0.0, 1.0, // middle coefficients
+                1.0, 0.0, // oldest coefficients
+            ])
+            .unwrap();
+        assert_eq!(filter.execute(0).unwrap(), 1.0);
+
+        assert!(filter.set_coefficients(&[1.0, 0.0, 0.0, 0.0]).is_err());
+        assert_eq!(filter.execute(0).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn test_firpfb_pads_incomplete_phase() {
+        let mut bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0]).unwrap();
+        assert_eq!(bank.filter_len(), 2);
+        assert_eq!(bank.execute(0, &[4.0, 5.0]).unwrap(), 17.0);
+        assert_eq!(bank.execute(1, &[4.0, 5.0]).unwrap(), 10.0);
+
+        bank.set_coefficients(&[4.0, 5.0, 6.0]).unwrap();
+        assert_eq!(bank.execute(0, &[1.0, 1.0]).unwrap(), 10.0);
+        assert_eq!(bank.execute(1, &[1.0, 1.0]).unwrap(), 5.0);
+
+        let filter = FirPolyphaseFilter::<f32, f32>::new(2, &[1.0, 2.0, 3.0]).unwrap();
+        assert_eq!(filter.filter_len(), 2);
+    }
+
+    #[test]
+    fn test_firpfb_designers_retain_endpoint() {
+        let num_filters = 4;
+        let filter_delay = 3;
+        let samples_per_symbol = 2;
+
+        let kaiser = FirPolyphaseFilterBank::<f32, f32>::new_kaiser_simple(num_filters, filter_delay).unwrap();
+        assert_eq!(kaiser.filter_len(), 2 * filter_delay + 1);
+
+        let rnyquist = FirPolyphaseFilterBank::<f32, f32>::new_rnyquist(
+            filter::FirFilterShape::Rrcos,
+            num_filters,
+            samples_per_symbol,
+            filter_delay,
+            0.3,
+        )
+        .unwrap();
+        assert_eq!(rnyquist.filter_len(), 2 * samples_per_symbol * filter_delay + 1);
+
+        let drnyquist = FirPolyphaseFilterBank::<f32, f32>::new_drnyquist(
+            filter::FirFilterShape::Rrcos,
+            num_filters,
+            samples_per_symbol,
+            filter_delay,
+            0.3,
+        )
+        .unwrap();
+        assert_eq!(drnyquist.filter_len(), 2 * samples_per_symbol * filter_delay + 1);
+    }
+
+    #[test]
+    fn test_firpfb_bank_set_coefficients_repacks_blocks() {
+        let num_filters = 4;
+        let filter_len = 17;
+        let num_outputs = 41;
+        let initial = vec![0.0f32; num_filters * filter_len];
+        let coefficients: Vec<f32> = (0..num_filters * filter_len).map(|i| ((i + 5) as f32 * 0.117).sin()).collect();
+        let mut bank = FirPolyphaseFilterBank::<f32, f32>::new(num_filters, &initial).unwrap();
+        bank.set_scale(0.73);
+        bank.set_coefficients(&coefficients).unwrap();
+
+        let history: Vec<f32> = (0..num_outputs + filter_len - 1).map(|i| ((i + 3) as f32 * 0.089).cos()).collect();
+        for phase in 0..num_filters {
+            let expected: Vec<_> =
+                history.windows(filter_len).map(|samples| bank.execute(phase, samples).unwrap()).collect();
+            let mut actual = vec![0.0; num_outputs];
+            bank.execute_block(phase, &history, &mut actual).unwrap();
+            for (&actual, &expected) in actual.iter().zip(expected.iter()) {
+                assert_abs_diff_eq!(actual, expected, epsilon = 2e-4);
+            }
+        }
+        assert_eq!(bank.scale(), 0.73);
     }
 
     #[test]

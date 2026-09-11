@@ -10,7 +10,7 @@ use num_complex::ComplexFloat;
 pub struct RationalResampler<T, Coeff = T> {
     p: usize,
     q: usize,
-    m: usize,
+    coefficient_count: usize,
     block_len: usize,
     pfb: FirPolyphaseFilter<T, Coeff>,
 }
@@ -21,28 +21,29 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    pub fn new(
-        interpolation_factor: usize,
-        decimation_factor: usize,
-        filter_semi_length: usize,
-        coefficients: &[Coeff],
-    ) -> Result<Self> {
+    /// Create a rational resampler from external filter coefficients.
+    ///
+    /// The coefficients are interpreted as a prototype filter operating at
+    /// the interpolated rate. For a linear-phase filter, its nominal midpoint
+    /// determines [`input_delay`](Self::input_delay) and
+    /// [`output_delay`](Self::output_delay).
+    pub fn new(interpolation_factor: usize, decimation_factor: usize, coefficients: &[Coeff]) -> Result<Self> {
         if interpolation_factor == 0 {
             return Err(Error::Config("interpolation rate must be greater than zero".into()));
         }
         if decimation_factor == 0 {
             return Err(Error::Config("decimation rate must be greater than zero".into()));
         }
-        if filter_semi_length == 0 {
-            return Err(Error::Config("filter semi-length must be greater than zero".into()));
-        }
 
-        let pfb = FirPolyphaseFilter::new(
-            interpolation_factor,
-            &coefficients[..2 * interpolation_factor * filter_semi_length],
-        )?;
+        let pfb = FirPolyphaseFilter::new(interpolation_factor, coefficients)?;
 
-        let mut q = Self { p: interpolation_factor, q: decimation_factor, m: filter_semi_length, block_len: 1, pfb };
+        let mut q = Self {
+            p: interpolation_factor,
+            q: decimation_factor,
+            coefficient_count: coefficients.len(),
+            block_len: 1,
+            pfb,
+        };
 
         q.reset();
         Ok(q)
@@ -76,7 +77,7 @@ where
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 
-        let mut q = Self::new(interpolation_factor, decimation_factor, filter_semi_length, &h)?;
+        let mut q = Self::new(interpolation_factor, decimation_factor, &h)?;
         q.set_scale((2.0 * bandwidth * ((q.q as f32) / (q.p as f32)).sqrt()).into());
         q.block_len = gcd;
 
@@ -100,7 +101,7 @@ where
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 
-        let mut q = Self::new(interpolation_factor, decimation_factor, filter_semi_length, &h)?;
+        let mut q = Self::new(interpolation_factor, decimation_factor, &h)?;
         q.block_len = gcd;
 
         let rate = q.rate();
@@ -125,8 +126,21 @@ where
         self.pfb.scale()
     }
 
-    pub fn delay(&self) -> usize {
-        self.m
+    /// Return the nominal filter delay measured in input samples.
+    ///
+    /// This is the prototype filter's midpoint expressed at the input sample
+    /// rate. Arbitrary non-linear-phase coefficients need not have a constant
+    /// group delay equal to this value.
+    pub fn input_delay(&self) -> f32 {
+        (self.coefficient_count - 1) as f32 / (2.0 * self.p as f32)
+    }
+
+    /// Return the nominal filter delay measured in output samples.
+    ///
+    /// This is the same physical delay as [`input_delay`](Self::input_delay),
+    /// expressed at the output sample rate.
+    pub fn output_delay(&self) -> f32 {
+        (self.coefficient_count - 1) as f32 / (2.0 * self.q as f32)
     }
 
     pub fn block_len(&self) -> usize {
@@ -550,5 +564,51 @@ mod tests {
     #[test]
     fn test_rresamp_crcf_max_input_3() {
         testbench_rresamp_crcf_max_input(8, 5);
+    }
+
+    fn assert_impulse_delay(mut resamp: RationalResampler<f32, f32>, expected_input: f32, expected_output: f32) {
+        assert_abs_diff_eq!(resamp.input_delay(), expected_input, epsilon = 1e-5);
+        assert_abs_diff_eq!(resamp.output_delay(), expected_output, epsilon = 1e-5);
+        assert_abs_diff_eq!(resamp.output_delay(), resamp.input_delay() * resamp.rate(), epsilon = 1e-5);
+
+        let num_blocks = 200;
+        let mut input = vec![0.0f32; num_blocks * resamp.q()];
+        let mut output = vec![0.0f32; num_blocks * resamp.p()];
+        input[0] = 1.0;
+        resamp.execute_block(&input, num_blocks, &mut output).unwrap();
+
+        let mut energy = 0.0f64;
+        let mut weighted_index = 0.0f64;
+        for (index, &sample) in output.iter().enumerate() {
+            let sample_energy = sample as f64 * sample as f64;
+            energy += sample_energy;
+            weighted_index += index as f64 * sample_energy;
+        }
+        let measured_output = (weighted_index / energy) as f32;
+        let measured_input = measured_output / resamp.rate();
+        assert_abs_diff_eq!(measured_input, expected_input, epsilon = 1e-4);
+        assert_abs_diff_eq!(measured_output, expected_output, epsilon = 1e-4);
+    }
+
+    #[test]
+    fn test_rresamp_kaiser_delay_sample_domains() {
+        assert_impulse_delay(RationalResampler::new_kaiser(3, 5, 40, -1.0, 60.0).unwrap(), 40.0, 24.0);
+        assert_impulse_delay(RationalResampler::new_kaiser(5, 3, 40, -1.0, 60.0).unwrap(), 40.0, 200.0 / 3.0);
+    }
+
+    #[test]
+    fn test_rresamp_prototype_delay_sample_domains() {
+        // test rate 3/5
+        assert_impulse_delay(
+            RationalResampler::new_prototype(FirFilterShape::Arkaiser, 3, 5, 40, 0.2).unwrap(),
+            (5.0 * 40.0) / 3.0,
+            40.0,
+        );
+        // test rate 5/3
+        assert_impulse_delay(
+            RationalResampler::new_prototype(FirFilterShape::Arkaiser, 5, 3, 40, 0.2).unwrap(),
+            40.0,
+            (5.0 * 40.0) / 3.0,
+        );
     }
 }

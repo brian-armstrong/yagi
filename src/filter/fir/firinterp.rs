@@ -85,7 +85,7 @@ where
         let hf = filter::fir_design_kaiser(h_len, cutoff_frequency, stopband_attenuation, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
-        Self::new(interpolation_factor, &hc[..h_len - 1])
+        Self::new(interpolation_factor, &hc)
     }
 
     /// Create a new interpolator from a filter prototype
@@ -305,6 +305,29 @@ mod tests {
     fn test_firinterp_crcf_common() {
         let interp = FirInterpolationFilter::<Complex32, f32>::new_kaiser(7, 4, 60.0).unwrap();
         assert_eq!(interp.interp_rate(), 7);
+    }
+
+    #[test]
+    fn test_firinterp_kaiser_retains_endpoint() {
+        let interpolation_factor = 3;
+        let filter_delay = 4;
+        let attenuation = 60.0;
+        let h_len = 2 * interpolation_factor * filter_delay + 1;
+        let h = filter::fir_design_kaiser(h_len, 0.5 / interpolation_factor as f32, attenuation, 0.0).unwrap();
+        let mut interp =
+            FirInterpolationFilter::<f32, f32>::new_kaiser(interpolation_factor, filter_delay, attenuation).unwrap();
+
+        assert_eq!(interp.sub_len(), 2 * filter_delay + 1);
+
+        let mut output = [0.0f32; 3];
+        interp.execute(1.0, &mut output).unwrap();
+        for _ in 1..=2 * filter_delay {
+            interp.execute(0.0, &mut output).unwrap();
+        }
+
+        assert_abs_diff_eq!(output[0], h[h_len - 1], epsilon = 1e-7);
+        assert_abs_diff_eq!(output[1], 0.0, epsilon = 1e-7);
+        assert_abs_diff_eq!(output[2], 0.0, epsilon = 1e-7);
     }
 
     #[test]
@@ -566,7 +589,7 @@ mod tests {
         assert!(crate::dotprod::sumsqcf(&buf) > 0.0);
 
         // flush buffer
-        for _ in 0..(2 * m) {
+        for _ in 0..q.sub_len() {
             q.flush(&mut buf).unwrap();
         }
 

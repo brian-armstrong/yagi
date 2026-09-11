@@ -572,9 +572,31 @@ mod tests {
         symsync_crcf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999);
     }
 
-    fn symsync_rrrf_test(method: &str, k: usize, m: usize, beta: f32, tau: f32, rate: f32, expected_rate: f32) {
+    #[derive(Clone, Copy)]
+    enum ErrorLimit {
+        Peak(f32),
+        Rms(f32),
+    }
+
+    fn symsync_rrrf_test_peak(method: &str, k: usize, m: usize, beta: f32, tau: f32, rate: f32, expected_rate: f32) {
+        symsync_rrrf_test_with_limit(method, k, m, beta, tau, rate, expected_rate, ErrorLimit::Peak(0.20));
+    }
+
+    fn symsync_rrrf_test_rms(method: &str, k: usize, m: usize, beta: f32, tau: f32, rate: f32, expected_rate: f32) {
+        symsync_rrrf_test_with_limit(method, k, m, beta, tau, rate, expected_rate, ErrorLimit::Rms(0.10));
+    }
+
+    fn symsync_rrrf_test_with_limit(
+        method: &str,
+        k: usize,
+        m: usize,
+        beta: f32,
+        tau: f32,
+        rate: f32,
+        expected_rate: f32,
+        error_limit: ErrorLimit,
+    ) {
         // options
-        let tol = 0.20f32; // error tolerance
         let num_filters = 32; // number of filters in the bank
 
         let num_symbols_init = 400; // number of initial symbols
@@ -667,13 +689,18 @@ mod tests {
         // (initial filter + resampler + matched filter)
         let delay = m + 10 + m;
 
-        // compare (and print) results
+        // compare results
+        let mut error_squared = 0.0f32;
         for i in (nz - num_symbols_test)..nz {
-            // compute error
             let err = (z[i] - s[i - delay]).abs();
-
-            // assert that error is below tolerance
-            assert!(err < tol, "Error {} exceeds tolerance {}", err, tol);
+            error_squared += err * err;
+            if let ErrorLimit::Peak(tolerance) = error_limit {
+                assert!(err < tolerance, "Error {} exceeds tolerance {}", err, tolerance);
+            }
+        }
+        if let ErrorLimit::Rms(tolerance) = error_limit {
+            let rms_error = (error_squared / num_symbols_test as f32).sqrt();
+            assert!(rms_error < tolerance, "RMS error {} exceeds tolerance {}", rms_error, tolerance);
         }
     }
 
@@ -681,95 +708,95 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_0)]
     fn symsync_rrrf_scenario_0() {
-        symsync_rrrf_test("rnyquist", 2, 7, 0.35, 0.00, 1.0, 2.0);
+        symsync_rrrf_test_peak("rnyquist", 2, 7, 0.35, 0.00, 1.0, 2.0);
     }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_1)]
     fn symsync_rrrf_scenario_1() {
-        symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0, 2.0);
+        symsync_rrrf_test_peak("rnyquist", 2, 7, 0.35, -0.25, 1.0, 2.0);
     }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_2)]
     fn symsync_rrrf_scenario_2() {
-        symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0);
+        symsync_rrrf_test_peak("rnyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0);
     }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_3)]
     fn symsync_rrrf_scenario_3() {
-        symsync_rrrf_test("rnyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0);
+        symsync_rrrf_test_peak("rnyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0);
     }
 
     // autotest scenarios (Nyquist)
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_4)]
     fn symsync_rrrf_scenario_4() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, 0.00, 1.0, 2.0);
+        symsync_rrrf_test_peak("nyquist", 2, 7, 0.35, 0.00, 1.0, 2.0);
     }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_5)]
     fn symsync_rrrf_scenario_5() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0, 2.0);
+        symsync_rrrf_test_peak("nyquist", 2, 7, 0.35, -0.25, 1.0, 2.0);
     }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_6)]
     fn symsync_rrrf_scenario_6() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0);
+        symsync_rrrf_test_peak("nyquist", 2, 7, 0.35, -0.25, 1.0001, 2.0);
     }
 
     #[test]
     #[autotest_annotate(autotest_symsync_rrrf_scenario_7)]
     fn symsync_rrrf_scenario_7() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0);
+        symsync_rrrf_test_peak("nyquist", 2, 7, 0.35, -0.25, 0.9999, 2.0);
     }
 
     #[test]
     fn symsync_rrrf_scenario_8() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.996);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.996);
     }
 
     #[test]
     fn symsync_rrrf_scenario_9() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.994);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.994);
     }
 
     #[test]
     fn symsync_rrrf_scenario_10() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.998);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.998, 1.998);
     }
 
     #[test]
     fn symsync_rrrf_scenario_11() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.98);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.98);
     }
 
     #[test]
     fn symsync_rrrf_scenario_12() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.981);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.981);
     }
 
     #[test]
     fn symsync_rrrf_scenario_13() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.979);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.99, 1.979);
     }
 
     #[test]
     fn symsync_rrrf_scenario_14() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.96);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.96);
     }
 
     #[test]
     fn symsync_rrrf_scenario_15() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.962);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.962);
     }
 
     #[test]
     fn symsync_rrrf_scenario_16() {
-        symsync_rrrf_test("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.958);
+        symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.958);
     }
 
     // Test that when rate < 1.0 (more outputs than inputs), execute returns an
