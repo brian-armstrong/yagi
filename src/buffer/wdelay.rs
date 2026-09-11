@@ -16,7 +16,8 @@ impl<T: Default + Clone + Copy> WindowedDelay<T> {
         Ok(wdelay)
     }
 
-    pub fn recreate(&mut self, delay: usize) -> Result<()> {
+    /// Change the delay while preserving the buffered samples
+    pub fn set_delay(&mut self, delay: usize) -> Result<()> {
         if delay == self.delay {
             return Ok(());
         }
@@ -81,9 +82,9 @@ mod tests {
         // 6 7 8 9 10
         assert_eq!(y0, y0_test);
 
-        // re-create wdelay object
+        // increase the delay while retaining buffered samples
         // wdelay: 0 0 6 7 8 9 10
-        w.recreate(6).unwrap();
+        w.set_delay(6).unwrap();
 
         let x1 = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 2.0, 2.0, 2.0];
         let y1_test = [0.0, 6.0, 7.0, 8.0, 9.0, 10.0, 3.0, 4.0, 5.0, 6.0];
@@ -96,9 +97,9 @@ mod tests {
         // wdelay: 6 7 8 9 2 2 2
         assert_eq!(y1, y1_test);
 
-        // re-create wdelay object
+        // decrease the delay while retaining the newest buffered samples
         // wdelay: 7 8 9 2 2 2
-        w.recreate(5).unwrap();
+        w.set_delay(5).unwrap();
 
         let x2 = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 3.0, 4.0];
         let y2_test = [8.0, 9.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0];
