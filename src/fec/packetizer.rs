@@ -28,50 +28,60 @@ struct PacketizerPlan {
 
 /// computes the number of encoded bytes after packetizing
 ///
-///  n      :   number of uncoded input bytes
-///  crc    :   error-detecting scheme
-///  fec0   :   inner forward error-correction code
-///  fec1   :   outer forward error-correction code
-pub fn packetizer_compute_enc_msg_len(n: usize, crc: CrcScheme, fec0: FecScheme, fec1: FecScheme) -> usize {
-    let k = n + crc.key_len();
-    let n0 = fec0.enc_msg_len(k);
-    fec1.enc_msg_len(n0)
+///  message_length :   number of uncoded input bytes
+///  crc_scheme     :   error-detecting scheme
+///  outer_fec      :   outer forward error-correction code, applied first
+///  inner_fec      :   inner forward error-correction code, applied second
+pub fn packetizer_compute_enc_msg_len(
+    message_length: usize,
+    crc_scheme: CrcScheme,
+    outer_fec: FecScheme,
+    inner_fec: FecScheme,
+) -> usize {
+    let crc_message_length = message_length + crc_scheme.key_len();
+    let outer_encoded_length = outer_fec.enc_msg_len(crc_message_length);
+    inner_fec.enc_msg_len(outer_encoded_length)
 }
 
 /// computes the number of decoded bytes before packetizing
 ///
-/// Errors if `k` is not a packet length these schemes can produce. Block codes
+/// Errors if `encoded_length` is not a packet length these schemes can produce. Block codes
 /// round up to whole symbols, so most lengths are unreachable
 ///
-///  k      :   number of encoded bytes
-///  crc    :   error-detecting scheme
-///  fec0   :   inner forward error-correction code
-///  fec1   :   outer forward error-correction code
-pub fn packetizer_compute_dec_msg_len(k: usize, crc: CrcScheme, fec0: FecScheme, fec1: FecScheme) -> Result<usize> {
+///  encoded_length :   number of encoded bytes
+///  crc_scheme     :   error-detecting scheme
+///  outer_fec      :   outer forward error-correction code, decoded second
+///  inner_fec      :   inner forward error-correction code, decoded first
+pub fn packetizer_compute_dec_msg_len(
+    encoded_length: usize,
+    crc_scheme: CrcScheme,
+    outer_fec: FecScheme,
+    inner_fec: FecScheme,
+) -> Result<usize> {
     let mut n_hat = 0usize;
     let mut k_hat = 0usize;
 
     // check for zero-length packet
     // TODO : implement faster method
-    while k_hat < k {
+    while k_hat < encoded_length {
         // compute encoded packet length
-        k_hat = packetizer_compute_enc_msg_len(n_hat, crc, fec0, fec1);
+        k_hat = packetizer_compute_enc_msg_len(n_hat, crc_scheme, outer_fec, inner_fec);
 
-        if k_hat == k {
+        if k_hat == encoded_length {
             return Ok(n_hat);
-        } else if k_hat > k {
-            let lo = packetizer_compute_enc_msg_len(n_hat.saturating_sub(1), crc, fec0, fec1);
+        } else if k_hat > encoded_length {
+            let lo = packetizer_compute_enc_msg_len(n_hat.saturating_sub(1), crc_scheme, outer_fec, inner_fec);
             return Err(Error::Config(format!(
                 "packetizer_compute_dec_msg_len(), no message length encodes to {} bytes \
                  (nearest are {} and {})",
-                k, lo, k_hat,
+                encoded_length, lo, k_hat,
             )));
         } else {
             n_hat += 1;
         }
     }
 
-    // k == 0, which only a zero-length payload with no crc could produce
+    // encoded_length == 0, which only a zero-length payload with no CRC could produce
     Ok(0)
 }
 
@@ -105,7 +115,7 @@ fn interleaver_depth(fs: FecScheme) -> Result<usize> {
 pub struct Packetizer {
     msg_len: usize,
     packet_len: usize,
-    check: CrcScheme,
+    crc_scheme: CrcScheme,
     crc_length: usize,
 
     plan: [PacketizerPlan; PLAN_LEN],
@@ -118,23 +128,28 @@ pub struct Packetizer {
 impl Packetizer {
     /// create packetizer object
     ///
-    ///  n      :   number of uncoded input bytes
-    ///  crc    :   error-detecting scheme
-    ///  fec0   :   inner forward error-correction code
-    ///  fec1   :   outer forward error-correction code
-    pub fn new(n: usize, crc: CrcScheme, fec0: FecScheme, fec1: FecScheme) -> Result<Self> {
-        let msg_len = n;
-        let packet_len = packetizer_compute_enc_msg_len(n, crc, fec0, fec1);
-        let crc_length = crc.key_len();
+    ///  message_length :   number of uncoded input bytes
+    ///  crc_scheme     :   error-detecting scheme
+    ///  outer_fec      :   outer forward error-correction code, applied first
+    ///  inner_fec      :   inner forward error-correction code, applied second
+    pub fn new(
+        message_length: usize,
+        crc_scheme: CrcScheme,
+        outer_fec: FecScheme,
+        inner_fec: FecScheme,
+    ) -> Result<Self> {
+        let msg_len = message_length;
+        let packet_len = packetizer_compute_enc_msg_len(message_length, crc_scheme, outer_fec, inner_fec);
+        let crc_length = crc_scheme.key_len();
 
         // create plan
-        let mut n0 = n + crc_length;
+        let mut n0 = message_length + crc_length;
         let mut plan = Vec::with_capacity(PLAN_LEN);
 
-        for i in 0..PLAN_LEN {
-            // set schemes
-            let fs = if i == 0 { fec0 } else { fec1 };
-
+        // A serial concatenation encodes with the outer code first and the
+        // channel-facing inner code second. Decoding traverses this plan in
+        // reverse.
+        for fs in [outer_fec, inner_fec] {
             // compute lengths
             let dec_msg_len = n0;
             let enc_msg_len = fs.enc_msg_len(dec_msg_len);
@@ -159,7 +174,7 @@ impl Packetizer {
         Ok(Self {
             msg_len,
             packet_len,
-            check: crc,
+            crc_scheme,
             crc_length,
             plan,
             buffer_0: vec![0u8; 8 * packet_len],
@@ -178,17 +193,17 @@ impl Packetizer {
     }
 
     /// get error-detecting scheme
-    pub fn crc(&self) -> CrcScheme {
-        self.check
+    pub fn crc_scheme(&self) -> CrcScheme {
+        self.crc_scheme
     }
 
-    /// get inner forward error-correction code
-    pub fn fec0(&self) -> FecScheme {
+    /// get the outer forward error-correction code
+    pub fn outer_fec(&self) -> FecScheme {
         self.plan[0].fec_scheme
     }
 
-    /// get outer forward error-correction code
-    pub fn fec1(&self) -> FecScheme {
+    /// get the inner forward error-correction code
+    pub fn inner_fec(&self) -> FecScheme {
         self.plan[1].fec_scheme
     }
 
@@ -225,7 +240,7 @@ impl Packetizer {
         }
 
         // compute crc, append to buffer
-        let mut key = crc::generate_key(self.check, &self.buffer_0[..self.msg_len]);
+        let mut key = crc::generate_key(self.crc_scheme, &self.buffer_0[..self.msg_len]);
         for i in 0..self.crc_length {
             // append byte to buffer
             self.buffer_0[self.msg_len + self.crc_length - i - 1] = (key & 0xff) as u8;
@@ -301,7 +316,7 @@ impl Packetizer {
         self.buffer_0[..8 * self.packet_len].copy_from_slice(&pkt[..8 * self.packet_len]);
 
         //
-        // decode outer level using soft decoding
+        // decode the channel-facing inner FEC using soft decisions
         //
 
         // run the de-interleaver: buffer[0] > buffer[1]
@@ -313,7 +328,7 @@ impl Packetizer {
         plan.fec.decode_soft(plan.dec_msg_len, &self.buffer_1, &mut self.buffer_0)?;
 
         //
-        // decode inner level using hard decoding
+        // decode the outer FEC using hard decisions
         //
 
         // run the de-interleaver: buffer[0] > buffer[1]
@@ -342,7 +357,7 @@ impl Packetizer {
         msg[..self.msg_len].copy_from_slice(&self.buffer_0[..self.msg_len]);
 
         // return crc validity
-        crc::validate_message(self.check, &self.buffer_0[..self.msg_len], key)
+        crc::validate_message(self.crc_scheme, &self.buffer_0[..self.msg_len], key)
     }
 }
 
@@ -353,16 +368,16 @@ mod tests {
     use test_macro::autotest_annotate;
 
     // Help function to keep code base small
-    fn packetizer_test_codec(n: usize, crc: CrcScheme, fec0: FecScheme, fec1: FecScheme) {
-        let pkt_len = packetizer_compute_enc_msg_len(n, crc, fec0, fec1);
+    fn packetizer_test_codec(message_length: usize, crc_scheme: CrcScheme, outer_fec: FecScheme, inner_fec: FecScheme) {
+        let pkt_len = packetizer_compute_enc_msg_len(message_length, crc_scheme, outer_fec, inner_fec);
         let mut packet = vec![0u8; pkt_len];
 
         // create object
-        let mut p = Packetizer::new(n, crc, fec0, fec1).unwrap();
+        let mut p = Packetizer::new(message_length, crc_scheme, outer_fec, inner_fec).unwrap();
 
         // initialize data
-        let msg_tx: Vec<u8> = (0..n).map(|i| (i % 256) as u8).collect();
-        let mut msg_rx = vec![0u8; n];
+        let msg_tx: Vec<u8> = (0..message_length).map(|i| (i % 256) as u8).collect();
+        let mut msg_rx = vec![0u8; message_length];
 
         // encode/decode packet
         p.encode(&msg_tx, &mut packet).unwrap();
@@ -395,14 +410,14 @@ mod tests {
     fn test_packetizer_copy() {
         let msg_len_dec = 57;
         let crc = CrcScheme::Crc32;
-        let fec0 = FecScheme::Hamming128;
-        let fec1 = FecScheme::Golay2412;
+        let outer_fec = FecScheme::Hamming128;
+        let inner_fec = FecScheme::Golay2412;
 
         // compute encoded message length
-        let msg_len_enc = packetizer_compute_enc_msg_len(msg_len_dec, crc, fec0, fec1);
+        let msg_len_enc = packetizer_compute_enc_msg_len(msg_len_dec, crc, outer_fec, inner_fec);
 
         // create object
-        let mut q0 = Packetizer::new(msg_len_dec, crc, fec0, fec1).unwrap();
+        let mut q0 = Packetizer::new(msg_len_dec, crc, outer_fec, inner_fec).unwrap();
 
         // initialize random data
         let mut rng = rand::thread_rng();
@@ -437,14 +452,14 @@ mod tests {
 
     #[test]
     fn test_packetizer_decode_soft() {
-        for (fec0, fec1) in [
+        for (outer_fec, inner_fec) in [
             (FecScheme::None, FecScheme::Hamming74),
             (FecScheme::Hamming128, FecScheme::Golay2412),
             (FecScheme::Rep3, FecScheme::Rep5),
         ] {
             let n = 24;
             let crc = CrcScheme::Crc32;
-            let mut p = Packetizer::new(n, crc, fec0, fec1).unwrap();
+            let mut p = Packetizer::new(n, crc, outer_fec, inner_fec).unwrap();
 
             let mut rng = rand::thread_rng();
             let msg_tx: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
@@ -464,8 +479,8 @@ mod tests {
             let mut msg_rx = vec![0u8; n];
             let crc_pass = p.decode_soft(&soft, &mut msg_rx).unwrap();
 
-            assert_eq!(msg_tx, msg_rx, "{:?}/{:?}: soft decode", fec0, fec1);
-            assert!(crc_pass, "{:?}/{:?}: crc failed", fec0, fec1);
+            assert_eq!(msg_tx, msg_rx, "{:?}/{:?}: soft decode", outer_fec, inner_fec);
+            assert!(crc_pass, "{:?}/{:?}: crc failed", outer_fec, inner_fec);
         }
     }
 
@@ -495,9 +510,9 @@ mod tests {
         let p = Packetizer::new(57, CrcScheme::Crc16, FecScheme::Rep3, FecScheme::Golay2412).unwrap();
 
         assert_eq!(p.dec_msg_len(), 57);
-        assert_eq!(p.crc(), CrcScheme::Crc16);
-        assert_eq!(p.fec0(), FecScheme::Rep3);
-        assert_eq!(p.fec1(), FecScheme::Golay2412);
+        assert_eq!(p.crc_scheme(), CrcScheme::Crc16);
+        assert_eq!(p.outer_fec(), FecScheme::Rep3);
+        assert_eq!(p.inner_fec(), FecScheme::Golay2412);
         assert_eq!(
             p.enc_msg_len(),
             packetizer_compute_enc_msg_len(57, CrcScheme::Crc16, FecScheme::Rep3, FecScheme::Golay2412)
@@ -507,15 +522,15 @@ mod tests {
     #[test]
     fn test_packetizer_dec_msg_len_unreachable() {
         let crc = CrcScheme::Crc32;
-        let (fec0, fec1) = (FecScheme::Hamming128, FecScheme::Golay2412);
+        let (outer_fec, inner_fec) = (FecScheme::Hamming128, FecScheme::Golay2412);
 
         // collect the lengths that are actually achievable
         let achievable: std::collections::HashSet<usize> =
-            (0..40).map(|n| packetizer_compute_enc_msg_len(n, crc, fec0, fec1)).collect();
+            (0..40).map(|n| packetizer_compute_enc_msg_len(n, crc, outer_fec, inner_fec)).collect();
 
         let mut rejected = 0;
         for k in 1..120usize {
-            let result = packetizer_compute_dec_msg_len(k, crc, fec0, fec1);
+            let result = packetizer_compute_dec_msg_len(k, crc, outer_fec, inner_fec);
             if achievable.contains(&k) {
                 assert!(result.is_ok(), "k={} is achievable but was rejected", k);
             } else {
@@ -530,23 +545,23 @@ mod tests {
     #[test]
     fn test_packetizer_compute_dec_msg_len() {
         let crc = CrcScheme::Crc32;
-        for (fec0, fec1) in [
+        for (outer_fec, inner_fec) in [
             (FecScheme::None, FecScheme::None),
             (FecScheme::None, FecScheme::Rep3),
             (FecScheme::Hamming128, FecScheme::Golay2412),
         ] {
             for n in 1..=40usize {
-                let k = packetizer_compute_enc_msg_len(n, crc, fec0, fec1);
-                let n_hat = packetizer_compute_dec_msg_len(k, crc, fec0, fec1).unwrap();
+                let k = packetizer_compute_enc_msg_len(n, crc, outer_fec, inner_fec);
+                let n_hat = packetizer_compute_dec_msg_len(k, crc, outer_fec, inner_fec).unwrap();
 
-                assert!(n_hat <= n, "{:?}/{:?} n={}: got {}", fec0, fec1, n, n_hat);
+                assert!(n_hat <= n, "{:?}/{:?} n={}: got {}", outer_fec, inner_fec, n, n_hat);
 
                 assert_eq!(
-                    packetizer_compute_enc_msg_len(n_hat, crc, fec0, fec1),
+                    packetizer_compute_enc_msg_len(n_hat, crc, outer_fec, inner_fec),
                     k,
                     "{:?}/{:?} n={}: n_hat={} does not round-trip",
-                    fec0,
-                    fec1,
+                    outer_fec,
+                    inner_fec,
                     n,
                     n_hat
                 );
@@ -583,10 +598,10 @@ mod tests {
     fn test_packetizer_reedsolomon_burst() {
         let n = 64;
         let crc = CrcScheme::Crc32;
-        let (fec0, fec1) = (FecScheme::RsM8, FecScheme::None);
+        let (outer_fec, inner_fec) = (FecScheme::RsM8, FecScheme::None);
 
-        let pkt_len = packetizer_compute_enc_msg_len(n, crc, fec0, fec1);
-        let mut p = Packetizer::new(n, crc, fec0, fec1).unwrap();
+        let pkt_len = packetizer_compute_enc_msg_len(n, crc, outer_fec, inner_fec);
+        let mut p = Packetizer::new(n, crc, outer_fec, inner_fec).unwrap();
 
         let msg_tx: Vec<u8> = (0..n).map(|i| (i % 256) as u8).collect();
         let mut packet = vec![0u8; pkt_len];
@@ -617,9 +632,9 @@ mod tests {
         let n = 64;
         let crc = CrcScheme::Crc32;
 
-        for fec0 in [FecScheme::RsM8, FecScheme::Hamming74, FecScheme::Golay2412, FecScheme::None] {
-            let pkt_len = packetizer_compute_enc_msg_len(n, crc, fec0, FecScheme::None);
-            let mut p = Packetizer::new(n, crc, fec0, FecScheme::None).unwrap();
+        for outer_fec in [FecScheme::RsM8, FecScheme::Hamming74, FecScheme::Golay2412, FecScheme::None] {
+            let pkt_len = packetizer_compute_enc_msg_len(n, crc, outer_fec, FecScheme::None);
+            let mut p = Packetizer::new(n, crc, outer_fec, FecScheme::None).unwrap();
 
             let msg_tx: Vec<u8> = (0..n).map(|i| ((i * 7 + 3) % 256) as u8).collect();
             let mut packet = vec![0u8; pkt_len];
@@ -634,12 +649,12 @@ mod tests {
 
             let mut msg_rx = vec![0xAAu8; n];
             let crc_pass =
-                p.decode(&packet, &mut msg_rx).unwrap_or_else(|e| panic!("{fec0:?}: decode returned Err({e})"));
+                p.decode(&packet, &mut msg_rx).unwrap_or_else(|e| panic!("{outer_fec:?}: decode returned Err({e})"));
 
-            assert!(!crc_pass, "{fec0:?}: crc should fail on a mangled packet");
+            assert!(!crc_pass, "{outer_fec:?}: crc should fail on a mangled packet");
 
             // and the payload buffer was actually written, not left untouched
-            assert!(msg_rx.iter().any(|&b| b != 0xAA), "{fec0:?}: decode left the output buffer untouched");
+            assert!(msg_rx.iter().any(|&b| b != 0xAA), "{outer_fec:?}: decode left the output buffer untouched");
         }
     }
 }

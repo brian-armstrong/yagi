@@ -32,23 +32,23 @@ impl PacketModem {
     /// create packet encoder with a particular configuration
     ///
     ///  payload_len :   length of payload message [bytes]
-    ///  check       :   data integrity check, e.g CrcScheme::Crc32
-    ///  fec0        :   forward error-correction scheme (inner)
-    ///  fec1        :   forward error-correction scheme (outer)
-    ///  ms          :   modulation scheme, e.g. ModulationScheme::Psk4
+    ///  crc_scheme        :   data integrity check, e.g CrcScheme::Crc32
+    ///  outer_fec         :   outer forward error-correction scheme
+    ///  inner_fec         :   inner forward error-correction scheme
+    ///  modulation_scheme :   modulation scheme, e.g. ModulationScheme::Psk4
     pub fn new(
         payload_len: usize,
-        check: CrcScheme,
-        fec0: FecScheme,
-        fec1: FecScheme,
-        ms: ModulationScheme,
+        crc_scheme: CrcScheme,
+        outer_fec: FecScheme,
+        inner_fec: FecScheme,
+        modulation_scheme: ModulationScheme,
     ) -> Result<Self> {
         // create payload modem and get bits per symbol
-        let mod_payload = Modem::new(ms)?;
+        let mod_payload = Modem::new(modulation_scheme)?;
         let bits_per_symbol = mod_payload.bps();
 
         // create the symbolizer, which owns the packetizer
-        let sym = PacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol)?;
+        let sym = PacketSymbolizer::new(payload_len, crc_scheme, outer_fec, inner_fec, bits_per_symbol)?;
 
         Ok(Self {
             mod_payload,
@@ -63,19 +63,19 @@ impl PacketModem {
     /// reconfigure object with particular parameters
     ///
     ///  payload_len :   length of payload message [bytes]
-    ///  check       :   data integrity check, e.g CrcScheme::Crc32
-    ///  fec0        :   forward error-correction scheme (inner)
-    ///  fec1        :   forward error-correction scheme (outer)
-    ///  ms          :   modulation scheme, e.g. ModulationScheme::Psk4
+    ///  crc_scheme        :   data integrity check, e.g CrcScheme::Crc32
+    ///  outer_fec         :   outer forward error-correction scheme
+    ///  inner_fec         :   inner forward error-correction scheme
+    ///  modulation_scheme :   modulation scheme, e.g. ModulationScheme::Psk4
     pub fn reconfigure(
         &mut self,
         payload_len: usize,
-        check: CrcScheme,
-        fec0: FecScheme,
-        fec1: FecScheme,
-        ms: ModulationScheme,
+        crc_scheme: CrcScheme,
+        outer_fec: FecScheme,
+        inner_fec: FecScheme,
+        modulation_scheme: ModulationScheme,
     ) -> Result<()> {
-        *self = Self::new(payload_len, check, fec0, fec1, ms)?;
+        *self = Self::new(payload_len, crc_scheme, outer_fec, inner_fec, modulation_scheme)?;
         Ok(())
     }
 
@@ -96,18 +96,18 @@ impl PacketModem {
     }
 
     /// get data integrity check
-    pub fn crc(&self) -> CrcScheme {
-        self.sym.crc()
+    pub fn crc_scheme(&self) -> CrcScheme {
+        self.sym.crc_scheme()
     }
 
-    /// get inner forward error-correction scheme
-    pub fn fec0(&self) -> FecScheme {
-        self.sym.fec0()
+    /// get the outer forward error-correction scheme
+    pub fn outer_fec(&self) -> FecScheme {
+        self.sym.outer_fec()
     }
 
-    /// get outer forward error-correction scheme
-    pub fn fec1(&self) -> FecScheme {
-        self.sym.fec1()
+    /// get the inner forward error-correction scheme
+    pub fn inner_fec(&self) -> FecScheme {
+        self.sym.inner_fec()
     }
 
     /// get modulation scheme
@@ -265,13 +265,13 @@ mod tests {
 
     fn qpacketmodem_modulated(
         payload_len: usize,
-        check: CrcScheme,
-        fec0: FecScheme,
-        fec1: FecScheme,
-        ms: ModulationScheme,
+        crc_scheme: CrcScheme,
+        outer_fec: FecScheme,
+        inner_fec: FecScheme,
+        modulation_scheme: ModulationScheme,
     ) {
         // create and configure packet encoder/decoder object
-        let mut q = PacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
+        let mut q = PacketModem::new(payload_len, crc_scheme, outer_fec, inner_fec, modulation_scheme).unwrap();
 
         // initialize payload
         let mut rng = rand::thread_rng();
@@ -346,14 +346,14 @@ mod tests {
     #[autotest_annotate(autotest_qpacketmodem_evm)]
     fn test_qpacketmodem_evm() {
         let payload_len = 800;
-        let check = CrcScheme::Crc32;
-        let fec0 = FecScheme::None;
-        let fec1 = FecScheme::None;
-        let ms = ModulationScheme::Psk4;
+        let crc_scheme = CrcScheme::Crc32;
+        let outer_fec = FecScheme::None;
+        let inner_fec = FecScheme::None;
+        let modulation_scheme = ModulationScheme::Psk4;
         let snr_db = 25.0f32;
 
         // create and configure packet encoder/decoder object
-        let mut q = PacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
+        let mut q = PacketModem::new(payload_len, crc_scheme, outer_fec, inner_fec, modulation_scheme).unwrap();
 
         // get frame length and allocate memory for frame samples
         let frame_len = q.frame_len();
@@ -381,13 +381,13 @@ mod tests {
     #[autotest_annotate(autotest_qpacketmodem_copy)]
     fn test_qpacketmodem_copy() {
         let payload_len = 400;
-        let check = CrcScheme::Crc24;
-        let fec0 = FecScheme::Secded7264;
-        let fec1 = FecScheme::Hamming128;
-        let ms = ModulationScheme::Pi4Dqpsk;
+        let crc_scheme = CrcScheme::Crc24;
+        let outer_fec = FecScheme::Secded7264;
+        let inner_fec = FecScheme::Hamming128;
+        let modulation_scheme = ModulationScheme::Pi4Dqpsk;
 
         // create and configure packet encoder/decoder object
-        let mut q0 = PacketModem::new(payload_len, check, fec0, fec1, ms).unwrap();
+        let mut q0 = PacketModem::new(payload_len, crc_scheme, outer_fec, inner_fec, modulation_scheme).unwrap();
 
         // initialize buffers
         let frame_len = q0.frame_len();

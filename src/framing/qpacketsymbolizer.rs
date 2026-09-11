@@ -31,15 +31,15 @@ impl PacketSymbolizer {
     /// create packet encoder/decoder with a particular configuration
     ///
     ///  payload_len     :   length of payload message [bytes]
-    ///  check           :   data integrity check, e.g CrcScheme::Crc32
-    ///  fec0            :   forward error-correction scheme (inner)
-    ///  fec1            :   forward error-correction scheme (outer)
+    ///  crc_scheme      :   data integrity check, e.g CrcScheme::Crc32
+    ///  outer_fec       :   outer forward error-correction scheme
+    ///  inner_fec       :   inner forward error-correction scheme
     ///  bits_per_symbol :   bits per output symbol
     pub fn new(
         payload_len: usize,
-        check: CrcScheme,
-        fec0: FecScheme,
-        fec1: FecScheme,
+        crc_scheme: CrcScheme,
+        outer_fec: FecScheme,
+        inner_fec: FecScheme,
         bits_per_symbol: usize,
     ) -> Result<Self> {
         if bits_per_symbol == 0 || bits_per_symbol > 8 {
@@ -50,7 +50,7 @@ impl PacketSymbolizer {
         }
 
         // create packetizer object and compute encoded payload length
-        let packetizer = Packetizer::new(payload_len, check, fec0, fec1)?;
+        let packetizer = Packetizer::new(payload_len, crc_scheme, outer_fec, inner_fec)?;
         let byte_len = packetizer.enc_msg_len();
 
         // number of symbols in the encoded payload, from the number of bits in it
@@ -70,19 +70,19 @@ impl PacketSymbolizer {
     /// reconfigure object with particular parameters
     ///
     ///  payload_len     :   length of payload message [bytes]
-    ///  check           :   data integrity check, e.g CrcScheme::Crc32
-    ///  fec0            :   forward error-correction scheme (inner)
-    ///  fec1            :   forward error-correction scheme (outer)
+    ///  crc_scheme      :   data integrity check, e.g CrcScheme::Crc32
+    ///  outer_fec       :   outer forward error-correction scheme
+    ///  inner_fec       :   inner forward error-correction scheme
     ///  bits_per_symbol :   bits per output symbol
     pub fn reconfigure(
         &mut self,
         payload_len: usize,
-        check: CrcScheme,
-        fec0: FecScheme,
-        fec1: FecScheme,
+        crc_scheme: CrcScheme,
+        outer_fec: FecScheme,
+        inner_fec: FecScheme,
         bits_per_symbol: usize,
     ) -> Result<()> {
-        *self = Self::new(payload_len, check, fec0, fec1, bits_per_symbol)?;
+        *self = Self::new(payload_len, crc_scheme, outer_fec, inner_fec, bits_per_symbol)?;
         Ok(())
     }
 
@@ -118,18 +118,18 @@ impl PacketSymbolizer {
     }
 
     /// data integrity check
-    pub fn crc(&self) -> CrcScheme {
-        self.packetizer.crc()
-    }
-
-    /// inner forward error-correction scheme
-    pub fn fec0(&self) -> FecScheme {
-        self.packetizer.fec0()
+    pub fn crc_scheme(&self) -> CrcScheme {
+        self.packetizer.crc_scheme()
     }
 
     /// outer forward error-correction scheme
-    pub fn fec1(&self) -> FecScheme {
-        self.packetizer.fec1()
+    pub fn outer_fec(&self) -> FecScheme {
+        self.packetizer.outer_fec()
+    }
+
+    /// inner forward error-correction scheme
+    pub fn inner_fec(&self) -> FecScheme {
+        self.packetizer.inner_fec()
     }
 
     /// bytes produced by unpacking every symbol
@@ -332,13 +332,13 @@ mod tests {
 
     fn qpacketmodem_unmodulated(
         payload_len: usize,
-        check: CrcScheme,
-        fec0: FecScheme,
-        fec1: FecScheme,
+        crc_scheme: CrcScheme,
+        outer_fec: FecScheme,
+        inner_fec: FecScheme,
         bits_per_symbol: usize,
     ) {
         // create and configure packet encoder/decoder object
-        let mut q = PacketSymbolizer::new(payload_len, check, fec0, fec1, bits_per_symbol).unwrap();
+        let mut q = PacketSymbolizer::new(payload_len, crc_scheme, outer_fec, inner_fec, bits_per_symbol).unwrap();
 
         // initialize payload
         let mut rng = rand::thread_rng();
