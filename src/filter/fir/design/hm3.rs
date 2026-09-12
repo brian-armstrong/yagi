@@ -36,12 +36,10 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
     let fs = fc * (1.0 + beta); // stop-band
 
     // root nyquist
-    let num_bands = 3;
     let mut bands = [0.0, fp, fc, fc, fs, 0.5];
     let des = [1.0, 1.0 / 2.0_f32.sqrt(), 0.0];
     let weights = [1.0, 1.0, 1.0];
 
-    let btype = design::pm::FirPmBandType::Bandpass;
     let wtype = [
         design::pm::FirPmWeightType::Flat,
         design::pm::FirPmWeightType::Flat,
@@ -49,7 +47,7 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
     ];
 
     let mut h = vec![0.0; n];
-    let h_pm = design::pm::fir_design_pm(n, num_bands, &bands, &des, Some(&weights), Some(&wtype), btype)?;
+    let h_pm = design::pm::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype))?;
     h.copy_from_slice(&h_pm);
 
     let (isi_rms, _isi_max) = design::filter_isi(&h, k, m);
@@ -63,7 +61,7 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
         bands[1] = fp;
 
         // execute filter design
-        let h_pm = match design::pm::fir_design_pm(n, num_bands, &bands, &des, Some(&weights), Some(&wtype), btype) {
+        let h_pm = match design::pm::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype)) {
             Ok(h) => h,
             Err(Error::NoConvergence(_)) => break, // retain the best prior candidate
             Err(error) => return Err(error),

@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::filter::fir::design::estimate_req_filter_transition_bandwidth;
-use crate::filter::fir::design::pm::{fir_design_pm, FirPmBandType, FirPmWeightType};
+use crate::filter::fir::design::pm::{fir_design_pm, FirPmWeightType};
 use crate::optim::qs1dsearch::{OptimDirection, QuadSectionSearch};
 
 use num_complex::Complex32;
@@ -54,7 +54,7 @@ fn firdespm_halfband_utility_inner(gamma: f32, userdata: &mut ParksMcClellanWork
     let des = [1.0, 0.0];
     let weights = [1.0, 1.0]; // best with {1, 1}
     let wtype = [FirPmWeightType::Flat, FirPmWeightType::Flat]; // best with {flat, flat}
-    let h = fir_design_pm(userdata.h_len, 2, &bands, &des, Some(&weights), Some(&wtype), FirPmBandType::Bandpass)?;
+    let h = fir_design_pm(userdata.h_len, &bands, &des, Some(&weights), Some(&wtype))?;
     userdata.h = h;
 
     // compute utility; copy ideal non-zero coefficients and compute transform

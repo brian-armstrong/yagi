@@ -408,7 +408,7 @@ pub fn fir_design_prototype(
             let des = [samples_per_symbol as f32, 0.5 * samples_per_symbol as f32, 0.0];
             let weights = [1.0, 1.0, 1.0];
             let wtype = [pm::FirPmWeightType::Flat, pm::FirPmWeightType::Flat, pm::FirPmWeightType::Flat];
-            pm::fir_design_pm(h_len, 3, &bands, &des, Some(&weights), Some(&wtype), pm::FirPmBandType::Bandpass)
+            pm::fir_design_pm(h_len, &bands, &des, Some(&weights), Some(&wtype))
         }
         FirFilterShape::Rcos => {
             rcos::fir_design_rcos(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
