@@ -25,7 +25,7 @@ where
     ) -> Result<Self> {
         // validate input
         if interpolation_factor < 2 {
-            return Err(Error::Config("interp factor must be greater than 1".into()));
+            return Err(Error::Config("interpolation factor must be greater than 1".into()));
         }
 
         // create filter
@@ -35,44 +35,53 @@ where
     }
 
     /// create interpolator with default Butterworth prototype
-    pub fn new_butterworth(m: usize, order: usize) -> Result<Self> {
+    pub fn new_butterworth(interpolation_factor: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
-            m,
+            interpolation_factor,
             IirFilterShape::Cheby2,
             IirBandType::Lowpass,
             IirFormat::SecondOrderSections,
             order,
-            0.5 / (m as f32), // fc
-            0.0,              // f0
-            0.1,              // pass-band ripple
-            60.0,             // stop-band attenuation
+            0.5 / interpolation_factor as f32,
+            0.0,  // center frequency
+            0.1,  // pass-band ripple
+            60.0, // stop-band attenuation
         )
     }
 
     /// create interpolator from prototype
     pub fn new_prototype(
-        m: usize,
-        ftype: IirFilterShape,
-        btype: IirBandType,
+        interpolation_factor: usize,
+        filter_shape: IirFilterShape,
+        band_type: IirBandType,
         format: IirFormat,
         order: usize,
-        fc: f32,
-        f0: f32,
-        ap: f32,
-        as_: f32,
+        cutoff_frequency: f32,
+        center_frequency: f32,
+        passband_ripple: f32,
+        stopband_attenuation: f32,
     ) -> Result<Self> {
         // validate input
-        if m < 2 {
-            return Err(Error::Config("interp factor must be greater than 1".into()));
+        if interpolation_factor < 2 {
+            return Err(Error::Config("interpolation factor must be greater than 1".into()));
         }
 
         // create filter
-        let mut iirfilt = IirFilter::new_prototype(ftype, btype, format, order, fc, f0, ap, as_)?;
+        let mut iirfilt = IirFilter::new_prototype(
+            filter_shape,
+            band_type,
+            format,
+            order,
+            cutoff_frequency,
+            center_frequency,
+            passband_ripple,
+            stopband_attenuation,
+        )?;
 
         // set appropriate scale
-        iirfilt.set_scale(Coeff::from(m).unwrap());
+        iirfilt.set_scale(Coeff::from(interpolation_factor).unwrap());
 
-        Ok(IirInterpolationFilter { m, iirfilt })
+        Ok(IirInterpolationFilter { m: interpolation_factor, iirfilt })
     }
 
     // copy object
@@ -96,7 +105,7 @@ where
     /// execute interpolator
     pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
         if output.len() != self.m {
-            return Err(Error::Config("output array must be of length m".into()));
+            return Err(Error::Config("output length must equal the interpolation factor".into()));
         }
 
         // TODO: use iirpfb
@@ -109,7 +118,7 @@ where
     /// execute interpolation on block of input samples
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if output.len() != input.len() * self.m {
-            return Err(Error::Config("output array must be of length n * m".into()));
+            return Err(Error::Config("output length must equal input length times the interpolation factor".into()));
         }
 
         for (i, &xi) in input.iter().enumerate() {

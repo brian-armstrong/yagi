@@ -81,34 +81,43 @@ where
     /// # Arguments
     ///
     /// * `decimation_factor` - The decimation factor
-    /// * `ftype` - The filter type
-    /// * `btype` - The band type
+    /// * `filter_shape` - The filter shape
+    /// * `band_type` - The band type
     /// * `format` - The coefficients format
     /// * `order` - The filter order
-    /// * `fc` - The low-pass prototype cut-off frequency
-    /// * `f0` - The center frequency
-    /// * `ap` - The pass-band ripple
-    /// * `as_` - The stop-band ripple
+    /// * `cutoff_frequency` - The low-pass prototype cut-off frequency
+    /// * `center_frequency` - The center frequency
+    /// * `passband_ripple` - The pass-band ripple
+    /// * `stopband_attenuation` - The stop-band attenuation
     ///
     /// # Returns
     ///
     /// A new IIR decimation filter
     pub fn new_prototype(
         decimation_factor: usize,
-        ftype: IirFilterShape,
-        btype: IirBandType,
+        filter_shape: IirFilterShape,
+        band_type: IirBandType,
         format: IirFormat,
         order: usize,
-        fc: f32,
-        f0: f32,
-        ap: f32,
-        as_: f32,
+        cutoff_frequency: f32,
+        center_frequency: f32,
+        passband_ripple: f32,
+        stopband_attenuation: f32,
     ) -> Result<Self> {
         if decimation_factor < 2 {
-            return Err(Error::Config("interp factor must be greater than 1".into()));
+            return Err(Error::Config("decimation factor must be greater than 1".into()));
         }
 
-        let iirfilt = IirFilter::new_prototype(ftype, btype, format, order, fc, f0, ap, as_)?;
+        let iirfilt = IirFilter::new_prototype(
+            filter_shape,
+            band_type,
+            format,
+            order,
+            cutoff_frequency,
+            center_frequency,
+            passband_ripple,
+            stopband_attenuation,
+        )?;
 
         Ok(Self { decimation_factor, iirfilt })
     }

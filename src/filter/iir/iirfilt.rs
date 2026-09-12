@@ -509,26 +509,35 @@ where
 
     /// create iirfilt (infinite impulse response filter) object based
     /// on prototype
-    ///  _ftype      :   filter type (e.g. LIQUID_IIRDES_BUTTER)
-    ///  _btype      :   band type (e.g. LIQUID_IIRDES_BANDPASS)
-    ///  _format     :   coefficients format (e.g. LIQUID_IIRDES_SOS)
-    ///  _order      :   filter order
-    ///  _fc         :   low-pass prototype cut-off frequency
-    ///  _f0         :   center frequency (band-pass, band-stop)
-    ///  _ap         :   pass-band ripple in dB
-    ///  _as         :   stop-band ripple in dB
+    ///  `filter_shape`         : filter shape (e.g. Butterworth)
+    ///  `band_type`            : band type (e.g. band-pass)
+    ///  `format`               : coefficient format
+    ///  `order`                : filter order
+    ///  `cutoff_frequency`     : low-pass prototype cut-off frequency
+    ///  `center_frequency`     : center frequency (band-pass, band-stop)
+    ///  `passband_ripple`      : pass-band ripple in dB
+    ///  `stopband_attenuation` : stop-band attenuation in dB
     pub fn new_prototype(
-        ftype: design::IirFilterShape,
-        btype: design::IirBandType,
+        filter_shape: design::IirFilterShape,
+        band_type: design::IirBandType,
         format: design::IirFormat,
         order: usize,
-        fc: f32,
-        f0: f32,
-        ap: f32,
-        as_: f32,
+        cutoff_frequency: f32,
+        center_frequency: f32,
+        passband_ripple: f32,
+        stopband_attenuation: f32,
     ) -> Result<Self> {
         // filter length
-        let (b, a, nsos) = iir_filter_design_prototype(ftype, btype, format, order, fc, f0, ap, as_)?;
+        let (b, a, nsos) = iir_filter_design_prototype(
+            filter_shape,
+            band_type,
+            format,
+            order,
+            cutoff_frequency,
+            center_frequency,
+            passband_ripple,
+            stopband_attenuation,
+        )?;
 
         let filter = if format == design::IirFormat::SecondOrderSections {
             IirFilter::<T, Coeff>::new_sos(&b, &a, nsos)?
@@ -540,9 +549,9 @@ where
 
     /// create simplified low-pass Butterworth IIR filter
     ///  _n      : filter order
-    ///  _fc     : low-pass prototype cut-off frequency
-    pub fn new_lowpass(order: usize, fc: f32) -> Result<Self> {
-        let (b, a, nsos) = iir_filter_design_lowpass(order, fc)?;
+    ///  `cutoff_frequency` : low-pass prototype cut-off frequency
+    pub fn new_lowpass(order: usize, cutoff_frequency: f32) -> Result<Self> {
+        let (b, a, nsos) = iir_filter_design_lowpass(order, cutoff_frequency)?;
         Self::new_sos(&b, &a, nsos)
     }
 

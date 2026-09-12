@@ -12,8 +12,13 @@ pub struct IirHilbertFilter {
 }
 
 impl IirHilbertFilter {
-    pub fn new(ftype: IirFilterShape, n: usize, ap: f32, as_: f32) -> Result<Self> {
-        if n == 0 {
+    pub fn new(
+        filter_shape: IirFilterShape,
+        order: usize,
+        passband_ripple: f32,
+        stopband_attenuation: f32,
+    ) -> Result<Self> {
+        if order == 0 {
             return Err(Error::Config("filter order must be greater than zero".into()));
         }
 
@@ -22,8 +27,26 @@ impl IirHilbertFilter {
         let fc = 0.25;
         let f0 = 0.0;
 
-        let filt_0 = IirFilter::new_prototype(ftype, btype, format, n, fc, f0, ap, as_)?;
-        let filt_1 = IirFilter::new_prototype(ftype, btype, format, n, fc, f0, ap, as_)?;
+        let filt_0 = IirFilter::new_prototype(
+            filter_shape,
+            btype,
+            format,
+            order,
+            fc,
+            f0,
+            passband_ripple,
+            stopband_attenuation,
+        )?;
+        let filt_1 = IirFilter::new_prototype(
+            filter_shape,
+            btype,
+            format,
+            order,
+            fc,
+            f0,
+            passband_ripple,
+            stopband_attenuation,
+        )?;
 
         let mut q = Self { filt_0, filt_1, state: 0 };
 
@@ -31,15 +54,15 @@ impl IirHilbertFilter {
         Ok(q)
     }
 
-    pub fn from_order(n: usize) -> Result<Self> {
-        if n == 0 {
+    pub fn from_order(order: usize) -> Result<Self> {
+        if order == 0 {
             return Err(Error::Config("filter order must be greater than zero".into()));
         }
 
         let ftype = IirFilterShape::Butter;
         let ap = 0.1;
         let as_ = 60.0;
-        Self::new(ftype, n, ap, as_)
+        Self::new(ftype, order, ap, as_)
     }
 
     pub fn reset(&mut self) {
