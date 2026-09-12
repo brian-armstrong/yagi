@@ -5,7 +5,7 @@
 //
 // Each tap is a first-order autoregressive process driven by complex Gaussian
 // innovations, which makes the tap a Rayleigh-fading path whose rate is set by
-// the coherence time. Unlike `Channel::add_multipath`, whose taps are fixed for
+// the decorrelation rate. Unlike `Channel::add_multipath`, whose taps are fixed for
 // the life of the object, these taps move while the signal runs.
 //
 
@@ -19,7 +19,7 @@ use crate::error::{Error, Result};
 /// Time-varying multi-path channel emulator
 ///
 /// The larger the standard deviation, the more dramatic the frequency response
-/// of the channel. The shorter the coherence time, the faster the channel
+/// of the channel. The larger the decorrelation rate, the faster the channel
 /// effects.
 #[derive(Debug, Clone)]
 #[doc(alias = "Tvmpch")]
@@ -29,43 +29,43 @@ pub struct TimeVaryingMultipathChannel {
 
     std: f32,   // innovation scale
     alpha: f32, // AR pole: how much of the previous tap is retained
-    beta: f32,  // innovation weight (the normalized coherence time)
+    beta: f32,  // innovation weight (the decorrelation rate)
 
     noise: NoiseSource, // Gaussian source driving the taps
 }
 
 impl TimeVaryingMultipathChannel {
-    /// create time-varying multi-path channel emulator object
+    /// Create a time-varying multipath channel emulator.
     ///
     /// # Arguments
     ///
-    /// * `n` - number of coefficients, `n > 0`
-    /// * `std` - standard deviation of coefficients, `std >= 0`
-    /// * `tau` - normalized coherence time, `tau` in (0, 1]
-    pub fn new(n: usize, std: f32, tau: f32) -> Result<Self> {
+    /// * `num_taps` - Total number of channel taps, including the direct path
+    /// * `standard_deviation` - Standard deviation of the fading taps
+    /// * `decorrelation_rate` - Normalized AR decorrelation rate in (0, 1]. Larger values vary the taps more rapidly.
+    pub fn new(num_taps: usize, standard_deviation: f32, decorrelation_rate: f32) -> Result<Self> {
         // validate input
-        if n < 1 {
-            return Err(Error::Config("tvmpch_create(), filter length must be greater than one".into()));
+        if num_taps < 1 {
+            return Err(Error::Config("number of channel taps must be at least one".into()));
         }
-        if std < 0.0 {
-            return Err(Error::Config("tvmpch_create(), standard deviation must be positive".into()));
+        if standard_deviation < 0.0 {
+            return Err(Error::Config("tap standard deviation must be nonnegative".into()));
         }
-        if tau <= 0.0 || tau > 1.0 {
-            return Err(Error::Config("tvmpch_create(), coherence time must be in (0,1]".into()));
+        if decorrelation_rate <= 0.0 || decorrelation_rate > 1.0 {
+            return Err(Error::Config("tap decorrelation rate must be in (0,1]".into()));
         }
 
-        let beta = tau;
+        let beta = decorrelation_rate;
         let mut q = Self {
-            h: vec![Complex32::new(0.0, 0.0); n],
-            w: Window::new(n)?,
-            std: 2.0 * std / beta.sqrt(),
+            h: vec![Complex32::new(0.0, 0.0); num_taps],
+            w: Window::new(num_taps)?,
+            std: 2.0 * standard_deviation / beta.sqrt(),
             alpha: 1.0 - beta,
             beta,
             noise: NoiseSource::Global,
         };
 
         // time-reverse coefficients: the direct path sits at the end
-        q.h[n - 1] = Complex32::new(1.0, 0.0);
+        q.h[num_taps - 1] = Complex32::new(1.0, 0.0);
 
         // reset filter state (clear buffer)
         q.reset();
@@ -73,9 +73,9 @@ impl TimeVaryingMultipathChannel {
         Ok(q)
     }
 
-    /// create the emulator drawing its tap innovations from a seeded generator
-    pub fn new_seeded(n: usize, std: f32, tau: f32, seed: u64) -> Result<Self> {
-        let mut q = Self::new(n, std, tau)?;
+    /// Create the emulator drawing its tap innovations from a seeded generator.
+    pub fn new_seeded(num_taps: usize, standard_deviation: f32, decorrelation_rate: f32, seed: u64) -> Result<Self> {
+        let mut q = Self::new(num_taps, standard_deviation, decorrelation_rate)?;
         q.noise = NoiseSource::seeded(seed);
         Ok(q)
     }
