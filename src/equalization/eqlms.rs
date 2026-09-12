@@ -92,36 +92,48 @@ where
         })
     }
 
-    pub fn new_rnyquist(filter_type: filter::FirFilterShape, k: usize, m: usize, beta: f32, dt: f32) -> Result<Self> {
-        if k < 2 {
+    pub fn new_rnyquist(
+        filter_shape: filter::FirFilterShape,
+        samples_per_symbol: usize,
+        filter_delay: usize,
+        excess_bandwidth: f32,
+        fractional_delay: f32,
+    ) -> Result<Self> {
+        if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be greater than 1".into()));
         }
-        if m == 0 {
+        if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if !(0.0..=1.0).contains(&beta) {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
-        if !(-1.0..=1.0).contains(&dt) {
+        if !(-1.0..=1.0).contains(&fractional_delay) {
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h = filter::fir_design_prototype(filter_type, k, m, beta, dt)?;
-        let hc: Vec<T> = h.iter().map(|&x| (x / k as f32).into()).collect();
+        let h = filter::fir_design_prototype(
+            filter_shape,
+            samples_per_symbol,
+            filter_delay,
+            excess_bandwidth,
+            fractional_delay,
+        )?;
+        let hc: Vec<T> = h.iter().map(|&x| (x / samples_per_symbol as f32).into()).collect();
 
         Self::from_coefficients(&hc)
     }
 
-    pub fn new_lowpass(h_len: usize, fc: f32) -> Result<Self> {
-        if h_len == 0 {
+    pub fn new_lowpass(filter_length: usize, cutoff_frequency: f32) -> Result<Self> {
+        if filter_length == 0 {
             return Err(Error::Config("filter length must be greater than 0".into()));
         }
-        if !(0.0..=0.5).contains(&fc) {
+        if !(0.0..=0.5).contains(&cutoff_frequency) {
             return Err(Error::Config("filter cutoff must be in (0,0.5]".into()));
         }
 
-        let h = filter::fir_design_kaiser(h_len, fc, 40.0, 0.0)?;
-        let hc: Vec<T> = h.iter().map(|&x| x * 2.0.into() * fc).collect();
+        let h = filter::fir_design_kaiser(filter_length, cutoff_frequency, 40.0, 0.0)?;
+        let hc: Vec<T> = h.iter().map(|&x| x * 2.0.into() * cutoff_frequency).collect();
 
         Self::from_coefficients(&hc)
     }
