@@ -168,7 +168,7 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
 
-    use crate::sequence::bsequence::BinarySequence;
+    use crate::sequence::BinarySequence;
 
     fn msequence_test_autocorrelation(m: u32) {
         // create and initialize m-sequence

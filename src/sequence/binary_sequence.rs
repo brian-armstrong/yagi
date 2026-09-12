@@ -1,5 +1,5 @@
+use super::maximal_length_sequence::MaximalLengthSequence;
 use crate::error::{Error, Result};
-use crate::sequence::msequence::MaximalLengthSequence;
 use crate::utility::bits::count_ones;
 
 /// binary sequence
@@ -194,7 +194,7 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
 
-    use crate::sequence::msequence::MaximalLengthSequence;
+    use crate::sequence::MaximalLengthSequence;
 
     #[test]
     #[autotest_annotate(autotest_bsequence_init)]

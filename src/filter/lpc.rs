@@ -89,7 +89,7 @@ pub fn levinson(r: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
 mod tests {
     use super::*;
     use crate::filter::iir::IirFilter;
-    use crate::sequence::msequence::MaximalLengthSequence;
+    use crate::sequence::MaximalLengthSequence;
     use test_macro::autotest_annotate;
 
     fn lpc_test_harness(n: usize, p: usize, fc: f32, tol: f32) -> Result<()> {

@@ -1,4 +1,3 @@
-#[path = "quad_section_search.rs"]
-pub mod qs1dsearch;
+mod quad_section_search;
 
-pub use qs1dsearch::*;
+pub use quad_section_search::{OptimDirection, QuadSectionSearch};

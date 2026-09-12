@@ -1,12 +1,10 @@
 // Sequence module
 // Current state:
 // - Autotests matching and passing
-// - msequence and bsequence ready to use
+// - MaximalLengthSequence and BinarySequence ready to use
 
-#[path = "binary_sequence.rs"]
-pub mod bsequence;
-#[path = "maximal_length_sequence.rs"]
-pub mod msequence;
+mod binary_sequence;
+mod maximal_length_sequence;
 
-pub use bsequence::*;
-pub use msequence::*;
+pub use binary_sequence::BinarySequence;
+pub use maximal_length_sequence::MaximalLengthSequence;

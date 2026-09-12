@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::filter::fir::design::estimate_req_filter_transition_bandwidth;
 use crate::filter::fir::design::parks_mcclellan::{fir_design_pm, FirPmWeightType};
-use crate::optim::qs1dsearch::{OptimDirection, QuadSectionSearch};
+use crate::optim::{OptimDirection, QuadSectionSearch};
 
 use num_complex::Complex32;
 
