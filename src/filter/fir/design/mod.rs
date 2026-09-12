@@ -376,47 +376,79 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
 /// Design (root-)Nyquist filter from prototype
 ///
 /// # Arguments
-/// * `ftype`  : filter type (e.g. FirdesFilterType::Rrcos)
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : excess bandwidth factor, beta in \[0,1\]
-/// * `dt`     : fractional sample delay
+/// * `filter_shape` - Filter shape (e.g. [`FirFilterShape::Rrcos`])
+/// * `samples_per_symbol` - Number of samples per symbol
+/// * `filter_delay` - Filter delay in symbols
+/// * `excess_bandwidth` - Excess bandwidth factor in \[0,1\]
+/// * `fractional_delay` - Fractional sample delay
 ///
 /// # Returns
 ///
 /// Vec of filter coefficients
-pub fn fir_design_prototype(ftype: FirFilterShape, k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
+pub fn fir_design_prototype(
+    filter_shape: FirFilterShape,
+    samples_per_symbol: usize,
+    filter_delay: usize,
+    excess_bandwidth: f32,
+    fractional_delay: f32,
+) -> Result<Vec<f32>> {
     // compute filter parameters
-    let h_len = 2 * k * m + 1;
-    let fc = 0.5 / k as f32;
-    let df = beta / k as f32;
+    let h_len = 2 * samples_per_symbol * filter_delay + 1;
+    let fc = 0.5 / samples_per_symbol as f32;
+    let df = excess_bandwidth / samples_per_symbol as f32;
 
-    match ftype {
+    match filter_shape {
         FirFilterShape::Kaiser => {
             let as_ = estimate_req_filter_stopband_attenuation(df, h_len)?;
-            kaiser::fir_design_kaiser(h_len, fc, as_, dt)
+            kaiser::fir_design_kaiser(h_len, fc, as_, fractional_delay)
         }
         FirFilterShape::Pm => {
             // Parks-McClellan algorithm parameters
             let bands = [0.0, fc - 0.5 * df, fc, fc, fc + 0.5 * df, 0.5];
-            let des = [k as f32, 0.5 * k as f32, 0.0];
+            let des = [samples_per_symbol as f32, 0.5 * samples_per_symbol as f32, 0.0];
             let weights = [1.0, 1.0, 1.0];
             let wtype = [pm::FirPmWeightType::Flat, pm::FirPmWeightType::Flat, pm::FirPmWeightType::Flat];
             pm::fir_design_pm(h_len, 3, &bands, &des, Some(&weights), Some(&wtype), pm::FirPmBandType::Bandpass)
         }
-        FirFilterShape::Rcos => rcos::fir_design_rcos(k, m, beta, dt),
-        FirFilterShape::Fexp => fnyquist::fir_design_fexp(k, m, beta, dt),
-        FirFilterShape::Fsech => fnyquist::fir_design_fsech(k, m, beta, dt),
-        FirFilterShape::Farcsech => fnyquist::fir_design_farcsech(k, m, beta, dt),
-        FirFilterShape::Arkaiser => rkaiser::fir_design_arkaiser(k, m, beta, dt),
-        FirFilterShape::Rkaiser => rkaiser::fir_design_rkaiser(k, m, beta, dt),
-        FirFilterShape::Rrcos => rrcos::fir_design_rrcos(k, m, beta, dt),
-        FirFilterShape::Hm3 => hm3::fir_design_hm3(k, m, beta, dt),
-        FirFilterShape::Gmsktx => gmsk::fir_design_gmsktx(k, m, beta, dt),
-        FirFilterShape::Gmskrx => gmsk::fir_design_gmskrx(k, m, beta, dt),
-        FirFilterShape::Rfexp => fnyquist::fir_design_rfexp(k, m, beta, dt),
-        FirFilterShape::Rfsech => fnyquist::fir_design_rfsech(k, m, beta, dt),
-        FirFilterShape::Rfarcsech => fnyquist::fir_design_rfarcsech(k, m, beta, dt),
+        FirFilterShape::Rcos => {
+            rcos::fir_design_rcos(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Fexp => {
+            fnyquist::fir_design_fexp(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Fsech => {
+            fnyquist::fir_design_fsech(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Farcsech => {
+            fnyquist::fir_design_farcsech(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Arkaiser => {
+            rkaiser::fir_design_arkaiser(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Rkaiser => {
+            rkaiser::fir_design_rkaiser(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Rrcos => {
+            rrcos::fir_design_rrcos(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Hm3 => {
+            hm3::fir_design_hm3(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Gmsktx => {
+            gmsk::fir_design_gmsktx(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Gmskrx => {
+            gmsk::fir_design_gmskrx(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Rfexp => {
+            fnyquist::fir_design_rfexp(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Rfsech => {
+            fnyquist::fir_design_rfsech(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
+        FirFilterShape::Rfarcsech => {
+            fnyquist::fir_design_rfarcsech(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+        }
     }
 }
 
