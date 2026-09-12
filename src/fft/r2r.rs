@@ -53,21 +53,21 @@ pub struct RealToRealFft {
 }
 
 impl RealToRealFft {
-    pub fn new(n: usize, kind: RealToRealFftKind) -> Self {
+    pub fn new(size: usize, kind: RealToRealFftKind) -> Self {
         let mut planner = DctPlanner::new();
 
         let transform = match kind {
-            RealToRealFftKind::Redft00 => DctDst::Dct1(planner.plan_dct1(n)),
-            RealToRealFftKind::Redft10 => DctDst::Dct2(planner.plan_dct2(n)),
-            RealToRealFftKind::Redft01 => DctDst::Dct3(planner.plan_dct3(n)),
-            RealToRealFftKind::Redft11 => DctDst::Dct4(planner.plan_dct4(n)),
-            RealToRealFftKind::Rodft00 => DctDst::Dst1(planner.plan_dst1(n)),
-            RealToRealFftKind::Rodft10 => DctDst::Dst2(planner.plan_dst2(n)),
-            RealToRealFftKind::Rodft01 => DctDst::Dst3(planner.plan_dst3(n)),
-            RealToRealFftKind::Rodft11 => DctDst::Dst4(planner.plan_dst4(n)),
+            RealToRealFftKind::Redft00 => DctDst::Dct1(planner.plan_dct1(size)),
+            RealToRealFftKind::Redft10 => DctDst::Dct2(planner.plan_dct2(size)),
+            RealToRealFftKind::Redft01 => DctDst::Dct3(planner.plan_dct3(size)),
+            RealToRealFftKind::Redft11 => DctDst::Dct4(planner.plan_dct4(size)),
+            RealToRealFftKind::Rodft00 => DctDst::Dst1(planner.plan_dst1(size)),
+            RealToRealFftKind::Rodft10 => DctDst::Dst2(planner.plan_dst2(size)),
+            RealToRealFftKind::Rodft01 => DctDst::Dst3(planner.plan_dst3(size)),
+            RealToRealFftKind::Rodft11 => DctDst::Dst4(planner.plan_dst4(size)),
         };
 
-        Self { n, kind, transform }
+        Self { n: size, kind, transform }
     }
 
     pub fn run(&self, input: &[f32], output: &mut [f32]) {

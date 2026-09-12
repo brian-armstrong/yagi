@@ -39,9 +39,9 @@ pub struct Fft<T> {
 }
 
 impl<T: FftNum> Fft<T> {
-    pub fn new(n: usize, direction: Direction) -> Self {
+    pub fn new(size: usize, direction: Direction) -> Self {
         let mut planner = rustfft::FftPlanner::new();
-        let fft = planner.plan_fft(n, direction.into());
+        let fft = planner.plan_fft(size, direction.into());
         Self { fft }
     }
 
