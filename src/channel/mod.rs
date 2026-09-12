@@ -6,6 +6,7 @@
 
 mod channel;
 mod noise;
+#[path = "time_varying_multipath_channel.rs"]
 mod tvmpch;
 
 pub use channel::*;

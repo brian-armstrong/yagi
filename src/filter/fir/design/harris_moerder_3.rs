@@ -41,13 +41,13 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
     let weights = [1.0, 1.0, 1.0];
 
     let wtype = [
-        design::pm::FirPmWeightType::Flat,
-        design::pm::FirPmWeightType::Flat,
-        design::pm::FirPmWeightType::Exp,
+        design::parks_mcclellan::FirPmWeightType::Flat,
+        design::parks_mcclellan::FirPmWeightType::Flat,
+        design::parks_mcclellan::FirPmWeightType::Exp,
     ];
 
     let mut h = vec![0.0; n];
-    let h_pm = design::pm::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype))?;
+    let h_pm = design::parks_mcclellan::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype))?;
     h.copy_from_slice(&h_pm);
 
     let (isi_rms, _isi_max) = design::filter_isi(&h, k, m);
@@ -61,7 +61,7 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
         bands[1] = fp;
 
         // execute filter design
-        let h_pm = match design::pm::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype)) {
+        let h_pm = match design::parks_mcclellan::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype)) {
             Ok(h) => h,
             Err(Error::NoConvergence(_)) => break, // retain the best prior candidate
             Err(error) => return Err(error),

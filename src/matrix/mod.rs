@@ -5,25 +5,25 @@
 // - may rethink later - struct or trait based approach may be interesting
 
 pub mod base;
-pub mod cgsolve;
-pub mod chol;
-pub mod gramschmidt;
-pub mod inv;
-pub mod linsolve;
-pub mod ludecomp;
+pub mod cholesky;
+pub mod conjugate_gradient;
+pub mod gram_schmidt;
+pub mod inverse;
+pub mod linear_solve;
+pub mod lu_decomposition;
 pub mod math;
-pub mod qrdecomp;
+pub mod qr_decomposition;
 pub mod sparse;
 
 pub use crate::matrix::base::*;
-pub use crate::matrix::cgsolve::*;
-pub use crate::matrix::chol::*;
-pub use crate::matrix::gramschmidt::*;
-pub use crate::matrix::inv::*;
-pub use crate::matrix::linsolve::*;
-pub use crate::matrix::ludecomp::*;
+pub use crate::matrix::cholesky::*;
+pub use crate::matrix::conjugate_gradient::*;
+pub use crate::matrix::gram_schmidt::*;
+pub use crate::matrix::inverse::*;
+pub use crate::matrix::linear_solve::*;
+pub use crate::matrix::lu_decomposition::*;
 pub use crate::matrix::math::*;
-pub use crate::matrix::qrdecomp::*;
+pub use crate::matrix::qr_decomposition::*;
 pub use crate::matrix::sparse::*;
 
 #[cfg(test)]

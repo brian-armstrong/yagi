@@ -1,52 +1,961 @@
+use num_complex::Complex;
 use std::f32::consts::PI;
 
-// Constants
-const NCO_STATIC_LUT_WORDBITS: u32 = 32;
-const NCO_STATIC_LUT_NBITS: u32 = 10;
-const NCO_STATIC_LUT_SIZE: usize = 1 << NCO_STATIC_LUT_NBITS;
-const NCO_STATIC_LUT_QSIZE: usize = NCO_STATIC_LUT_SIZE >> 2;
+use crate::error::{Error, Result};
 
-fn nco_static_lut_index_shifted_pi2(index: usize) -> usize {
-    (index + NCO_STATIC_LUT_QSIZE) & (NCO_STATIC_LUT_SIZE - 1)
+use super::direct::DirectBackend;
+use super::interpolated::InterpolatedLookupTableBackend;
+use super::nco::LookupTableBackend;
+
+const PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
+
+/// Numerical strategy used to synthesize the oscillator's sine and cosine.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[doc(alias = "OscScheme")]
+pub enum NcoBackend {
+    /// Evaluate sine and cosine directly.
+    Direct,
+    /// Use the nearest entry in a sine lookup table.
+    LookupTable,
+    /// Linearly interpolate between entries in a sine lookup table.
+    InterpolatedLookupTable,
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct LookupTableBackend {
-    sintab: Vec<f32>,
+enum BackendState {
+    Direct(DirectBackend),
+    LookupTable(LookupTableBackend),
+    InterpolatedLookupTable(InterpolatedLookupTableBackend),
 }
 
-impl LookupTableBackend {
-    pub fn new() -> Self {
-        let mut nco = LookupTableBackend { sintab: vec![0.0; NCO_STATIC_LUT_SIZE] };
+/// Numerically controlled oscillator with a 32-bit phase accumulator.
+#[derive(Debug, Clone)]
+#[doc(alias = "Osc")]
+pub struct Nco {
+    theta: u32,
+    d_theta: u32,
+    alpha: f32,
+    beta: f32,
+    osc: BackendState,
+}
 
-        // Initialize sine table
-        for i in 0..NCO_STATIC_LUT_SIZE {
-            nco.sintab[i] = (2.0 * PI * i as f32 / NCO_STATIC_LUT_SIZE as f32).sin();
-        }
+impl Nco {
+    /// Create a new NCO
+    pub fn new(backend: NcoBackend) -> Self {
+        let data = match backend {
+            NcoBackend::Direct => BackendState::Direct(DirectBackend::new()),
+            NcoBackend::LookupTable => BackendState::LookupTable(LookupTableBackend::new()),
+            NcoBackend::InterpolatedLookupTable => {
+                BackendState::InterpolatedLookupTable(InterpolatedLookupTableBackend::new())
+            }
+        };
+        let mut nco = Nco { theta: 0, d_theta: 0, alpha: 0.0, beta: 0.0, osc: data };
+
+        // Set default PLL bandwidth
+        nco.pll_set_bandwidth(PLL_BANDWIDTH_DEFAULT);
+
+        // Reset object
+        nco.reset();
 
         nco
     }
 
-    pub fn sin(&self, theta: u32) -> f32 {
-        let index = self.static_index(theta);
-        self.sintab[index]
+    /// Reset internal state
+    pub fn reset(&mut self) {
+        self.theta = 0;
+        self.d_theta = 0;
     }
 
-    pub fn cos(&self, theta: u32) -> f32 {
-        let index = self.static_index(theta);
-        let index_pi2 = nco_static_lut_index_shifted_pi2(index);
-        self.sintab[index_pi2]
+    /// Set frequency
+    pub fn set_frequency(&mut self, frequency: f32) {
+        self.d_theta = Self::constrain(frequency);
     }
 
-    pub fn sin_cos(&self, theta: u32) -> (f32, f32) {
-        let index = self.static_index(theta);
-        let index_pi2 = nco_static_lut_index_shifted_pi2(index);
-        (self.sintab[index], self.sintab[index_pi2])
+    /// Adjust frequency
+    pub fn adjust_frequency(&mut self, frequency_offset: f32) {
+        self.d_theta = self.d_theta.wrapping_add(Self::constrain(frequency_offset));
     }
 
-    pub fn static_index(&self, theta: u32) -> usize {
-        (((theta as usize) + (1 << (NCO_STATIC_LUT_WORDBITS - NCO_STATIC_LUT_NBITS - 1)))
-            >> (NCO_STATIC_LUT_WORDBITS - NCO_STATIC_LUT_NBITS))
-            & (NCO_STATIC_LUT_SIZE - 1)
+    /// Set phase
+    pub fn set_phase(&mut self, phase: f32) {
+        self.theta = Self::constrain(phase);
+    }
+
+    /// Adjust phase
+    pub fn adjust_phase(&mut self, phase_offset: f32) {
+        self.theta = self.theta.wrapping_add(Self::constrain(phase_offset));
+    }
+
+    /// Increment internal phase
+    pub fn step(&mut self) {
+        self.theta = self.theta.wrapping_add(self.d_theta);
+    }
+
+    /// Get phase
+    pub fn phase(&self) -> f32 {
+        2.0 * PI * self.theta as f32 / ((1u64 << 32) as f32)
+    }
+
+    /// Get frequency
+    pub fn frequency(&self) -> f32 {
+        let d_theta = 2.0 * PI * self.d_theta as f32 / (1u64 << 32) as f32;
+        if d_theta > PI {
+            d_theta - 2.0 * PI
+        } else {
+            d_theta
+        }
+    }
+
+    /// Compute sine of internal phase
+    pub fn sin(&self) -> f32 {
+        match self.osc {
+            BackendState::Direct(ref direct) => direct.sin(self.theta),
+            BackendState::LookupTable(ref nco) => nco.sin(self.theta),
+            BackendState::InterpolatedLookupTable(ref vco) => vco.sin(self.theta),
+        }
+    }
+
+    /// Compute cosine of internal phase
+    pub fn cos(&self) -> f32 {
+        match self.osc {
+            BackendState::Direct(ref direct) => direct.cos(self.theta),
+            BackendState::LookupTable(ref nco) => nco.cos(self.theta),
+            BackendState::InterpolatedLookupTable(ref vco) => vco.cos(self.theta),
+        }
+    }
+
+    /// Compute sine and cosine of internal phase
+    pub fn sin_cos(&self) -> (f32, f32) {
+        match self.osc {
+            BackendState::Direct(ref direct) => direct.sin_cos(self.theta),
+            BackendState::LookupTable(ref nco) => nco.sin_cos(self.theta),
+            BackendState::InterpolatedLookupTable(ref vco) => vco.sin_cos(self.theta),
+        }
+    }
+
+    /// Compute complex exponential of internal phase
+    pub fn cexp(&self) -> Complex<f32> {
+        let (sin, cos) = self.sin_cos();
+        Complex::new(cos, sin)
+    }
+
+    pub fn sin_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
+        let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
+        match self.osc {
+            BackendState::Direct(ref direct) => direct.sin(theta) * scale,
+            BackendState::LookupTable(ref nco) => nco.sin(theta) * scale,
+            BackendState::InterpolatedLookupTable(ref vco) => vco.sin(theta) * scale,
+        }
+    }
+
+    pub fn cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
+        let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
+        match self.osc {
+            BackendState::Direct(ref direct) => direct.cos(theta) * scale,
+            BackendState::LookupTable(ref nco) => nco.cos(theta) * scale,
+            BackendState::InterpolatedLookupTable(ref vco) => vco.cos(theta) * scale,
+        }
+    }
+
+    pub fn sin_cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> (f32, f32) {
+        let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
+        match self.osc {
+            BackendState::Direct(ref direct) => {
+                let (sin, cos) = direct.sin_cos(theta);
+                (sin * scale, cos * scale)
+            }
+            BackendState::LookupTable(ref nco) => {
+                let (sin, cos) = nco.sin_cos(theta);
+                (sin * scale, cos * scale)
+            }
+            BackendState::InterpolatedLookupTable(ref vco) => {
+                let (sin, cos) = vco.sin_cos(theta);
+                (sin * scale, cos * scale)
+            }
+        }
+    }
+
+    // PLL methods
+
+    /// Set PLL bandwidth
+    pub fn pll_set_bandwidth(&mut self, bw: f32) {
+        if bw < 0.0 {
+            panic!("Bandwidth must be positive");
+        }
+        self.alpha = bw;
+        self.beta = bw.sqrt();
+    }
+
+    /// Advance PLL phase
+    pub fn pll_step(&mut self, dphi: f32) {
+        self.adjust_frequency(dphi * self.alpha);
+        self.adjust_phase(dphi * self.beta);
+    }
+
+    // Mixing methods
+
+    /// Mix up
+    pub fn mix_up(&self, input: Complex<f32>) -> Complex<f32> {
+        let (sin, cos) = self.sin_cos();
+        input * Complex::new(cos, sin)
+    }
+
+    /// Mix block up
+    pub fn mix_block_up(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<()> {
+        if input.len() != output.len() {
+            return Err(Error::Range("Input and output slices must have the same length".to_owned()));
+        }
+        for (x, y) in input.iter().zip(output.iter_mut()) {
+            *y = self.mix_up(*x);
+            self.step();
+        }
+        Ok(())
+    }
+
+    /// Mix down
+    pub fn mix_down(&self, input: Complex<f32>) -> Complex<f32> {
+        let (sin, cos) = self.sin_cos();
+        input * Complex::new(cos, sin).conj()
+    }
+
+    /// Mix block down
+    pub fn mix_block_down(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<()> {
+        if input.len() != output.len() {
+            return Err(Error::Range("Input and output slices must have the same length".to_owned()));
+        }
+        for (x, y) in input.iter().zip(output.iter_mut()) {
+            *y = self.mix_down(*x);
+            self.step();
+        }
+        Ok(())
+    }
+
+    // Helper functions
+    fn constrain(theta: f32) -> u32 {
+        // using f64 here is necessary to get full precision and avoid error accumulation
+        let theta = (theta as f64).rem_euclid(2.0 * std::f64::consts::PI);
+        ((theta / (2.0 * std::f64::consts::PI)) * (u32::MAX as f64)) as u32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::math::windows::{hann, WindowType};
+    use crate::nco::{Nco, NcoBackend};
+    use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
+    use lazy_static::lazy_static;
+    use num_complex::Complex;
+    use std::f32::consts::PI;
+    use test_macro::autotest_annotate;
+
+    // compute the error between a constrained phase and its expected fixed-point
+    // value, taking the shorter way around the accumulator word so that values
+    // straddling the wrap (0x00000000 vs 0xffffffff) compare as adjacent.
+    fn constrain_error(theta: f32, expected: u32) -> u32 {
+        let phase = Nco::constrain(theta);
+        let error = if phase > expected { phase - expected } else { expected - phase };
+        if error < 0x80000000 {
+            error
+        } else {
+            0xffffffff - error
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_constrain)]
+    fn test_nco_crcf_constrain() {
+        let tol = 0x00001fff;
+
+        // phase: 0 mod 2 pi
+        assert!(constrain_error(0.0, 0) < tol);
+        assert!(constrain_error(2.0 * PI, 0) < tol);
+        assert!(constrain_error(4.0 * PI, 0) < tol);
+        assert!(constrain_error(6.0 * PI, 0) < tol);
+        assert!(constrain_error(20.0 * PI, 0) < tol);
+
+        // phase: 0 mod 2 pi (negative)
+        assert!(constrain_error(-0.0, 0) < tol);
+        assert!(constrain_error(-2.0 * PI, 0) < tol);
+        assert!(constrain_error(-4.0 * PI, 0) < tol);
+        assert!(constrain_error(-6.0 * PI, 0) < tol);
+        assert!(constrain_error(-20.0 * PI, 0) < tol);
+
+        // phase: pi mod 2 pi
+        assert!(constrain_error(PI, 0x80000000) < tol);
+        assert!(constrain_error(3.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(5.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(7.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(27.0 * PI, 0x80000000) < tol);
+
+        // phase: pi mod 2 pi (negative)
+        assert!(constrain_error(-PI, 0x80000000) < tol);
+        assert!(constrain_error(-3.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(-5.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(-7.0 * PI, 0x80000000) < tol);
+        assert!(constrain_error(-27.0 * PI, 0x80000000) < tol);
+
+        // check other values
+        assert!(constrain_error(0.500 * PI, 0x40000000) < tol);
+        assert!(constrain_error(0.250 * PI, 0x20000000) < tol);
+        assert!(constrain_error(0.125 * PI, 0x10000000) < tol);
+        assert!(constrain_error(0.750 * PI, 0x60000000) < tol);
+        assert!(constrain_error(-0.500 * PI, 0xc0000000) < tol);
+        assert!(constrain_error(-0.250 * PI, 0xe0000000) < tol);
+        assert!(constrain_error(-0.125 * PI, 0xf0000000) < tol);
+
+        // check phase near boundaries
+        assert!(constrain_error(0.000001, 0x00000000) < tol);
+        assert!(constrain_error(-0.000001, 0x00000000) < tol);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_copy)]
+    fn test_nco_crcf_copy() {
+        // create and initialize object
+        let mut nco_0 = Nco::new(NcoBackend::InterpolatedLookupTable);
+        nco_0.set_phase(1.23456);
+        nco_0.set_frequency(5.67890);
+        nco_0.pll_set_bandwidth(0.011);
+
+        // copy object
+        let mut nco_1 = nco_0.clone();
+
+        for _ in 0..240 {
+            // received complex signal
+            let v0 = nco_0.cexp();
+            let v1 = nco_1.cexp();
+
+            // update pll
+            nco_0.pll_step(v0.arg());
+            nco_1.pll_step(v1.arg());
+
+            // update nco objects
+            nco_0.step();
+            nco_1.step();
+
+            // check output
+            assert_eq!(v0, v1);
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_config)]
+    fn test_nco_config() {
+        // this autotest is very simplistic, and most of its negative conditions
+        // are invalid in Rust
+        let _nco = Nco::new(NcoBackend::LookupTable);
+    }
+
+    // Helper function to calculate phase/frequency error
+    fn pll_error(a: f32, b: f32) -> f32 {
+        let mut error = a - b;
+        while error >= 2.0 * PI {
+            error -= 2.0 * PI;
+        }
+        while error <= -2.0 * PI {
+            error += 2.0 * PI;
+        }
+        error
+    }
+
+    // Test phase-locked loop
+    fn nco_crcf_pll_test(
+        scheme: NcoBackend,
+        phase_offset: f32,
+        freq_offset: f32,
+        pll_bandwidth: f32,
+        num_iterations: usize,
+        tol: f32,
+    ) {
+        // Create NCO objects
+        let mut nco_tx = Nco::new(scheme);
+        let mut nco_rx = Nco::new(scheme);
+
+        // Initialize objects
+        nco_tx.set_phase(phase_offset);
+        nco_tx.set_frequency(freq_offset);
+        nco_rx.pll_set_bandwidth(pll_bandwidth);
+
+        // Run loop
+        for _ in 0..num_iterations {
+            // Received complex signal
+            let r = nco_tx.cexp();
+            let v = nco_rx.cexp();
+
+            // Error estimation
+            let phase_error = (r * v.conj()).arg();
+
+            // Update PLL
+            nco_rx.pll_step(phase_error);
+
+            // Update NCO objects
+            nco_tx.step();
+            nco_rx.step();
+        }
+
+        // Ensure phase of oscillators is locked
+        let phase_error = pll_error(nco_tx.phase(), nco_rx.phase());
+        assert!((phase_error).abs() < tol, "Phase error: {}", phase_error);
+
+        // Ensure frequency of oscillators is locked
+        let freq_error = pll_error(nco_tx.frequency(), nco_rx.frequency());
+        assert!((freq_error).abs() < tol, "Frequency error: {}", freq_error);
+
+        println!(
+            "nco[bw:{:.4},n={}], phase:{:.6},e={:.4e}, freq:{:.6},e={:.4e}",
+            pll_bandwidth, num_iterations, phase_offset, phase_error, freq_offset, freq_error
+        );
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_pll_phase)]
+    fn test_nco_crcf_pll_phase() {
+        let bandwidths = [0.1, 0.01, 0.001, 0.0001];
+        let tol = 1e-2;
+
+        for &bw in &bandwidths {
+            // Adjust number of steps according to loop bandwidth
+            let num_steps = (32.0 / bw) as usize;
+
+            // Test various phase offsets
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 1.1, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 2.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 4.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, -PI / 8.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 8.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 4.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 2.0, 0.0, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, PI / 1.1, 0.0, bw, num_steps, tol);
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_pll_freq)]
+    fn test_nco_crcf_pll_freq() {
+        let bandwidths = [0.1, 0.05, 0.02, 0.01];
+        let tol = 1e-2;
+
+        for &bw in &bandwidths {
+            // Adjust number of steps according to loop bandwidth
+            let num_steps = (32.0 / bw) as usize;
+
+            // Test various frequency offsets
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.8, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.4, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.2, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, -0.1, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.1, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.2, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.4, bw, num_steps, tol);
+            nco_crcf_pll_test(NcoBackend::LookupTable, 0.0, 0.8, bw, num_steps, tol);
+        }
+    }
+
+    // Autotest helper function
+    fn nco_crcf_phase_test(scheme: NcoBackend, theta: f32, expected_cos: f32, expected_sin: f32, tol: f32) {
+        // Create object
+        let mut nco = Nco::new(scheme);
+
+        // Set phase
+        nco.set_phase(theta);
+
+        // Compute cosine and sine outputs
+        let c = nco.cos();
+        let s = nco.sin();
+
+        println!(
+            "cos({:8.5}) = {:8.5} ({:8.5}) e:{:8.5}, sin({:8.5}) = {:8.5} ({:8.5}) e:{:8.5}",
+            theta,
+            expected_cos,
+            c,
+            expected_cos - c,
+            theta,
+            expected_sin,
+            s,
+            expected_sin - s
+        );
+
+        // Run tests
+        assert!((c - expected_cos).abs() < tol, "Cosine error: expected {}, got {}", expected_cos, c);
+        assert!((s - expected_sin).abs() < tol, "Sine error: expected {}, got {}", expected_sin, s);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_phase)]
+    fn test_nco_crcf_phase() {
+        // Error tolerance (higher for NCO)
+        let tol = 0.02;
+
+        nco_crcf_phase_test(NcoBackend::LookupTable, -6.283185307, 1.000000000, 0.000000000, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -6.195739393, 0.996179042, 0.087334510, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -5.951041106, 0.945345356, 0.326070787, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -5.131745978, 0.407173250, 0.913350943, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -4.748043551, 0.035647016, 0.999364443, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -3.041191113, -0.994963998, -0.100232943, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -1.947799864, -0.368136099, -0.929771914, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -1.143752030, 0.414182352, -0.910193924, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -1.029377689, 0.515352252, -0.856978446, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -0.174356887, 0.984838307, -0.173474811, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, -0.114520496, 0.993449692, -0.114270338, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 0.000000000, 1.000000000, 0.000000000, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 1.436080000, 0.134309213, 0.990939471, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 2.016119855, -0.430749878, 0.902471353, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 2.996498473, -0.989492293, 0.144585621, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 3.403689755, -0.965848729, -0.259106603, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 3.591162483, -0.900634128, -0.434578148, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 5.111428476, 0.388533479, -0.921434607, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 5.727585681, 0.849584319, -0.527452828, tol);
+        nco_crcf_phase_test(NcoBackend::LookupTable, 6.283185307, 1.000000000, -0.000000000, tol);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_basic)]
+    fn test_nco_basic() {
+        let mut nco = Nco::new(NcoBackend::LookupTable);
+
+        let tol = 1e-4; // Error tolerance
+        let f = 2.0 * PI / 64.0; // Frequency to test
+
+        nco.set_phase(0.0);
+        assert!((nco.cos() - 1.0).abs() < tol, "Cosine at phase 0 error");
+        assert!(nco.sin().abs() < tol, "Sine at phase 0 error");
+
+        let (s, c) = nco.sin_cos();
+        assert!(s.abs() < tol, "Sine at phase 0 error (sin_cos)");
+        assert!((c - 1.0).abs() < tol, "Cosine at phase 0 error (sin_cos)");
+
+        nco.set_phase(PI / 2.0);
+        assert!(nco.cos().abs() < tol, "Cosine at phase PI/2 error");
+        assert!((nco.sin() - 1.0).abs() < tol, "Sine at phase PI/2 error");
+
+        let (s, c) = nco.sin_cos();
+        assert!((s - 1.0).abs() < tol, "Sine at phase PI/2 error (sin_cos)");
+        assert!(c.abs() < tol, "Cosine at phase PI/2 error (sin_cos)");
+
+        // Cycle through one full period in 64 steps
+        nco.set_phase(0.0);
+        nco.set_frequency(f);
+        for i in 0..128 {
+            let (s, c) = nco.sin_cos();
+            assert!((s - (i as f32 * f).sin()).abs() < tol, "Sine error at step {}", i);
+            assert!((c - (i as f32 * f).cos()).abs() < tol, "Cosine error at step {}", i);
+            nco.step();
+        }
+
+        // Double frequency: cycle through one full period in 32 steps
+        nco.set_phase(0.0);
+        nco.set_frequency(2.0 * f);
+        for i in 0..128 {
+            let (s, c) = nco.sin_cos();
+            assert!((s - (i as f32 * 2.0 * f).sin()).abs() < tol, "Sine error at step {} (double frequency)", i);
+            assert!((c - (i as f32 * 2.0 * f).cos()).abs() < tol, "Cosine error at step {} (double frequency)", i);
+            nco.step();
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_mixing)]
+    fn test_nco_mixing() {
+        // frequency, phase
+        let f = 0.1;
+        let phi = PI;
+
+        // error tolerance (high for NCO)
+        let tol = 0.05;
+
+        // initialize nco object
+        let mut nco = Nco::new(NcoBackend::LookupTable);
+        nco.set_frequency(f);
+        nco.set_phase(phi);
+
+        for _ in 0..64 {
+            // generate sin/cos
+            let (nco_q, nco_i) = nco.sin_cos();
+
+            // mix back to zero phase
+            let nco_cplx_in = Complex::new(nco_i, nco_q);
+            let nco_cplx_out = nco.mix_down(nco_cplx_in);
+
+            // assert mixer output is correct
+            assert!((nco_cplx_out.re - 1.0).abs() < tol, "Real part mixing error");
+            assert!(nco_cplx_out.im.abs() < tol, "Imaginary part mixing error");
+
+            // step nco
+            nco.step();
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_block_mixing)]
+    fn test_nco_block_mixing() {
+        // frequency, phase
+        let f = 0.1;
+        let phi = PI;
+
+        // error tolerance (high for NCO)
+        let tol = 0.05;
+
+        // number of samples
+        const NUM_SAMPLES: usize = 1024;
+
+        // store samples
+        let mut x = [Complex::new(0.0, 0.0); NUM_SAMPLES];
+        let mut y = [Complex::new(0.0, 0.0); NUM_SAMPLES];
+
+        // generate complex sin/cos
+        for i in 0..NUM_SAMPLES {
+            x[i] = Complex::new(0.0, f * i as f32 + phi).exp();
+        }
+
+        // initialize nco object
+        let mut nco = Nco::new(NcoBackend::LookupTable);
+        nco.set_frequency(f);
+        nco.set_phase(phi);
+
+        // mix signal back to zero phase (in pieces)
+        let mut i = 0;
+        while i < NUM_SAMPLES {
+            let n = std::cmp::min(7, NUM_SAMPLES - i);
+            nco.mix_block_down(&x[i..i + n], &mut y[i..i + n]).unwrap();
+            i += n;
+        }
+
+        // assert mixer output is correct
+        for i in 0..NUM_SAMPLES {
+            assert!((y[i].re - 1.0).abs() < tol, "Real part mixing error at index {}", i);
+            assert!(y[i].im.abs() < tol, "Imaginary part mixing error at index {}", i);
+        }
+    }
+
+    fn testbench_nco_crcf_mix(scheme: NcoBackend, phase: f32, frequency: f32) {
+        use rand::Rng;
+        // options
+        let buf_len = 1200;
+        let tol = 1e-2;
+
+        // create and initialize object
+        let mut nco = Nco::new(scheme);
+        nco.set_phase(phase);
+        nco.set_frequency(frequency);
+
+        // generate signal (pseudo-random)
+        let mut rng = rand::thread_rng();
+        let buf_0: Vec<Complex<f32>> =
+            (0..buf_len).map(|_| Complex::new(0.0, 2.0 * PI * rng.gen::<f32>()).exp()).collect();
+
+        // mix signal
+        let mut buf_1 = vec![Complex::new(0.0, 0.0); buf_len];
+        nco.mix_block_up(&buf_0, &mut buf_1).unwrap();
+
+        // compare result to expected
+        let mut theta = phase;
+        for i in 0..buf_len {
+            let v = buf_0[i] * Complex::new(0.0, theta).exp();
+            assert!((buf_1[i].re - v.re).abs() < tol, "Real part mixing error at index {}", i);
+            assert!((buf_1[i].im - v.im).abs() < tol, "Imaginary part mixing error at index {}", i);
+
+            // update and constrain phase
+            theta += frequency;
+            while theta > PI {
+                theta -= 2.0 * PI;
+            }
+            while theta < -PI {
+                theta += 2.0 * PI;
+            }
+        }
+    }
+
+    // test NCO mixing
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_0)]
+    fn test_nco_crcf_mix_nco_0() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_1)]
+    fn test_nco_crcf_mix_nco_1() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 1.234, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_2)]
+    fn test_nco_crcf_mix_nco_2() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, -1.234, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_3)]
+    fn test_nco_crcf_mix_nco_3() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 99.000, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_4)]
+    fn test_nco_crcf_mix_nco_4() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, PI, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_5)]
+    fn test_nco_crcf_mix_nco_5() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, PI);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_6)]
+    fn test_nco_crcf_mix_nco_6() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, -PI);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_7)]
+    fn test_nco_crcf_mix_nco_7() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, 0.123);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_8)]
+    fn test_nco_crcf_mix_nco_8() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, -0.123);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_nco_9)]
+    fn test_nco_crcf_mix_nco_9() {
+        testbench_nco_crcf_mix(NcoBackend::LookupTable, 0.000, 1e-5);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_0)]
+    fn test_nco_crcf_mix_vco_0() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_1)]
+    fn test_nco_crcf_mix_vco_1() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 1.234, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_2)]
+    fn test_nco_crcf_mix_vco_2() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, -1.234, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_3)]
+    fn test_nco_crcf_mix_vco_3() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 99.000, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_4)]
+    fn test_nco_crcf_mix_vco_4() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, PI, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_5)]
+    fn test_nco_crcf_mix_vco_5() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, PI);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_6)]
+    fn test_nco_crcf_mix_vco_6() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, -PI);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_7)]
+    fn test_nco_crcf_mix_vco_7() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, 0.123);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_8)]
+    fn test_nco_crcf_mix_vco_8() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, -0.123);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_mix_vco_9)]
+    fn test_nco_crcf_mix_vco_9() {
+        testbench_nco_crcf_mix(NcoBackend::InterpolatedLookupTable, 0.000, 1e-5);
+    }
+
+    fn nco_crcf_spectrum_test(scheme: NcoBackend, freq: f32) {
+        let num_samples = 1 << 16;
+        let nfft: usize = 9600;
+
+        let mut nco = Nco::new(scheme);
+        nco.set_frequency(2.0 * PI * freq);
+
+        let buf_len = 3 * nfft;
+        let mut buf_0 = vec![Complex::new(0.0, 0.0); buf_len];
+        let mut buf_1 = vec![Complex::new(0.0, 0.0); buf_len];
+        for i in 0..buf_len {
+            buf_0[i] = Complex::new(1.0 / (nfft as f32).sqrt(), 0.0);
+        }
+
+        let mut psd = SpectralPeriodogram::new(nfft, WindowType::BlackmanHarris, nfft, nfft / 2).unwrap();
+
+        while psd.num_samples_total() < num_samples {
+            nco.mix_block_up(&buf_0, &mut buf_1).unwrap();
+            if psd.num_samples_total() == 0 {
+                for i in 0..buf_len {
+                    buf_1[i] *= hann(i, 2 * buf_len).unwrap();
+                }
+            }
+            psd.write(&buf_1);
+        }
+
+        #[rustfmt::skip]
+        let regions = [
+            PsdRegion { fmin:         -0.5, fmax: freq - 0.002, pmin: 0.0, pmax: -60.0, test_lo: false, test_hi: true },
+            PsdRegion { fmin: freq - 0.002, fmax: freq + 0.002, pmin: 0.0, pmax:   0.0, test_lo: false, test_hi: true },
+            PsdRegion { fmin: freq + 0.002, fmax: 0.5,          pmin: 0.0, pmax: -60.0, test_lo: false, test_hi: true },
+        ];
+
+        let result = validate_psd_spgramcf(&psd, &regions).unwrap();
+        assert!(result, "PSD test failed");
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f00)]
+    fn test_nco_crcf_spectrum_nco_0() {
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.000);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f01)]
+    fn test_nco_crcf_spectrum_nco_1() {
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.1234);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f02)]
+    fn test_nco_crcf_spectrum_nco_2() {
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, -0.1234);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f03)]
+    fn test_nco_crcf_spectrum_nco_3() {
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.25);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_nco_f04)]
+    fn test_nco_crcf_spectrum_nco_4() {
+        nco_crcf_spectrum_test(NcoBackend::LookupTable, 0.1);
+    }
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f00)]
+    fn test_nco_crcf_spectrum_vco_0() {
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.0);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f01)]
+    fn test_nco_crcf_spectrum_vco_1() {
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.1234);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f02)]
+    fn test_nco_crcf_spectrum_vco_2() {
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, -0.1234);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f03)]
+    fn test_nco_crcf_spectrum_vco_3() {
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.25);
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_spectrum_vco_f04)]
+    fn test_nco_crcf_spectrum_vco_4() {
+        nco_crcf_spectrum_test(NcoBackend::InterpolatedLookupTable, 0.1);
+    }
+
+    // autotest helper function
+    fn nco_crcf_frequency_test(
+        scheme: NcoBackend,
+        phase: f32,
+        frequency: f32,
+        sincos: &[Complex<f32>],
+        num_samples: usize,
+        tol: f32,
+    ) {
+        // create object
+        let mut nco = Nco::new(scheme);
+
+        // set phase and frequency
+        nco.set_phase(phase);
+        nco.set_frequency(frequency);
+
+        // run trials
+        for i in 0..num_samples {
+            // compute complex output
+            let y_test = nco.cexp();
+
+            // compare to expected output
+            let y = sincos[i];
+
+            // run tests
+            assert!(
+                (y_test.re - y.re).abs() < tol,
+                "Real part error at index {}: expected {}, got {}",
+                i,
+                y.re,
+                y_test.re
+            );
+            assert!(
+                (y_test.im - y.im).abs() < tol,
+                "Imaginary part error at index {}: expected {}, got {}",
+                i,
+                y.im,
+                y_test.im
+            );
+
+            // step oscillator
+            nco.step();
+        }
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_nco_crcf_frequency)]
+    fn test_nco_crcf_frequency() {
+        // error tolerance (higher for NCO)
+        let tol = 0.04;
+
+        // test frequencies with irrational values
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 2.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_2, 256, tol); // 1/sqrt(2)
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 3.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_3, 256, tol); // 1/sqrt(3)
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 5.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_5, 256, tol); // 1/sqrt(5)
+        nco_crcf_frequency_test(NcoBackend::LookupTable, 0.0, 1.0 / 7.0_f32.sqrt(), &NCO_SINCOS_FSQRT1_7, 256, tol);
+        // 1/sqrt(7)
+    }
+
+    pub fn generate_sincos(frequency: f32, num_samples: usize) -> Vec<Complex<f32>> {
+        (0..num_samples)
+            .map(|i| {
+                let phase = i as f32 * frequency;
+                Complex::new(phase.cos(), phase.sin())
+            })
+            .collect()
+    }
+
+    // note these stand in for liquid's nco_sincos_fsqrt1_2, etc.
+    lazy_static! {
+        pub static ref NCO_SINCOS_FSQRT1_2: Vec<Complex<f32>> = generate_sincos(1.0 / 2.0_f32.sqrt(), 256);
+        pub static ref NCO_SINCOS_FSQRT1_3: Vec<Complex<f32>> = generate_sincos(1.0 / 3.0_f32.sqrt(), 256);
+        pub static ref NCO_SINCOS_FSQRT1_5: Vec<Complex<f32>> = generate_sincos(1.0 / 5.0_f32.sqrt(), 256);
+        pub static ref NCO_SINCOS_FSQRT1_7: Vec<Complex<f32>> = generate_sincos(1.0 / 7.0_f32.sqrt(), 256);
     }
 }

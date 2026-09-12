@@ -362,10 +362,10 @@ mod tests {
         assert_eq!(RS_M8_NROOTS + RS_M8_KK, rs.encoder.block_length());
     }
 
-    // liquid's own encoder output. see test_data_rs.rs
+    // liquid's own encoder output. see test_data_reed_solomon.rs
     #[test]
     fn test_rs_matches_liquid_codewords() {
-        use super::super::test_data_rs::*;
+        use super::super::test_data_reed_solomon::*;
 
         let cases: &[(usize, &[u8])] = &[
             (1, &RS_M8_ENC_1),

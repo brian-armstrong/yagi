@@ -1,7 +1,7 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
 use crate::filter::iir::design::{IirBandType, IirFilterShape, IirFormat};
-use crate::filter::iir::iirfilt::IirFilter;
+use crate::filter::iir::filter::IirFilter;
 use num_complex::{Complex32, ComplexFloat};
 
 #[derive(Debug, Clone)]

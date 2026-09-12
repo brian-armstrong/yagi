@@ -1,11 +1,13 @@
 // Fft module
 // Current state:
 // - Primary Fft struct ready to use (some autotests still missing)
-// - asgram/spgram/spwaterfall still missing
+// - asgram/spwaterfall still missing
 
 extern crate rustfft;
 
+#[path = "real_to_real.rs"]
 pub mod r2r;
+#[path = "spectral_periodogram.rs"]
 pub mod spgram;
 
 pub use r2r::{fft_r2r_run, RealToRealFft, RealToRealFftKind};

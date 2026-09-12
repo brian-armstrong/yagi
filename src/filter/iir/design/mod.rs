@@ -1,15 +1,15 @@
 mod bessel;
-mod butter;
-mod cheby1;
-mod cheby2;
-mod ellip;
+mod butterworth;
+mod chebyshev_type_i;
+mod chebyshev_type_ii;
+mod elliptic;
 mod pll;
 
 pub use bessel::*;
-pub use butter::*;
-pub use cheby1::*;
-pub use cheby2::*;
-pub use ellip::*;
+pub use butterworth::*;
+pub use chebyshev_type_i::*;
+pub use chebyshev_type_ii::*;
+pub use elliptic::*;
 pub use pll::*;
 
 use crate::error::{Error, Result};
@@ -804,7 +804,7 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filter::iir::iirfilt::IirFilter;
+    use crate::filter::iir::filter::IirFilter;
     use crate::utility::test_helpers::{validate_psd_iirfilt, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;

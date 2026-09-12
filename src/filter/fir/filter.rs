@@ -1139,7 +1139,7 @@ mod tests {
         }
     }
 
-    include!("firfilt_test_data.rs");
+    include!("test_data_filter.rs");
 
     // autotest helper function
     //  h      :   filter coefficients

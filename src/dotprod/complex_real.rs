@@ -13,9 +13,9 @@ use std::simd::{f32x16, f32x8};
 use std::sync::OnceLock;
 
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-use super::crc_block::plan_dotprod_crc_block_avx512;
+use super::complex_real_block::plan_dotprod_crc_block_avx512;
 #[cfg(feature = "simd")]
-use super::crc_block::plan_dotprod_crc_block_f32x4;
+use super::complex_real_block::plan_dotprod_crc_block_f32x4;
 #[cfg(feature = "simd")]
 use super::reduce::reduce_sum_complex_sse_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]

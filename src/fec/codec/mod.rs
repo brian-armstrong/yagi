@@ -14,9 +14,9 @@ mod rep3;
 mod rep5;
 mod secded;
 #[cfg(test)]
-mod test_data_conv;
+mod test_data_convolutional;
 #[cfg(test)]
-mod test_data_rs;
+mod test_data_reed_solomon;
 
 pub use golay2412::{golay2412_decode, golay2412_decode_symbol, golay2412_encode, golay2412_encode_symbol};
 pub use hamming128::{hamming128_decode, hamming128_decode_soft, hamming128_encode};

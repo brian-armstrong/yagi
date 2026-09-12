@@ -5,22 +5,22 @@
 // - Some replacement may be possible from stdlib or other crates
 // - Module orginization still WIP
 
-pub mod exp;
+pub mod exponential;
 pub mod gamma;
-pub mod nakm;
+pub mod nakagami;
 pub mod normal;
-pub mod ricek;
+pub mod rice;
 pub mod scramble;
 pub mod uniform;
-pub mod weib;
+pub mod weibull;
 
-pub use exp::*;
+pub use exponential::*;
 pub use gamma::*;
-pub use nakm::*;
+pub use nakagami::*;
 pub use normal::*;
-pub use ricek::*;
+pub use rice::*;
 pub use uniform::*;
-pub use weib::*;
+pub use weibull::*;
 
 #[cfg(test)]
 mod tests {

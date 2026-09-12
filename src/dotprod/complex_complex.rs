@@ -12,9 +12,9 @@ use std::simd::{f32x4, simd_swizzle};
 use std::sync::OnceLock;
 
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-use super::ccc_block::plan_dotprod_ccc_block_avx512;
+use super::complex_complex_block::plan_dotprod_ccc_block_avx512;
 #[cfg(feature = "simd")]
-use super::ccc_block::plan_dotprod_ccc_block_f32x4;
+use super::complex_complex_block::plan_dotprod_ccc_block_f32x4;
 #[cfg(feature = "simd")]
 use super::reduce::reduce_sum_sse_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]

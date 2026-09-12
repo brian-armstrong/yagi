@@ -9,14 +9,14 @@ use std::simd::{f32x16, f32x8, StdFloat};
 #[cfg(feature = "simd")]
 use std::sync::OnceLock;
 
+#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
+use super::real_real_block::plan_dotprod_rrr_block_avx512;
+#[cfg(feature = "simd")]
+use super::real_real_block::plan_dotprod_rrr_block_f32x4;
 #[cfg(feature = "simd")]
 use super::reduce::reduce_sum_sse_f32x4;
 #[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
 use super::reduce::{reduce_sum_avx2_f32x8, reduce_sum_avx512_f32x16};
-#[cfg(all(feature = "simd", any(target_arch = "x86", target_arch = "x86_64")))]
-use super::rrr_block::plan_dotprod_rrr_block_avx512;
-#[cfg(feature = "simd")]
-use super::rrr_block::plan_dotprod_rrr_block_f32x4;
 
 #[cfg(feature = "simd")]
 type DotProdRrrFn = unsafe fn(&[f32], &[f32]) -> f32;

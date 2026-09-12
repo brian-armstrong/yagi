@@ -3,25 +3,25 @@
 // - Dotprod ready to use (+autotests)
 // - sumsq ready to use (+autotests)
 
-mod ccc;
-mod crc;
-mod dotproduct;
-mod rrr;
+mod complex_complex;
+mod complex_real;
+mod dot_product;
+mod real_real;
 mod sumsq;
 
 pub use sumsq::{sumsqcf, sumsqf};
 
 #[cfg(feature = "simd")]
-mod ccc_block;
+mod complex_complex_block;
 #[cfg(feature = "simd")]
-mod crc_block;
+mod complex_real_block;
+#[cfg(feature = "simd")]
+mod real_real_block;
 #[cfg(feature = "simd")]
 mod reduce;
-#[cfg(feature = "simd")]
-mod rrr_block;
 
-pub use dotproduct::DotProduct;
-pub(crate) use dotproduct::DotProductPlan;
+pub use dot_product::DotProduct;
+pub(crate) use dot_product::DotProductPlan;
 
 /// A dot product kernel resolved ahead of time by [`DotProd::plan`].
 pub type DotProdKernel<Inputs, Rhs, Out> = unsafe fn(&Inputs, &[Rhs]) -> Out;

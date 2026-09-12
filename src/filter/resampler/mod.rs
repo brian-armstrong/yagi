@@ -1,5 +1,10 @@
+#[path = "multi_stage_resampler.rs"]
 pub mod msresamp;
+#[path = "multi_stage_half_band_resampler.rs"]
 pub mod msresamp2;
+#[path = "arbitrary_resampler.rs"]
 pub mod resamp;
+#[path = "half_band_resampler.rs"]
 pub mod resamp2;
+#[path = "rational_resampler.rs"]
 pub mod rresamp;

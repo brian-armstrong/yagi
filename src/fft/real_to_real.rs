@@ -135,7 +135,7 @@ mod tests {
         }
     }
 
-    include!("test_data_r2r.rs");
+    include!("test_data_real_to_real.rs");
 
     #[test]
     #[autotest_annotate(autotest_fft_r2r_REDFT00_n8)]

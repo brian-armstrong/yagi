@@ -1,4 +1,3 @@
-use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProductPlan};
 use crate::error::{Error, Result};
 use crate::filter;
@@ -18,14 +17,6 @@ pub struct FirPolyphaseFilterBank<T, Coeff = T> {
     plan: DotProductPlan<T, Coeff>,
     scale: Coeff,
     _input: PhantomData<fn(&[T])>,
-}
-
-/// Finite impulse response (FIR) polyphase filter bank with internal history
-#[derive(Clone, Debug)]
-#[doc(alias = "FirPfbFilter")]
-pub struct FirPolyphaseFilter<T, Coeff = T> {
-    w: Window<T>,
-    bank: FirPolyphaseFilterBank<T, Coeff>,
 }
 
 impl<T, Coeff> FirPolyphaseFilterBank<T, Coeff>
@@ -400,7 +391,7 @@ where
         }
     }
 
-    fn phase_coefficients(&self, i: usize) -> Result<(&[Coeff], &[Coeff])> {
+    pub(super) fn phase_coefficients(&self, i: usize) -> Result<(&[Coeff], &[Coeff])> {
         if i >= self.num_filters {
             return Err(Error::Config(format!("filterbank index ({}) exceeds maximum ({})", i, self.num_filters)));
         }
@@ -413,7 +404,7 @@ where
         Ok((h, block_h))
     }
 
-    fn execute_block_with_coefficients(&self, history: &[T], y: &mut [T], h: &[Coeff], block_h: &[Coeff]) {
+    pub(super) fn execute_block_with_coefficients(&self, history: &[T], y: &mut [T], h: &[Coeff], block_h: &[Coeff]) {
         self.plan.execute_block(history, h, block_h, y);
 
         for yi in y {
@@ -422,237 +413,11 @@ where
     }
 }
 
-impl<T, Coeff> FirPolyphaseFilter<T, Coeff>
-where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
-    [T]: DotProd<Coeff, Output = T>,
-{
-    /// Create a new FIR PFB filter bank
-    ///
-    /// # Arguments
-    ///
-    /// * `num_filters` - number of filters in the bank
-    /// * `coefficients` - filter coefficients
-    ///
-    /// # Returns
-    ///
-    /// A new FIR PFB filter bank
-    pub fn new(num_filters: usize, coefficients: &[Coeff]) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new(num_filters, coefficients)?)
-    }
-
-    /// Create a new FIR PFB filter bank using Kaiser-Bessel design with default parameters
-    ///
-    /// This is equivalent to FirPolyphaseFilter::new_kaiser(num_filters, m, 0.5, 60.0)
-    ///
-    /// # Arguments
-    ///
-    /// * `num_filters` - number of filters in the bank
-    /// * `filter_delay` - filter delay
-    ///
-    /// # Returns
-    ///
-    /// A new FIR PFB filter bank
-    pub fn new_kaiser_simple(num_filters: usize, filter_delay: usize) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_kaiser_simple(num_filters, filter_delay)?)
-    }
-
-    /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
-    ///
-    /// # Arguments
-    ///
-    /// * `num_filters` - number of filters in the bank
-    /// * `filter_delay` - filter delay
-    /// * `cutoff_frequency` - filter normalized cut-off frequency
-    /// * `stopband_attenuation` - filter stop-band suppression \[dB\]
-    ///
-    /// # Returns
-    ///
-    /// A new FIR PFB filter bank
-    pub fn new_kaiser(
-        num_filters: usize,
-        filter_delay: usize,
-        cutoff_frequency: f32,
-        stopband_attenuation: f32,
-    ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_kaiser(
-            num_filters,
-            filter_delay,
-            cutoff_frequency,
-            stopband_attenuation,
-        )?)
-    }
-
-    /// Create a new FIR PFB filter bank using square-root Nyquist prototype filter design
-    ///
-    /// # Arguments
-    ///
-    /// * `filter_shape` - filter shape
-    /// * `num_filters` - number of filters in the bank
-    /// * `samples_per_symbol` - samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - excess bandwidth factor
-    ///
-    /// # Returns
-    ///
-    /// A new FIR PFB filter bank
-    pub fn new_rnyquist(
-        filter_shape: filter::FirFilterShape,
-        num_filters: usize,
-        samples_per_symbol: usize,
-        filter_delay: usize,
-        excess_bandwidth: f32,
-    ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_rnyquist(
-            filter_shape,
-            num_filters,
-            samples_per_symbol,
-            filter_delay,
-            excess_bandwidth,
-        )?)
-    }
-
-    /// Create a new FIR PFB filter bank using square-root derivative Nyquist prototype filter design
-    ///
-    /// # Arguments
-    ///
-    /// * `filter_shape` - filter shape
-    /// * `num_filters` - number of filters in the bank
-    /// * `samples_per_symbol` - samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - excess bandwidth factor
-    ///
-    /// # Returns
-    ///
-    /// A new FIR PFB filter bank
-    pub fn new_drnyquist(
-        filter_shape: filter::FirFilterShape,
-        num_filters: usize,
-        samples_per_symbol: usize,
-        filter_delay: usize,
-        excess_bandwidth: f32,
-    ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_drnyquist(
-            filter_shape,
-            num_filters,
-            samples_per_symbol,
-            filter_delay,
-            excess_bandwidth,
-        )?)
-    }
-
-    /// Wrap a coefficient bank with newly reset internal history
-    pub fn from_bank(bank: FirPolyphaseFilterBank<T, Coeff>) -> Result<Self> {
-        let w = Window::new(bank.filter_len())?;
-        Ok(Self { w, bank })
-    }
-
-    /// Reset the internal history
-    pub fn reset(&mut self) {
-        self.w.reset();
-    }
-
-    /// Returns the underlying coefficient bank
-    pub fn bank(&self) -> &FirPolyphaseFilterBank<T, Coeff> {
-        &self.bank
-    }
-
-    /// Returns the underlying coefficient bank mutably
-    pub fn bank_mut(&mut self) -> &mut FirPolyphaseFilterBank<T, Coeff> {
-        &mut self.bank
-    }
-
-    /// Returns the number of coefficient phases in the bank
-    pub fn num_filters(&self) -> usize {
-        self.bank.num_filters()
-    }
-
-    /// Returns the number of samples retained in the internal history
-    pub fn filter_len(&self) -> usize {
-        self.bank.filter_len()
-    }
-
-    /// Replace the coefficients without clearing the internal sample history
-    /// or changing the filter bank shape.
-    ///
-    /// # Arguments
-    ///
-    /// * `coefficients` - filter coefficients
-    pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
-        self.bank.set_coefficients(coefficients)
-    }
-
-    /// Set the output scaling for the filter bank
-    ///
-    /// # Arguments
-    ///
-    /// * `scale` - scaling factor to apply to each output sample
-    pub fn set_scale(&mut self, scale: Coeff) {
-        self.bank.set_scale(scale);
-    }
-
-    /// Get the output scaling for the filter bank
-    ///
-    /// # Returns
-    ///
-    /// The scaling factor applied to each output sample
-    pub fn scale(&self) -> Coeff {
-        self.bank.scale()
-    }
-
-    /// Push a sample into the filter bank
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - input sample
-    pub fn push(&mut self, input: T) {
-        self.w.push(input)
-    }
-
-    /// Write a block of samples into the filter bank
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - input samples
-    pub fn write(&mut self, input: &[T]) {
-        self.w.write(input)
-    }
-
-    /// Execute the filter bank on a single input sample
-    ///
-    /// # Arguments
-    ///
-    /// * `i` - index of filter to use
-    ///
-    /// # Returns
-    ///
-    /// The output sample
-    pub fn execute(&mut self, i: usize) -> Result<T> {
-        self.bank.execute(i, self.w.read())
-    }
-
-    /// Execute the filter bank on a block of input samples
-    ///
-    /// # Arguments
-    ///
-    /// * `i` - index of filter to use
-    /// * `input` - input samples
-    /// * `output` - output samples
-    pub fn execute_block(&mut self, i: usize, input: &[T], output: &mut [T]) -> Result<()> {
-        let (h, block_h) = self.bank.phase_coefficients(i)?;
-        let n = input.len().min(output.len());
-        let bank = &self.bank;
-        self.w.execute_block_contiguous(&input[..n], |indices, history| {
-            bank.execute_block_with_coefficients(history, &mut output[indices], h, block_h);
-        });
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::polyphase_filter::FirPolyphaseFilter;
     use super::*;
+    use crate::buffer::Window;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 

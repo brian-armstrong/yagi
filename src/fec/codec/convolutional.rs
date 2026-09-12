@@ -640,7 +640,7 @@ mod tests {
 
     #[test]
     fn test_conv_matches_liquid_codewords() {
-        use super::super::test_data_conv::*;
+        use super::super::test_data_convolutional::*;
         use crate::fec::{Fec, FecScheme as S};
 
         let cases: &[(S, usize, &[u8])] = &[

@@ -4,11 +4,10 @@ use num_complex::Complex32;
 use std::f32::consts::{FRAC_1_SQRT_2, PI, SQRT_2};
 
 mod apsk;
-mod arb;
-mod arb_opt;
-mod arb_ui;
-mod arb_v29;
-mod arb_vt;
+mod arbitrary;
+mod arbitrary_illinois_logo;
+mod arbitrary_optimized;
+mod arbitrary_virginia_tech_logo;
 mod ask;
 mod bpsk;
 mod dpsk;
@@ -19,6 +18,7 @@ mod qam;
 mod qpsk;
 mod sqam128;
 mod sqam32;
+mod v29_constellation;
 
 const MAX_MOD_BITS_PER_SYMBOL: usize = 8;
 const SOFTBIT_ERASURE: u8 = 127;
@@ -554,14 +554,14 @@ impl Modem {
             ModulationScheme::Pi4Dqpsk => Modem::new_pi4dqpsk(),
 
             // preset arbitrary constellations
-            ModulationScheme::V29 => Modem::new_arb_preset(&arb_v29::MODEM_ARB_V29),
-            ModulationScheme::Arb16Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB16OPT),
-            ModulationScheme::Arb32Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB32OPT),
-            ModulationScheme::Arb64Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB64OPT),
-            ModulationScheme::Arb128Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB128OPT),
-            ModulationScheme::Arb256Opt => Modem::new_arb_preset(&arb_opt::MODEM_ARB256OPT),
-            ModulationScheme::Arb64Vt => Modem::new_arb_preset(&arb_vt::MODEM_ARB_VT64),
-            ModulationScheme::Arb64Ui => Modem::new_arb_preset(&arb_ui::MODEM_ARB_UI64),
+            ModulationScheme::V29 => Modem::new_arb_preset(&v29_constellation::MODEM_ARB_V29),
+            ModulationScheme::Arb16Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB16OPT),
+            ModulationScheme::Arb32Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB32OPT),
+            ModulationScheme::Arb64Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB64OPT),
+            ModulationScheme::Arb128Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB128OPT),
+            ModulationScheme::Arb256Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB256OPT),
+            ModulationScheme::Arb64Vt => Modem::new_arb_preset(&arbitrary_virginia_tech_logo::MODEM_ARB_VT64),
+            ModulationScheme::Arb64Ui => Modem::new_arb_preset(&arbitrary_illinois_logo::MODEM_ARB_UI64),
 
             _ => Err(Error::Config("modulation scheme not supported".into())),
         }

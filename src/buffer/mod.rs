@@ -4,7 +4,9 @@
 // - window ready to use (+autotests)
 // - cbuffer ready to use (+autotests)
 
+#[path = "circular_buffer.rs"]
 pub mod cbuffer;
+#[path = "windowed_delay.rs"]
 pub mod wdelay;
 pub mod window;
 

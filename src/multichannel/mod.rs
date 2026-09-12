@@ -8,11 +8,17 @@
 // - ofdmframegen: OFDM frame generator
 // - ofdmframesync: OFDM frame synchronizer
 
+#[path = "polyphase_channelizer.rs"]
 mod firpfbch;
+#[path = "oversampled_polyphase_channelizer.rs"]
 mod firpfbch2;
+#[path = "rational_polyphase_channelizer.rs"]
 mod firpfbchr;
+#[path = "ofdm_frame.rs"]
 mod ofdmframe;
+#[path = "ofdm_frame_generator.rs"]
 mod ofdmframegen;
+#[path = "ofdm_frame_synchronizer.rs"]
 mod ofdmframesync;
 
 pub use firpfbch::*;

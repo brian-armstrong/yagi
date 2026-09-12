@@ -1,13 +1,13 @@
+mod decimation;
 mod design;
-mod iirdecim;
-mod iirfilt;
-mod iirfiltsos;
-mod iirhilb;
-mod iirinterp;
+mod filter;
+mod hilbert;
+mod interpolation;
+mod second_order_section;
 
+pub use decimation::*;
 pub use design::*;
-pub use iirdecim::*;
-pub use iirfilt::*;
-pub use iirfiltsos::*;
-pub use iirhilb::*;
-pub use iirinterp::*;
+pub use filter::*;
+pub use hilbert::*;
+pub use interpolation::*;
+pub use second_order_section::*;

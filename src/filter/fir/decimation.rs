@@ -393,7 +393,7 @@ mod tests {
         assert_eq!(decim.decim_rate(), 7);
     }
 
-    include!("firdecim_test_data.rs");
+    include!("test_data_decimation.rs");
 
     fn firdecim_rrrf_test(m: usize, h: &[f32], x: &[f32], y: &[f32]) {
         let tol = 0.001f32;

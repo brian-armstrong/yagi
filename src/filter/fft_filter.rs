@@ -203,7 +203,7 @@ mod tests {
         }
     }
 
-    include!("test_data.rs");
+    include!("test_data_fft_filter.rs");
 
     fn fftfilt_rrrf_test(h: &[f32], x: &[f32], y: &[f32]) {
         let tol = 0.001f32;

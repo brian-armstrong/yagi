@@ -6,13 +6,13 @@
 pub mod bessel;
 pub mod complex;
 pub mod gamma;
-pub mod modarith;
+pub mod modular_arithmetic;
 pub mod poly;
 pub mod windows;
 
 pub use self::bessel::*;
 pub use self::gamma::*;
-pub use self::modarith::*;
+pub use self::modular_arithmetic::*;
 pub use self::poly::*;
 pub use self::windows::*;
 

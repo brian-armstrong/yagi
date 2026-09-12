@@ -3,7 +3,7 @@ use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
 use crate::filter::iir::design;
-use crate::filter::iir::iirfiltsos::IirSecondOrderSection;
+use crate::filter::iir::second_order_section::IirSecondOrderSection;
 use core::f32;
 use num_complex::{Complex32, ComplexFloat};
 
@@ -1203,7 +1203,7 @@ mod tests {
         }
     }
 
-    include!("test_data.rs");
+    include!("test_data_filter.rs");
 
     // autotest helper function
     //  _b      :   filter coefficients (numerator)
