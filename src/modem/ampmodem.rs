@@ -37,10 +37,10 @@ pub struct AmplitudeModem {
 }
 
 impl AmplitudeModem {
-    pub fn new(mod_index: f32, mod_type: AmpmodemType, suppressed_carrier: bool) -> Result<Self> {
+    pub fn new(modulation_index: f32, modulation_type: AmpmodemType, suppressed_carrier: bool) -> Result<Self> {
         // Validate input
-        if mod_index <= 0.0 {
-            return Err(Error::Config(format!("modulation index {:.4e} must be greater than 0", mod_index)));
+        if modulation_index <= 0.0 {
+            return Err(Error::Config(format!("modulation index {modulation_index:.4e} must be greater than 0")));
         }
 
         let m = 25;
@@ -48,7 +48,7 @@ impl AmplitudeModem {
         let mut nco = Nco::new(NcoBackend::LookupTable);
         nco.pll_set_bandwidth(0.001);
 
-        let demod_type = match (mod_type, suppressed_carrier) {
+        let demod_type = match (modulation_type, suppressed_carrier) {
             (AmpmodemType::Dsb, true) => AmpmodemDemodType::DsbPllCostas,
             (AmpmodemType::Dsb, false) => AmpmodemDemodType::DsbPllCarrier,
             (AmpmodemType::Usb | AmpmodemType::Lsb, true) => AmpmodemDemodType::DemodSsb,
@@ -56,8 +56,8 @@ impl AmplitudeModem {
         };
 
         let mut q = Self {
-            mod_index,
-            mod_type,
+            mod_index: modulation_index,
+            mod_type: modulation_type,
             suppressed_carrier,
             m,
             mixer: nco,
