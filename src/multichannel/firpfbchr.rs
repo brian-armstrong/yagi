@@ -42,19 +42,19 @@ where
     /// # Arguments
     ///
     /// * `num_channels` - number of output channels in channelizer
-    /// * `decim_rate` - output decimation factor (output rate is 1/P the input)
+    /// * `decimation_rate` - output decimation factor (output rate is 1/P the input)
     /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m
     /// * `coefficients` - prototype filter coefficient array, [size: 2*M*m x 1]
     pub fn new(
         num_channels: usize,
-        decim_rate: usize,
+        decimation_rate: usize,
         filter_semi_length: usize,
         coefficients: &[f32],
     ) -> Result<Self> {
         if num_channels < 2 {
             return Err(Error::Config("number of channels must be at least 2".into()));
         }
-        if decim_rate < 1 {
+        if decimation_rate < 1 {
             return Err(Error::Config("decimation rate must be at least 1".into()));
         }
         if filter_semi_length < 1 {
@@ -90,7 +90,7 @@ where
             w.push(Window::new(h_sub_len)?);
         }
 
-        let mut q = Self { num_channels, decim_rate, m, dp, ifft, x, x_out, w, base_index: 0 };
+        let mut q = Self { num_channels, decim_rate: decimation_rate, m, dp, ifft, x, x_out, w, base_index: 0 };
 
         q.reset();
         Ok(q)
@@ -102,19 +102,19 @@ where
     /// # Arguments
     ///
     /// * `num_channels` - number of output channels in channelizer
-    /// * `decim_rate` - output decimation factor (output rate is 1/P the input)
+    /// * `decimation_rate` - output decimation factor (output rate is 1/P the input)
     /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m
     /// * `stopband_attenuation` - filter stop-band attenuation [dB]
     pub fn new_kaiser(
         num_channels: usize,
-        decim_rate: usize,
+        decimation_rate: usize,
         filter_semi_length: usize,
         stopband_attenuation: f32,
     ) -> Result<Self> {
         if num_channels < 2 {
             return Err(Error::Config("number of channels must be at least 2".into()));
         }
-        if decim_rate < 1 {
+        if decimation_rate < 1 {
             return Err(Error::Config("decimation rate must be at least 1".into()));
         }
         if filter_semi_length < 1 {
@@ -131,18 +131,18 @@ where
         let h_len = 2 * num_channels * m + 1;
 
         // filter cut-off frequency
-        let fc = 0.5 / decim_rate as f32;
+        let fc = 0.5 / decimation_rate as f32;
 
         // compute filter coefficients (floating point precision)
         let hf = filter::fir_design_kaiser(h_len, fc, as_, 0.0)?;
 
         // normalize to unit average and scale by number of channels
         let hf_sum: f32 = hf.iter().sum();
-        let scale = (decim_rate as f32).sqrt() * num_channels as f32 / hf_sum;
+        let scale = (decimation_rate as f32).sqrt() * num_channels as f32 / hf_sum;
         let h: Vec<f32> = hf.iter().map(|&x| x * scale).collect();
 
         // create filterbank channelizer object
-        Self::new(num_channels, decim_rate, m, &h)
+        Self::new(num_channels, decimation_rate, m, &h)
     }
 
     /// Reset firpfbchr object internals
@@ -159,7 +159,7 @@ where
     }
 
     /// Get decimation rate
-    pub fn decim_rate(&self) -> usize {
+    pub fn decimation_rate(&self) -> usize {
         self.decim_rate
     }
 
@@ -172,7 +172,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `input` - channelizer input, [size: decim_rate x 1]
+    /// * `input` - channelizer input, [size: decimation_rate x 1]
     pub fn push(&mut self, input: &[T]) {
         // load buffers in blocks of P in the reverse direction
         for &xi in &input[..self.decim_rate] {
@@ -246,7 +246,7 @@ mod tests {
         // create proper object and test configurations
         let q = RationalPolyphaseChannelizer::<Complex32>::new_kaiser(64, 76, 12, 60.0).unwrap();
         assert_eq!(q.num_channels(), 64);
-        assert_eq!(q.decim_rate(), 76);
+        assert_eq!(q.decimation_rate(), 76);
         assert_eq!(q.m(), 12);
     }
 
