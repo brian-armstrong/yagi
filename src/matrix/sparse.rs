@@ -45,34 +45,35 @@ pub struct SparseMatrix<T> {
 }
 
 impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> SparseMatrix<T> {
-    /// create _m x _n matrix, initialized with zeros
-    pub fn new(m: usize, n: usize) -> Result<Self> {
-        if m == 0 || n == 0 {
-            return Err(Error::Config("smatrix_create(), dimensions must be greater than zero".to_string()));
+    /// Create a matrix with the given number of rows and columns, initialized
+    /// with zeros.
+    pub fn new(rows: usize, columns: usize) -> Result<Self> {
+        if rows == 0 || columns == 0 {
+            return Err(Error::Config("matrix dimensions must be greater than zero".to_string()));
         }
 
         Ok(SparseMatrix {
-            m,
-            n,
-            mlist: vec![Vec::new(); m],
-            nlist: vec![Vec::new(); n],
-            mvals: vec![Vec::new(); m],
-            nvals: vec![Vec::new(); n],
-            num_mlist: vec![0; m],
-            num_nlist: vec![0; n],
+            m: rows,
+            n: columns,
+            mlist: vec![Vec::new(); rows],
+            nlist: vec![Vec::new(); columns],
+            mvals: vec![Vec::new(); rows],
+            nvals: vec![Vec::new(); columns],
+            num_mlist: vec![0; rows],
+            num_nlist: vec![0; columns],
             max_num_mlist: 0,
             max_num_nlist: 0,
         })
     }
 
-    /// create _m x _n matrix, initialized on array
-    pub fn from_array(v: &[T], m: usize, n: usize) -> Result<Self> {
-        let mut q = Self::new(m, n)?;
+    /// Create a matrix with the given dimensions from a row-major array.
+    pub fn from_array(values: &[T], rows: usize, columns: usize) -> Result<Self> {
+        let mut q = Self::new(rows, columns)?;
 
-        for i in 0..m {
-            for j in 0..n {
-                if v[i * n + j] != T::default() {
-                    q.set(i, j, v[i * n + j]);
+        for i in 0..rows {
+            for j in 0..columns {
+                if values[i * columns + j] != T::default() {
+                    q.set(i, j, values[i * columns + j]);
                 }
             }
         }
