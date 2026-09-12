@@ -8,28 +8,34 @@ use crate::error::{Error, Result};
 /// Design 2nd-order IIR filter (active lag)
 ///
 /// Arguments:
-/// * `w`: filter bandwidth
-/// * `zeta`: damping factor (1/sqrt(2) suggested)
-/// * `k`: loop gain (1000 suggested)
+/// * `natural_frequency`: analog-prototype natural angular frequency, normalized
+///   to the sample interval (approximately radians per sample for small values)
+/// * `damping_factor`: damping factor (1/sqrt(2) suggested)
+/// * `loop_gain`: loop gain (1000 suggested)
 /// * `b`: output feed-forward coefficients [size: 3 x 1]
 /// * `a`: output feed-back coefficients [size: 3 x 1]
-pub fn iir_design_pll_active_lag(w: f32, zeta: f32, k: f32, b: &mut [f32; 3], a: &mut [f32; 3]) -> Result<()> {
+pub fn iir_design_pll_active_lag(
+    natural_frequency: f32,
+    damping_factor: f32,
+    loop_gain: f32,
+    b: &mut [f32; 3],
+    a: &mut [f32; 3],
+) -> Result<()> {
     // validate input
-    if w <= 0.0 {
-        return Err(Error::Config("bandwidth must be greater than 0".into()));
-    } else if zeta <= 0.0 {
+    if natural_frequency <= 0.0 {
+        return Err(Error::Config("natural frequency must be greater than 0".into()));
+    } else if damping_factor <= 0.0 {
         return Err(Error::Config("damping factor must be greater than 0".into()));
-    } else if k <= 0.0 {
-        return Err(Error::Config("gain must be greater than 0".into()));
+    } else if loop_gain <= 0.0 {
+        return Err(Error::Config("loop gain must be greater than 0".into()));
     }
 
-    let wn = w; // natural frequency
-    let t1 = k / (wn * wn); //
-    let t2 = 2.0 * zeta / wn - 1.0 / k; //
+    let t1 = loop_gain / (natural_frequency * natural_frequency);
+    let t2 = 2.0 * damping_factor / natural_frequency - 1.0 / loop_gain;
 
-    b[0] = 2.0 * k * (1.0 + t2 / 2.0);
-    b[1] = 2.0 * k * 2.0;
-    b[2] = 2.0 * k * (1.0 - t2 / 2.0);
+    b[0] = 2.0 * loop_gain * (1.0 + t2 / 2.0);
+    b[1] = 2.0 * loop_gain * 2.0;
+    b[2] = 2.0 * loop_gain * (1.0 - t2 / 2.0);
 
     a[0] = 1.0 + t1 / 2.0;
     a[1] = -t1;
@@ -46,29 +52,35 @@ pub fn iir_design_pll_active_lag(w: f32, zeta: f32, k: f32, b: &mut [f32; 3], a:
 /// Design 2nd-order IIR filter (active PI)
 ///
 /// Arguments:
-/// * `w`: filter bandwidth
-/// * `zeta`: damping factor (1/sqrt(2) suggested)
-/// * `k`: loop gain (1000 suggested)
+/// * `natural_frequency`: analog-prototype natural angular frequency, normalized
+///   to the sample interval (approximately radians per sample for small values)
+/// * `damping_factor`: damping factor (1/sqrt(2) suggested)
+/// * `loop_gain`: loop gain (1000 suggested)
 /// * `b`: output feed-forward coefficients [size: 3 x 1]
 /// * `a`: output feed-back coefficients [size: 3 x 1]
-pub fn iir_design_pll_active_pi(w: f32, zeta: f32, k: f32, b: &mut [f32; 3], a: &mut [f32; 3]) -> Result<()> {
+pub fn iir_design_pll_active_pi(
+    natural_frequency: f32,
+    damping_factor: f32,
+    loop_gain: f32,
+    b: &mut [f32; 3],
+    a: &mut [f32; 3],
+) -> Result<()> {
     // validate input
-    if w <= 0.0 {
-        return Err(Error::Config("bandwidth must be greater than 0".into()));
-    } else if zeta <= 0.0 {
+    if natural_frequency <= 0.0 {
+        return Err(Error::Config("natural frequency must be greater than 0".into()));
+    } else if damping_factor <= 0.0 {
         return Err(Error::Config("damping factor must be greater than 0".into()));
-    } else if k <= 0.0 {
-        return Err(Error::Config("gain must be greater than 0".into()));
+    } else if loop_gain <= 0.0 {
+        return Err(Error::Config("loop gain must be greater than 0".into()));
     }
 
     // loop filter (active lag)
-    let wn = w; // natural frequency
-    let t1 = k / (wn * wn); //
-    let t2 = 2.0 * zeta / wn; //
+    let t1 = loop_gain / (natural_frequency * natural_frequency);
+    let t2 = 2.0 * damping_factor / natural_frequency;
 
-    b[0] = 2.0 * k * (1.0 + t2 / 2.0);
-    b[1] = 2.0 * k * 2.0;
-    b[2] = 2.0 * k * (1.0 - t2 / 2.0);
+    b[0] = 2.0 * loop_gain * (1.0 + t2 / 2.0);
+    b[1] = 2.0 * loop_gain * 2.0;
+    b[2] = 2.0 * loop_gain * (1.0 - t2 / 2.0);
 
     a[0] = t1 / 2.0;
     a[1] = -t1;

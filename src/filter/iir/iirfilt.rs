@@ -20,24 +20,25 @@ enum IirFilterType {
     Sos,
 }
 
-/// design coefficients for a prototype IIR filter
-///  _ftype      :   filter type (e.g. LIQUID_IIRDES_BUTTER)
-///  _btype      :   band type (e.g. LIQUID_IIRDES_BANDPASS)
-///  _format     :   coefficients format (e.g. LIQUID_IIRDES_SOS)
-///  _order      :   filter order
-///  _fc         :   low-pass prototype cut-off frequency
-///  _f0         :   center frequency (band-pass, band-stop)
-///  _ap         :   pass-band ripple in dB
-///  _as         :   stop-band ripple in dB
+/// Design coefficients for a prototype IIR filter.
+///
+/// * `filter_shape` - Filter shape (e.g. Butterworth)
+/// * `band_type` - Band type (e.g. band-pass)
+/// * `format` - Coefficient format
+/// * `order` - Filter order
+/// * `cutoff_frequency` - Low-pass prototype cutoff frequency
+/// * `center_frequency` - Center frequency (band-pass, band-stop)
+/// * `passband_ripple` - Passband ripple in dB
+/// * `stopband_attenuation` - Stopband attenuation in dB
 pub fn iir_filter_design_prototype<Coeff>(
-    ftype: design::IirFilterShape,
-    btype: design::IirBandType,
+    filter_shape: design::IirFilterShape,
+    band_type: design::IirBandType,
     format: design::IirFormat,
     order: usize,
-    fc: f32,
-    f0: f32,
-    ap: f32,
-    as_: f32,
+    cutoff_frequency: f32,
+    center_frequency: f32,
+    passband_ripple: f32,
+    stopband_attenuation: f32,
 ) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -46,7 +47,7 @@ where
     // filter length
     let mut n = order;
 
-    if btype == design::IirBandType::Bandpass || btype == design::IirBandType::Bandstop {
+    if band_type == design::IirBandType::Bandpass || band_type == design::IirBandType::Bandstop {
         n *= 2;
     }
 
@@ -57,7 +58,18 @@ where
     let mut b = vec![0.0; h_len];
     let mut a = vec![0.0; h_len];
 
-    design::iir_design(ftype, btype, format, order, fc, f0, ap, as_, &mut b, &mut a)?;
+    design::iir_design(
+        filter_shape,
+        band_type,
+        format,
+        order,
+        cutoff_frequency,
+        center_frequency,
+        passband_ripple,
+        stopband_attenuation,
+        &mut b,
+        &mut a,
+    )?;
 
     let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
     let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
@@ -224,27 +236,33 @@ where
 }
 
 /// create coefficients for a phase-locked loop iirfilt object
-///  _w      :   filter bandwidth
-///  _zeta   :   damping factor (1/sqrt(2) suggested)
-///  _K      :   loop gain (1000 suggested)
-pub fn iir_filter_design_pll<Coeff>(w: f32, zeta: f32, k: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+///  `natural_frequency` : analog-prototype natural angular frequency, normalized
+///                        to the sample interval (approximately radians per sample
+///                        for small values)
+///  `damping_factor`    : damping factor (1/sqrt(2) suggested)
+///  `loop_gain`         : loop gain (1000 suggested)
+pub fn iir_filter_design_pll<Coeff>(
+    natural_frequency: f32,
+    damping_factor: f32,
+    loop_gain: f32,
+) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    if w <= 0.0 || w >= 1.0 {
-        return Err(Error::Config("PLL bandwidth must be in (0,1)".into()));
+    if natural_frequency <= 0.0 {
+        return Err(Error::Config("PLL natural frequency must be greater than zero".into()));
     }
-    if zeta <= 0.0 || zeta >= 1.0 {
-        return Err(Error::Config("PLL damping factor must be in (0,1)".into()));
+    if damping_factor <= 0.0 {
+        return Err(Error::Config("PLL damping factor must be greater than zero".into()));
     }
-    if k <= 0.0 {
+    if loop_gain <= 0.0 {
         return Err(Error::Config("PLL loop gain must be greater than zero".into()));
     }
 
     let mut bf = [0.0; 3];
     let mut af = [0.0; 3];
-    design::iir_design_pll_active_lag(w, zeta, k, &mut bf, &mut af)?;
+    design::iir_design_pll_active_lag(natural_frequency, damping_factor, loop_gain, &mut bf, &mut af)?;
 
     let b = bf.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
     let a = af.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
@@ -583,11 +601,13 @@ where
     }
 
     /// create phase-locked loop iirfilt object
-    ///  _w      :   filter bandwidth
-    ///  _zeta   :   damping factor (1/sqrt(2) suggested)
-    ///  _K      :   loop gain (1000 suggested)
-    pub fn new_pll(w: f32, zeta: f32, k: f32) -> Result<Self> {
-        let (b, a, nsos) = iir_filter_design_pll(w, zeta, k)?;
+    ///  `natural_frequency` : analog-prototype natural angular frequency, normalized
+    ///                        to the sample interval (approximately radians per sample
+    ///                        for small values)
+    ///  `damping_factor`    : damping factor (1/sqrt(2) suggested)
+    ///  `loop_gain`         : loop gain (1000 suggested)
+    pub fn new_pll(natural_frequency: f32, damping_factor: f32, loop_gain: f32) -> Result<Self> {
+        let (b, a, nsos) = iir_filter_design_pll(natural_frequency, damping_factor, loop_gain)?;
         Self::new_sos(&b, &a, nsos)
     }
 
@@ -955,6 +975,20 @@ mod tests {
         assert_eq!(filter.length(), 8); // 7+1
 
         // Rust automatically handles destruction of objects when they go out of scope
+    }
+
+    #[test]
+    fn test_iirfilt_pll_accepts_all_positive_design_parameters() {
+        assert!(IirFilter::<f32, f32>::new_pll(0.0, 0.5, 1000.0).is_err());
+        assert!(IirFilter::<f32, f32>::new_pll(0.5, 0.0, 1000.0).is_err());
+        assert!(IirFilter::<f32, f32>::new_pll(0.5, 0.5, 0.0).is_err());
+
+        // allow any natural frequency > 0
+        let (numerator, denominator, num_sections) = iir_filter_design_pll::<f32>(2.0, 1.5, 1000.0).unwrap();
+        assert_eq!(num_sections, 1);
+        assert!(numerator.iter().all(|coefficient| coefficient.is_finite()));
+        assert!(denominator.iter().all(|coefficient| coefficient.is_finite()));
+        assert!(IirFilter::<f32, f32>::new_pll(2.0, 1.5, 1000.0).is_ok());
     }
 
     #[test]
