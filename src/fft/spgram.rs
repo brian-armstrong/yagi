@@ -45,46 +45,47 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T>> SpectralPeriodogram
 where
     Complex32: From<T>,
 {
-    /// create spgram object
-    ///  _nfft       : FFT size
-    ///  _wtype      : window type, e.g. LIQUID_WINDOW_HAMMING
-    ///  _window_len : window length
-    ///  _delay      : delay between transforms, _delay > 0
-    pub fn new(nfft: usize, wtype: WindowType, window_len: usize, delay: usize) -> Result<Self> {
+    /// Create a spectral periodogram.
+    ///
+    /// * `fft_size` - FFT size
+    /// * `window_type` - Window type
+    /// * `window_length` - Window length
+    /// * `hop_size` - Number of samples between transforms
+    pub fn new(fft_size: usize, window_type: WindowType, window_length: usize, hop_size: usize) -> Result<Self> {
         // validate input
-        if nfft < 2 {
+        if fft_size < 2 {
             return Err(Error::Config("fft size must be at least 2".into()));
         }
-        if window_len > nfft {
+        if window_length > fft_size {
             return Err(Error::Config("window size cannot exceed fft size".into()));
         }
-        if window_len == 0 {
+        if window_length == 0 {
             return Err(Error::Config("window size must be greater than zero".into()));
         }
-        if wtype == WindowType::Kaiser && !window_len.is_multiple_of(2) {
+        if window_type == WindowType::Kaiser && !window_length.is_multiple_of(2) {
             return Err(Error::Config("KBD window length must be even".into()));
         }
-        if delay == 0 {
-            return Err(Error::Config("delay must be greater than 0".into()));
+        if hop_size == 0 {
+            return Err(Error::Config("hop size must be greater than 0".into()));
         }
 
         let mut spgram = SpectralPeriodogram {
-            nfft,
-            wtype,
-            window_len,
-            delay,
+            nfft: fft_size,
+            wtype: window_type,
+            window_len: window_length,
+            delay: hop_size,
             frequency: 0.0,
             sample_rate: -1.0,
             alpha: 0.0,
             gamma: 0.0,
             accumulate: false,
-            buffer: Window::new(window_len).unwrap(),
-            buf_time: vec![Complex32::new(0.0, 0.0); nfft],
-            buf_freq: vec![Complex32::new(0.0, 0.0); nfft],
-            psd: vec![0.0; nfft],
-            fft: Fft::new(nfft, Direction::Forward),
-            w: vec![0.0; window_len],
-            sample_timer: delay,
+            buffer: Window::new(window_length).unwrap(),
+            buf_time: vec![Complex32::new(0.0, 0.0); fft_size],
+            buf_freq: vec![Complex32::new(0.0, 0.0); fft_size],
+            psd: vec![0.0; fft_size],
+            fft: Fft::new(fft_size, Direction::Forward),
+            w: vec![0.0; window_length],
+            sample_timer: hop_size,
             num_samples: 0,
             num_samples_total: 0,
             num_transforms: 0,
@@ -97,17 +98,17 @@ where
         let mut g = 0.0;
         let beta = 10.0;
         let zeta = 3.0;
-        for i in 0..window_len {
+        for i in 0..window_length {
             let w = match spgram.wtype {
-                WindowType::Hamming => windows::hamming(i, window_len)?,
-                WindowType::Hann => windows::hann(i, window_len)?,
-                WindowType::BlackmanHarris => windows::blackman_harris(i, window_len)?,
-                WindowType::BlackmanHarris7 => windows::blackman_harris7(i, window_len)?,
-                WindowType::Kaiser => windows::kaiser(i, window_len, beta)?,
-                WindowType::FlatTop => windows::flat_top(i, window_len)?,
-                WindowType::Triangular => windows::triangular(i, window_len, window_len)?,
-                WindowType::RcosTaper => windows::rcos_taper(i, window_len, window_len / 3)?,
-                WindowType::Kbd => windows::kbd(i, window_len, zeta)?,
+                WindowType::Hamming => windows::hamming(i, window_length)?,
+                WindowType::Hann => windows::hann(i, window_length)?,
+                WindowType::BlackmanHarris => windows::blackman_harris(i, window_length)?,
+                WindowType::BlackmanHarris7 => windows::blackman_harris7(i, window_length)?,
+                WindowType::Kaiser => windows::kaiser(i, window_length, beta)?,
+                WindowType::FlatTop => windows::flat_top(i, window_length)?,
+                WindowType::Triangular => windows::triangular(i, window_length, window_length)?,
+                WindowType::RcosTaper => windows::rcos_taper(i, window_length, window_length / 3)?,
+                WindowType::Kbd => windows::kbd(i, window_length, zeta)?,
                 _ => return Err(Error::Config("unknown window type".into())),
             };
             spgram.w[i] = w;
@@ -117,7 +118,7 @@ where
         g = 1.0 / g.sqrt();
 
         // scale window and copy
-        for i in 0..window_len {
+        for i in 0..window_length {
             spgram.w[i] *= g;
         }
 
@@ -127,12 +128,12 @@ where
     }
 
     /// create default spgram object (Kaiser-Bessel window)
-    pub fn from_nfft(nfft: usize) -> Result<Self> {
-        if nfft < 2 {
+    pub fn from_nfft(fft_size: usize) -> Result<Self> {
+        if fft_size < 2 {
             return Err(Error::Config("fft size must be at least 2".into()));
         }
 
-        Self::new(nfft, WindowType::Kaiser, nfft / 2, nfft / 4)
+        Self::new(fft_size, WindowType::Kaiser, fft_size / 2, fft_size / 4)
     }
 
     /// clears the internal state of the spgram object, but not
@@ -191,22 +192,22 @@ where
     }
 
     /// get FFT size
-    pub fn nfft(&self) -> usize {
+    pub fn fft_size(&self) -> usize {
         self.nfft
     }
 
     /// get window length
-    pub fn window_len(&self) -> usize {
+    pub fn window_length(&self) -> usize {
         self.window_len
     }
 
-    /// get delay between transforms
-    pub fn delay(&self) -> usize {
+    /// Get the number of samples between transforms.
+    pub fn hop_size(&self) -> usize {
         self.delay
     }
 
     /// get window type used for spectral estimation
-    pub fn wtype(&self) -> WindowType {
+    pub fn window_type(&self) -> WindowType {
         self.wtype
     }
 
@@ -604,9 +605,9 @@ mod tests {
         assert_abs_diff_eq!(q.alpha(), alpha, epsilon = 1e-6);
 
         // check parameters
-        assert_eq!(q.nfft(), nfft);
-        assert_eq!(q.window_len(), wlen);
-        assert_eq!(q.delay(), delay);
+        assert_eq!(q.fft_size(), nfft);
+        assert_eq!(q.window_length(), wlen);
+        assert_eq!(q.hop_size(), delay);
         assert_abs_diff_eq!(q.alpha(), alpha, epsilon = 1e-6);
 
         let block_len = 1117;
@@ -750,10 +751,10 @@ mod tests {
         assert_eq!(psd_0, psd_1);
 
         // check parameters
-        assert_eq!(q0.nfft(), q1.nfft());
-        assert_eq!(q0.window_len(), q1.window_len());
-        assert_eq!(q0.delay(), q1.delay());
-        assert_eq!(q0.wtype(), q1.wtype());
+        assert_eq!(q0.fft_size(), q1.fft_size());
+        assert_eq!(q0.window_length(), q1.window_length());
+        assert_eq!(q0.hop_size(), q1.hop_size());
+        assert_eq!(q0.window_type(), q1.window_type());
         assert_eq!(q0.num_samples(), q1.num_samples());
         assert_eq!(q0.num_samples_total(), q1.num_samples_total());
         assert_eq!(q0.num_transforms(), q1.num_transforms());

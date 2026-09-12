@@ -114,7 +114,7 @@ pub fn validate_psd_iirfilt(iirfilt: &IirFilter<f32, f32>, nfft: usize, regions:
 }
 
 pub fn validate_psd_spgramcf(spgram: &SpectralPeriodogram<Complex<f32>>, regions: &[PsdRegion]) -> Result<bool> {
-    let nfft = spgram.nfft();
+    let nfft = spgram.fft_size();
     let psd = spgram.psd();
     validate_psd_spectrum(&psd, nfft, regions)
 }
