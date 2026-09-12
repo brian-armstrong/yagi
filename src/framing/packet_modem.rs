@@ -6,9 +6,9 @@ use num_complex::Complex32;
 
 use crate::error::{Error, Result};
 use crate::fec::{CrcScheme, FecScheme};
-use crate::modem::modem::{Modem, ModulationScheme};
+use crate::modem::{Modem, ModulationScheme};
 
-use super::qpacketsymbolizer::PacketSymbolizer;
+use super::packet_symbolizer::PacketSymbolizer;
 
 /// packet encoder/decoder with modulation
 #[derive(Debug, Clone)]

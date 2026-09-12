@@ -1,7 +1,7 @@
 use num_complex::Complex;
 
 use crate::error::{Error, Result};
-use crate::fft::spgram::SpectralPeriodogram;
+use crate::fft::SpectralPeriodogram;
 use crate::fft::{fft_run, Direction};
 use crate::filter::{FirFilter, IirFilter};
 use crate::math::nextpow2;

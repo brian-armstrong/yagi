@@ -821,7 +821,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::fft::SpectralPeriodogram;
     use crate::random::randnf;
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;

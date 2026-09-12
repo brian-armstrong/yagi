@@ -1,4 +1,4 @@
-use crate::modem::modem::*;
+use super::*;
 
 // Virginia Tech logo
 #[rustfmt::skip]

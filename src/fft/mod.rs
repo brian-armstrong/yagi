@@ -5,12 +5,11 @@
 
 extern crate rustfft;
 
-#[path = "real_to_real.rs"]
-pub mod r2r;
-#[path = "spectral_periodogram.rs"]
-pub mod spgram;
+mod real_to_real;
+mod spectral_periodogram;
 
-pub use r2r::{fft_r2r_run, RealToRealFft, RealToRealFftKind};
+pub use real_to_real::{fft_r2r_run, RealToRealFft, RealToRealFftKind};
+pub use spectral_periodogram::{SpectralPeriodogram, SPGRAM_PSD_MIN};
 
 use num_complex::Complex;
 use std::sync::Arc;

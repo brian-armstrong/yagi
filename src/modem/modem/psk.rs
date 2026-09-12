@@ -1,4 +1,4 @@
-use crate::modem::modem::*;
+use super::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Psk {

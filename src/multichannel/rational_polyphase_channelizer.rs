@@ -217,9 +217,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::fft::SpectralPeriodogram;
     use crate::framing::MultiSignalSource;
-    use crate::modem::modem::ModulationScheme;
+    use crate::modem::ModulationScheme;
     use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
     use num_complex::Complex32;
     use test_macro::autotest_annotate;

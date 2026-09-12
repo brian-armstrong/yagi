@@ -8,8 +8,7 @@ use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::filter::{FirFilterShape, FirInterpolationFilter};
 use crate::math::nextpow2;
-use crate::modem::cpfskmod::{CpfskFilterType, CpfskModulator};
-use crate::modem::gmskmod::GmskModulator;
+use crate::modem::{CpfskFilterType, CpfskModulator, GmskModulator};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum QdetectorState {

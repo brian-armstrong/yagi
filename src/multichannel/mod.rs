@@ -8,22 +8,22 @@
 // - ofdmframegen: OFDM frame generator
 // - ofdmframesync: OFDM frame synchronizer
 
-#[path = "polyphase_channelizer.rs"]
-mod firpfbch;
-#[path = "oversampled_polyphase_channelizer.rs"]
-mod firpfbch2;
-#[path = "rational_polyphase_channelizer.rs"]
-mod firpfbchr;
-#[path = "ofdm_frame.rs"]
-mod ofdmframe;
-#[path = "ofdm_frame_generator.rs"]
-mod ofdmframegen;
-#[path = "ofdm_frame_synchronizer.rs"]
-mod ofdmframesync;
+mod ofdm_frame;
+mod ofdm_frame_generator;
+mod ofdm_frame_synchronizer;
+mod oversampled_polyphase_channelizer;
+mod polyphase_channelizer;
+mod rational_polyphase_channelizer;
 
-pub use firpfbch::*;
-pub use firpfbch2::*;
-pub use firpfbchr::*;
-pub use ofdmframe::*;
-pub use ofdmframegen::*;
-pub use ofdmframesync::*;
+pub use ofdm_frame::{
+    ofdmframe_init_default_sctype, ofdmframe_init_sctype_range, ofdmframe_sctype_from_string, ofdmframe_sctype_string,
+    OfdmFrameConfig, SubcarrierCounts, SubcarrierType,
+};
+pub use ofdm_frame_generator::OfdmFrameGenerator;
+pub use ofdm_frame_synchronizer::{
+    EqGainMethod, OfdmFrameSynchronizer, OfdmFrameSynchronizerBlockOutput, OfdmFrameSynchronizerOutput,
+    OfdmFrameSynchronizerSymbol,
+};
+pub use oversampled_polyphase_channelizer::OversampledPolyphaseChannelizer;
+pub use polyphase_channelizer::{ChannelizerType, PolyphaseChannelizer};
+pub use rational_polyphase_channelizer::RationalPolyphaseChannelizer;

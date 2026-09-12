@@ -1,5 +1,5 @@
 #![allow(clippy::excessive_precision)]
-use crate::modem::modem::*;
+use super::*;
 
 #[derive(Debug, Clone)]
 pub(super) struct Sqam32 {

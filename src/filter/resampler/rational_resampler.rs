@@ -230,10 +230,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::SpectralPeriodogram;
-    use crate::framing::symstreamr::ArbitraryRateSymbolStream;
+    use crate::fft::SpectralPeriodogram;
+    use crate::framing::ArbitraryRateSymbolStream;
     use crate::math::{hamming, WindowType};
-    use crate::modem::modem::ModulationScheme;
+    use crate::modem::ModulationScheme;
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;

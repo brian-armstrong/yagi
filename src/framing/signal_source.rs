@@ -4,10 +4,9 @@ use crate::error::{Error, Result};
 
 /// Source identifier type
 pub type SourceId = i32;
+use super::symbol_stream::SymbolStream;
 use crate::filter::resamp::ArbitraryResampler;
-use crate::framing::symstream::SymbolStream;
-use crate::modem::fskmod::FskModulator;
-use crate::modem::gmskmod::GmskModulator;
+use crate::modem::{FskModulator, GmskModulator};
 use crate::multichannel::{ChannelizerType, OversampledPolyphaseChannelizer};
 use crate::nco::{Nco, NcoBackend};
 use crate::random::randnf;
@@ -104,7 +103,7 @@ pub enum SignalSourceConfig {
     /// Linear modulation (PSK/QAM)
     Modem {
         /// Modulation scheme
-        scheme: crate::modem::modem::ModulationScheme,
+        scheme: crate::modem::ModulationScheme,
         /// Filter delay (symbols)
         m: usize,
         /// Filter excess bandwidth factor

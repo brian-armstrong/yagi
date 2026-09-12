@@ -1,5 +1,5 @@
 #![allow(clippy::excessive_precision)]
-use crate::modem::modem::*;
+use super::*;
 
 // V.29 star constellation
 #[rustfmt::skip]

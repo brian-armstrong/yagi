@@ -55,7 +55,7 @@ impl FrequencyDemodulator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modem::freqmod::FrequencyModulator;
+    use crate::modem::FrequencyModulator;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 

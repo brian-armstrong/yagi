@@ -1,1 +1,3 @@
-pub mod agc;
+mod agc;
+
+pub use agc::{Agc, AgcSquelchMode};

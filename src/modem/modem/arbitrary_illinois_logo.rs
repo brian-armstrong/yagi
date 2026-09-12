@@ -1,4 +1,4 @@
-use crate::modem::modem::*;
+use super::*;
 
 // UIllinois logo
 #[rustfmt::skip]

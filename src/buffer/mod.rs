@@ -1,15 +1,13 @@
 // Buffer module
 // Current state:
-// - wdelay ready to use (+autotests)
+// - WindowedDelay ready to use (+autotests)
 // - window ready to use (+autotests)
-// - cbuffer ready to use (+autotests)
+// - CircularBuffer ready to use (+autotests)
 
-#[path = "circular_buffer.rs"]
-pub mod cbuffer;
-#[path = "windowed_delay.rs"]
-pub mod wdelay;
-pub mod window;
+mod circular_buffer;
+mod window;
+mod windowed_delay;
 
-pub use cbuffer::*;
-pub use wdelay::*;
-pub use window::*;
+pub use circular_buffer::CircularBuffer;
+pub use window::Window;
+pub use windowed_delay::WindowedDelay;

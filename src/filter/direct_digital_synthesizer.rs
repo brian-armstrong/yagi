@@ -223,7 +223,7 @@ mod tests {
     use test_macro::autotest_annotate;
 
     use crate::filter::fir_design_kaiser;
-    use crate::framing::symstreamr::ArbitraryRateSymbolStream;
+    use crate::framing::ArbitraryRateSymbolStream;
     use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
 
     fn testbench_dds_cccf(num_stages: usize, fc: f32, as_: f32) {

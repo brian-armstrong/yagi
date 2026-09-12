@@ -254,7 +254,7 @@ mod tests {
     use super::*;
     use crate::filter::{FirFilter, FirFilterShape, FirInterpolationFilter};
     use crate::math::{hamming, sincf};
-    use crate::modem::modem::{Modem, ModulationScheme};
+    use crate::modem::{Modem, ModulationScheme};
     use crate::random::randnf;
     use num_complex::Complex;
     use test_macro::autotest_annotate;

@@ -1,4 +1,4 @@
-use crate::modem::modem::*;
+use super::*;
 
 impl Modem {
     pub(super) fn new_qpsk() -> Result<Self> {

@@ -1,8 +1,8 @@
 // msource : multi-signal source generator
 
+use super::signal_source::{SignalSource, SignalSourceCallback, SignalSourceConfig, SignalSourceType, SourceId};
 use crate::error::{Error, Result};
-use crate::framing::qsource::{SignalSource, SignalSourceCallback, SignalSourceConfig, SignalSourceType, SourceId};
-use crate::modem::modem::ModulationScheme;
+use crate::modem::ModulationScheme;
 use crate::multichannel::{ChannelizerType, OversampledPolyphaseChannelizer};
 
 use num_complex::Complex32;
@@ -376,7 +376,7 @@ impl MultiSignalSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::fft::SpectralPeriodogram;
     use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
     use test_macro::autotest_annotate;
 

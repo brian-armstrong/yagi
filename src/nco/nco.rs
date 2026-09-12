@@ -3,9 +3,9 @@ use std::f32::consts::PI;
 
 use crate::error::{Error, Result};
 
-use super::direct::DirectBackend;
-use super::interpolated::InterpolatedLookupTableBackend;
-use super::nco::LookupTableBackend;
+use super::direct_backend::DirectBackend;
+use super::interpolated_lookup_table_backend::InterpolatedLookupTableBackend;
+use super::lookup_table_backend::LookupTableBackend;
 
 const PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 
@@ -240,7 +240,7 @@ impl Nco {
 
 #[cfg(test)]
 mod tests {
-    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::fft::SpectralPeriodogram;
     use crate::math::windows::{hann, WindowType};
     use crate::nco::{Nco, NcoBackend};
     use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};

@@ -491,8 +491,8 @@ mod tests {
 
     fn testbench_spgramcf_signal(nfft: usize, wtype: WindowType, fc: f32, snr_db: f32) {
         use crate::filter::FirFilterShape;
-        use crate::framing::symstreamr::ArbitraryRateSymbolStream;
-        use crate::modem::modem::ModulationScheme;
+        use crate::framing::ArbitraryRateSymbolStream;
+        use crate::modem::ModulationScheme;
         use crate::nco::{Nco, NcoBackend};
         use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
         use std::f32::consts::{FRAC_1_SQRT_2, PI};

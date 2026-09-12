@@ -4,18 +4,13 @@
 // - oscillator backends are internal implementation details
 // - TableOscillator ready to use
 
-#[path = "direct_backend.rs"]
-mod direct;
-#[path = "interpolated_lookup_table_backend.rs"]
-mod interpolated;
-#[path = "lookup_table_backend.rs"]
+mod direct_backend;
+mod interpolated_lookup_table_backend;
+mod lookup_table_backend;
 mod nco;
-#[path = "nco.rs"]
-pub mod osc;
-pub mod phase;
-#[path = "table_oscillator.rs"]
-pub mod synth;
+mod phase;
+mod table_oscillator;
 
-pub use osc::{Nco, NcoBackend};
+pub use nco::{Nco, NcoBackend};
 pub use phase::{unwrap_phase, unwrap_phase2};
-pub use synth::TableOscillator;
+pub use table_oscillator::TableOscillator;

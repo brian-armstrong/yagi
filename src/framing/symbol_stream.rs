@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::filter::{FirFilterShape, FirInterpolationFilter};
-use crate::modem::modem::{Modem, ModulationScheme};
+use crate::modem::{Modem, ModulationScheme};
 use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
@@ -131,7 +131,7 @@ impl SymbolStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::fft::SpectralPeriodogram;
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;

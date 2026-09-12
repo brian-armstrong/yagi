@@ -1,4 +1,7 @@
-#[path = "cvsd_codec.rs"]
-pub mod cvsd;
-pub mod limiter;
-pub mod peak_hold;
+mod cvsd_codec;
+mod limiter;
+mod peak_hold;
+
+pub use cvsd_codec::CvsdCodec;
+pub use limiter::Limiter;
+pub use peak_hold::PeakHold;

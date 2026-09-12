@@ -152,7 +152,7 @@ impl FskDemodulator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modem::fskmod::FskModulator;
+    use crate::modem::FskModulator;
     use crate::random::randnf;
     use test_macro::autotest_annotate;
 

@@ -1,4 +1,5 @@
-#[path = "least_mean_squares.rs"]
-pub mod eqlms;
-#[path = "recursive_least_squares.rs"]
-pub mod eqrls;
+mod least_mean_squares;
+mod recursive_least_squares;
+
+pub use least_mean_squares::LeastMeanSquaresEqualizer;
+pub use recursive_least_squares::RecursiveLeastSquaresEqualizer;

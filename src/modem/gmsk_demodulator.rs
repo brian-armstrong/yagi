@@ -6,7 +6,7 @@
 //
 // The equalizer variant can be enabled by setting GMSKDEM_USE_EQUALIZER to true.
 
-use crate::equalization::eqlms::LeastMeanSquaresEqualizer;
+use crate::equalization::LeastMeanSquaresEqualizer;
 use crate::error::{Error, Result};
 use crate::filter::fir_design_prototype;
 use crate::filter::{FirFilter, FirFilterShape};
@@ -219,7 +219,7 @@ impl GmskDemodulator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modem::gmskmod::GmskModulator;
+    use crate::modem::GmskModulator;
     use crate::sequence::MaximalLengthSequence;
     use test_macro::autotest_annotate;
 

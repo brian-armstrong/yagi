@@ -1,6 +1,6 @@
 // continuous phase frequency-shift keying demodulator
 
-use super::cpfskmod::CpfskFilterType;
+use super::cpfsk_modulator::CpfskFilterType;
 use crate::error::{Error, Result};
 use crate::filter::{FirFilter, FirFilterShape};
 use num_complex::Complex32;
@@ -238,7 +238,7 @@ impl CpfskDemodulator {
 
 #[cfg(test)]
 mod tests {
-    use super::super::cpfskmod::CpfskModulator;
+    use super::super::CpfskModulator;
     use super::*;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_cpfskmodem_spectrum)]
     fn test_cpfskmodem_spectrum() {
-        use crate::fft::spgram::SpectralPeriodogram;
+        use crate::fft::SpectralPeriodogram;
         use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
         use rand::Rng;
 

@@ -1,9 +1,9 @@
+use super::symbol_stream::SymbolStream;
 use crate::error::{Error, Result};
 use crate::filter::msresamp::MultiStageResampler;
 use crate::filter::FirFilterShape;
-use crate::framing::symstream::SymbolStream;
 use crate::math::nextpow2;
-use crate::modem::modem::ModulationScheme;
+use crate::modem::ModulationScheme;
 use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
@@ -126,7 +126,7 @@ impl ArbitraryRateSymbolStream {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fft::spgram::SpectralPeriodogram;
+    use crate::fft::SpectralPeriodogram;
     use crate::fft::{fft_run, Direction};
     use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;

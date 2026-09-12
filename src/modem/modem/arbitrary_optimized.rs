@@ -1,5 +1,5 @@
 #![allow(clippy::excessive_precision)]
-use crate::modem::modem::*;
+use super::*;
 
 // optimal 16-QAM
 #[rustfmt::skip]

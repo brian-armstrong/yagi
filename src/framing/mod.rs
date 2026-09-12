@@ -1,21 +1,15 @@
-#[path = "multi_signal_source.rs"]
-pub mod msource;
-#[path = "frame_detector.rs"]
-pub mod qdetector;
-#[path = "packet_modem.rs"]
-mod qpacketmodem;
-#[path = "packet_symbolizer.rs"]
-mod qpacketsymbolizer;
-#[path = "signal_source.rs"]
-pub mod qsource;
-#[path = "symbol_stream.rs"]
-pub mod symstream;
-#[path = "arbitrary_rate_symbol_stream.rs"]
-pub mod symstreamr;
-pub mod symtrack;
+mod arbitrary_rate_symbol_stream;
+mod frame_detector;
+mod multi_signal_source;
+mod packet_modem;
+mod packet_symbolizer;
+mod signal_source;
+mod symbol_stream;
 
-pub use msource::MultiSignalSource;
-pub use qdetector::FrameDetector;
-pub use qpacketmodem::PacketModem;
-pub use qpacketsymbolizer::PacketSymbolizer;
-pub use qsource::{SignalSource, SignalSourceCallback, SignalSourceType};
+pub use arbitrary_rate_symbol_stream::ArbitraryRateSymbolStream;
+pub use frame_detector::FrameDetector;
+pub use multi_signal_source::MultiSignalSource;
+pub use packet_modem::PacketModem;
+pub use packet_symbolizer::PacketSymbolizer;
+pub use signal_source::{SignalSource, SignalSourceCallback, SignalSourceConfig, SignalSourceType, SourceId};
+pub use symbol_stream::SymbolStream;

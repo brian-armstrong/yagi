@@ -4,12 +4,12 @@
 // OFDM frame synchronizer
 //
 
+use super::ofdm_frame::{ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierType};
 use crate::buffer::Window;
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::math::{poly_fit, poly_val};
 use crate::matrix::matrix_linsolve;
-use crate::multichannel::ofdmframe::{ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierType};
 use crate::nco::{unwrap_phase, Nco, NcoBackend};
 use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;

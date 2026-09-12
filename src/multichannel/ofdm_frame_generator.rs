@@ -4,11 +4,9 @@
 // OFDM frame generator
 //
 
+use super::ofdm_frame::{ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierCounts, SubcarrierType};
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
-use crate::multichannel::ofdmframe::{
-    ofdmframe_init_s0, ofdmframe_init_s1, OfdmFrameConfig, SubcarrierCounts, SubcarrierType,
-};
 use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 

@@ -1,13 +1,13 @@
 // Channel module
 // Current state:
-// - channel: generic channel emulator (multipath, shadowing, carrier offset,
+// - Channel: generic channel emulator (multipath, shadowing, carrier offset,
 //   AWGN)
-// - tvmpch: time-varying multi-path channel emulator (Rayleigh-fading taps)
+// - TimeVaryingMultipathChannel: time-varying multipath channel emulator
+//   (Rayleigh-fading taps)
 
 mod channel;
 mod noise;
-#[path = "time_varying_multipath_channel.rs"]
-mod tvmpch;
+mod time_varying_multipath_channel;
 
-pub use channel::*;
-pub use tvmpch::*;
+pub use channel::Channel;
+pub use time_varying_multipath_channel::TimeVaryingMultipathChannel;
