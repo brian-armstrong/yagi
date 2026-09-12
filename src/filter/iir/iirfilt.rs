@@ -480,26 +480,31 @@ where
         Ok(filter)
     }
 
-    /// create iirfilt object based on second-order sections form
-    /// `numerator_coefficients` : Numerator, feed-forward coefficients [size: `num_sections` x 3]
-    /// `denominator_coefficients` : Denominator, feed-back coefficients [size: `num_sections` x 3]
-    /// `num_sections` : Number of second-order sections
-    /// NOTE: The number of second-order sections can be computed from the
-    /// filter's order, n, as such:
-    ///   r = n % 2
-    ///   L = (n-r)/2
-    ///   num_sections = L+r
-    pub fn new_sos(
-        numerator_coefficients: &[Coeff],
-        denominator_coefficients: &[Coeff],
-        num_sections: usize,
-    ) -> Result<Self> {
+    /// Create an IIR filter from second-order sections.
+    ///
+    /// Each coefficient slice contains three coefficients per section. The
+    /// number of sections is derived from their lengths.
+    pub fn new_sos(numerator_coefficients: &[Coeff], denominator_coefficients: &[Coeff]) -> Result<Self> {
+        if numerator_coefficients.is_empty() {
+            return Err(Error::Config("filter must have at least one second-order section".into()));
+        }
+        if numerator_coefficients.len() != denominator_coefficients.len() {
+            return Err(Error::Config(format!(
+                "numerator and denominator coefficient lengths must match (got {} and {})",
+                numerator_coefficients.len(),
+                denominator_coefficients.len()
+            )));
+        }
+        if !numerator_coefficients.len().is_multiple_of(3) {
+            return Err(Error::Config(format!(
+                "second-order-section coefficient length must be divisible by 3 (got {})",
+                numerator_coefficients.len()
+            )));
+        }
+
+        let num_sections = numerator_coefficients.len() / 3;
         let b = numerator_coefficients;
         let a = denominator_coefficients;
-
-        if num_sections == 0 {
-            return Err(Error::Config("filter must have at least one 2nd-order section".into()));
-        }
 
         let mut filter = IirFilter::<T, Coeff> {
             b: b.to_vec(),
@@ -546,7 +551,7 @@ where
         stopband_attenuation: f32,
     ) -> Result<Self> {
         // filter length
-        let (b, a, nsos) = iir_filter_design_prototype(
+        let (b, a, _num_sections) = iir_filter_design_prototype(
             filter_shape,
             band_type,
             format,
@@ -558,7 +563,7 @@ where
         )?;
 
         let filter = if format == design::IirFormat::SecondOrderSections {
-            IirFilter::<T, Coeff>::new_sos(&b, &a, nsos)?
+            IirFilter::<T, Coeff>::new_sos(&b, &a)?
         } else {
             IirFilter::<T, Coeff>::new(&b, &a)?
         };
@@ -569,20 +574,20 @@ where
     ///  _n      : filter order
     ///  `cutoff_frequency` : low-pass prototype cut-off frequency
     pub fn new_lowpass(order: usize, cutoff_frequency: f32) -> Result<Self> {
-        let (b, a, nsos) = iir_filter_design_lowpass(order, cutoff_frequency)?;
-        Self::new_sos(&b, &a, nsos)
+        let (b, a, _num_sections) = iir_filter_design_lowpass(order, cutoff_frequency)?;
+        Self::new_sos(&b, &a)
     }
 
     /// create 8th-order integrating filter
     pub fn new_integrator() -> Result<Self> {
-        let (b, a, nsos) = iir_filter_design_integrator()?;
-        Self::new_sos(&b, &a, nsos)
+        let (b, a, _num_sections) = iir_filter_design_integrator()?;
+        Self::new_sos(&b, &a)
     }
 
     /// create 8th-order differentiating filter
     pub fn new_differentiator() -> Result<Self> {
-        let (b, a, nsos) = iir_filter_design_differentiator()?;
-        Self::new_sos(&b, &a, nsos)
+        let (b, a, _num_sections) = iir_filter_design_differentiator()?;
+        Self::new_sos(&b, &a)
     }
 
     /// Create DC-blocking filter
@@ -607,8 +612,8 @@ where
     ///  `damping_factor`    : damping factor (1/sqrt(2) suggested)
     ///  `loop_gain`         : loop gain (1000 suggested)
     pub fn new_pll(natural_frequency: f32, damping_factor: f32, loop_gain: f32) -> Result<Self> {
-        let (b, a, nsos) = iir_filter_design_pll(natural_frequency, damping_factor, loop_gain)?;
-        Self::new_sos(&b, &a, nsos)
+        let (b, a, _num_sections) = iir_filter_design_pll(natural_frequency, damping_factor, loop_gain)?;
+        Self::new_sos(&b, &a)
     }
 
     /// reset internal state of iirfilt object
@@ -963,7 +968,9 @@ mod tests {
         assert!(IirFilter::<Complex32, f32>::new(&[], &[]).is_err());
         assert!(IirFilter::<Complex32, f32>::new(&[0.0], &[]).is_err());
         assert!(IirFilter::<Complex32, f32>::new(&[], &[1.0]).is_err());
-        assert!(IirFilter::<Complex32, f32>::new_sos(&[], &[], 0).is_err());
+        assert!(IirFilter::<Complex32, f32>::new_sos(&[], &[]).is_err());
+        assert!(IirFilter::<Complex32, f32>::new_sos(&[1.0, 0.0, 0.0], &[1.0, 0.0]).is_err());
+        assert!(IirFilter::<Complex32, f32>::new_sos(&[1.0, 0.0], &[1.0, 0.0]).is_err());
 
         // create valid object
         let mut filter = IirFilter::<Complex32, f32>::new_lowpass(7, 0.1).unwrap();
@@ -1006,7 +1013,7 @@ mod tests {
                 a.extend_from_slice(&[1.0, -0.15 + offset, 0.03]);
             }
 
-            let mut sample_filter = IirFilter::<Complex32, f32>::new_sos(&b, &a, nsos).unwrap();
+            let mut sample_filter = IirFilter::<Complex32, f32>::new_sos(&b, &a).unwrap();
             sample_filter.set_scale(0.875);
             let mut block_filter = sample_filter.clone();
 
@@ -1187,7 +1194,7 @@ mod tests {
         ];
 
         // create filter
-        let filter = IirFilter::<f32, f32>::new_sos(&b, &a, 4).unwrap();
+        let filter = IirFilter::<f32, f32>::new_sos(&b, &a).unwrap();
 
         // run tests
         for i in 0..7 {
