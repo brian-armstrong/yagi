@@ -143,20 +143,20 @@ impl CpfskModulator {
     ///
     /// # Arguments
     ///
-    /// * `k` - samples/symbol, k > 1, k even
-    pub fn new_msk(k: usize) -> Result<Self> {
-        Self::new(1, 0.5, k, 1, 1.0, CpfskFilterType::Square)
+    /// * `samples_per_symbol` - Samples per symbol. Must be even and greater than one.
+    pub fn new_msk(samples_per_symbol: usize) -> Result<Self> {
+        Self::new(1, 0.5, samples_per_symbol, 1, 1.0, CpfskFilterType::Square)
     }
 
     /// Create modulator object for Gaussian minimum-shift keying
     ///
     /// # Arguments
     ///
-    /// * `k` - samples/symbol, k > 1, k even
-    /// * `m` - filter delay (symbols), m > 0
-    /// * `bt` - bandwidth-time factor, 0 < bt <= 1
-    pub fn new_gmsk(k: usize, m: usize, bt: f32) -> Result<Self> {
-        Self::new(1, 0.5, k, m, bt, CpfskFilterType::Gmsk)
+    /// * `samples_per_symbol` - Samples per symbol. Must be even and greater than one.
+    /// * `filter_delay` - Filter delay in symbols. Must be greater than zero.
+    /// * `bandwidth_time_product` - Bandwidth-time product in (0, 1]
+    pub fn new_gmsk(samples_per_symbol: usize, filter_delay: usize, bandwidth_time_product: f32) -> Result<Self> {
+        Self::new(1, 0.5, samples_per_symbol, filter_delay, bandwidth_time_product, CpfskFilterType::Gmsk)
     }
 
     /// Reset state
