@@ -14,20 +14,20 @@ pub struct Interleaver {
 }
 
 impl Interleaver {
-    /// create interleaver of length n input/output bytes
-    pub fn new(n: usize) -> Self {
+    /// Create an interleaver for the given message length in bytes.
+    pub fn new(message_length: usize) -> Self {
         // set internal properties
         let depth = 4; // default depth to maximum
 
         // compute block dimensions
-        let rows = 1 + (n as f32).sqrt().floor() as usize;
+        let rows = 1 + (message_length as f32).sqrt().floor() as usize;
 
-        let mut cols = n / rows;
-        while n >= rows * cols {
+        let mut cols = message_length / rows;
+        while message_length >= rows * cols {
             cols += 1;
-        } // ensures rows * cols >= n
+        } // ensures rows * cols >= message_length
 
-        Self { n, rows, cols, depth }
+        Self { n: message_length, rows, cols, depth }
     }
 
     /// set depth (number of internal iterations)
