@@ -42,16 +42,16 @@ struct Filters {
 }
 
 impl CvsdCodec {
-    /// create cvsd object
+    /// Create a CVSD codec.
     ///
-    ///  num_bits   :   number of adjacent bits to observe
-    ///  zeta       :   slope adjustment multiplier
-    pub fn new(num_bits: usize, zeta: f32) -> Result<Self> {
+    /// * `num_bits` - Number of adjacent bits to observe
+    /// * `slope_multiplier` - Factor by which the adaptive step size grows or shrinks
+    pub fn new(num_bits: usize, slope_multiplier: f32) -> Result<Self> {
         if num_bits == 0 {
             return Err(Error::Config("cvsd num_bits must be positive".into()));
         }
-        if zeta <= 1.0 {
-            return Err(Error::Config("cvsd zeta must be greater than 1".into()));
+        if slope_multiplier <= 1.0 {
+            return Err(Error::Config("CVSD slope multiplier must be greater than 1".into()));
         }
         if num_bits > 8 {
             return Err(Error::Config("cvsd num_bits must be no more than 8".into()));
@@ -62,7 +62,7 @@ impl CvsdCodec {
             bitref: 0,
             bitmask: ((1u32 << num_bits) - 1) as u8,
             ref_: 0.0,
-            zeta,
+            zeta: slope_multiplier,
             delta: 0.01,
             delta_min: 0.01,
             delta_max: 1.0,
@@ -106,7 +106,7 @@ impl CvsdCodec {
     }
 
     /// slope adjustment multiplier
-    pub fn zeta(&self) -> f32 {
+    pub fn slope_multiplier(&self) -> f32 {
         self.zeta
     }
 
@@ -224,7 +224,7 @@ mod tests {
         let mut cvsd_decoder = CvsdCodec::new(nbits, zeta).unwrap().with_conditioning(alpha).unwrap();
         // no print check
         assert_eq!(cvsd_encoder.num_bits(), nbits);
-        assert_eq!(cvsd_encoder.zeta(), zeta);
+        assert_eq!(cvsd_encoder.slope_multiplier(), zeta);
         assert_eq!(cvsd_encoder.alpha(), alpha);
 
         let mut phi = 0.0f32;
@@ -285,8 +285,8 @@ mod tests {
     fn test_cvsd_invalid_config() {
         // test invalid configuration to new()
         assert!(CvsdCodec::new(0, 2.0).is_err()); // too few bits
-        assert!(CvsdCodec::new(2, 1.0).is_err()); // zeta too small
-        assert!(CvsdCodec::new(2, 0.5).is_err()); // zeta too small
+        assert!(CvsdCodec::new(2, 1.0).is_err()); // slope multiplier too small
+        assert!(CvsdCodec::new(2, 0.5).is_err()); // slope multiplier too small
         assert!(CvsdCodec::new(2, 2.0).unwrap().with_conditioning(-1.0).is_err()); // alpha too small
         assert!(CvsdCodec::new(2, 2.0).unwrap().with_conditioning(2.0).is_err()); // alpha too large
 
