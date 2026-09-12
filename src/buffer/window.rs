@@ -11,17 +11,17 @@ pub struct Window<T> {
 }
 
 impl<T: Default + Clone + Copy> Window<T> {
-    pub fn new(n: usize) -> Result<Self> {
-        if n == 0 {
+    pub fn new(capacity: usize) -> Result<Self> {
+        if capacity == 0 {
             return Err(Error::Config("window size must be greater than zero".to_string()));
         }
 
-        let m = crate::utility::bits::msb_index(n as u32) as usize;
+        let m = crate::utility::bits::msb_index(capacity as u32) as usize;
         let n_pow2 = 1 << m;
         let mask = n_pow2 - 1;
-        let num_allocated = n_pow2 + n - 1;
+        let num_allocated = n_pow2 + capacity - 1;
 
-        let mut window = Window { v: vec![T::default(); num_allocated], len: n, n: n_pow2, mask, read_index: 0 };
+        let mut window = Window { v: vec![T::default(); num_allocated], len: capacity, n: n_pow2, mask, read_index: 0 };
 
         window.reset();
         Ok(window)
