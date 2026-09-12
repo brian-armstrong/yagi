@@ -48,31 +48,28 @@ pub struct MaximalLengthSequence {
 }
 
 impl MaximalLengthSequence {
-    /// create a maximal-length sequence (m-sequence) object with
-    /// an internal shift register length of _m bits.
-    ///  m      :   generator polynomial length, sequence length is (2^m)-1
-    ///  g      :   generator polynomial, starting with most-significant bit
-    ///  a      :   initial shift register state, default: 000...001
-    pub fn new(m: u32, g: u32, a: u32) -> Result<Self> {
-        if !(MIN_MSEQUENCE_M..=MAX_MSEQUENCE_M).contains(&m) {
-            return Err(Error::Config(format!("m ({}) not in range", m)));
+    /// Create a maximal-length sequence with the given generator polynomial
+    /// degree and initial shift-register state.
+    pub fn new(degree: u32, generator_polynomial: u32, initial_state: u32) -> Result<Self> {
+        if !(MIN_MSEQUENCE_M..=MAX_MSEQUENCE_M).contains(&degree) {
+            return Err(Error::Config(format!("degree ({}) not in range", degree)));
         }
 
-        Ok(Self { m, g, a, n: (1 << m) - 1, state: a })
+        Ok(Self { m: degree, g: generator_polynomial, a: initial_state, n: (1 << degree) - 1, state: initial_state })
     }
 
-    pub fn from_genpoly(g: u32) -> Result<Self> {
-        let t = msb_index(g);
+    pub fn from_genpoly(generator_polynomial: u32) -> Result<Self> {
+        let t = msb_index(generator_polynomial);
         if t < 2 {
-            return Err(Error::Config(format!("invalid generator polynomial: 0x{:x}", g)));
+            return Err(Error::Config(format!("invalid generator polynomial: 0x{:x}", generator_polynomial)));
         }
         let m = t;
         let a = 1;
-        Self::new(m, g, a)
+        Self::new(m, generator_polynomial, a)
     }
 
-    pub fn from_degree(m: u32) -> Result<Self> {
-        let g = match m {
+    pub fn from_degree(degree: u32) -> Result<Self> {
+        let g = match degree {
             2 => MSEQUENCE_GENPOLY_M2,
             3 => MSEQUENCE_GENPOLY_M3,
             4 => MSEQUENCE_GENPOLY_M4,
@@ -103,7 +100,7 @@ impl MaximalLengthSequence {
             29 => MSEQUENCE_GENPOLY_M29,
             30 => MSEQUENCE_GENPOLY_M30,
             31 => MSEQUENCE_GENPOLY_M31,
-            _ => return Err(Error::Config(format!("m ({}) not in range", m))),
+            _ => return Err(Error::Config(format!("degree ({}) not in range", degree))),
         };
         Self::from_genpoly(g)
     }
