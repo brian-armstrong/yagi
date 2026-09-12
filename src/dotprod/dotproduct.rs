@@ -95,9 +95,9 @@ where
     /// # Arguments
     ///
     /// * `coefficients` - coefficients array
-    pub fn new(h: &[Coeff]) -> Result<Self> {
-        let h = Self::checked(h)?;
-        Ok(Self::from_coefficients(h.to_vec()))
+    pub fn new(coefficients: &[Coeff]) -> Result<Self> {
+        let coefficients = Self::checked(coefficients)?;
+        Ok(Self::from_coefficients(coefficients.to_vec()))
     }
 
     /// Create dot product object with time-reversed coefficients.
@@ -105,10 +105,10 @@ where
     /// # Arguments
     ///
     /// * `coefficients` - time-reversed coefficients array
-    pub fn new_rev(h: &[Coeff]) -> Result<Self> {
-        let h = Self::checked(h)?;
-        let h: Vec<_> = h.iter().rev().copied().collect();
-        Ok(Self::from_coefficients(h))
+    pub fn new_rev(coefficients: &[Coeff]) -> Result<Self> {
+        let coefficients = Self::checked(coefficients)?;
+        let coefficients: Vec<_> = coefficients.iter().rev().copied().collect();
+        Ok(Self::from_coefficients(coefficients))
     }
 
     fn from_coefficients(h: Vec<Coeff>) -> Self {
