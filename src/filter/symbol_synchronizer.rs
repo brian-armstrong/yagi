@@ -1,6 +1,6 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::iir::IirSecondOrderSection;
+use crate::filter::IirSecondOrderSection;
 use crate::filter::{self, FirFilterShape, FirPolyphaseFilter};
 use num_complex::ComplexFloat;
 
@@ -130,7 +130,7 @@ where
             return Err(Error::Config("number of filters must be greater than 0".into()));
         }
 
-        let h = filter::fir_design_prototype(
+        let h = filter::fir::design::fir_design_prototype(
             filter_shape,
             samples_per_symbol * num_filters,
             filter_delay,
@@ -164,7 +164,12 @@ where
 
         let fc = 0.75f32;
         let as_ = 40.0f32;
-        let mut h = filter::fir_design_kaiser(h_len, fc / (samples_per_symbol as f32 * num_filters as f32), as_, 0.0)?;
+        let mut h = filter::fir::design::fir_design_kaiser(
+            h_len,
+            fc / (samples_per_symbol as f32 * num_filters as f32),
+            as_,
+            0.0,
+        )?;
 
         for c in h.iter_mut() {
             *c *= 2.0 * fc;
@@ -325,7 +330,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filter::resampler::resamp::ArbitraryResampler;
+    use crate::filter::ArbitraryResampler;
     use crate::filter::FirInterpolationFilter;
     use crate::random::randnf;
     use crate::sequence::MaximalLengthSequence;

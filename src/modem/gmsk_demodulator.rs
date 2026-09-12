@@ -8,7 +8,7 @@
 
 use crate::equalization::LeastMeanSquaresEqualizer;
 use crate::error::{Error, Result};
-use crate::filter::fir_design_prototype;
+use crate::filter::fir::design::fir_design_prototype;
 use crate::filter::{FirFilter, FirFilterShape};
 use num_complex::Complex32;
 

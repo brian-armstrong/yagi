@@ -5,8 +5,8 @@ use std::f32::consts::PI;
 use num_complex::Complex32;
 
 use crate::error::{Error, Result};
-use crate::filter::estimate_req_filter_len;
-use crate::filter::resamp2::HalfBandResampler;
+use crate::filter::fir::design::estimate_req_filter_len;
+use crate::filter::HalfBandResampler;
 use crate::nco::{Nco, NcoBackend};
 
 #[derive(Clone, Debug)]
@@ -222,7 +222,7 @@ mod tests {
     use super::*;
     use test_macro::autotest_annotate;
 
-    use crate::filter::fir_design_kaiser;
+    use crate::filter::fir::design::fir_design_kaiser;
     use crate::framing::ArbitraryRateSymbolStream;
     use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
 

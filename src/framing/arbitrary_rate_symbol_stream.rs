@@ -1,7 +1,7 @@
 use super::symbol_stream::SymbolStream;
 use crate::error::{Error, Result};
-use crate::filter::msresamp::MultiStageResampler;
 use crate::filter::FirFilterShape;
+use crate::filter::MultiStageResampler;
 use crate::math::nextpow2;
 use crate::modem::ModulationScheme;
 use num_complex::Complex32;

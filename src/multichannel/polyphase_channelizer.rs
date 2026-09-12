@@ -130,7 +130,7 @@ where
         // design filter
         let h_len = 2 * num_channels * m + 1;
         let fc = 0.5 / num_channels as f32;
-        let hf = filter::fir_design_kaiser(h_len, fc, as_, 0.0)?;
+        let hf = filter::fir::design::fir_design_kaiser(h_len, fc, as_, 0.0)?;
 
         // convert to coefficient type
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
@@ -169,7 +169,7 @@ where
         let ftype = filter_shape;
 
         // design filter based on requested prototype
-        let h = filter::fir_design_prototype(ftype, num_channels, m, beta, 0.0)?;
+        let h = filter::fir::design::fir_design_prototype(ftype, num_channels, m, beta, 0.0)?;
 
         // copy coefficients to type-specific array, reversing order if
         // channelizer is an analyzer, matched filter: g(-t)

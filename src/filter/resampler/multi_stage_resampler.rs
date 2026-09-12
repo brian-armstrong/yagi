@@ -1,8 +1,6 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::resampler::msresamp2::{MultiStageHalfBandResampler, ResampType};
-use crate::filter::resampler::resamp::ArbitraryResampler;
-use crate::filter::resampler::resamp2::Resamp2Coeff;
+use crate::filter::{ArbitraryResampler, MultiStageHalfBandResampler, Resamp2Coeff, ResampType};
 use std::f32;
 
 use num_complex::ComplexFloat;

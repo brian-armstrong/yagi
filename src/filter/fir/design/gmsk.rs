@@ -1,6 +1,6 @@
+use super::{fir_design_kaiser, fir_design_prototype, FirFilterShape};
 use crate::error::{Error, Result};
 use crate::fft::{fft_run, Direction};
-use crate::filter::fir::design;
 use crate::math::qf;
 use std::f32::consts::PI;
 
@@ -78,7 +78,7 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
 
     let bt = beta; // prototype filter cut-off (equals the BT product)
     let delta = 1e-3; // filter design correction factor
-    let prototype = design::FirFilterShape::Kaiser; // Nyquist prototype
+    let prototype = FirFilterShape::Kaiser; // Nyquist prototype
 
     // arrays
     let mut hr = vec![0.0; h_len]; // receive filter coefficients
@@ -102,12 +102,12 @@ pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     let mut h_freq_hat = vec![Complex32::new(0.0, 0.0); h_len]; // frequency response of receive filter
 
     // create 'prototype' matched filter
-    let h_primef = design::fir_design_prototype(prototype, k, m, beta, 0.0)?;
+    let h_primef = fir_design_prototype(prototype, k, m, beta, 0.0)?;
 
     // create 'gain' filter to improve stop-band rejection
     let fc = (0.7 + 0.1 * beta) / k as f32;
     let as_ = 60.0;
-    let g_primef = design::kaiser::fir_design_kaiser(h_len, fc, as_, 0.0)?;
+    let g_primef = fir_design_kaiser(h_len, fc, as_, 0.0)?;
 
     // copy to fft input buffer, shifting appropriately
     for i in 0..h_len {

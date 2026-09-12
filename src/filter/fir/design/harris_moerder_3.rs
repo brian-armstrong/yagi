@@ -1,5 +1,5 @@
+use super::{filter_isi, fir_design_pm, FirPmWeightType};
 use crate::error::{Error, Result};
-use crate::filter::fir::design;
 
 // References
 //  [harris:2005] f. harris, C. Dick, S. Seshagiri, K. Moerder, "An
@@ -40,17 +40,13 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
     let des = [1.0, 1.0 / 2.0_f32.sqrt(), 0.0];
     let weights = [1.0, 1.0, 1.0];
 
-    let wtype = [
-        design::parks_mcclellan::FirPmWeightType::Flat,
-        design::parks_mcclellan::FirPmWeightType::Flat,
-        design::parks_mcclellan::FirPmWeightType::Exp,
-    ];
+    let wtype = [FirPmWeightType::Flat, FirPmWeightType::Flat, FirPmWeightType::Exp];
 
     let mut h = vec![0.0; n];
-    let h_pm = design::parks_mcclellan::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype))?;
+    let h_pm = fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype))?;
     h.copy_from_slice(&h_pm);
 
-    let (isi_rms, _isi_max) = design::filter_isi(&h, k, m);
+    let (isi_rms, _isi_max) = filter_isi(&h, k, m);
 
     // iterate...
     let mut isi_rms_min = isi_rms;
@@ -61,14 +57,14 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32
         bands[1] = fp;
 
         // execute filter design
-        let h_pm = match design::parks_mcclellan::fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype)) {
+        let h_pm = match fir_design_pm(n, &bands, &des, Some(&weights), Some(&wtype)) {
             Ok(h) => h,
             Err(Error::NoConvergence(_)) => break, // retain the best prior candidate
             Err(error) => return Err(error),
         };
 
         // compute inter-symbol interference (MSE, max)
-        let (isi_rms, _isi_max) = design::filter_isi(&h_pm, k, m);
+        let (isi_rms, _isi_max) = filter_isi(&h_pm, k, m);
 
         if isi_rms > isi_rms_min {
             // search complete

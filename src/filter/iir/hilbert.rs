@@ -1,6 +1,5 @@
 use crate::error::{Error, Result};
-use crate::filter::iir::design::{IirBandType, IirFilterShape, IirFormat};
-use crate::filter::iir::filter::IirFilter;
+use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat};
 
 use num_complex::Complex32;
 
@@ -209,7 +208,7 @@ mod tests {
 
         // generate the baseband signal (filter pulse)
         let w = 0.36 * bw; // pulse bandwidth
-        let h = filter::fir_design_kaiser(h_len, w, 80.0, 0.0).unwrap();
+        let h = filter::fir::design::fir_design_kaiser(h_len, w, 80.0, 0.0).unwrap();
         for i in 0..num_samples {
             buf_0[i] = Complex32::new(if i < h_len { 2.0 * w * h[i] } else { 0.0 }, 0.0);
         }
@@ -271,7 +270,7 @@ mod tests {
 
         // generate the baseband signal (filter pulse)
         let w = 0.36 * bw;
-        let h = filter::fir_design_kaiser(h_len, w, 80.0, 0.0).unwrap();
+        let h = filter::fir::design::fir_design_kaiser(h_len, w, 80.0, 0.0).unwrap();
         for i in 0..num_samples {
             buf_0[i] = if i < h_len {
                 2.0 * w * h[i] * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * f0 * i as f32)

@@ -804,7 +804,7 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filter::iir::filter::IirFilter;
+    use crate::filter::IirFilter;
     use crate::utility::test_helpers::{validate_psd_iirfilt, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;

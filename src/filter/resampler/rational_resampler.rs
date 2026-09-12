@@ -73,7 +73,12 @@ where
         };
 
         let h_len = 2 * interpolation_factor * filter_semi_length + 1;
-        let hf = filter::fir_design_kaiser(h_len, bandwidth / interpolation_factor as f32, stopband_attenuation, 0.0)?;
+        let hf = filter::fir::design::fir_design_kaiser(
+            h_len,
+            bandwidth / interpolation_factor as f32,
+            stopband_attenuation,
+            0.0,
+        )?;
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 
@@ -97,7 +102,13 @@ where
 
         let is_decimating = interpolation_factor < decimation_factor;
         let prototype_rate = if is_decimating { decimation_factor } else { interpolation_factor };
-        let hf = filter::fir_design_prototype(filter_shape, prototype_rate, filter_semi_length, excess_bandwidth, 0.0)?;
+        let hf = filter::fir::design::fir_design_prototype(
+            filter_shape,
+            prototype_rate,
+            filter_semi_length,
+            excess_bandwidth,
+            0.0,
+        )?;
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 

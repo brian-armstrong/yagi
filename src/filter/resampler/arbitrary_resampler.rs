@@ -53,7 +53,12 @@ where
 
         // design filter
         let n = 2 * filter_semi_length * num_filters + 1;
-        let hf = filter::fir_design_kaiser(n, cutoff_frequency / (num_filters as f32), stopband_attenuation, 0.0)?;
+        let hf = filter::fir::design::fir_design_kaiser(
+            n,
+            cutoff_frequency / (num_filters as f32),
+            stopband_attenuation,
+            0.0,
+        )?;
 
         // normalize filter coefficients by DC gain
         let gain = hf.iter().sum::<f32>();
@@ -220,7 +225,7 @@ mod tests {
         // generate pulse with sharp transition and very narrow side-lobes
         let p = (40.0 / r) as usize;
         let pulse_len = 4 * p + 1;
-        let pulse = filter::fir_design_kaiser(pulse_len, 0.5 * r * bw, 120.0, 0.0).unwrap();
+        let pulse = filter::fir::design::fir_design_kaiser(pulse_len, 0.5 * r * bw, 120.0, 0.0).unwrap();
 
         // allocate buffers and copy input
         let num_input = pulse_len + 2 * m + 1;

@@ -1,8 +1,8 @@
 // Root-Nyquist Kaiser filter design.
 #![allow(clippy::excessive_precision)]
 
+use super::kaiser::fir_design_kaiser;
 use crate::error::{Error, Result};
-use crate::filter::fir::design::kaiser::fir_design_kaiser;
 use crate::filter::fir::design::{estimate_req_filter_stopband_attenuation, filter_isi};
 
 /// Design frequency-shifted root-Nyquist filter based on the Kaiser-windowed sinc.

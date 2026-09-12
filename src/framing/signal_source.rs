@@ -5,7 +5,7 @@ use crate::error::{Error, Result};
 /// Source identifier type
 pub type SourceId = i32;
 use super::symbol_stream::SymbolStream;
-use crate::filter::resamp::ArbitraryResampler;
+use crate::filter::ArbitraryResampler;
 use crate::modem::{FskModulator, GmskModulator};
 use crate::multichannel::{ChannelizerType, OversampledPolyphaseChannelizer};
 use crate::nco::{Nco, NcoBackend};

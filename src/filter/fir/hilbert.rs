@@ -47,7 +47,7 @@ impl FirHilbertFilter {
         let stopband_attenuation = stopband_attenuation.abs();
 
         // compute filter coefficients for half-band filter
-        let mut h = filter::fir_design_kaiser(h_len, 0.25, stopband_attenuation, 0.0)?;
+        let mut h = filter::fir::design::fir_design_kaiser(h_len, 0.25, stopband_attenuation, 0.0)?;
 
         // alternate sign of non-zero elements
         for i in 0..h_len {
@@ -347,7 +347,7 @@ mod tests {
 
         // generate the baseband signal (filter pulse)
         let w: f32 = 0.36 * bw; // pulse bandwidth
-        let h = filter::fir_design_kaiser(h_len, w, 80.0, 0.0).unwrap();
+        let h = filter::fir::design::fir_design_kaiser(h_len, w, 80.0, 0.0).unwrap();
         for i in 0..num_samples {
             buf_0[i] = Complex32::new(if i < h_len { 2.0 * w * h[i] } else { 0.0 }, 0.0);
         }

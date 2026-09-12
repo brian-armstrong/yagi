@@ -1,9 +1,9 @@
 #![allow(clippy::excessive_precision)]
+use super::design;
+use super::second_order_section::IirSecondOrderSection;
 use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
-use crate::filter::iir::design;
-use crate::filter::iir::second_order_section::IirSecondOrderSection;
 use core::f32;
 use num_complex::{Complex32, ComplexFloat};
 

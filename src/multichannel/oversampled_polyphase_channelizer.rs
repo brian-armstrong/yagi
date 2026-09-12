@@ -132,7 +132,7 @@ where
         };
 
         // compute filter coefficients (floating point precision)
-        let hf = filter::fir_design_kaiser(h_len, fc, as_, 0.0)?;
+        let hf = filter::fir::design::fir_design_kaiser(h_len, fc, as_, 0.0)?;
 
         // normalize to unit average and scale by number of channels
         let hf_sum: f32 = hf.iter().sum();

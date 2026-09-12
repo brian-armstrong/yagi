@@ -249,7 +249,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filter::fir::design::FirFilterShape;
+    use crate::filter::FirFilterShape;
     use crate::math::WindowType;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;

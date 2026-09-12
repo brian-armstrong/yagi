@@ -75,7 +75,7 @@ pub enum FirFilterShape {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FilterInfo {
+struct FilterInfo {
     short_name: &'static str,
     long_name: &'static str,
 }

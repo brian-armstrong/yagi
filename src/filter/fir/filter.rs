@@ -22,7 +22,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    let h = filter::fir_design_kaiser(n, fc, as_, mu)?;
+    let h = filter::fir::design::fir_design_kaiser(n, fc, as_, mu)?;
     let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
     Ok(h_c)
 }
@@ -51,7 +51,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    let h = filter::fir_design_prototype(ftype, k, m, beta, mu)?;
+    let h = filter::fir::design::fir_design_prototype(ftype, k, m, beta, mu)?;
     let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
     Ok(h_c)
 }
@@ -72,7 +72,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    let mut h = filter::fir_design_pm_lowpass(h_len, fc, as_, 0.0)?;
+    let mut h = filter::fir::design::fir_design_pm_lowpass(h_len, fc, as_, 0.0)?;
     // scale by filter bandwidth to be consistent with other lowpass prototypes
     for h_i in h.iter_mut() {
         *h_i = *h_i * 0.5 / fc;
@@ -117,7 +117,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    let h = filter::fir_design_notch(m, 0.0, as_)?;
+    let h = filter::fir::design::fir_design_notch(m, 0.0, as_)?;
     let h_c = h.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
     Ok(h_c)
 }
@@ -158,7 +158,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     Complex32: From<Coeff>,
 {
-    let h_fc = filter::freqresponse(h, fc).unwrap();
+    let h_fc = filter::fir::design::freqresponse(h, fc).unwrap();
     h_fc * Complex32::from(scale)
 }
 
@@ -197,7 +197,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
     let h = h.iter().map(|&x| x.re()).collect::<Vec<f32>>();
-    filter::fir_group_delay(&h, fc)
+    filter::fir::design::fir_group_delay(&h, fc)
 }
 
 /// Trait for FirFilter to implement notch filter design
@@ -210,7 +210,7 @@ where
 
 impl ComplexNotch for f32 {
     fn notch(m: usize, as_: f32, f0: f32) -> Result<Vec<Self>> {
-        let h = filter::fir_design_notch(m, f0, as_)?;
+        let h = filter::fir::design::fir_design_notch(m, f0, as_)?;
         let h_c = h.to_vec();
         Ok(h_c)
     }
@@ -219,7 +219,7 @@ impl ComplexNotch for f32 {
 impl ComplexNotch for Complex32 {
     fn notch(m: usize, as_: f32, f0: f32) -> Result<Vec<Self>> {
         // design notch filter as DC blocker, then mix to appropriate frequency
-        let h = filter::fir_design_notch(m, 0.0, as_)?;
+        let h = filter::fir::design::fir_design_notch(m, 0.0, as_)?;
         let mut h_c = h.iter().map(|&x| Complex32::new(x, 0.0)).collect::<Vec<Complex32>>();
         for (i, h_i) in h_c.iter_mut().enumerate() {
             let phi = 2.0 * PI * f0 * (i as f32 - m as f32);
@@ -570,7 +570,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filter::fir::design::FirFilterShape;
+    use crate::filter::FirFilterShape;
     use crate::utility::test_helpers::{validate_psd_firfilt, validate_psd_firfiltc, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
@@ -965,11 +965,11 @@ mod tests {
         let mut hc = vec![0.0; hc_len]; // composite filter
 
         // design the filter(s)
-        let ht = filter::fir_design_prototype(ftype, k, m, beta, dt).unwrap();
+        let ht = filter::fir::design::fir_design_prototype(ftype, k, m, beta, dt).unwrap();
 
         // special case for GMSK
         let hr = if ftype == FirFilterShape::Gmsktx {
-            filter::fir_design_prototype(filter::FirFilterShape::Gmskrx, k, m, beta, dt).unwrap()
+            filter::fir::design::fir_design_prototype(filter::FirFilterShape::Gmskrx, k, m, beta, dt).unwrap()
         } else {
             ht.clone()
         };
@@ -979,7 +979,7 @@ mod tests {
         // compute composite filter response (auto-correlation)
         for i in 0..hc_len {
             let lag = i as i32 - (2 * k * m) as i32;
-            hc[i] = filter::filter_crosscorr(&ht, &hr, lag as isize);
+            hc[i] = filter::fir::design::filter_crosscorr(&ht, &hr, lag as isize);
         }
 
         // compute filter inter-symbol interference
@@ -993,7 +993,7 @@ mod tests {
 
         // compute relative stop-band energy
         let nfft = 2048;
-        let as_ = 20.0 * filter::filter_energy(&ht, 0.5 * (1.0 + beta) / k as f32, nfft).unwrap().log10();
+        let as_ = 20.0 * filter::fir::design::filter_energy(&ht, 0.5 * (1.0 + beta) / k as f32, nfft).unwrap().log10();
 
         assert_abs_diff_eq!(rxx0, k as f32, epsilon = 0.01);
         assert!(isi_rms < -50.0);
@@ -1125,7 +1125,7 @@ mod tests {
 
         // run tests
         for i in 0..4 {
-            let g = filter::fir_group_delay(&h, fc[i]).unwrap();
+            let g = filter::fir::design::fir_group_delay(&h, fc[i]).unwrap();
             assert_abs_diff_eq!(g, g0[i], epsilon = tol);
         }
 

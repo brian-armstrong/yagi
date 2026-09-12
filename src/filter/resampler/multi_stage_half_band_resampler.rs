@@ -1,7 +1,7 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
 use crate::filter;
-use crate::filter::resampler::resamp2::{HalfBandResampler, Resamp2Coeff};
+use crate::filter::{HalfBandResampler, Resamp2Coeff};
 
 use num_complex::ComplexFloat;
 
@@ -86,7 +86,7 @@ where
             let ft = 2.0 * (0.25 - fc);
 
             // compute filter length
-            let h_len = filter::estimate_req_filter_len(ft, as_)?;
+            let h_len = filter::fir::design::estimate_req_filter_len(ft, as_)?;
             let m = ((h_len as f32 - 1.0) / 4.0).ceil() as usize;
 
             q.fc_stage[i] = fc;

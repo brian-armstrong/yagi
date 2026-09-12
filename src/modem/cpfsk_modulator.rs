@@ -1,7 +1,8 @@
 // continuous phase frequency-shift keying modulator
 
 use crate::error::{Error, Result};
-use crate::filter::{fir_design_gmsktx, FirInterpolationFilter};
+use crate::filter::fir::design::fir_design_gmsktx;
+use crate::filter::FirInterpolationFilter;
 use num_complex::Complex32;
 use std::f32::consts::PI;
 

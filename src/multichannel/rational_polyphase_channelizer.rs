@@ -134,7 +134,7 @@ where
         let fc = 0.5 / decimation_rate as f32;
 
         // compute filter coefficients (floating point precision)
-        let hf = filter::fir_design_kaiser(h_len, fc, as_, 0.0)?;
+        let hf = filter::fir::design::fir_design_kaiser(h_len, fc, as_, 0.0)?;
 
         // normalize to unit average and scale by number of channels
         let hf_sum: f32 = hf.iter().sum();
@@ -229,7 +229,7 @@ mod tests {
     fn test_firpfbchr_crcf_config() {
         // design prototype filter
         let h_len = 2 * 64 * 12 + 1;
-        let h = filter::fir_design_kaiser(h_len, 0.1, 60.0, 0.0).unwrap();
+        let h = filter::fir::design::fir_design_kaiser(h_len, 0.1, 60.0, 0.0).unwrap();
 
         // check invalid function calls
         assert!(RationalPolyphaseChannelizer::<Complex32>::new(0, 76, 12, &h).is_err()); // too few channels

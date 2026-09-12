@@ -112,7 +112,7 @@ where
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h = filter::fir_design_prototype(
+        let h = filter::fir::design::fir_design_prototype(
             filter_shape,
             samples_per_symbol,
             filter_delay,
@@ -132,7 +132,7 @@ where
             return Err(Error::Config("filter cutoff must be in (0,0.5]".into()));
         }
 
-        let h = filter::fir_design_kaiser(filter_length, cutoff_frequency, 40.0, 0.0)?;
+        let h = filter::fir::design::fir_design_kaiser(filter_length, cutoff_frequency, 40.0, 0.0)?;
         let hc: Vec<T> = h.iter().map(|&x| x * 2.0.into() * cutoff_frequency).collect();
 
         Self::from_coefficients(&hc)

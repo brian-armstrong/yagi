@@ -128,7 +128,12 @@ where
         }
 
         let h_len = 2 * num_filters * filter_delay + 1;
-        let hf = filter::fir_design_kaiser(h_len, cutoff_frequency / num_filters as f32, stopband_attenuation, 0.0)?;
+        let hf = filter::fir::design::fir_design_kaiser(
+            h_len,
+            cutoff_frequency / num_filters as f32,
+            stopband_attenuation,
+            0.0,
+        )?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
         Self::new(num_filters, &hc)
@@ -167,7 +172,7 @@ where
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
 
-        let hf = filter::fir_design_prototype(
+        let hf = filter::fir::design::fir_design_prototype(
             filter_shape,
             num_filters * samples_per_symbol,
             filter_delay,
@@ -213,7 +218,7 @@ where
         }
 
         let h_len = 2 * num_filters * samples_per_symbol * filter_delay + 1;
-        let hf = filter::fir_design_prototype(
+        let hf = filter::fir::design::fir_design_prototype(
             filter_shape,
             num_filters * samples_per_symbol,
             filter_delay,

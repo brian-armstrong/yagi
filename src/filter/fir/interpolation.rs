@@ -82,7 +82,7 @@ where
 
         let h_len = 2 * interpolation_factor * filter_delay + 1;
         let cutoff_frequency = 0.5 / interpolation_factor as f32;
-        let hf = filter::fir_design_kaiser(h_len, cutoff_frequency, stopband_attenuation, 0.0)?;
+        let hf = filter::fir::design::fir_design_kaiser(h_len, cutoff_frequency, stopband_attenuation, 0.0)?;
 
         let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
         Self::new(interpolation_factor, &hc)
@@ -121,7 +121,7 @@ where
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
-        let h = filter::fir_design_prototype(
+        let h = filter::fir::design::fir_design_prototype(
             filter_shape,
             interpolation_factor,
             filter_delay,
@@ -313,7 +313,8 @@ mod tests {
         let filter_delay = 4;
         let attenuation = 60.0;
         let h_len = 2 * interpolation_factor * filter_delay + 1;
-        let h = filter::fir_design_kaiser(h_len, 0.5 / interpolation_factor as f32, attenuation, 0.0).unwrap();
+        let h =
+            filter::fir::design::fir_design_kaiser(h_len, 0.5 / interpolation_factor as f32, attenuation, 0.0).unwrap();
         let mut interp =
             FirInterpolationFilter::<f32, f32>::new_kaiser(interpolation_factor, filter_delay, attenuation).unwrap();
 
