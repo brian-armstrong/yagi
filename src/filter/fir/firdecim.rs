@@ -90,7 +90,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter_type` - The filter type
+    /// * `filter_shape` - The filter shape
     /// * `decimation_factor` - The decimation factor
     /// * `filter_delay` - The filter delay
     /// * `excess_bandwidth` - The excess bandwidth factor
@@ -100,7 +100,7 @@ where
     ///
     /// A new decimation filter
     pub fn new_prototype(
-        filter_type: design::FirFilterShape,
+        filter_shape: design::FirFilterShape,
         decimation_factor: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
@@ -120,7 +120,7 @@ where
         }
 
         let h = design::fir_design_prototype(
-            filter_type,
+            filter_shape,
             decimation_factor,
             filter_delay,
             excess_bandwidth,

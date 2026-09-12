@@ -85,7 +85,7 @@ where
     }
 
     pub fn new_prototype(
-        filter_type: FirFilterShape,
+        filter_shape: FirFilterShape,
         interpolation_factor: usize,
         decimation_factor: usize,
         filter_semi_length: usize,
@@ -97,7 +97,7 @@ where
 
         let is_decimating = interpolation_factor < decimation_factor;
         let prototype_rate = if is_decimating { decimation_factor } else { interpolation_factor };
-        let hf = filter::fir_design_prototype(filter_type, prototype_rate, filter_semi_length, excess_bandwidth, 0.0)?;
+        let hf = filter::fir_design_prototype(filter_shape, prototype_rate, filter_semi_length, excess_bandwidth, 0.0)?;
 
         let h: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
 

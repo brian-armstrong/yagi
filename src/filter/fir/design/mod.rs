@@ -687,7 +687,7 @@ mod tests {
     use crate::utility::test_helpers::{validate_psd_signalf, PsdRegion};
 
     fn test_harness_matched_filter(
-        filter_type: FirFilterShape,
+        filter_shape: FirFilterShape,
         k: usize,
         m: usize,
         beta: f32,
@@ -695,7 +695,7 @@ mod tests {
         tol_as: f32,
     ) {
         // Create filter
-        let mut h = fir_design_prototype(filter_type, k, m, beta, 0.0).unwrap();
+        let mut h = fir_design_prototype(filter_shape, k, m, beta, 0.0).unwrap();
 
         // scale by samples per symbol
         // TODO replace by liquid_vectorf_mulscalar when that's a thing
@@ -910,9 +910,9 @@ mod tests {
         assert_abs_diff_eq!(estimate_req_filter_len_herrmann(0.05, 120.0).unwrap(), 157.15287781, epsilon = tol);
     }
 
-    fn testbench_firdes_prototype(filter_type: &str, k: usize, m: usize, beta: f32, as_: f32) {
+    fn testbench_firdes_prototype(filter_shape: &str, k: usize, m: usize, beta: f32, as_: f32) {
         // design filter
-        let ftype = FirFilterShape::from_str(filter_type).unwrap();
+        let ftype = FirFilterShape::from_str(filter_shape).unwrap();
         let mut h = fir_design_prototype(ftype, k, m, beta, 0.0).unwrap();
 
         // scale by samples per symbol

@@ -22,7 +22,7 @@ impl ArbitraryRateSymbolStream {
     }
 
     pub fn new_linear(
-        filter_type: FirFilterShape,
+        filter_shape: FirFilterShape,
         bandwidth: f32,
         filter_delay: usize,
         excess_bandwidth: f32,
@@ -34,7 +34,7 @@ impl ArbitraryRateSymbolStream {
             return Err(Error::Config(format!("symbol bandwidth ({}) must be in [{},{}]", bandwidth, BW_MIN, BW_MAX)));
         }
 
-        let symstream = SymbolStream::new_linear(filter_type, 2, filter_delay, excess_bandwidth, modulation_scheme)?;
+        let symstream = SymbolStream::new_linear(filter_shape, 2, filter_delay, excess_bandwidth, modulation_scheme)?;
         let rate = 0.5 / bandwidth;
         let resamp = MultiStageResampler::new(rate, 60.0)?;
 

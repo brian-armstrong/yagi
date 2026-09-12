@@ -304,7 +304,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter_type` - filter type
+    /// * `filter_shape` - filter shape
     /// * `samples_per_symbol` - nominal samples/symbol
     /// * `filter_delay` - filter delay
     /// * `excess_bandwidth` - rolloff factor
@@ -314,14 +314,14 @@ where
     ///
     /// A new `Firfilt` object.
     pub fn new_rnyquist(
-        filter_type: filter::FirFilterShape,
+        filter_shape: filter::FirFilterShape,
         samples_per_symbol: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
         fractional_delay: f32,
     ) -> Result<Self> {
         let h = fir_filter_design_rnyquist(
-            filter_type,
+            filter_shape,
             samples_per_symbol,
             filter_delay,
             excess_bandwidth,

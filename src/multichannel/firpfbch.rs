@@ -149,13 +149,13 @@ where
     /// * `num_channels` - number of channels
     /// * `filter_delay` - filter delay (symbols)
     /// * `excess_bandwidth` - filter excess bandwidth factor, in [0,1]
-    /// * `filter_type` - filter prototype (rrcos, rkaiser, etc.)
+    /// * `filter_shape` - filter prototype (rrcos, rkaiser, etc.)
     pub fn new_rnyquist(
         channelizer_type: ChannelizerType,
         num_channels: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
-        filter_type: filter::FirFilterShape,
+        filter_shape: filter::FirFilterShape,
     ) -> Result<Self> {
         if num_channels == 0 {
             return Err(Error::Config("number of channels must be greater than 0".into()));
@@ -166,7 +166,7 @@ where
 
         let m = filter_delay;
         let beta = excess_bandwidth;
-        let ftype = filter_type;
+        let ftype = filter_shape;
 
         // design filter based on requested prototype
         let h = filter::fir_design_prototype(ftype, num_channels, m, beta, 0.0)?;

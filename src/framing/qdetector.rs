@@ -124,13 +124,13 @@ impl FrameDetector {
     /// # Arguments
     ///
     /// * `sequence` - symbol sequence
-    /// * `filter_type` - filter prototype
+    /// * `filter_shape` - filter prototype
     /// * `samples_per_symbol` - samples/symbol
     /// * `filter_delay` - filter delay
     /// * `excess_bandwidth` - excess bandwidth factor
     pub fn new_linear(
         sequence: &[Complex32],
-        filter_type: FirFilterShape,
+        filter_shape: FirFilterShape,
         samples_per_symbol: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
@@ -153,7 +153,7 @@ impl FrameDetector {
         let mut s = vec![Complex32::new(0.0, 0.0); s_len];
 
         let mut interp = FirInterpolationFilter::<Complex32, f32>::new_prototype(
-            filter_type,
+            filter_shape,
             samples_per_symbol,
             filter_delay,
             excess_bandwidth,

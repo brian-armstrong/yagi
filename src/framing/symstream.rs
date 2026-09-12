@@ -6,7 +6,7 @@ use num_complex::Complex32;
 #[derive(Clone, Debug)]
 #[doc(alias = "SymStream")]
 pub struct SymbolStream {
-    filter_type: FirFilterShape,
+    filter_shape: FirFilterShape,
     k: usize,
     m: usize,
     beta: f32,
@@ -23,7 +23,7 @@ impl SymbolStream {
     }
 
     pub fn new_linear(
-        filter_type: FirFilterShape,
+        filter_shape: FirFilterShape,
         samples_per_symbol: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
@@ -41,7 +41,7 @@ impl SymbolStream {
 
         let mod_ = Modem::new(modulation_scheme)?;
         let interp = FirInterpolationFilter::new_prototype(
-            filter_type,
+            filter_shape,
             samples_per_symbol,
             filter_delay,
             excess_bandwidth,
@@ -50,7 +50,7 @@ impl SymbolStream {
         let buf = vec![Complex32::default(); samples_per_symbol];
 
         let mut q = Self {
-            filter_type,
+            filter_shape,
             k: samples_per_symbol,
             m: filter_delay,
             beta: excess_bandwidth,
@@ -72,7 +72,7 @@ impl SymbolStream {
     }
 
     pub fn filter_shape(&self) -> FirFilterShape {
-        self.filter_type
+        self.filter_shape
     }
 
     pub fn k(&self) -> usize {

@@ -92,7 +92,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter_type` - filter type
+    /// * `filter_shape` - filter shape
     /// * `interpolation_factor` - interpolation factor
     /// * `filter_delay` - filter delay (symbols)
     /// * `excess_bandwidth` - excess bandwidth factor
@@ -102,7 +102,7 @@ where
     ///
     /// A new interpolator
     pub fn new_prototype(
-        filter_type: filter::FirFilterShape,
+        filter_shape: filter::FirFilterShape,
         interpolation_factor: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
@@ -122,7 +122,7 @@ where
         }
 
         let h = filter::fir_design_prototype(
-            filter_type,
+            filter_shape,
             interpolation_factor,
             filter_delay,
             excess_bandwidth,

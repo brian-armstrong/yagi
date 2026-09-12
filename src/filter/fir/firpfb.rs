@@ -147,7 +147,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter_type` - filter type
+    /// * `filter_shape` - filter shape
     /// * `num_filters` - number of filters in the bank
     /// * `samples_per_symbol` - samples/symbol
     /// * `filter_delay` - filter delay
@@ -157,7 +157,7 @@ where
     ///
     /// A new FIR PFB filter bank
     pub fn new_rnyquist(
-        filter_type: filter::FirFilterShape,
+        filter_shape: filter::FirFilterShape,
         num_filters: usize,
         samples_per_symbol: usize,
         filter_delay: usize,
@@ -177,7 +177,7 @@ where
         }
 
         let hf = filter::fir_design_prototype(
-            filter_type,
+            filter_shape,
             num_filters * samples_per_symbol,
             filter_delay,
             excess_bandwidth,
@@ -192,7 +192,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter_type` - filter type
+    /// * `filter_shape` - filter shape
     /// * `num_filters` - number of filters in the bank
     /// * `samples_per_symbol` - samples/symbol
     /// * `filter_delay` - filter delay
@@ -202,7 +202,7 @@ where
     ///
     /// A new FIR PFB filter bank
     pub fn new_drnyquist(
-        filter_type: filter::FirFilterShape,
+        filter_shape: filter::FirFilterShape,
         num_filters: usize,
         samples_per_symbol: usize,
         filter_delay: usize,
@@ -223,7 +223,7 @@ where
 
         let h_len = 2 * num_filters * samples_per_symbol * filter_delay + 1;
         let hf = filter::fir_design_prototype(
-            filter_type,
+            filter_shape,
             num_filters * samples_per_symbol,
             filter_delay,
             excess_bandwidth,
@@ -488,7 +488,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter_type` - filter type
+    /// * `filter_shape` - filter shape
     /// * `num_filters` - number of filters in the bank
     /// * `samples_per_symbol` - samples/symbol
     /// * `filter_delay` - filter delay
@@ -498,14 +498,14 @@ where
     ///
     /// A new FIR PFB filter bank
     pub fn new_rnyquist(
-        filter_type: filter::FirFilterShape,
+        filter_shape: filter::FirFilterShape,
         num_filters: usize,
         samples_per_symbol: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
     ) -> Result<Self> {
         Self::from_bank(FirPolyphaseFilterBank::new_rnyquist(
-            filter_type,
+            filter_shape,
             num_filters,
             samples_per_symbol,
             filter_delay,
@@ -517,7 +517,7 @@ where
     ///
     /// # Arguments
     ///
-    /// * `filter_type` - filter type
+    /// * `filter_shape` - filter shape
     /// * `num_filters` - number of filters in the bank
     /// * `samples_per_symbol` - samples/symbol
     /// * `filter_delay` - filter delay
@@ -527,14 +527,14 @@ where
     ///
     /// A new FIR PFB filter bank
     pub fn new_drnyquist(
-        filter_type: filter::FirFilterShape,
+        filter_shape: filter::FirFilterShape,
         num_filters: usize,
         samples_per_symbol: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
     ) -> Result<Self> {
         Self::from_bank(FirPolyphaseFilterBank::new_drnyquist(
-            filter_type,
+            filter_shape,
             num_filters,
             samples_per_symbol,
             filter_delay,

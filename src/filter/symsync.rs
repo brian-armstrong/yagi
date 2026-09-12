@@ -111,7 +111,7 @@ where
     }
 
     pub fn new_rnyquist(
-        filter_type: FirFilterShape,
+        filter_shape: FirFilterShape,
         samples_per_symbol: usize,
         filter_delay: usize,
         excess_bandwidth: f32,
@@ -131,7 +131,7 @@ where
         }
 
         let h = filter::fir_design_prototype(
-            filter_type,
+            filter_shape,
             samples_per_symbol * num_filters,
             filter_delay,
             excess_bandwidth,
