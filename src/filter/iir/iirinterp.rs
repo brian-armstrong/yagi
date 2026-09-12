@@ -34,8 +34,8 @@ where
         Ok(IirInterpolationFilter { m: interpolation_factor, iirfilt })
     }
 
-    /// create interpolator with default Butterworth prototype
-    pub fn new_butterworth(interpolation_factor: usize, order: usize) -> Result<Self> {
+    /// Create an interpolator with a Chebyshev Type II prototype.
+    pub fn new_chebyshev2(interpolation_factor: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
             interpolation_factor,
             IirFilterShape::Cheby2,
@@ -154,7 +154,7 @@ mod tests {
         let tol = 0.5f32; // error tolerance [dB]
 
         // create resampler with rate interp/decim
-        let mut interp = IirInterpolationFilter::<Complex32, f32>::new_butterworth(interp_factor, order).unwrap();
+        let mut interp = IirInterpolationFilter::<Complex32, f32>::new_chebyshev2(interp_factor, order).unwrap();
 
         // create and configure objects
         let mut q = SpectralPeriodogram::<Complex32>::new(nfft, WindowType::Hann, nfft / 2, nfft / 4).unwrap();
@@ -217,7 +217,7 @@ mod tests {
     #[autotest_annotate(autotest_iirinterp_copy)]
     fn test_iirinterp_copy() {
         // create base object
-        let mut q0 = IirInterpolationFilter::<Complex32, f32>::new_butterworth(3, 7).unwrap();
+        let mut q0 = IirInterpolationFilter::<Complex32, f32>::new_chebyshev2(3, 7).unwrap();
         //q0.set_scale(0.12345f32);
 
         // run samples through filter
