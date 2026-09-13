@@ -8,7 +8,8 @@ mod fir_impl;
 mod fractional_delay;
 #[path = "iir/mod.rs"]
 mod iir_impl;
-mod lpc;
+#[path = "lpc.rs"]
+mod lpc_impl;
 mod order_statistic_filter;
 mod resampler;
 mod symbol_synchronizer;
@@ -57,6 +58,11 @@ pub mod iir {
             iir_filter_get_psd_sos, iir_filter_groupdelay, iir_filter_groupdelay_sos,
         };
     }
+}
+
+/// Linear-predictive coding design operations.
+pub mod lpc {
+    pub use super::lpc_impl::design_lpc as design;
 }
 
 pub use autocorrelator::Autocorrelator;
