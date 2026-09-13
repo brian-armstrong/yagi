@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::filter::iir::design::iir_group_delay;
-use num_complex::ComplexFloat;
+use crate::filter::Sample;
 
 /// Struct definition
 #[derive(Debug, Clone)]
@@ -17,8 +17,8 @@ pub struct IirSecondOrderSection<T, Coeff = T> {
 
 impl<T, Coeff> IirSecondOrderSection<T, Coeff>
 where
-    T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T>,
-    Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T>,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample + std::ops::Mul<T, Output = T>,
 {
     /// create iirfiltsos object
     pub fn new(numerator_coefficients: &[Coeff; 3], denominator_coefficients: &[Coeff; 3]) -> Result<Self> {

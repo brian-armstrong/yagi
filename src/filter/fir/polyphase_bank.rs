@@ -1,9 +1,7 @@
 use crate::dotprod::{DotProd, DotProductPlan};
 use crate::error::{Error, Result};
-use crate::filter;
+use crate::filter::{self, Sample};
 use std::marker::PhantomData;
-
-use num_complex::ComplexFloat;
 
 /// Coefficients and executors for an FIR polyphase filter bank (PFB)
 /// Unlike FirPolyphaseFilter, this stores no sample history
@@ -21,8 +19,8 @@ pub struct FirPolyphaseFilterBank<T, Coeff = T> {
 
 impl<T, Coeff> FirPolyphaseFilterBank<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new FIR PFB coefficient bank

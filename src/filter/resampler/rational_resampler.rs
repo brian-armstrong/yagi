@@ -1,9 +1,7 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::{self, FirFilterShape, FirPolyphaseFilter};
+use crate::filter::{self, FirFilterShape, FirPolyphaseFilter, Sample};
 use crate::math::gcd;
-
-use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Rresamp")]
@@ -17,8 +15,8 @@ pub struct RationalResampler<T, Coeff = T> {
 
 impl<T, Coeff> RationalResampler<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a rational resampler from external filter coefficients.

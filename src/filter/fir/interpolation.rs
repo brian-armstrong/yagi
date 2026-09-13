@@ -1,8 +1,7 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter;
-use num_complex::ComplexFloat;
+use crate::filter::{self, Sample};
 use std::f32::consts::PI;
 
 /// Finite impulse response (FIR) interpolator
@@ -17,8 +16,8 @@ pub struct FirInterpolationFilter<T, Coeff = T> {
 
 impl<T, Coeff> FirInterpolationFilter<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     /// Create a new interpolator from external coefficients

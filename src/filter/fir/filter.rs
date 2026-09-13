@@ -1,9 +1,8 @@
 use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
-use crate::filter;
+use crate::filter::{self, Sample};
 use num_complex::{Complex32, ComplexFloat};
-use std::f32::consts::PI;
 
 /// create coefficients for a Kaiser-Bessel windowed sinc filter
 ///
@@ -135,11 +134,9 @@ where
 /// Vec of filter coefficients
 pub fn fir_filter_design_notch<Coeff>(m: usize, as_: f32, f0: f32) -> Result<Vec<Coeff>>
 where
-    Coeff: ComplexFloat<Real = f32> + Into<Complex32> + ComplexNotch,
-    f32: Into<Coeff>,
+    Coeff: Sample,
 {
-    let h = Coeff::notch(m, as_, f0)?;
-    Ok(h)
+    Coeff::notch_coefficients(m, as_, f0)
 }
 
 /// compute complex frequency response of filter coefficients
@@ -200,35 +197,6 @@ where
     filter::fir::design::fir_group_delay(&h, fc)
 }
 
-/// Trait for FirFilter to implement notch filter design
-pub trait ComplexNotch
-where
-    Self: Sized,
-{
-    fn notch(m: usize, as_: f32, f0: f32) -> Result<Vec<Self>>;
-}
-
-impl ComplexNotch for f32 {
-    fn notch(m: usize, as_: f32, f0: f32) -> Result<Vec<Self>> {
-        let h = filter::fir::design::fir_design_notch(m, f0, as_)?;
-        let h_c = h.to_vec();
-        Ok(h_c)
-    }
-}
-
-impl ComplexNotch for Complex32 {
-    fn notch(m: usize, as_: f32, f0: f32) -> Result<Vec<Self>> {
-        // design notch filter as DC blocker, then mix to appropriate frequency
-        let h = filter::fir::design::fir_design_notch(m, 0.0, as_)?;
-        let mut h_c = h.iter().map(|&x| Complex32::new(x, 0.0)).collect::<Vec<Complex32>>();
-        for (i, h_i) in h_c.iter_mut().enumerate() {
-            let phi = 2.0 * PI * f0 * (i as f32 - m as f32);
-            *h_i *= Complex32::from_polar(1.0, phi);
-        }
-        Ok(h_c)
-    }
-}
-
 /// Finite impulse response (FIR) filter
 #[derive(Debug, Clone)]
 pub struct FirFilter<T, Coeff = T>
@@ -244,10 +212,9 @@ where
 
 impl<T, Coeff> FirFilter<T, Coeff>
 where
-    T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T>,
-    Coeff: Copy + Default + ComplexFloat<Real = f32> + ComplexNotch,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample,
     [T]: DotProd<Coeff, Output = T>,
-    f32: Into<Coeff>,
     Complex32: From<Coeff>,
 {
     /// create filter using coefficients directly specified in an array

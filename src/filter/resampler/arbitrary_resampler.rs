@@ -1,10 +1,8 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::{self, FirPolyphaseFilterBank};
+use crate::filter::{self, FirPolyphaseFilterBank, Sample};
 use crate::math::nextpow2;
-
-use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Resamp")]
@@ -20,8 +18,8 @@ pub struct ArbitraryResampler<T, Coeff = T> {
 
 impl<T, Coeff> ArbitraryResampler<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Copy + ComplexFloat<Real = f32> + Default + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(

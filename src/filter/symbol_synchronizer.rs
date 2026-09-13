@@ -1,8 +1,7 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
 use crate::filter::IirSecondOrderSection;
-use crate::filter::{self, FirFilterShape, FirPolyphaseFilter};
-use num_complex::ComplexFloat;
+use crate::filter::{self, FirFilterShape, FirPolyphaseFilter, Sample};
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Symsync")]
@@ -31,7 +30,7 @@ pub struct SymbolSynchronizer<T> {
 
 impl<T> SymbolSynchronizer<T>
 where
-    T: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + std::ops::Mul<f32, Output = T> + Default,
+    T: Sample + std::ops::Mul<f32, Output = T>,
     [T]: DotProd<f32, Output = T>,
 {
     pub fn new(samples_per_symbol: usize, num_filters: usize, coefficients: &[f32]) -> Result<Self> {

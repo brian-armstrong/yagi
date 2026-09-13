@@ -1,7 +1,7 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat};
-use num_complex::{Complex32, ComplexFloat};
+use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat, Sample};
+use num_complex::Complex32;
 
 #[derive(Debug, Clone)]
 pub struct IirInterpolationFilter<T, Coeff = T> {
@@ -11,10 +11,9 @@ pub struct IirInterpolationFilter<T, Coeff = T> {
 
 impl<T, Coeff> IirInterpolationFilter<T, Coeff>
 where
-    T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + From<Coeff>,
-    Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T> + Into<Complex32>,
+    T: Sample + std::ops::Mul<Coeff, Output = T> + From<Coeff>,
+    Coeff: Sample + std::ops::Mul<T, Output = T> + Into<Complex32>,
     [T]: DotProd<Coeff, Output = T>,
-    f32: Into<Coeff>,
 {
     /// create interpolator from external coefficients
     pub fn new(
@@ -78,7 +77,7 @@ where
         )?;
 
         // set appropriate scale
-        iirfilt.set_scale(Coeff::from(interpolation_factor).unwrap());
+        iirfilt.set_scale(<Coeff as num_traits::NumCast>::from(interpolation_factor).unwrap());
 
         Ok(IirInterpolationFilter { m: interpolation_factor, iirfilt })
     }

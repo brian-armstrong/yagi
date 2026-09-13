@@ -1,9 +1,7 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::{ArbitraryResampler, MultiStageHalfBandResampler, Resamp2Coeff, ResampType};
+use crate::filter::{ArbitraryResampler, MultiStageHalfBandResampler, ResampType, Sample};
 use std::f32;
-
-use num_complex::ComplexFloat;
 
 #[derive(Clone, Debug)]
 #[doc(alias = "MsResamp")]
@@ -22,8 +20,8 @@ pub struct MultiStageResampler<T, Coeff = T> {
 
 impl<T, Coeff> MultiStageResampler<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Resamp2Coeff,
-    T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(rate: f32, stopband_attenuation: f32) -> Result<Self> {

@@ -1,23 +1,8 @@
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
-use num_complex::{Complex32, ComplexFloat};
+use crate::filter::Sample;
+use num_complex::Complex32;
 use num_traits::Zero;
-
-pub trait FromComplex32 {
-    fn from_complex32(c: Complex32) -> Self;
-}
-
-impl FromComplex32 for Complex32 {
-    fn from_complex32(c: Complex32) -> Self {
-        c
-    }
-}
-
-impl FromComplex32 for f32 {
-    fn from_complex32(c: Complex32) -> Self {
-        c.re()
-    }
-}
 
 #[derive(Debug, Clone)]
 #[doc(alias = "FftFilt")]
@@ -40,8 +25,8 @@ pub struct FftFilter<T, Coeff = T> {
 
 impl<T, Coeff> FftFilter<T, Coeff>
 where
-    Coeff: Clone + Default + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Default + ComplexFloat<Real = f32> + FromComplex32,
+    Coeff: Sample,
+    T: Sample,
     Complex32: From<Coeff> + From<T>,
 {
     pub fn new(coefficients: &[Coeff], block_length: usize) -> Result<Self> {

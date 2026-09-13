@@ -4,6 +4,7 @@ use super::second_order_section::IirSecondOrderSection;
 use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
+use crate::filter::Sample;
 use core::f32;
 use num_complex::{Complex32, ComplexFloat};
 
@@ -413,10 +414,9 @@ pub struct IirFilter<T, Coeff = T> {
 
 impl<T, Coeff> IirFilter<T, Coeff>
 where
-    T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T>,
-    Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T> + Into<Complex32>,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample + std::ops::Mul<T, Output = T> + Into<Complex32>,
     [T]: DotProd<Coeff, Output = T>,
-    f32: Into<Coeff>,
 {
     /// Create a new IIR filter from a numerator and denominator
     ///

@@ -1,7 +1,7 @@
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat};
-use num_complex::{Complex32, ComplexFloat};
+use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat, Sample};
+use num_complex::Complex32;
 
 /// Infinite impulse response (IIR) decimation filter
 #[derive(Clone, Debug)]
@@ -12,10 +12,9 @@ pub struct IirDecimationFilter<T, Coeff = T> {
 
 impl<T, Coeff> IirDecimationFilter<T, Coeff>
 where
-    T: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + From<Coeff>,
-    Coeff: Copy + Default + ComplexFloat<Real = f32> + std::ops::Mul<T, Output = T> + Into<Complex32>,
+    T: Sample + std::ops::Mul<Coeff, Output = T> + From<Coeff>,
+    Coeff: Sample + std::ops::Mul<T, Output = T> + Into<Complex32>,
     [T]: DotProd<Coeff, Output = T>,
-    f32: Into<Coeff>,
 {
     /// Create a new IIR decimation filter from external coefficients
     ///

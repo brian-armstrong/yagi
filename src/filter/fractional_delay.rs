@@ -1,9 +1,7 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::filter::FirPolyphaseFilter;
-
-use num_complex::ComplexFloat;
+use crate::filter::{FirPolyphaseFilter, Sample};
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Fdelay")]
@@ -20,8 +18,8 @@ pub struct FractionalDelay<T, Coeff = T> {
 
 impl<T, Coeff> FractionalDelay<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(maximum_delay: usize, filter_semi_length: usize, num_filters: usize) -> Result<Self> {

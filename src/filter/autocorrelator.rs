@@ -5,7 +5,7 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use num_complex::ComplexFloat;
+use crate::filter::Sample;
 
 /// Computes auto-correlation with a fixed lag on input signals
 #[derive(Clone, Debug)]
@@ -24,7 +24,7 @@ pub struct Autocorrelator<T> {
 
 impl<T> Autocorrelator<T>
 where
-    T: Copy + Default + ComplexFloat<Real = f32>,
+    T: Sample,
     [T]: DotProd<T, Output = T>,
 {
     /// create auto-correlator object with a particular window length and delay

@@ -2,7 +2,7 @@ use super::design;
 use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
-use crate::matrix::FloatComplex;
+use crate::filter::Sample;
 
 use num_complex::Complex32;
 
@@ -18,9 +18,8 @@ pub struct FirDecimationFilter<T, Coeff = T> {
 
 impl<T, Coeff> FirDecimationFilter<T, Coeff>
 where
-    T: Clone + Copy + FloatComplex<Real = f32>,
-    Coeff: Clone + Copy + FloatComplex<Real = f32>,
-    T: Clone + Copy + FloatComplex<Real = f32> + std::ops::Mul<Coeff, Output = T>,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample,
     Complex32: From<Coeff>,
     [T]: DotProd<Coeff, Output = T>,
 {
@@ -82,7 +81,7 @@ where
         let fc = 0.5 / decimation_factor as f32;
         let hf = design::fir_design_kaiser(h_len, fc, stopband_attenuation, 0.0)?;
 
-        let hc: Vec<Coeff> = hf.iter().map(|&x| Coeff::from(x).unwrap()).collect();
+        let hc: Vec<Coeff> = hf.iter().map(|&x| x.into()).collect();
         Self::new(decimation_factor, &hc)
     }
 
@@ -127,7 +126,7 @@ where
             fractional_delay,
         )?;
 
-        let hc: Vec<Coeff> = h.iter().map(|&x| Coeff::from(x).unwrap()).collect();
+        let hc: Vec<Coeff> = h.iter().map(|&x| x.into()).collect();
         Self::new(decimation_factor, &hc)
     }
 

@@ -12,6 +12,7 @@ mod iir_impl;
 mod lpc_impl;
 mod order_statistic_filter;
 mod resampler;
+mod sample;
 mod symbol_synchronizer;
 
 // For the sake of keeping exports clean, create these sort of faux pub mods below
@@ -67,19 +68,19 @@ pub mod lpc {
 
 pub use autocorrelator::Autocorrelator;
 pub use direct_digital_synthesizer::DirectDigitalSynthesizer;
-pub use fft_filter::{FftFilter, FromComplex32};
+pub use fft_filter::FftFilter;
 pub use fir_impl::design::FirFilterShape;
 pub use fir_impl::{
-    ComplexNotch, FirDecimationFilter, FirFarrowFilter, FirFilter, FirHilbertFilter, FirInterpolationFilter,
-    FirPolyphaseFilter, FirPolyphaseFilterBank,
+    FirDecimationFilter, FirFarrowFilter, FirFilter, FirHilbertFilter, FirInterpolationFilter, FirPolyphaseFilter,
+    FirPolyphaseFilterBank,
 };
 pub use fractional_delay::FractionalDelay;
 pub use iir_impl::design::{IirBandType, IirFilterShape, IirFormat};
 pub use iir_impl::{IirDecimationFilter, IirFilter, IirHilbertFilter, IirInterpolationFilter, IirSecondOrderSection};
-pub use lpc::{design_lpc, levinson};
 pub use order_statistic_filter::OrderStatisticFilter;
 pub use resampler::{
     ArbitraryResampler, HalfBandResampler, MultiStageHalfBandResampler, MultiStageResampler, RationalResampler,
-    Resamp2Coeff, ResampType,
+    ResampType,
 };
+pub use sample::Sample;
 pub use symbol_synchronizer::SymbolSynchronizer;

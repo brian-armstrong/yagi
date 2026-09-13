@@ -2,25 +2,7 @@ use crate::buffer::Window;
 use crate::dotprod::{DotProd, DotProduct};
 use crate::error::{Error, Result};
 use crate::filter;
-use std::f32::consts::PI;
-
-use num_complex::{Complex32, ComplexFloat};
-
-pub trait Resamp2Coeff {
-    fn for_halfband(halfband: f32, t: f32, f0: f32) -> Self;
-}
-
-impl Resamp2Coeff for f32 {
-    fn for_halfband(halfband: f32, t: f32, f0: f32) -> Self {
-        2.0 * halfband * (2.0 * PI * t * f0).cos()
-    }
-}
-
-impl Resamp2Coeff for Complex32 {
-    fn for_halfband(halfband: f32, t: f32, f0: f32) -> Self {
-        2.0 * halfband * Complex32::new((2.0 * PI * t * f0).cos(), (2.0 * PI * t * f0).sin())
-    }
-}
+use crate::filter::Sample;
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Resamp2")]
@@ -39,8 +21,8 @@ pub struct HalfBandResampler<T, Coeff = T> {
 
 impl<T, Coeff> HalfBandResampler<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32> + Resamp2Coeff,
-    T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<Coeff, Output = T>,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     pub fn new(filter_semi_length: usize, center_frequency: f32, stopband_attenuation: f32) -> Result<Self> {
@@ -64,7 +46,7 @@ where
 
         for (i, hi) in h.iter_mut().enumerate() {
             let t = i as f32 - (h_len - 1) as f32 / 2.0;
-            *hi = Coeff::for_halfband(hf[i], t, center_frequency);
+            *hi = Coeff::halfband_coefficient(hf[i], t, center_frequency);
         }
 
         let h1_len = 2 * filter_semi_length;

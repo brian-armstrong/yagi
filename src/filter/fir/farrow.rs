@@ -4,7 +4,7 @@
 // Finite impulse response Farrow filter
 //
 
-use num_complex::{Complex32, ComplexFloat};
+use num_complex::Complex32;
 
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
@@ -12,6 +12,7 @@ use crate::error::{Error, Result};
 use crate::filter::fir::design::fir_group_delay;
 use crate::filter::fir::design::freqresponse;
 use crate::filter::fir::design::kaiser_beta_stopband_attenuation;
+use crate::filter::Sample;
 use crate::math::poly::{poly_fit, poly_val};
 use crate::math::sincd;
 use crate::math::windows::kaiser;
@@ -43,8 +44,8 @@ pub struct FirFarrowFilter<T, Coeff = T> {
 
 impl<T, Coeff> FirFarrowFilter<T, Coeff>
 where
-    Coeff: Clone + Copy + ComplexFloat<Real = f32> + From<f32>,
-    T: Clone + Copy + ComplexFloat<Real = f32> + std::ops::Mul<Coeff, Output = T> + Default,
+    Coeff: Sample,
+    T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
     /// create a Farrow filter object
