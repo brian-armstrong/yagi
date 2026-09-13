@@ -17,7 +17,7 @@ use crate::error::{Error, Result};
 /// [`Self::commit`] advances the internal write index after write.
 ///
 /// ```
-/// # use yagi::buffer::cbuffer::CircularBuffer;
+/// # use yagi::buffer::CircularBuffer;
 /// let mut q = CircularBuffer::<f32>::new(16).unwrap();
 /// q.write(&[1.0, 2.0, 3.0, 4.0]).unwrap();
 ///
@@ -240,7 +240,7 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
     /// mirroring how [`Self::read`] clamps and reports through the slice length.
     ///
     /// ```
-    /// # use yagi::buffer::cbuffer::CircularBuffer;
+    /// # use yagi::buffer::CircularBuffer;
     /// let mut q = CircularBuffer::<f32>::new(8).unwrap();
     /// // leave the write index near the end of the ring
     /// q.write(&[0.0; 6]).unwrap();
