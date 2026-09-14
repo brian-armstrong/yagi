@@ -139,7 +139,7 @@ where
     Ok(())
 }
 
-/// Solve set of linear equations
+/// Right matrix division: `z = x * y^-1`.
 pub fn matrix_div<T>(x: &[T], y: &[T], z: &mut [T], n: usize) -> Result<()>
 where
     T: FloatComplex,
