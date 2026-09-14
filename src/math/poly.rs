@@ -691,22 +691,7 @@ fn poly_findroots_bairstow_persistent(p: &[f64], k: usize, p1: &mut [f64], u: &m
 
 /// Compare roots for sorting
 pub fn poly_sort_roots_compare(a: &Complex<f64>, b: &Complex<f64>) -> Ordering {
-    let ar = a.re;
-    let br = b.re;
-    let ai = a.im;
-    let bi = b.im;
-
-    if ar == br {
-        if ai > bi {
-            Ordering::Less
-        } else {
-            Ordering::Greater
-        }
-    } else if ar > br {
-        Ordering::Greater
-    } else {
-        Ordering::Less
-    }
+    a.re.total_cmp(&b.re).then_with(|| b.im.total_cmp(&a.im))
 }
 
 /// Finds the complex roots of the polynomial
