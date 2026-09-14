@@ -30,8 +30,8 @@ pub use crate::matrix::sparse::*;
 #[cfg(test)]
 mod tests {
     use crate::matrix::{
-        matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_det, matrix_eye, matrix_gramschmidt,
-        matrix_hermitian, matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout,
+        matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_det, matrix_eye, matrix_gjelim,
+        matrix_gramschmidt, matrix_hermitian, matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout,
         matrix_ludecomp_doolittle, matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_mul_vec, matrix_ones,
         matrix_pdiv, matrix_pmul, matrix_print, matrix_qrdecomp_gramschmidt_c32, matrix_qrdecomp_gramschmidt_f32,
         matrix_sub, matrix_trans, matrix_transpose_mul, matrix_zeros,
@@ -655,6 +655,47 @@ mod tests {
                 assert_abs_diff_eq!(product, expected, epsilon = 2e-5);
             }
         }
+    }
+
+    #[test]
+    fn test_matrix_inverse_validates_length() {
+        let mut short = [42.0f32; 3];
+        assert!(matrix_inv(&mut short, 2, 2).is_err());
+        assert_eq!(short, [42.0; 3]);
+
+        let mut singular = [1.0f32, 2.0, 2.0, 4.0];
+        assert!(matrix_inv(&mut singular, 2, 2).is_err());
+        assert_eq!(singular, [1.0, 2.0, 2.0, 4.0]);
+    }
+
+    #[test]
+    fn test_matrix_gjelim_validates_before_mutation() {
+        let mut short = [42.0f32; 3];
+
+        assert!(matrix_gjelim(&mut short, 2, 2).is_err());
+        assert_eq!(short, [42.0; 3]);
+    }
+
+    #[test]
+    fn test_matrix_linsolve_validates_buffers() {
+        let a = [2.0f32, 0.0, 0.0, 2.0];
+        let b = [2.0f32, 4.0];
+        let mut x = [42.0f32; 2];
+
+        assert!(matrix_linsolve(&a[..3], 2, &b, &mut x, None).is_err());
+        assert_eq!(x, [42.0; 2]);
+        assert!(matrix_linsolve(&a, 2, &b[..1], &mut x, None).is_err());
+        assert_eq!(x, [42.0; 2]);
+
+        let mut short_scratch = [0.0f32; 5];
+        assert!(matrix_linsolve(&a, 2, &b, &mut x, Some(&mut short_scratch)).is_err());
+        assert_eq!(x, [42.0; 2]);
+
+        let mut scratch = [0.0f32; 7];
+        scratch[6] = 99.0;
+        matrix_linsolve(&a, 2, &b, &mut x, Some(&mut scratch)).unwrap();
+        assert_eq!(x, [1.0, 2.0]);
+        assert_eq!(scratch[6], 99.0);
     }
 
     #[test]

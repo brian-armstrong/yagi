@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_access, matrix_access_mut, FloatComplex};
+use crate::matrix::view::{MatrixMut, MatrixRef};
+use crate::matrix::FloatComplex;
 use num_traits::Zero;
 
 /// Compute matrix inverse
@@ -12,33 +13,33 @@ where
         return Err(Error::Range("matrix_inv(), invalid dimensions".to_string()));
     }
 
+    let input = MatrixRef::new(x, xr, xc)?;
+    let augmented_columns = xc
+        .checked_mul(2)
+        .ok_or_else(|| Error::Range("matrix_inv(), augmented matrix dimensions overflow usize".to_string()))?;
+    let augmented_len = xr
+        .checked_mul(augmented_columns)
+        .ok_or_else(|| Error::Range("matrix_inv(), augmented matrix dimensions overflow usize".to_string()))?;
+
     // Allocate temporary memory
-    let mut x_aug = vec![T::zero(); 2 * xr * xc];
-    let xc_2 = xc * 2;
+    let mut x_aug = vec![T::zero(); augmented_len];
 
     // Initialize augmented matrix
-    for r in 0..xr {
-        // Copy matrix elements
-        for c in 0..xc {
-            let v = matrix_access(x, xr, xc, r, c);
-            matrix_access_mut(&mut x_aug, xr, xc_2, r, c, v);
-        }
-        // Append identity matrix
-        for c in 0..xc {
-            let v = if r == c { T::one() } else { T::zero() };
-            matrix_access_mut(&mut x_aug, xr, xc_2, r, xc + c, v);
-        }
+    let mut augmented = MatrixMut::new(&mut x_aug, xr, augmented_columns)?;
+    for (row_index, input_row) in input.rows().enumerate() {
+        let augmented_row = augmented.row_mut(row_index);
+        augmented_row[..xc].copy_from_slice(input_row);
+        augmented_row[xc..].fill(T::zero());
+        augmented_row[xc + row_index] = T::one();
     }
 
     // Perform Gauss-Jordan elimination on x_aug
-    matrix_gjelim(&mut x_aug, xr, xc_2)?;
+    matrix_gjelim_view(&mut augmented)?;
 
     // Copy result from right half of x_aug
-    for r in 0..xr {
-        for c in 0..xc {
-            let v = matrix_access(&x_aug, xr, xc_2, r, xc + c);
-            matrix_access_mut(x, xr, xc, r, c, v);
-        }
+    let mut output = MatrixMut::new(x, xr, xc)?;
+    for row_index in 0..xr {
+        output.row_mut(row_index).copy_from_slice(&augmented.row(row_index)[xc..]);
     }
 
     Ok(())
@@ -49,13 +50,27 @@ pub fn matrix_gjelim<T>(x: &mut [T], xr: usize, xc: usize) -> Result<()>
 where
     T: FloatComplex,
 {
+    let mut matrix = MatrixMut::new(x, xr, xc)?;
+    matrix_gjelim_view(&mut matrix)
+}
+
+/// Gauss-Jordan elimination on an already validated matrix view.
+pub(crate) fn matrix_gjelim_view<T>(matrix: &mut MatrixMut<'_, T>) -> Result<()>
+where
+    T: FloatComplex,
+{
+    let (xr, xc) = matrix.shape();
+    if xr > xc {
+        return Err(Error::Range("matrix_gjelim(), matrix must have at least as many columns as rows".to_string()));
+    }
+
     // Choose pivot rows based on maximum element along column
     for r in 0..xr {
         let mut v_max = T::Real::zero();
         let mut r_opt = r;
 
         for r_hat in r..xr {
-            let v = matrix_access(x, xr, xc, r_hat, r).abs();
+            let v = matrix.row(r_hat)[r].abs();
             if v > v_max || r_hat == r {
                 r_opt = r_hat;
                 v_max = v;
@@ -70,19 +85,19 @@ where
         // If row does not match column (e.g. maximum value does not
         // lie on the diagonal) swap the rows
         if r != r_opt {
-            matrix_swaprows(x, xr, xc, r, r_opt);
+            matrix.swap_rows(r, r_opt)?;
         }
 
         // Pivot on the diagonal element
-        matrix_pivot(x, xr, xc, r, r)?;
+        matrix_pivot(matrix, r, r)?;
     }
 
     // Scale by diagonal
     for r in 0..xr {
-        let g = T::one() / matrix_access(x, xr, xc, r, r);
-        for c in 0..xc {
-            let v = matrix_access(x, xr, xc, r, c) * g;
-            matrix_access_mut(x, xr, xc, r, c, v);
+        let row = matrix.row_mut(r);
+        let g = T::one() / row[r];
+        for value in row {
+            *value *= g;
         }
     }
 
@@ -90,44 +105,25 @@ where
 }
 
 /// Pivot on element (r, c)
-fn matrix_pivot<T>(x: &mut [T], xr: usize, xc: usize, r: usize, c: usize) -> Result<()>
+fn matrix_pivot<T>(matrix: &mut MatrixMut<'_, T>, r: usize, c: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    let v = matrix_access(x, xr, xc, r, c);
+    let v = matrix.row(r)[c];
     if v == T::zero() {
         return Err(Error::Value("matrix_pivot(), pivoting on zero".to_string()));
     }
 
     // Pivot using back-substitution
-    for pivot_r in 0..xr {
-        if pivot_r == r {
-            continue;
-        }
-
+    matrix.for_each_other_row_mut(r, |pivot_row, target_row| {
         // Compute multiplier
-        let g = matrix_access(x, xr, xc, pivot_r, c) / v;
+        let g = target_row[c] / v;
 
         // Back-substitution
-        for pivot_c in 0..xc {
-            x[pivot_r * xc + pivot_c] =
-                g * matrix_access(x, xr, xc, r, pivot_c) - matrix_access(x, xr, xc, pivot_r, pivot_c);
+        for (target_value, &pivot_value) in target_row.iter_mut().zip(pivot_row) {
+            *target_value = g * pivot_value - *target_value;
         }
-    }
+    })?;
 
     Ok(())
-}
-
-/// Swap rows of a matrix
-fn matrix_swaprows<T>(x: &mut [T], _xr: usize, xc: usize, r1: usize, r2: usize)
-where
-    T: FloatComplex,
-{
-    if r1 == r2 {
-        return;
-    }
-
-    for c in 0..xc {
-        x.swap(r1 * xc + c, r2 * xc + c);
-    }
 }

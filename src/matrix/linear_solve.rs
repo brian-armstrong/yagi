@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_gjelim, FloatComplex};
+use crate::matrix::view::{MatrixMut, MatrixRef};
+use crate::matrix::{inverse::matrix_gjelim_view, FloatComplex};
 
 /// Solve linear system of n equations: Ax = b
 ///
@@ -26,8 +27,12 @@ where
         .checked_mul(cols)
         .ok_or_else(|| Error::Config("matrix_linsolve(), augmented matrix size overflow".into()))?;
 
+    let a = MatrixRef::new(a, n, n)?;
+    let b = MatrixRef::new(b, n, 1)?;
+    let mut x = MatrixMut::new(x, n, 1)?;
+
     let mut owned = Vec::new();
-    let m = match scratch {
+    let scratch = match scratch {
         Some(scratch) => {
             if scratch.len() < scratch_len {
                 return Err(Error::Config(format!(
@@ -44,19 +49,20 @@ where
         }
     };
 
+    let mut augmented = MatrixMut::new(scratch, n, cols)?;
+
     // Compute augmented matrix M [size: n x n+1]
-    for r in 0..n {
-        let row = r * cols;
-        m[row..row + n].copy_from_slice(&a[r * n..(r + 1) * n]);
-        m[row + n] = b[r];
+    for ((a_row, b_row), augmented_row) in a.rows().zip(b.rows()).zip(augmented.rows_mut()) {
+        augmented_row[..n].copy_from_slice(a_row);
+        augmented_row[n] = b_row[0];
     }
 
     // Run Gauss-Jordan elimination on M
-    matrix_gjelim(m, n, cols)?;
+    matrix_gjelim_view(&mut augmented)?;
 
     // Copy result from right-most column of M
-    for r in 0..n {
-        x[r] = m[cols * (r + 1) - 1];
+    for row_index in 0..n {
+        x.row_mut(row_index)[0] = augmented.row(row_index)[n];
     }
 
     Ok(())

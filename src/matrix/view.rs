@@ -84,7 +84,6 @@ impl<'a, T> MatrixMut<'a, T> {
         self.data
     }
 
-    #[allow(dead_code)]
     pub(crate) fn shape(&self) -> (usize, usize) {
         (self.rows, self.cols)
     }
@@ -101,6 +100,28 @@ impl<'a, T> MatrixMut<'a, T> {
 
     pub(crate) fn rows_mut(&mut self) -> MatrixRowsMut<'_, T> {
         MatrixRowsMut { remaining: &mut *self.data, rows_remaining: self.rows, cols: self.cols }
+    }
+
+    pub(crate) fn for_each_other_row_mut(
+        &mut self,
+        pivot: usize,
+        mut operation: impl FnMut(&[T], &mut [T]),
+    ) -> Result<()> {
+        if pivot >= self.rows || self.cols == 0 {
+            return Err(Error::Range("matrix pivot row index out of bounds".to_owned()));
+        }
+
+        let pivot_start = pivot * self.cols;
+        let (before_pivot, pivot_and_after) = self.data.split_at_mut(pivot_start);
+        let (pivot_row, after_pivot) = pivot_and_after.split_at_mut(self.cols);
+
+        for target_row in before_pivot.chunks_exact_mut(self.cols) {
+            operation(pivot_row, target_row);
+        }
+        for target_row in after_pivot.chunks_exact_mut(self.cols) {
+            operation(pivot_row, target_row);
+        }
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -122,7 +143,6 @@ impl<'a, T> MatrixMut<'a, T> {
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) fn swap_rows(&mut self, first: usize, second: usize) -> Result<()> {
         if first >= self.rows || second >= self.rows {
             return Err(Error::Range("matrix row index out of bounds".to_owned()));
