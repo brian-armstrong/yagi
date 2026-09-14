@@ -183,7 +183,7 @@ where
     matrix_ludecomp_doolittle(x, n, n, &mut l, &mut u, &mut p)?;
 
     // Evaluate along the diagonal of U
-    let mut det = T::default();
+    let mut det = T::one();
     for i in 0..n {
         det *= matrix_access(&u, n, n, i, i);
     }
