@@ -29,7 +29,7 @@ pub use crate::matrix::sparse::*;
 #[cfg(test)]
 mod tests {
     use crate::matrix::{
-        matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_eye, matrix_gramschmidt,
+        matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_det, matrix_eye, matrix_gramschmidt,
         matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout, matrix_ludecomp_doolittle,
         matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_qrdecomp_gramschmidt_c32,
         matrix_qrdecomp_gramschmidt_f32, matrix_transpose_mul,
@@ -569,5 +569,56 @@ mod tests {
             assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].re, xhx[i].re, epsilon = tol);
             assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].im, xhx[i].im, epsilon = tol);
         }
+    }
+
+    #[test]
+    fn test_matrix_mul_known_product() {
+        let left = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let right = [7.0f32, 8.0, 9.0, 10.0, 11.0, 12.0];
+        let expected = [58.0f32, 64.0, 139.0, 154.0];
+        let mut output = [0.0f32; 4];
+
+        matrix_mul(&left, 2, 3, &right, 3, 2, &mut output, 2, 2).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_matrix_mul_dimension_mismatch_is_error() {
+        let left = [1.0f32; 6];
+        let right = [1.0f32; 8];
+        let mut output = [42.0f32; 4];
+
+        let result = matrix_mul(&left, 2, 3, &right, 4, 2, &mut output, 2, 2);
+
+        assert!(result.is_err());
+        assert_eq!(output, [42.0; 4]);
+    }
+
+    #[test]
+    fn test_matrix_inverse_round_trip() {
+        let original = [4.0f32, 7.0, 2.0, 3.0, 6.0, 1.0, 2.0, 5.0, 3.0];
+        let mut inverse = original;
+
+        matrix_inv(&mut inverse, 3, 3).unwrap();
+
+        for row in 0..3 {
+            for column in 0..3 {
+                let product = (0..3).map(|inner| original[row * 3 + inner] * inverse[inner * 3 + column]).sum::<f32>();
+                let expected = if row == column { 1.0 } else { 0.0 };
+                assert_abs_diff_eq!(product, expected, epsilon = 2e-5);
+            }
+        }
+    }
+
+    #[test]
+    fn test_matrix_det_known_values() {
+        let one_by_one = [7.0f32];
+        let two_by_two = [4.0f32, 7.0, 2.0, 6.0];
+        let three_by_three = [6.0f32, 1.0, 1.0, 4.0, -2.0, 5.0, 2.0, 8.0, 7.0];
+
+        assert_eq!(matrix_det(&one_by_one, 1, 1).unwrap(), 7.0);
+        assert_eq!(matrix_det(&two_by_two, 2, 2).unwrap(), 10.0);
+        assert_eq!(matrix_det(&three_by_three, 3, 3).unwrap(), -306.0);
     }
 }
