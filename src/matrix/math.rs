@@ -109,14 +109,37 @@ where
         return Err(Error::Range("matrix_mul(), invalid dimensions".to_string()));
     }
 
-    for r in 0..zr {
-        for c in 0..zc {
-            let mut sum = T::default();
-            for i in 0..xc {
-                sum += matrix_access(x, xr, xc, r, i) * matrix_access(y, yr, yc, i, c);
+    let x = MatrixRef::new(x, xr, xc)?;
+    let y = MatrixRef::new(y, yr, yc)?;
+    let mut z = MatrixMut::new(z, zr, zc)?;
+
+    for (x_row, z_row) in x.rows().zip(z.rows_mut()) {
+        z_row.fill(T::default());
+        for (&x_value, y_row) in x_row.iter().zip(y.rows()) {
+            for (z_value, &y_value) in z_row.iter_mut().zip(y_row) {
+                *z_value += x_value * y_value;
             }
-            z[r * zc + c] = sum;
         }
+    }
+
+    Ok(())
+}
+
+/// Multiply a matrix by a column vector.
+pub fn matrix_mul_vec<T>(matrix: &[T], rows: usize, cols: usize, vector: &[T], output: &mut [T]) -> Result<()>
+where
+    T: FloatComplex,
+{
+    let matrix = MatrixRef::new(matrix, rows, cols)?;
+    let vector = MatrixRef::new(vector, cols, 1)?;
+    let mut output = MatrixMut::new(output, rows, 1)?;
+
+    for (matrix_row, output_row) in matrix.rows().zip(output.rows_mut()) {
+        let mut sum = T::default();
+        for (&matrix_value, &vector_value) in matrix_row.iter().zip(vector.as_slice()) {
+            sum += matrix_value * vector_value;
+        }
+        output_row[0] = sum;
     }
 
     Ok(())
@@ -239,83 +262,79 @@ where
 }
 
 /// Compute x*x' on m x n matrix, result: m x m
-pub fn matrix_mul_transpose<T>(x: &[T], m: usize, n: usize, xxt: &mut [T])
+pub fn matrix_mul_transpose<T>(x: &[T], m: usize, n: usize, xxt: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
 {
-    for xxti in &mut xxt[..m * m] {
-        *xxti = T::default();
-    }
+    let x = MatrixRef::new(x, m, n)?;
+    let mut xxt = MatrixMut::new(xxt, m, m)?;
 
-    for r in 0..m {
-        for c in 0..m {
+    for (x_row, xxt_row) in x.rows().zip(xxt.rows_mut()) {
+        for (xxt_value, other_row) in xxt_row.iter_mut().zip(x.rows()) {
             let mut sum = T::default();
-            for i in 0..n {
-                let prod = matrix_access(x, m, n, r, i) * matrix_access(x, m, n, c, i).conj();
-                sum += prod;
+            for (&left, &right) in x_row.iter().zip(other_row) {
+                sum += left * right.conj();
             }
-            xxt[r * m + c] = sum;
+            *xxt_value = sum;
         }
     }
+    Ok(())
 }
 
 /// Compute x'*x on m x n matrix, result: n x n
-pub fn matrix_transpose_mul<T>(x: &[T], m: usize, n: usize, xtx: &mut [T])
+pub fn matrix_transpose_mul<T>(x: &[T], m: usize, n: usize, xtx: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
 {
-    for xtxi in &mut xtx[..n * n] {
-        *xtxi = T::default();
-    }
+    let x = MatrixRef::new(x, m, n)?;
+    let mut xtx = MatrixMut::new(xtx, n, n)?;
+    xtx.as_mut_slice().fill(T::default());
 
-    for r in 0..n {
-        for c in 0..n {
-            let mut sum = T::default();
-            for i in 0..m {
-                let prod = matrix_access(x, m, n, i, r).conj() * matrix_access(x, m, n, i, c);
-                sum += prod;
+    for x_row in x.rows() {
+        for (row_index, &left) in x_row.iter().enumerate() {
+            for (xtx_value, &right) in xtx.row_mut(row_index).iter_mut().zip(x_row) {
+                *xtx_value += left.conj() * right;
             }
-            xtx[r * n + c] = sum;
         }
     }
+    Ok(())
 }
 
 /// Compute x*x.' on m x n matrix, result: m x m
-pub fn matrix_mul_hermitian<T>(x: &[T], m: usize, n: usize, xxh: &mut [T])
+pub fn matrix_mul_hermitian<T>(x: &[T], m: usize, n: usize, xxh: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
 {
-    for xxhi in &mut xxh[..m * m] {
-        *xxhi = T::default();
-    }
+    let x = MatrixRef::new(x, m, n)?;
+    let mut xxh = MatrixMut::new(xxh, m, m)?;
 
-    for r in 0..m {
-        for c in 0..m {
+    for (x_row, xxh_row) in x.rows().zip(xxh.rows_mut()) {
+        for (xxh_value, other_row) in xxh_row.iter_mut().zip(x.rows()) {
             let mut sum = T::default();
-            for i in 0..n {
-                sum += matrix_access(x, m, n, r, i) * matrix_access(x, m, n, c, i);
+            for (&left, &right) in x_row.iter().zip(other_row) {
+                sum += left * right;
             }
-            xxh[r * m + c] = sum;
+            *xxh_value = sum;
         }
     }
+    Ok(())
 }
 
 /// Compute x.'*x on m x n matrix, result: n x n
-pub fn matrix_hermitian_mul<T>(x: &[T], m: usize, n: usize, xhx: &mut [T])
+pub fn matrix_hermitian_mul<T>(x: &[T], m: usize, n: usize, xhx: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
 {
-    for xhxi in &mut xhx[..n * n] {
-        *xhxi = T::default();
-    }
+    let x = MatrixRef::new(x, m, n)?;
+    let mut xhx = MatrixMut::new(xhx, n, n)?;
+    xhx.as_mut_slice().fill(T::default());
 
-    for r in 0..n {
-        for c in 0..n {
-            let mut sum = T::default();
-            for i in 0..m {
-                sum += matrix_access(x, m, n, i, r) * matrix_access(x, m, n, i, c);
+    for x_row in x.rows() {
+        for (row_index, &left) in x_row.iter().enumerate() {
+            for (xhx_value, &right) in xhx.row_mut(row_index).iter_mut().zip(x_row) {
+                *xhx_value += left * right;
             }
-            xhx[r * n + c] = sum;
         }
     }
+    Ok(())
 }

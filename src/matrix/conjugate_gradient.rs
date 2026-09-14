@@ -2,7 +2,7 @@ use num_traits::{Float, Zero};
 use std::slice;
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_mul, matrix_transpose_mul, FloatComplex};
+use crate::matrix::{matrix_mul_vec, matrix_transpose_mul, FloatComplex};
 
 const DEBUG_CGSOLVE: bool = false;
 
@@ -51,10 +51,10 @@ where
     let mut delta0 = T::zero();
 
     // delta_init = b^T * b
-    matrix_transpose_mul(b, n, 1, slice::from_mut(&mut delta_init));
+    matrix_transpose_mul(b, n, 1, slice::from_mut(&mut delta_init))?;
 
     // delta0 = r0^T * r0
-    matrix_transpose_mul(&r0, n, 1, slice::from_mut(&mut delta0));
+    matrix_transpose_mul(&r0, n, 1, slice::from_mut(&mut delta0))?;
 
     // save best solution
     x.copy_from_slice(&x0);
@@ -68,7 +68,7 @@ where
         }
 
         // q = A*d0
-        matrix_mul(a, n, n, &d0, n, 1, &mut q, n, 1)?;
+        matrix_mul_vec(a, n, n, &d0, &mut q)?;
 
         // gamma = d0^T * q
         let gamma: T = d0.iter().zip(q.iter()).map(|(&d, &q)| d.conj() * q).sum::<T>();
@@ -95,7 +95,7 @@ where
         // update r
         if (i + 1) % 50 == 0 {
             // periodically re-compute: r = b - A*x1
-            matrix_mul(a, n, n, &x1, n, 1, &mut ax1, n, 1)?;
+            matrix_mul_vec(a, n, n, &x1, &mut ax1)?;
             for j in 0..n {
                 r1[j] = b[j] - ax1[j];
             }
@@ -107,7 +107,7 @@ where
 
         // delta1 = r1^T * r1
         let mut delta1 = T::zero();
-        matrix_transpose_mul(&r1, n, 1, slice::from_mut(&mut delta1));
+        matrix_transpose_mul(&r1, n, 1, slice::from_mut(&mut delta1))?;
 
         // update beta
         let beta = delta1 / delta0;

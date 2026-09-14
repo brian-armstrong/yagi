@@ -32,9 +32,9 @@ mod tests {
     use crate::matrix::{
         matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_det, matrix_eye, matrix_gramschmidt,
         matrix_hermitian, matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout,
-        matrix_ludecomp_doolittle, matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_ones, matrix_pdiv,
-        matrix_pmul, matrix_print, matrix_qrdecomp_gramschmidt_c32, matrix_qrdecomp_gramschmidt_f32, matrix_sub,
-        matrix_trans, matrix_transpose_mul, matrix_zeros,
+        matrix_ludecomp_doolittle, matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_mul_vec, matrix_ones,
+        matrix_pdiv, matrix_pmul, matrix_print, matrix_qrdecomp_gramschmidt_c32, matrix_qrdecomp_gramschmidt_f32,
+        matrix_sub, matrix_trans, matrix_transpose_mul, matrix_zeros,
     };
     use approx::assert_abs_diff_eq;
     use num_complex::Complex;
@@ -276,7 +276,7 @@ mod tests {
         matrix_mul(&q, 4, 4, &r, 4, 4, &mut qr_test, 4, 4).unwrap();
 
         // compute Q*Q^T
-        matrix_mul_transpose(&q, 4, 4, &mut qqt_test);
+        matrix_mul_transpose(&q, 4, 4, &mut qqt_test).unwrap();
 
         // ensure Q*R = A
         for i in 0..16 {
@@ -308,10 +308,10 @@ mod tests {
         let mut xhx = vec![0.0f32; 16]; // [size: 4 x 4]
 
         // run matrix multiplications
-        matrix_mul_transpose(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xxt);
-        matrix_mul_hermitian(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xxh);
-        matrix_transpose_mul(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xtx);
-        matrix_hermitian_mul(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xhx);
+        matrix_mul_transpose(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xxt).unwrap();
+        matrix_mul_hermitian(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xxh).unwrap();
+        matrix_transpose_mul(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xtx).unwrap();
+        matrix_hermitian_mul(&MATRIXF_DATA_TRANSMUL_X, 5, 4, &mut xhx).unwrap();
 
         // run tests
         for i in 0..25 {
@@ -509,7 +509,7 @@ mod tests {
         matrix_mul(&q, 4, 4, &r, 4, 4, &mut qr_test, 4, 4).unwrap();
 
         // compute Q*Q^T
-        matrix_mul_transpose(&q, 4, 4, &mut qqt_test);
+        matrix_mul_transpose(&q, 4, 4, &mut qqt_test).unwrap();
 
         // ensure Q*R = A
         for i in 0..16 {
@@ -546,10 +546,10 @@ mod tests {
         let mut xhx = [Complex::new(0.0, 0.0); 16]; // [size: 4 x 4]
 
         // run matrix multiplications
-        matrix_mul_transpose(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xxt);
-        matrix_mul_hermitian(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xxh);
-        matrix_transpose_mul(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xtx);
-        matrix_hermitian_mul(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xhx);
+        matrix_mul_transpose(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xxt).unwrap();
+        matrix_mul_hermitian(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xxh).unwrap();
+        matrix_transpose_mul(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xtx).unwrap();
+        matrix_hermitian_mul(&MATRIXCF_DATA_TRANSMUL_X, 5, 4, &mut xhx).unwrap();
 
         // run tests
         for i in 0..25 {
@@ -594,6 +594,50 @@ mod tests {
         let result = matrix_mul(&left, 2, 3, &right, 4, 2, &mut output, 2, 2);
 
         assert!(result.is_err());
+        assert_eq!(output, [42.0; 4]);
+    }
+
+    #[test]
+    fn test_matrix_mul_length_mismatch_is_error_before_output_mutation() {
+        let left = [1.0f32; 5];
+        let right = [1.0f32; 6];
+        let mut output = [42.0f32; 4];
+
+        assert!(matrix_mul(&left, 2, 3, &right, 3, 2, &mut output, 2, 2).is_err());
+        assert_eq!(output, [42.0; 4]);
+    }
+
+    #[test]
+    fn test_matrix_mul_vec_known_product_and_length_validation() {
+        let matrix = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let vector = [7.0f32, 8.0, 9.0];
+        let mut output = [0.0f32; 2];
+
+        matrix_mul_vec(&matrix, 2, 3, &vector, &mut output).unwrap();
+        assert_eq!(output, [50.0, 122.0]);
+
+        let mut unchanged = [42.0f32; 2];
+        assert!(matrix_mul_vec(&matrix, 2, 3, &vector[..2], &mut unchanged).is_err());
+        assert_eq!(unchanged, [42.0; 2]);
+    }
+
+    #[test]
+    fn test_matrix_mul_accumulates_inner_terms_in_ascending_order() {
+        let left = [1.0e20f32, -1.0e20, 1.0];
+        let right = [1.0f32, 1.0, 1.0];
+        let mut output = [0.0f32];
+
+        matrix_mul(&left, 1, 3, &right, 3, 1, &mut output, 1, 1).unwrap();
+
+        assert_eq!(output, [1.0]);
+    }
+
+    #[test]
+    fn test_matrix_products_validate_before_output_mutation() {
+        let matrix = [1.0f32, 2.0, 3.0];
+        let mut output = [42.0f32; 4];
+
+        assert!(matrix_mul_transpose(&matrix, 2, 2, &mut output).is_err());
         assert_eq!(output, [42.0; 4]);
     }
 
