@@ -124,7 +124,6 @@ impl<'a, T> MatrixMut<'a, T> {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub(crate) fn two_rows_mut(&mut self, first: usize, second: usize) -> Option<(&mut [T], &mut [T])> {
         if first == second || first >= self.rows || second >= self.rows {
             return None;

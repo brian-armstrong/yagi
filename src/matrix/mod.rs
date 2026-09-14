@@ -699,6 +699,62 @@ mod tests {
     }
 
     #[test]
+    fn test_matrix_chol_reconstructs_hermitian_input() {
+        let a = [Complex::new(4.0f32, 0.0), Complex::new(2.0, -2.0), Complex::new(2.0, 2.0), Complex::new(11.0, 0.0)];
+        let mut l = [Complex::new(0.0f32, 0.0); 4];
+
+        matrix_chol(&a, 2, &mut l).unwrap();
+
+        for row in 0..2 {
+            for column in 0..2 {
+                let reconstructed: Complex<f32> =
+                    (0..2).map(|inner| l[row * 2 + inner] * l[column * 2 + inner].conj()).sum();
+                assert_abs_diff_eq!(reconstructed.re, a[row * 2 + column].re, epsilon = 1e-5);
+                assert_abs_diff_eq!(reconstructed.im, a[row * 2 + column].im, epsilon = 1e-5);
+            }
+        }
+    }
+
+    #[test]
+    fn test_matrix_lu_reconstructs_permuted_input() {
+        fn verify(decompose: fn(&[f32], usize, usize, &mut [f32], &mut [f32], &mut [f32]) -> crate::error::Result<()>) {
+            let a = [4.0f32, 3.0, 2.0, 3.0, 5.0, 1.0, 1.0, 1.0, 3.0];
+            let mut l = [0.0f32; 9];
+            let mut u = [0.0f32; 9];
+            let mut p = [0.0f32; 9];
+            let mut pa = [0.0f32; 9];
+            let mut lu = [0.0f32; 9];
+
+            decompose(&a, 3, 3, &mut l, &mut u, &mut p).unwrap();
+            matrix_mul(&p, 3, 3, &a, 3, 3, &mut pa, 3, 3).unwrap();
+            matrix_mul(&l, 3, 3, &u, 3, 3, &mut lu, 3, 3).unwrap();
+
+            for (permuted, reconstructed) in pa.iter().zip(lu) {
+                assert_abs_diff_eq!(*permuted, reconstructed, epsilon = 1e-5);
+            }
+        }
+
+        verify(matrix_ludecomp_crout);
+        verify(matrix_ludecomp_doolittle);
+    }
+
+    #[test]
+    fn test_matrix_chol_and_lu_validate_buffers() {
+        let mut chol_output = [42.0f32; 4];
+        assert!(matrix_chol(&[1.0f32, 0.0, 0.0], 2, &mut chol_output).is_err());
+        assert_eq!(chol_output, [42.0; 4]);
+
+        let input = [2.0f32, 1.0, 1.0, 2.0];
+        let mut l = [42.0f32; 4];
+        let mut u = [42.0f32; 3];
+        let mut p = [42.0f32; 4];
+        assert!(matrix_ludecomp_crout(&input, 2, 2, &mut l, &mut u, &mut p).is_err());
+        assert_eq!(l, [42.0; 4]);
+        assert_eq!(u, [42.0; 3]);
+        assert_eq!(p, [42.0; 4]);
+    }
+
+    #[test]
     fn test_matrix_det_known_values() {
         let one_by_one = [7.0f32];
         let two_by_two = [4.0f32, 7.0, 2.0, 6.0];

@@ -1,7 +1,8 @@
 use num_traits::{Float, Zero};
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_access, matrix_access_mut, FloatComplex};
+use crate::matrix::view::{MatrixMut, MatrixRef};
+use crate::matrix::FloatComplex;
 
 /// Compute Cholesky decomposition of a symmetric/Hermitian positive-
 /// definite matrix as A = L * L^T
@@ -12,12 +13,15 @@ pub fn matrix_chol<T>(a: &[T], n: usize, l: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
 {
+    let a = MatrixRef::new(a, n, n)?;
+    let mut l = MatrixMut::new(l, n, n)?;
+
     // Reset L
-    l.iter_mut().for_each(|x| *x = T::zero());
+    l.as_mut_slice().fill(T::zero());
 
     for j in 0..n {
         // Assert that a_jj is real, positive
-        let a_jj = matrix_access(a, n, n, j, j);
+        let a_jj = a.row(j)[j];
         if a_jj.re() < T::Real::zero() {
             return Err(Error::Value(format!(
                 "matrix_chol(), matrix is not positive definite (real{{A[{},{}]}} = {:e} < 0)",
@@ -37,8 +41,9 @@ where
 
         // Compute l_jj and store it in output matrix
         let mut t0 = T::zero();
+        let l_j_row = l.row(j);
         for k in 0..j {
-            let l_jk = matrix_access(l, n, n, j, k);
+            let l_jk = l_j_row[k];
             t0 += l_jk * l_jk.conj();
         }
         // Test to ensure a_jj > t0
@@ -53,17 +58,18 @@ where
         }
 
         let l_jj = (a_jj - t0).sqrt();
-        matrix_access_mut(l, n, n, j, j, l_jj);
+        l.row_mut(j)[j] = l_jj;
 
         for i in j + 1..n {
-            let mut t1 = matrix_access(a, n, n, i, j);
+            let mut t1 = a.row(i)[j];
+            let (l_i_row, l_j_row) = l.two_rows_mut(i, j).expect("distinct rows below and on the diagonal");
             for k in 0..j {
-                let l_ik = matrix_access(l, n, n, i, k);
-                let l_jk = matrix_access(l, n, n, j, k);
+                let l_ik = l_i_row[k];
+                let l_jk = l_j_row[k];
                 t1 -= l_ik * l_jk.conj();
             }
             // TODO: store inverse of l_jj to reduce number of divisions
-            matrix_access_mut(l, n, n, i, j, t1 / l_jj);
+            l_i_row[j] = t1 / l_jj;
         }
     }
 
