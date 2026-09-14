@@ -1,4 +1,5 @@
-use num_complex::{Complex, ComplexFloat};
+use num_complex::Complex;
+use num_traits::{One, Zero};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
@@ -19,10 +20,10 @@ use crate::matrix::{matrix_access_mut, matrix_inv, matrix_mul, matrix_trans, Flo
 /// Polynomial evaluated at `x`
 pub fn poly_val<T>(p: &[T], k: usize, x: T) -> T
 where
-    T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + From<f32>,
+    T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + One + Zero,
 {
-    let mut xk = T::from(1.0);
-    let mut y = T::from(0.0);
+    let mut xk = T::one();
+    let mut y = T::zero();
     for &pi in &p[..k] {
         y = y + pi * xk;
         xk = xk * x;
@@ -441,45 +442,53 @@ pub fn poly_findroots_durandkerner(p: &[f64], k: usize, roots: &mut [Complex<f64
     if k < 2 {
         return Err(Error::Range("order must be greater than 0".to_owned()));
     }
+    if p.len() < k {
+        return Err(Error::Range("coefficient slice is shorter than k".to_owned()));
+    }
+
+    let num_roots = k - 1;
+    if roots.len() < num_roots {
+        return Err(Error::Range("root slice is shorter than k - 1".to_owned()));
+    }
     if p[k - 1] != 1.0 {
         return Err(Error::Range("p[k-1] must be equal to 1".to_owned()));
     }
 
-    let num_roots = k - 1;
-    let mut r0 = vec![0.0; num_roots];
-    let mut r1 = vec![0.0; num_roots];
+    let p_complex: Vec<_> = p[..k].iter().map(|&coefficient| Complex::new(coefficient, 0.0)).collect();
+    let mut r0 = vec![Complex::new(0.0, 0.0); num_roots];
+    let mut r1 = vec![Complex::new(0.0, 0.0); num_roots];
 
     // Find initial magnitude
-    let mut g: f64;
     let mut gmax = 0.0;
     for i in 0..k {
-        g = p[i].abs();
+        let g = p[i].abs();
         if i == 0 || g > gmax {
             gmax = g;
         }
     }
 
     // Initialize roots
-    let t0 = 0.9 * (1.0 + gmax) * Complex::new(0.0, 1.1526).exp().re();
-    let mut t = 1.0;
-    for r0i in &mut r0[..num_roots] {
+    let t0 = Complex::from_polar(0.9 * (1.0 + gmax), 1.1526);
+    let mut t = Complex::new(1.0, 0.0);
+    for r0i in &mut r0 {
         *r0i = t;
         t *= t0;
     }
 
     let max_num_iterations = 50;
-    let mut continue_iterating = true;
-    let mut i = 0;
     let tol = 1e-6;
-    while continue_iterating {
+    for iteration in 0..=max_num_iterations {
         for j in 0..num_roots {
-            let f = poly_val(p, k, r0[j]);
-            let mut fp = 1.0;
+            let f = poly_val(&p_complex, k, r0[j]);
+            let mut fp = Complex::new(1.0, 0.0);
             for l in 0..num_roots {
                 if l == j {
                     continue;
                 }
                 fp *= r0[j] - r0[l];
+            }
+            if fp.norm_sqr() == 0.0 {
+                return Err(Error::NoConvergence("encountered coincident root estimates".to_owned()));
             }
             r1[j] = r0[j] - f / fp;
         }
@@ -488,22 +497,21 @@ pub fn poly_findroots_durandkerner(p: &[f64], k: usize, roots: &mut [Complex<f64
         let mut delta = 0.0;
         for j in 0..num_roots {
             let e = r0[j] - r1[j];
-            delta += (e * e.conj()).re();
+            delta += e.norm_sqr();
         }
         delta /= num_roots as f64 * gmax;
 
-        if delta < tol || i == max_num_iterations {
-            continue_iterating = false;
+        if delta < tol {
+            roots[..num_roots].copy_from_slice(&r1);
+            return Ok(());
         }
-
         r0.copy_from_slice(&r1);
-        i += 1;
+        if iteration == max_num_iterations {
+            return Err(Error::NoConvergence(format!("failed to converge after {} iterations", max_num_iterations)));
+        }
     }
 
-    for i in 0..k {
-        roots[i] = Complex::new(r1[i], 0.0);
-    }
-    Ok(())
+    unreachable!("the bounded Durand-Kerner iteration always returns")
 }
 
 /// Finds the complex roots of the polynomial using Bairstow's method
