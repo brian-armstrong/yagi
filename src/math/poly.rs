@@ -1069,4 +1069,99 @@ mod tests {
         let y = poly_val(&p, k, x);
         assert_abs_diff_eq!(y, 97.0, epsilon = 1e-6);
     }
+
+    #[test]
+    fn test_poly_mul_evaluation_identity() {
+        let left = [2.0f32, -1.0, 0.5];
+        let right = [-3.0f32, 4.0];
+        let mut product = [0.0f32; 4];
+        poly_mul(&left, left.len() - 1, &right, right.len() - 1, &mut product);
+
+        let eval = |coefficients: &[f32], x: f32| {
+            coefficients.iter().rev().fold(0.0, |value, &coefficient| value * x + coefficient)
+        };
+
+        for x in [-2.0f32, -0.25, 0.0, 0.75, 2.0] {
+            assert_abs_diff_eq!(eval(&product, x), eval(&left, x) * eval(&right, x), epsilon = 1e-5);
+        }
+    }
+
+    #[test]
+    fn test_poly_expandroots_vanishes_at_roots() {
+        let roots = [-2.0f32, 0.5, 3.0];
+        let mut coefficients = [0.0f32; 4];
+        poly_expandroots(&roots, roots.len(), &mut coefficients);
+
+        for root in roots {
+            let value = coefficients.iter().rev().fold(0.0, |value, &coefficient| value * root + coefficient);
+            assert_abs_diff_eq!(value, 0.0, epsilon = 1e-5);
+        }
+        assert_eq!(coefficients[roots.len()], 1.0);
+    }
+
+    #[test]
+    fn test_poly_fit_overdetermined_residual() {
+        let x = [-3.0f32, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0];
+        let y = [15.5f32, 10.0, 5.5, 2.0, -0.5, -2.0, -2.5];
+        let expected = [2.0f32, -3.0, 0.5];
+        let mut coefficients = [0.0f32; 3];
+
+        poly_fit(&x, &y, x.len(), &mut coefficients, expected.len()).unwrap();
+
+        for (&actual, &expected) in coefficients.iter().zip(&expected) {
+            assert_abs_diff_eq!(actual, expected, epsilon = 1e-4);
+        }
+        for (&x, &expected) in x.iter().zip(&y) {
+            assert_abs_diff_eq!(poly_val(&coefficients, coefficients.len(), x), expected, epsilon = 1e-4);
+        }
+    }
+
+    #[test]
+    fn test_polyf_findroots_rejects_constant_polynomial() {
+        let coefficients = [3.0f32];
+        let mut roots = [Complex::new(42.0f32, -7.0)];
+
+        let result = polyf_findroots(&coefficients, coefficients.len(), &mut roots);
+
+        assert!(result.is_err());
+        assert_eq!(roots, [Complex::new(42.0, -7.0)]);
+    }
+
+    #[test]
+    fn test_poly_findroots_durandkerner_finds_complex_roots() {
+        let coefficients = [1.0f64, 0.0, 1.0];
+        let mut roots = [Complex::new(0.0f64, 0.0); 2];
+
+        poly_findroots_durandkerner(&coefficients, coefficients.len(), &mut roots).unwrap();
+
+        for root in roots {
+            let residual = root * root + Complex::new(1.0, 0.0);
+            assert!(residual.norm() < 1e-5, "root {root:?} has residual {residual:?}");
+        }
+    }
+
+    #[test]
+    fn test_poly_findroots_durandkerner_rejects_short_slices() {
+        let coefficients = [1.0f64, 0.0];
+        let mut roots = [Complex::new(42.0f64, -7.0)];
+
+        assert!(poly_findroots_durandkerner(&coefficients, 3, &mut roots).is_err());
+        assert_eq!(roots, [Complex::new(42.0, -7.0)]);
+        assert!(poly_findroots_durandkerner(&[1.0, 0.0, 1.0], 3, &mut []).is_err());
+    }
+
+    #[test]
+    fn test_poly_sort_roots_compare_is_a_total_order() {
+        let root = Complex::new(1.0f64, -2.0);
+        assert_eq!(poly_sort_roots_compare(&root, &root), Ordering::Equal);
+
+        let mut roots =
+            [Complex::new(2.0, 0.0), Complex::new(1.0, -1.0), Complex::new(1.0, 3.0), Complex::new(-1.0, 0.0)];
+        roots.sort_by(poly_sort_roots_compare);
+
+        assert_eq!(
+            roots,
+            [Complex::new(-1.0, 0.0), Complex::new(1.0, 3.0), Complex::new(1.0, -1.0), Complex::new(2.0, 0.0),]
+        );
+    }
 }
