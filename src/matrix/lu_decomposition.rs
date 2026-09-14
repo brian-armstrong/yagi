@@ -45,7 +45,7 @@ where
     }
 
     // Set output permutation matrix to identity matrix
-    matrix_eye(p, n);
+    matrix_eye(p, n)?;
     Ok(())
 }
 
@@ -95,6 +95,6 @@ where
     }
 
     // Set output permutation matrix to identity matrix
-    matrix_eye(p, n);
+    matrix_eye(p, n)?;
     Ok(())
 }

@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::{matrix_access, matrix_inv, matrix_ludecomp_doolittle, FloatComplex};
 
 /// Add elements of two matrices
@@ -10,13 +11,17 @@ use crate::matrix::{matrix_access, matrix_inv, matrix_ludecomp_doolittle, FloatC
 /// * `z` - Output matrix [size: r x c]
 /// * `r` - Number of rows
 /// * `c` - Number of columns
-pub fn matrix_add<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize)
+pub fn matrix_add<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    for i in 0..(r * c) {
-        z[i] = x[i] + y[i];
+    let x = MatrixRef::new(x, r, c)?;
+    let y = MatrixRef::new(y, r, c)?;
+    let mut z = MatrixMut::new(z, r, c)?;
+    for ((output, &left), &right) in z.as_mut_slice().iter_mut().zip(x.as_slice()).zip(y.as_slice()) {
+        *output = left + right;
     }
+    Ok(())
 }
 
 /// Subtract elements of two matrices
@@ -28,13 +33,17 @@ where
 /// * `z` - Output matrix [size: r x c]
 /// * `r` - Number of rows
 /// * `c` - Number of columns
-pub fn matrix_sub<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize)
+pub fn matrix_sub<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    for i in 0..(r * c) {
-        z[i] = x[i] - y[i];
+    let x = MatrixRef::new(x, r, c)?;
+    let y = MatrixRef::new(y, r, c)?;
+    let mut z = MatrixMut::new(z, r, c)?;
+    for ((output, &left), &right) in z.as_mut_slice().iter_mut().zip(x.as_slice()).zip(y.as_slice()) {
+        *output = left - right;
     }
+    Ok(())
 }
 
 /// Point-wise multiplication
@@ -46,13 +55,17 @@ where
 /// * `z` - Output matrix [size: r x c]
 /// * `r` - Number of rows
 /// * `c` - Number of columns
-pub fn matrix_pmul<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize)
+pub fn matrix_pmul<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    for i in 0..(r * c) {
-        z[i] = x[i] * y[i];
+    let x = MatrixRef::new(x, r, c)?;
+    let y = MatrixRef::new(y, r, c)?;
+    let mut z = MatrixMut::new(z, r, c)?;
+    for ((output, &left), &right) in z.as_mut_slice().iter_mut().zip(x.as_slice()).zip(y.as_slice()) {
+        *output = left * right;
     }
+    Ok(())
 }
 
 /// Point-wise division
@@ -64,13 +77,17 @@ where
 /// * `z` - Output matrix [size: r x c]
 /// * `r` - Number of rows
 /// * `c` - Number of columns
-pub fn matrix_pdiv<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize)
+pub fn matrix_pdiv<T>(x: &[T], y: &[T], z: &mut [T], r: usize, c: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    for i in 0..(r * c) {
-        z[i] = x[i] / y[i];
+    let x = MatrixRef::new(x, r, c)?;
+    let y = MatrixRef::new(y, r, c)?;
+    let mut z = MatrixMut::new(z, r, c)?;
+    for ((output, &left), &right) in z.as_mut_slice().iter_mut().zip(x.as_slice()).zip(y.as_slice()) {
+        *output = left / right;
     }
+    Ok(())
 }
 
 /// Multiply two matrices together
@@ -120,20 +137,20 @@ pub fn matrix_aug<T>(
 where
     T: FloatComplex,
 {
-    if rz != rx || rz != ry || rx != ry || cz != cx + cy {
+    let expected_columns = cx
+        .checked_add(cy)
+        .ok_or_else(|| Error::Range("matrix_aug(), column count overflows usize".to_string()))?;
+    if rz != rx || rz != ry || rx != ry || cz != expected_columns {
         return Err(Error::Range("matrix_aug(), invalid dimensions".to_string()));
     }
 
-    for r in 0..rz {
-        let mut n = 0;
-        for c in 0..cx {
-            z[r * cz + n] = matrix_access(x, rx, cx, r, c);
-            n += 1;
-        }
-        for c in 0..cy {
-            z[r * cz + n] = matrix_access(y, ry, cy, r, c);
-            n += 1;
-        }
+    let x = MatrixRef::new(x, rx, cx)?;
+    let y = MatrixRef::new(y, ry, cy)?;
+    let mut z = MatrixMut::new(z, rz, cz)?;
+    for ((x_row, y_row), z_row) in x.rows().zip(y.rows()).zip(z.rows_mut()) {
+        let (z_left, z_right) = z_row.split_at_mut(cx);
+        z_left.copy_from_slice(x_row);
+        z_right.copy_from_slice(y_row);
     }
 
     Ok(())
@@ -192,29 +209,33 @@ where
 }
 
 /// Compute matrix transpose
-pub fn matrix_trans<T>(x: &mut [T], xr: usize, xc: usize)
+pub fn matrix_trans<T>(x: &mut [T], xr: usize, xc: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    matrix_hermitian(x, xr, xc);
+    matrix_hermitian(x, xr, xc)?;
 
-    for xi in &mut x[..xr * xc] {
+    for xi in x {
         *xi = xi.conj();
     }
+    Ok(())
 }
 
 /// Compute matrix Hermitian transpose
-pub fn matrix_hermitian<T>(x: &mut [T], xr: usize, xc: usize)
+pub fn matrix_hermitian<T>(x: &mut [T], xr: usize, xc: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    let y = x.to_vec();
+    let y = MatrixRef::new(x, xr, xc)?.as_slice().to_vec();
+    let input = MatrixRef::new(&y, xr, xc)?;
+    let mut output = MatrixMut::new(x, xc, xr)?;
 
-    for r in 0..xr {
-        for c in 0..xc {
-            x[c * xr + r] = y[r * xc + c];
+    for (row_index, input_row) in input.rows().enumerate() {
+        for (column_index, &value) in input_row.iter().enumerate() {
+            output.row_mut(column_index)[row_index] = value;
         }
     }
+    Ok(())
 }
 
 /// Compute x*x' on m x n matrix, result: m x m

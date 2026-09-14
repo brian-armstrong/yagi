@@ -61,7 +61,7 @@ where
 
     // Compute transpose of X
     let mut xt_matrix = x_matrix.clone();
-    matrix_trans(&mut xt_matrix, n, k);
+    matrix_trans(&mut xt_matrix, n, k)?;
 
     // Compute [X']*y
     let mut xty = vec![T::default(); k];

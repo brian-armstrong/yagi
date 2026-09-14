@@ -14,6 +14,7 @@ pub mod lu_decomposition;
 pub mod math;
 pub mod qr_decomposition;
 pub mod sparse;
+mod view;
 
 pub use crate::matrix::base::*;
 pub use crate::matrix::cholesky::*;
@@ -30,9 +31,10 @@ pub use crate::matrix::sparse::*;
 mod tests {
     use crate::matrix::{
         matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_det, matrix_eye, matrix_gramschmidt,
-        matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout, matrix_ludecomp_doolittle,
-        matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_qrdecomp_gramschmidt_c32,
-        matrix_qrdecomp_gramschmidt_f32, matrix_transpose_mul,
+        matrix_hermitian, matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout,
+        matrix_ludecomp_doolittle, matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_ones, matrix_pdiv,
+        matrix_pmul, matrix_print, matrix_qrdecomp_gramschmidt_c32, matrix_qrdecomp_gramschmidt_f32, matrix_sub,
+        matrix_trans, matrix_transpose_mul, matrix_zeros,
     };
     use approx::assert_abs_diff_eq;
     use num_complex::Complex;
@@ -48,7 +50,7 @@ mod tests {
         // y [size: 5 x 4]
         // z [size: 5 x 4]
         let mut z = vec![0.0f32; 20];
-        matrix_add(&MATRIXF_DATA_ADD_X, &MATRIXF_DATA_ADD_Y, &mut z, 5, 4);
+        matrix_add(&MATRIXF_DATA_ADD_X, &MATRIXF_DATA_ADD_Y, &mut z, 5, 4).unwrap();
 
         for i in 0..20 {
             assert_abs_diff_eq!(MATRIXF_DATA_ADD_Z[i], z[i], epsilon = tol);
@@ -283,7 +285,7 @@ mod tests {
 
         // ensure Q*Q = I(4)
         let mut i4 = [0.0f32; 16];
-        matrix_eye(&mut i4, 4);
+        matrix_eye(&mut i4, 4).unwrap();
         for i in 0..16 {
             assert_abs_diff_eq!(qqt_test[i], i4[i], epsilon = tol);
         }
@@ -335,7 +337,7 @@ mod tests {
         let tol: f32 = 1e-6;
         let mut z = [Complex::new(0.0, 0.0); 20];
 
-        matrix_add(&MATRIXCF_DATA_ADD_X, &MATRIXCF_DATA_ADD_Y, &mut z, 5, 4);
+        matrix_add(&MATRIXCF_DATA_ADD_X, &MATRIXCF_DATA_ADD_Y, &mut z, 5, 4).unwrap();
 
         for i in 0..20 {
             assert_abs_diff_eq!(z[i].re, MATRIXCF_DATA_ADD_Z[i].re, epsilon = tol);
@@ -517,7 +519,7 @@ mod tests {
 
         // ensure Q*Q^T = I(4)
         let mut i4 = [Complex::new(0.0, 0.0); 16];
-        matrix_eye(&mut i4, 4);
+        matrix_eye(&mut i4, 4).unwrap();
         for i in 0..16 {
             assert_abs_diff_eq!(qqt_test[i].re, i4[i].re, epsilon = tol);
             assert_abs_diff_eq!(qqt_test[i].im, i4[i].im, epsilon = tol);
@@ -620,5 +622,88 @@ mod tests {
         assert_eq!(matrix_det(&one_by_one, 1, 1).unwrap(), 7.0);
         assert_eq!(matrix_det(&two_by_two, 2, 2).unwrap(), 10.0);
         assert_eq!(matrix_det(&three_by_three, 3, 3).unwrap(), -306.0);
+    }
+
+    #[test]
+    fn test_matrix_base_initializers_validate_shape() {
+        let mut identity = [0.0f32; 4];
+        matrix_eye(&mut identity, 2).unwrap();
+        assert_eq!(identity, [1.0, 0.0, 0.0, 1.0]);
+
+        matrix_ones(&mut identity, 2, 2).unwrap();
+        assert_eq!(identity, [1.0; 4]);
+        matrix_zeros(&mut identity, 2, 2).unwrap();
+        assert_eq!(identity, [0.0; 4]);
+
+        let mut short = [42.0f32; 3];
+        assert!(matrix_eye(&mut short, 2).is_err());
+        assert_eq!(short, [42.0; 3]);
+    }
+
+    #[test]
+    fn test_matrix_elementwise_operations_validate_before_output_mutation() {
+        let left = [12.0f32, 10.0, 8.0, 6.0];
+        let right = [3.0f32, 2.0, 4.0, 3.0];
+        let mut output = [0.0f32; 4];
+
+        matrix_add(&left, &right, &mut output, 2, 2).unwrap();
+        assert_eq!(output, [15.0, 12.0, 12.0, 9.0]);
+        matrix_sub(&left, &right, &mut output, 2, 2).unwrap();
+        assert_eq!(output, [9.0, 8.0, 4.0, 3.0]);
+        matrix_pmul(&left, &right, &mut output, 2, 2).unwrap();
+        assert_eq!(output, [36.0, 20.0, 32.0, 18.0]);
+        matrix_pdiv(&left, &right, &mut output, 2, 2).unwrap();
+        assert_eq!(output, [4.0, 5.0, 2.0, 2.0]);
+
+        let mut unchanged = [42.0f32; 4];
+        assert!(matrix_add(&left[..3], &right, &mut unchanged, 2, 2).is_err());
+        assert_eq!(unchanged, [42.0; 4]);
+    }
+
+    #[test]
+    fn test_matrix_aug_validates_buffers_before_output_mutation() {
+        let left = [1.0f32, 2.0];
+        let right = [3.0f32, 4.0, 5.0, 6.0];
+        let mut output = [0.0f32; 6];
+
+        matrix_aug(&left, 2, 1, &right, 2, 2, &mut output, 2, 3).unwrap();
+        assert_eq!(output, [1.0, 3.0, 4.0, 2.0, 5.0, 6.0]);
+
+        let mut unchanged = [42.0f32; 6];
+        assert!(matrix_aug(&left[..1], 2, 1, &right, 2, 2, &mut unchanged, 2, 3).is_err());
+        assert_eq!(unchanged, [42.0; 6]);
+    }
+
+    #[test]
+    fn test_matrix_transpose_helpers_complex() {
+        let original = [
+            Complex::new(1.0f32, 2.0),
+            Complex::new(3.0, 4.0),
+            Complex::new(5.0, 6.0),
+            Complex::new(7.0, 8.0),
+            Complex::new(9.0, 10.0),
+            Complex::new(11.0, 12.0),
+        ];
+        let mut hermitian = original;
+        let mut trans = original;
+
+        matrix_hermitian(&mut hermitian, 2, 3).unwrap();
+        matrix_trans(&mut trans, 2, 3).unwrap();
+
+        let expected = [
+            Complex::new(1.0, 2.0),
+            Complex::new(7.0, 8.0),
+            Complex::new(3.0, 4.0),
+            Complex::new(9.0, 10.0),
+            Complex::new(5.0, 6.0),
+            Complex::new(11.0, 12.0),
+        ];
+        assert_eq!(hermitian, expected);
+        assert_eq!(trans, expected.map(|value| value.conj()));
+
+        let mut short = [Complex::new(42.0f32, -7.0); 5];
+        assert!(matrix_trans(&mut short, 2, 3).is_err());
+        assert_eq!(short, [Complex::new(42.0, -7.0); 5]);
+        assert!(matrix_print(&[1.0f32; 3], 2, 2).is_err());
     }
 }

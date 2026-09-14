@@ -1,6 +1,9 @@
 use num_complex::{Complex, ComplexFloat};
 use num_traits::{Float, Zero};
 
+use crate::error::Result;
+use crate::matrix::view::{MatrixMut, MatrixRef};
+
 /// Extension trait for complex number support
 pub trait IsComplex {
     fn is_complex() -> bool;
@@ -56,49 +59,50 @@ impl<
 }
 
 /// Print matrix to stdout
-pub fn matrix_print<T>(x: &[T], rows: usize, cols: usize)
+pub fn matrix_print<T>(x: &[T], rows: usize, cols: usize) -> Result<()>
 where
     T: FloatComplex,
 {
+    let matrix = MatrixRef::new(x, rows, cols)?;
     println!("matrix [{} x {}] :", rows, cols);
-    for r in 0..rows {
-        for c in 0..cols {
-            print!("{:12}", x[r * cols + c]);
+    for row in matrix.rows() {
+        for value in row {
+            print!("{:12}", value);
         }
         println!();
     }
+    Ok(())
 }
 
 /// Initialize square matrix to the identity matrix
-pub fn matrix_eye<T>(x: &mut [T], n: usize)
+pub fn matrix_eye<T>(x: &mut [T], n: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    for r in 0..n {
-        for c in 0..n {
-            x[r * n + c] = if r == c { T::one() } else { T::zero() };
-        }
+    let mut matrix = MatrixMut::new(x, n, n)?;
+    matrix.as_mut_slice().fill(T::zero());
+    for (row_index, row) in matrix.rows_mut().enumerate() {
+        row[row_index] = T::one();
     }
+    Ok(())
 }
 
 /// Initialize matrix to ones
-pub fn matrix_ones<T>(x: &mut [T], rows: usize, cols: usize)
+pub fn matrix_ones<T>(x: &mut [T], rows: usize, cols: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    for xi in &mut x[..rows * cols] {
-        *xi = T::one();
-    }
+    MatrixMut::new(x, rows, cols)?.as_mut_slice().fill(T::one());
+    Ok(())
 }
 
 /// Initialize matrix to zeros
-pub fn matrix_zeros<T>(x: &mut [T], rows: usize, cols: usize)
+pub fn matrix_zeros<T>(x: &mut [T], rows: usize, cols: usize) -> Result<()>
 where
     T: FloatComplex,
 {
-    for xi in &mut x[..rows * cols] {
-        *xi = T::zero();
-    }
+    MatrixMut::new(x, rows, cols)?.as_mut_slice().fill(T::zero());
+    Ok(())
 }
 
 /// Helper function to access matrix elements
