@@ -3,7 +3,7 @@ use num_traits::{One, Zero};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_inv, matrix_mul, FloatComplex};
+use crate::matrix::{matrix_linsolve, FloatComplex};
 
 /// Evaluate polynomial
 ///
@@ -79,12 +79,8 @@ where
         }
     }
 
-    // Compute inv([X']*X)
-    let mut g = x2.clone();
-    matrix_inv(&mut g, k, k)?;
-
-    // Compute coefficients
-    matrix_mul(&g, k, k, &xty, k, 1, p, k, 1)?;
+    // solve [X']*X*p = [X']*y directly rather than forming the inverse
+    matrix_linsolve(&x2, k, &xty, p, None)?;
 
     Ok(())
 }
@@ -784,6 +780,7 @@ pub fn polyf_findroots(p: &[f32], roots: &mut [Complex<f32>]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::matrix::{matrix_inv, matrix_mul};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
@@ -1162,6 +1159,45 @@ mod tests {
         }
         for (&x, &expected) in x.iter().zip(&y) {
             assert_abs_diff_eq!(poly_val(&coefficients, x), expected, epsilon = 1e-4);
+        }
+    }
+
+    fn poly_fit_inverse_reference(x: &[f32], y: &[f32], coefficients: &mut [f32]) {
+        let k = coefficients.len();
+        let mut xty = vec![0.0f32; k];
+        let mut x2 = vec![0.0f32; k * k];
+
+        for (&sample, &value) in x.iter().zip(y) {
+            let mut x_power = 1.0;
+            for (xty_entry, x2_row) in xty.iter_mut().zip(x2.chunks_exact_mut(k)) {
+                *xty_entry += x_power * value;
+
+                let mut other_power = 1.0;
+                for x2_entry in x2_row {
+                    *x2_entry += x_power * other_power;
+                    other_power *= sample;
+                }
+                x_power *= sample;
+            }
+        }
+
+        let mut inverse = x2.clone();
+        matrix_inv(&mut inverse, k, k).unwrap();
+        matrix_mul(&inverse, k, k, &xty, k, 1, coefficients, k, 1).unwrap();
+    }
+
+    #[test]
+    fn test_poly_fit_direct_solve_matches_inverse_reference() {
+        let x = [-1.0f32, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0];
+        let y = [2.25f32, 1.6640625, 1.15625, 0.73828125, 0.375, 0.07421875, -0.15625, -0.30859375, -0.375];
+        let mut direct = [0.0f32; 4];
+        let mut inverse = [0.0f32; 4];
+
+        poly_fit(&x, &y, &mut direct).unwrap();
+        poly_fit_inverse_reference(&x, &y, &mut inverse);
+
+        for (&direct, &inverse) in direct.iter().zip(&inverse) {
+            assert_abs_diff_eq!(direct, inverse, epsilon = 1e-5);
         }
     }
 
