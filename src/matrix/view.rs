@@ -47,6 +47,11 @@ impl<'a, T> MatrixRef<'a, T> {
         (0..self.rows).map(move |row| self.row(row))
     }
 
+    pub(crate) fn column(&self, column: usize) -> impl Iterator<Item = &T> {
+        assert!(column < self.cols, "matrix column index out of bounds");
+        self.data.chunks_exact(self.cols).map(move |row| &row[column])
+    }
+
     fn row_range(&self, row: usize) -> std::ops::Range<usize> {
         assert!(row < self.rows, "matrix row index out of bounds");
         let start = row * self.cols;
@@ -75,7 +80,6 @@ impl<'a, T> MatrixMut<'a, T> {
         Ok(Self { data, rows, cols })
     }
 
-    #[allow(dead_code)]
     pub(crate) fn as_slice(&self) -> &[T] {
         self.data
     }
@@ -100,6 +104,11 @@ impl<'a, T> MatrixMut<'a, T> {
 
     pub(crate) fn rows_mut(&mut self) -> MatrixRowsMut<'_, T> {
         MatrixRowsMut { remaining: &mut *self.data, rows_remaining: self.rows, cols: self.cols }
+    }
+
+    pub(crate) fn column(&self, column: usize) -> impl Iterator<Item = &T> {
+        assert!(column < self.cols, "matrix column index out of bounds");
+        self.data.chunks_exact(self.cols).map(move |row| &row[column])
     }
 
     pub(crate) fn for_each_other_row_mut(
@@ -240,6 +249,7 @@ mod tests {
         assert_eq!(matrix.shape(), (2, 3));
         assert_eq!(matrix.row(1), [4, 5, 6]);
         assert_eq!(matrix.rows().collect::<Vec<_>>(), vec![&[1, 2, 3][..], &[4, 5, 6][..]]);
+        assert_eq!(matrix.column(1).copied().collect::<Vec<_>>(), [2, 5]);
         assert_eq!(matrix[(1, 2)], 6);
         assert_eq!(matrix.as_slice(), data);
     }

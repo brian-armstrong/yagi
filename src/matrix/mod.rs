@@ -33,8 +33,8 @@ mod tests {
         matrix_access, matrix_add, matrix_aug, matrix_cgsolve, matrix_chol, matrix_det, matrix_eye, matrix_gjelim,
         matrix_gramschmidt, matrix_hermitian, matrix_hermitian_mul, matrix_inv, matrix_linsolve, matrix_ludecomp_crout,
         matrix_ludecomp_doolittle, matrix_mul, matrix_mul_hermitian, matrix_mul_transpose, matrix_mul_vec, matrix_ones,
-        matrix_pdiv, matrix_pmul, matrix_print, matrix_qrdecomp_gramschmidt_c32, matrix_qrdecomp_gramschmidt_f32,
-        matrix_sub, matrix_trans, matrix_transpose_mul, matrix_zeros,
+        matrix_pdiv, matrix_pmul, matrix_print, matrix_qrdecomp_gramschmidt, matrix_qrdecomp_gramschmidt_c32,
+        matrix_qrdecomp_gramschmidt_f32, matrix_sub, matrix_trans, matrix_transpose_mul, matrix_zeros,
     };
     use approx::assert_abs_diff_eq;
     use num_complex::Complex;
@@ -752,6 +752,43 @@ mod tests {
         assert_eq!(l, [42.0; 4]);
         assert_eq!(u, [42.0; 3]);
         assert_eq!(p, [42.0; 4]);
+    }
+
+    #[test]
+    fn test_matrix_gramschmidt_and_qr_validate_buffers() {
+        let mut gram_output = [42.0f32; 4];
+        assert!(matrix_gramschmidt(&[1.0f32, 0.0, 0.0], 2, 2, &mut gram_output).is_err());
+        assert_eq!(gram_output, [42.0; 4]);
+
+        let input = [2.0f32, 1.0, 1.0, 2.0];
+        let mut q = [42.0f32; 4];
+        let mut r = [42.0f32; 3];
+        assert!(matrix_qrdecomp_gramschmidt(&input, 2, 2, &mut q, &mut r).is_err());
+        assert_eq!(q, [42.0; 4]);
+        assert_eq!(r, [42.0; 3]);
+    }
+
+    #[test]
+    fn test_matrix_qr_typed_wrappers_match_generic_implementation() {
+        let mut generic_q = [0.0f32; 16];
+        let mut generic_r = [0.0f32; 16];
+        let mut wrapper_q = [0.0f32; 16];
+        let mut wrapper_r = [0.0f32; 16];
+
+        matrix_qrdecomp_gramschmidt(&MATRIXF_DATA_QRDECOMP_A, 4, 4, &mut generic_q, &mut generic_r).unwrap();
+        matrix_qrdecomp_gramschmidt_f32(&MATRIXF_DATA_QRDECOMP_A, 4, 4, &mut wrapper_q, &mut wrapper_r).unwrap();
+        assert_eq!(generic_q, wrapper_q);
+        assert_eq!(generic_r, wrapper_r);
+
+        let mut generic_q = [Complex::new(0.0, 0.0); 16];
+        let mut generic_r = [Complex::new(0.0, 0.0); 16];
+        let mut wrapper_q = [Complex::new(0.0, 0.0); 16];
+        let mut wrapper_r = [Complex::new(0.0, 0.0); 16];
+
+        matrix_qrdecomp_gramschmidt(&MATRIXCF_DATA_QRDECOMP_A, 4, 4, &mut generic_q, &mut generic_r).unwrap();
+        matrix_qrdecomp_gramschmidt_c32(&MATRIXCF_DATA_QRDECOMP_A, 4, 4, &mut wrapper_q, &mut wrapper_r).unwrap();
+        assert_eq!(generic_q, wrapper_q);
+        assert_eq!(generic_r, wrapper_r);
     }
 
     #[test]
