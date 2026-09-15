@@ -3,7 +3,7 @@ use num_traits::{One, Zero};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_access_mut, matrix_inv, matrix_mul, matrix_trans, FloatComplex};
+use crate::matrix::{matrix_inv, matrix_mul, matrix_trans, FloatComplex, MatrixMut};
 
 /// Evaluate polynomial
 ///
@@ -48,6 +48,12 @@ where
     if x.len() != y.len() {
         return Err(Error::Range("independent and dependent variable slices must have equal lengths".to_owned()));
     }
+    if p.is_empty() {
+        return Err(Error::Range("coefficient slice must not be empty".to_owned()));
+    }
+    if x.len() < p.len() {
+        return Err(Error::Range("sample count must be at least the coefficient count".to_owned()));
+    }
 
     let n = x.len();
     let k = p.len();
@@ -55,11 +61,12 @@ where
     let x_matrix_len =
         n.checked_mul(k).ok_or_else(|| Error::Range("Vandermonde matrix dimensions overflow".to_owned()))?;
     let mut x_matrix = vec![T::default(); x_matrix_len];
-    for r in 0..n {
+    let mut vandermonde = MatrixMut::new(&mut x_matrix, n, k)?;
+    for (row, &sample) in vandermonde.rows_mut().zip(x) {
         let mut v = T::one();
-        for c in 0..k {
-            matrix_access_mut(&mut x_matrix, n, k, r, c, v);
-            v *= x[r];
+        for coefficient in row {
+            *coefficient = v;
+            v *= sample;
         }
     }
 
@@ -72,7 +79,10 @@ where
     matrix_mul(&xt_matrix, k, n, y, n, 1, &mut xty, k, 1)?;
 
     // Compute [X']*X
-    let mut x2 = vec![T::default(); k * k];
+    let x2_len = k
+        .checked_mul(k)
+        .ok_or_else(|| Error::Range("normal-equation matrix dimensions overflow".to_owned()))?;
+    let mut x2 = vec![T::default(); x2_len];
     matrix_mul(&xt_matrix, k, n, &x_matrix, n, k, &mut x2, k, k)?;
 
     // Compute inv([X']*X)
@@ -1182,6 +1192,17 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(coefficients, [42.0, -7.0]);
+    }
+
+    #[test]
+    fn test_poly_fit_rejects_empty_coefficients_and_underdetermined_samples() {
+        assert!(poly_fit::<f32>(&[], &[], &mut []).is_err());
+
+        let mut coefficients = [42.0f32, -7.0, 3.0];
+        let result = poly_fit(&[0.0, 1.0], &[1.0, 2.0], &mut coefficients);
+
+        assert!(result.is_err());
+        assert_eq!(coefficients, [42.0, -7.0, 3.0]);
     }
 
     #[test]
