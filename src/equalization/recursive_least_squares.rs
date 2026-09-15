@@ -147,7 +147,10 @@ where
             }
         }
 
-        matrix_mul(&self.gxl, self.p, self.p, &self.p0, self.p, self.p, &mut self.gxlp0, self.p, self.p)?;
+        let left = MatrixRef::new(&self.gxl, self.p, self.p)?;
+        let right = MatrixRef::new(&self.p0, self.p, self.p)?;
+        let mut output = MatrixMut::new(&mut self.gxlp0, self.p, self.p)?;
+        matrix_mul(left, right, &mut output)?;
 
         for ((p1_value, &p0_value), &gxlp0_value) in self.p1.iter_mut().zip(&self.p0).zip(&self.gxlp0) {
             *p1_value = p0_value / self.lambda.into() - gxlp0_value;

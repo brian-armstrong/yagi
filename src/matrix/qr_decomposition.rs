@@ -1,4 +1,3 @@
-use num_complex::Complex;
 use num_traits::{Float, Zero};
 
 use crate::error::{Error, Result};
@@ -6,18 +5,21 @@ use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::FloatComplex;
 
 /// Q/R decomposition using the Gram-Schmidt algorithm
-pub fn matrix_qrdecomp_gramschmidt<T>(x: &[T], m: usize, n: usize, q: &mut [T], r: &mut [T]) -> Result<()>
+pub fn matrix_qrdecomp_gramschmidt<T>(
+    x: MatrixRef<'_, T>,
+    q: &mut MatrixMut<'_, T>,
+    r: &mut MatrixMut<'_, T>,
+) -> Result<()>
 where
     T: FloatComplex,
 {
-    // validate input
+    let (m, n) = x.shape();
     if m != n {
         return Err(Error::Range("matrix_qrdecomp_gramschmidt(), input matrix not square".to_string()));
     }
-
-    let x = MatrixRef::new(x, n, n)?;
-    let mut q = MatrixMut::new(q, n, n)?;
-    let mut r = MatrixMut::new(r, n, n)?;
+    if q.shape() != (n, n) || r.shape() != (n, n) {
+        return Err(Error::Range("matrix_qrdecomp_gramschmidt(), output shapes must match the input".to_string()));
+    }
 
     // generate and initialize matrices
     let mut e_storage = vec![T::zero(); x.as_slice().len()];
@@ -78,15 +80,3 @@ where
 
     Ok(())
 }
-
-#[macro_export]
-macro_rules! matrix_qrdecomp_gramschmidt {
-    ($name:tt, $T:ty) => {
-        pub fn $name(x: &[$T], m: usize, n: usize, q: &mut [$T], r: &mut [$T]) -> $crate::error::Result<()> {
-            $crate::matrix::matrix_qrdecomp_gramschmidt(x, m, n, q, r)
-        }
-    };
-}
-
-matrix_qrdecomp_gramschmidt!(matrix_qrdecomp_gramschmidt_f32, f32);
-matrix_qrdecomp_gramschmidt!(matrix_qrdecomp_gramschmidt_c32, Complex<f32>);

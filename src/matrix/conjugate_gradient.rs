@@ -1,7 +1,7 @@
 use num_traits::{Float, Zero};
 
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
+use crate::matrix::view::MatrixRef;
 use crate::matrix::{matrix_mul_vec, FloatComplex};
 
 const DEBUG_CGSOLVE: bool = false;
@@ -22,26 +22,21 @@ where
 
 /// Solve linear system of equations using conjugate gradient method
 ///  _A      :   symmetric positive definite matrix [size: _n x _n]
-///  _n      :   system dimension
 ///  _b      :   equality [size: _n x 1]
 ///  _x      :   solution estimate [size: _n x 1]
 ///  _opts   :   options (ignored for now)
-pub fn matrix_cgsolve<T>(a: &[T], n: usize, b: &[T], x: &mut [T], _opts: Option<()>) -> Result<()>
+pub fn matrix_cgsolve<T>(a: MatrixRef<'_, T>, b: &[T], x: &mut [T], _opts: Option<()>) -> Result<()>
 where
     T: FloatComplex,
 {
-    // validate input
-    if n == 0 {
+    let (n, columns) = a.shape();
+    if n == 0 || n != columns || b.len() != n || x.len() != n {
         return Err(Error::Range("matrix_cgsolve(), system dimension cannot be zero".to_owned()));
     }
 
     let max_iterations = n
         .checked_mul(4)
         .ok_or_else(|| Error::Range("matrix_cgsolve(), iteration count overflows usize".to_owned()))?;
-    let a = MatrixRef::new(a, n, n)?;
-    let b = MatrixRef::new(b, n, 1)?;
-    let mut x = MatrixMut::new(x, n, 1)?;
-
     // options
     let tol = T::Real::from(1e-6); // error tolerance
 
@@ -63,13 +58,13 @@ where
     let mut best_x = vec![T::zero(); n];
 
     // d0 = b - A*x0 (assume x0 = {0, 0, 0, ...0})
-    d0.copy_from_slice(b.as_slice());
+    d0.copy_from_slice(b);
 
     // r0 = d0
     r0.copy_from_slice(&d0);
 
     // delta_init = b^T * b
-    let delta_init = vector_dot_hermitian(b.as_slice(), b.as_slice());
+    let delta_init = vector_dot_hermitian(b, b);
     if !delta_init.is_finite() {
         return Err(Error::NoConvergence("matrix_cgsolve(), initial residual is not finite".to_string()));
     }
@@ -91,7 +86,7 @@ where
         }
 
         // q = A*d0
-        matrix_mul_vec(a.as_slice(), n, n, &d0, &mut q)?;
+        matrix_mul_vec(a, &d0, &mut q)?;
 
         // gamma = d0^T * q
         let gamma = vector_dot_hermitian(&d0, &q);
@@ -126,8 +121,8 @@ where
         // update r
         if (i + 1) % 50 == 0 {
             // periodically re-compute: r = b - A*x1
-            matrix_mul_vec(a.as_slice(), n, n, &x1, &mut ax1)?;
-            for ((r1_value, &b_value), &ax1_value) in r1.iter_mut().zip(b.as_slice()).zip(&ax1) {
+            matrix_mul_vec(a, &x1, &mut ax1)?;
+            for ((r1_value, &b_value), &ax1_value) in r1.iter_mut().zip(b).zip(&ax1) {
                 *r1_value = b_value - ax1_value;
             }
         } else {
@@ -178,6 +173,6 @@ where
         i += 1;
     }
 
-    x.as_mut_slice().copy_from_slice(&best_x);
+    x.copy_from_slice(&best_x);
     Ok(())
 }

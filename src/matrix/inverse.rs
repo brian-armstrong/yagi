@@ -1,19 +1,20 @@
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
+use crate::matrix::view::MatrixMut;
 use crate::matrix::FloatComplex;
 use num_traits::Zero;
 
 /// Compute matrix inverse
-pub fn matrix_inv<T>(x: &mut [T], xr: usize, xc: usize) -> Result<()>
+pub fn matrix_inv<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
+    let (xr, xc) = x.shape();
     // Ensure lengths are valid
     if xr != xc {
         return Err(Error::Range("matrix_inv(), invalid dimensions".to_string()));
     }
 
-    let input = MatrixRef::new(x, xr, xc)?;
+    let input = x.as_ref();
     let augmented_columns = xc
         .checked_mul(2)
         .ok_or_else(|| Error::Range("matrix_inv(), augmented matrix dimensions overflow usize".to_string()))?;
@@ -34,32 +35,22 @@ where
     }
 
     // Perform Gauss-Jordan elimination on x_aug
-    matrix_gjelim_view(&mut augmented)?;
+    matrix_gjelim(&mut augmented)?;
 
     // Copy result from right half of x_aug
-    let mut output = MatrixMut::new(x, xr, xc)?;
     for row_index in 0..xr {
-        output.row_mut(row_index).copy_from_slice(&augmented.row(row_index)[xc..]);
+        x.row_mut(row_index).copy_from_slice(&augmented.row(row_index)[xc..]);
     }
 
     Ok(())
 }
 
 /// Gauss-Jordan elimination
-pub fn matrix_gjelim<T>(x: &mut [T], xr: usize, xc: usize) -> Result<()>
+pub fn matrix_gjelim<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
-    let mut matrix = MatrixMut::new(x, xr, xc)?;
-    matrix_gjelim_view(&mut matrix)
-}
-
-/// Gauss-Jordan elimination on an already validated matrix view.
-pub(crate) fn matrix_gjelim_view<T>(matrix: &mut MatrixMut<'_, T>) -> Result<()>
-where
-    T: FloatComplex,
-{
-    let (xr, xc) = matrix.shape();
+    let (xr, xc) = x.shape();
     if xr > xc {
         return Err(Error::Range("matrix_gjelim(), matrix must have at least as many columns as rows".to_string()));
     }
@@ -70,7 +61,7 @@ where
         let mut r_opt = r;
 
         for r_hat in r..xr {
-            let v = matrix.row(r_hat)[r].abs();
+            let v = x.row(r_hat)[r].abs();
             if v > v_max || r_hat == r {
                 r_opt = r_hat;
                 v_max = v;
@@ -85,16 +76,16 @@ where
         // If row does not match column (e.g. maximum value does not
         // lie on the diagonal) swap the rows
         if r != r_opt {
-            matrix.swap_rows(r, r_opt)?;
+            x.swap_rows(r, r_opt)?;
         }
 
         // Pivot on the diagonal element
-        matrix_pivot(matrix, r, r)?;
+        matrix_pivot(x, r, r)?;
     }
 
     // Scale by diagonal
     for r in 0..xr {
-        let row = matrix.row_mut(r);
+        let row = x.row_mut(r);
         let g = T::one() / row[r];
         for value in row {
             *value *= g;

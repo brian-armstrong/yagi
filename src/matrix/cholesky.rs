@@ -9,12 +9,14 @@ use crate::matrix::FloatComplex;
 ///  _a      :   input square matrix [size: _n x _n]
 ///  _n      :   input matrix dimension
 ///  _l      :   output lower-triangular matrix
-pub fn matrix_chol<T>(a: &[T], n: usize, l: &mut [T]) -> Result<()>
+pub fn matrix_chol<T>(a: MatrixRef<'_, T>, l: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
-    let a = MatrixRef::new(a, n, n)?;
-    let mut l = MatrixMut::new(l, n, n)?;
+    let (n, columns) = a.shape();
+    if n != columns || l.shape() != (n, n) {
+        return Err(Error::Range("matrix_chol(), input and output must be equally sized square matrices".to_string()));
+    }
 
     // Reset L
     l.as_mut_slice().fill(T::zero());

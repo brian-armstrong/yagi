@@ -9,7 +9,7 @@ use crate::buffer::Window;
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::math::{poly_fit, poly_val};
-use crate::matrix::matrix_linsolve;
+use crate::matrix::{matrix_linsolve, MatrixRef};
 use crate::nco::{unwrap_phase, Nco, NcoBackend};
 use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
@@ -194,7 +194,12 @@ impl DftEqGainState {
             self.gram[r * taps + r] += Complex32::new(ridge, 0.0);
         }
 
-        matrix_linsolve(&self.gram, taps, &self.rhs, &mut self.taps, Some(&mut self.solve_scratch))?;
+        matrix_linsolve(
+            MatrixRef::new(&self.gram, taps, taps)?,
+            &self.rhs,
+            &mut self.taps,
+            Some(&mut self.solve_scratch),
+        )?;
 
         gain.fill(Complex32::new(0.0, 0.0));
         for &k in &self.active {

@@ -59,13 +59,13 @@ impl<
 }
 
 /// Print matrix to stdout
-pub fn matrix_print<T>(x: &[T], rows: usize, cols: usize) -> Result<()>
+pub fn matrix_print<T>(x: MatrixRef<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
-    let matrix = MatrixRef::new(x, rows, cols)?;
+    let (rows, cols) = x.shape();
     println!("matrix [{} x {}] :", rows, cols);
-    for row in matrix.rows() {
+    for row in x.rows() {
         for value in row {
             print!("{:12}", value);
         }
@@ -75,47 +75,35 @@ where
 }
 
 /// Initialize square matrix to the identity matrix
-pub fn matrix_eye<T>(x: &mut [T], n: usize) -> Result<()>
+pub fn matrix_eye<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
-    let mut matrix = MatrixMut::new(x, n, n)?;
-    matrix.as_mut_slice().fill(T::zero());
-    for (row_index, row) in matrix.rows_mut().enumerate() {
+    let (rows, cols) = x.shape();
+    if rows != cols {
+        return Err(crate::error::Error::Range("matrix_eye(), matrix must be square".to_string()));
+    }
+    x.as_mut_slice().fill(T::zero());
+    for (row_index, row) in x.rows_mut().enumerate() {
         row[row_index] = T::one();
     }
     Ok(())
 }
 
 /// Initialize matrix to ones
-pub fn matrix_ones<T>(x: &mut [T], rows: usize, cols: usize) -> Result<()>
+pub fn matrix_ones<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
-    MatrixMut::new(x, rows, cols)?.as_mut_slice().fill(T::one());
+    x.as_mut_slice().fill(T::one());
     Ok(())
 }
 
 /// Initialize matrix to zeros
-pub fn matrix_zeros<T>(x: &mut [T], rows: usize, cols: usize) -> Result<()>
+pub fn matrix_zeros<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
-    MatrixMut::new(x, rows, cols)?.as_mut_slice().fill(T::zero());
+    x.as_mut_slice().fill(T::zero());
     Ok(())
-}
-
-/// Helper function to access matrix elements
-#[inline]
-pub fn matrix_access<T>(matrix: &[T], _rows: usize, cols: usize, r: usize, c: usize) -> T
-where
-    T: FloatComplex,
-{
-    matrix[r * cols + c]
-}
-
-/// Helper function to mutably access matrix elements
-#[inline]
-pub fn matrix_access_mut<T>(matrix: &mut [T], _rows: usize, cols: usize, r: usize, c: usize, value: T) {
-    matrix[r * cols + c] = value;
 }

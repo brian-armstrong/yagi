@@ -3,20 +3,19 @@ use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::FloatComplex;
 
 /// L/U/P decomposition, Crout's method
-pub fn matrix_ludecomp_crout<T>(x: &[T], rx: usize, cx: usize, l: &mut [T], u: &mut [T], p: &mut [T]) -> Result<()>
+pub fn matrix_ludecomp_crout<T>(
+    x: MatrixRef<'_, T>,
+    l: &mut MatrixMut<'_, T>,
+    u: &mut MatrixMut<'_, T>,
+    p: &mut MatrixMut<'_, T>,
+) -> Result<()>
 where
     T: FloatComplex,
 {
-    // Validate input
-    if rx != cx {
+    let (n, columns) = x.shape();
+    if n != columns || l.shape() != (n, n) || u.shape() != (n, n) || p.shape() != (n, n) {
         return Err(Error::Range("matrix_ludecomp_crout(), input matrix not square".to_string()));
     }
-
-    let n = rx;
-    let x = MatrixRef::new(x, n, n)?;
-    let mut l = MatrixMut::new(l, n, n)?;
-    let mut u = MatrixMut::new(u, n, n)?;
-    let mut p = MatrixMut::new(p, n, n)?;
 
     // Reset L, U
     l.as_mut_slice().fill(T::zero());
@@ -56,20 +55,19 @@ where
 }
 
 /// L/U/P decomposition, Doolittle's method
-pub fn matrix_ludecomp_doolittle<T>(x: &[T], rx: usize, cx: usize, l: &mut [T], u: &mut [T], p: &mut [T]) -> Result<()>
+pub fn matrix_ludecomp_doolittle<T>(
+    x: MatrixRef<'_, T>,
+    l: &mut MatrixMut<'_, T>,
+    u: &mut MatrixMut<'_, T>,
+    p: &mut MatrixMut<'_, T>,
+) -> Result<()>
 where
     T: FloatComplex,
 {
-    // Validate input
-    if rx != cx {
+    let (n, columns) = x.shape();
+    if n != columns || l.shape() != (n, n) || u.shape() != (n, n) || p.shape() != (n, n) {
         return Err(Error::Range("matrix_ludecomp_doolittle(), input matrix not square".to_string()));
     }
-
-    let n = rx;
-    let x = MatrixRef::new(x, n, n)?;
-    let mut l = MatrixMut::new(l, n, n)?;
-    let mut u = MatrixMut::new(u, n, n)?;
-    let mut p = MatrixMut::new(p, n, n)?;
 
     // Reset L, U
     l.as_mut_slice().fill(T::zero());

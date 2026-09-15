@@ -16,38 +16,43 @@ fn validate_shape(actual_len: usize, rows: usize, cols: usize) -> Result<()> {
 /// A checked, row-major matrix view.
 ///
 /// This allows better structured access to a slice of elements. Checks length at construction.
-#[derive(Clone, Copy)]
-pub(crate) struct MatrixRef<'a, T> {
+#[derive(Clone, Copy, Debug)]
+pub struct MatrixRef<'a, T> {
     data: &'a [T],
     rows: usize,
     cols: usize,
 }
 
 impl<'a, T> MatrixRef<'a, T> {
-    pub(crate) fn new(data: &'a [T], rows: usize, cols: usize) -> Result<Self> {
+    /// Construct a view over an exactly-sized row-major buffer.
+    pub fn new(data: &'a [T], rows: usize, cols: usize) -> Result<Self> {
         validate_shape(data.len(), rows, cols)?;
         Ok(Self { data, rows, cols })
     }
 
-    pub(crate) fn as_slice(&self) -> &'a [T] {
+    /// Return the underlying row-major storage.
+    pub fn as_slice(&self) -> &'a [T] {
         self.data
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn shape(&self) -> (usize, usize) {
+    /// Return `(rows, columns)`.
+    pub fn shape(&self) -> (usize, usize) {
         (self.rows, self.cols)
     }
 
-    pub(crate) fn row(&self, row: usize) -> &[T] {
+    /// Return one row. Panics when `row` is out of bounds.
+    pub fn row(&self, row: usize) -> &[T] {
         let range = self.row_range(row);
         &self.data[range]
     }
 
-    pub(crate) fn rows(&self) -> impl Iterator<Item = &[T]> {
+    /// Iterate over rows in row-major order.
+    pub fn rows(&self) -> impl Iterator<Item = &[T]> {
         (0..self.rows).map(move |row| self.row(row))
     }
 
-    pub(crate) fn column(&self, column: usize) -> impl Iterator<Item = &T> {
+    /// Iterate over a column. Panics when `column` is out of bounds.
+    pub fn column(&self, column: usize) -> impl Iterator<Item = &T> {
         assert!(column < self.cols, "matrix column index out of bounds");
         self.data.chunks_exact(self.cols).map(move |row| &row[column])
     }
@@ -68,45 +73,59 @@ impl<T> Index<(usize, usize)> for MatrixRef<'_, T> {
 }
 
 /// A checked, mutable row-major matrix view.
-pub(crate) struct MatrixMut<'a, T> {
+#[derive(Debug)]
+pub struct MatrixMut<'a, T> {
     data: &'a mut [T],
     rows: usize,
     cols: usize,
 }
 
 impl<'a, T> MatrixMut<'a, T> {
-    pub(crate) fn new(data: &'a mut [T], rows: usize, cols: usize) -> Result<Self> {
+    /// Construct a mutable view over an exactly-sized row-major buffer.
+    pub fn new(data: &'a mut [T], rows: usize, cols: usize) -> Result<Self> {
         validate_shape(data.len(), rows, cols)?;
         Ok(Self { data, rows, cols })
     }
 
-    pub(crate) fn as_slice(&self) -> &[T] {
+    /// Return the underlying row-major storage.
+    pub fn as_slice(&self) -> &[T] {
         self.data
     }
 
-    pub(crate) fn as_mut_slice(&mut self) -> &mut [T] {
+    /// Borrow this mutable view as a read-only view without revalidating its shape.
+    pub fn as_ref(&self) -> MatrixRef<'_, T> {
+        MatrixRef { data: &*self.data, rows: self.rows, cols: self.cols }
+    }
+
+    /// Return the underlying row-major storage mutably.
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
         self.data
     }
 
-    pub(crate) fn shape(&self) -> (usize, usize) {
+    /// Return `(rows, columns)`.
+    pub fn shape(&self) -> (usize, usize) {
         (self.rows, self.cols)
     }
 
-    pub(crate) fn row(&self, row: usize) -> &[T] {
+    /// Return one row. Panics when `row` is out of bounds.
+    pub fn row(&self, row: usize) -> &[T] {
         let range = self.row_range(row);
         &self.data[range]
     }
 
-    pub(crate) fn row_mut(&mut self, row: usize) -> &mut [T] {
+    /// Return one row mutably. Panics when `row` is out of bounds.
+    pub fn row_mut(&mut self, row: usize) -> &mut [T] {
         let range = self.row_range(row);
         &mut self.data[range]
     }
 
-    pub(crate) fn rows_mut(&mut self) -> MatrixRowsMut<'_, T> {
+    /// Iterate over rows mutably in row-major order.
+    pub fn rows_mut(&mut self) -> MatrixRowsMut<'_, T> {
         MatrixRowsMut { remaining: &mut *self.data, rows_remaining: self.rows, cols: self.cols }
     }
 
-    pub(crate) fn column(&self, column: usize) -> impl Iterator<Item = &T> {
+    /// Iterate over a column. Panics when `column` is out of bounds.
+    pub fn column(&self, column: usize) -> impl Iterator<Item = &T> {
         assert!(column < self.cols, "matrix column index out of bounds");
         self.data.chunks_exact(self.cols).map(move |row| &row[column])
     }
@@ -183,8 +202,8 @@ impl<T> IndexMut<(usize, usize)> for MatrixMut<'_, T> {
     }
 }
 
-/// Mutable row iterator that deliberately supports matrices with zero columns.
-pub(crate) struct MatrixRowsMut<'a, T> {
+/// Mutable matrix row iterator
+pub struct MatrixRowsMut<'a, T> {
     remaining: &'a mut [T],
     rows_remaining: usize,
     cols: usize,
@@ -267,6 +286,9 @@ mod tests {
         assert_eq!(matrix.shape(), (2, 3));
         assert_eq!(matrix.row(0), [1, 9, 4]);
         assert_eq!(matrix.row(1), [8, 5, 7]);
+        let readonly = matrix.as_ref();
+        assert_eq!(readonly.shape(), (2, 3));
+        assert_eq!(readonly.as_slice(), [1, 9, 4, 8, 5, 7]);
         assert_eq!(matrix.as_mut_slice(), [1, 9, 4, 8, 5, 7]);
     }
 

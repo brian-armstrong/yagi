@@ -32,17 +32,14 @@ where
 }
 
 /// Orthonormalization using the Gram-Schmidt algorithm
-pub fn matrix_gramschmidt<T>(x: &[T], rx: usize, cx: usize, v: &mut [T]) -> Result<()>
+pub fn matrix_gramschmidt<T>(x: MatrixRef<'_, T>, v: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
-    // Validate input
-    if rx == 0 || cx == 0 {
+    let (rx, cx) = x.shape();
+    if rx == 0 || cx == 0 || v.shape() != (rx, cx) {
         return Err(Error::Range("matrix_gramschmidt: input matrix cannot have zero-length dimensions".to_owned()));
     }
-
-    let x = MatrixRef::new(x, rx, cx)?;
-    let mut v = MatrixMut::new(v, rx, cx)?;
 
     // Copy _x to _v
     v.as_mut_slice().copy_from_slice(x.as_slice());

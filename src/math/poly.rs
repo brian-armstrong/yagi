@@ -3,7 +3,7 @@ use num_traits::{One, Zero};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_linsolve, FloatComplex};
+use crate::matrix::{matrix_linsolve, FloatComplex, MatrixRef};
 
 /// Evaluate polynomial
 ///
@@ -80,7 +80,7 @@ where
     }
 
     // solve [X']*X*p = [X']*y directly rather than forming the inverse
-    matrix_linsolve(&x2, k, &xty, p, None)?;
+    matrix_linsolve(MatrixRef::new(&x2, k, k)?, &xty, p, None)?;
 
     Ok(())
 }
@@ -780,7 +780,7 @@ pub fn polyf_findroots(p: &[f32], roots: &mut [Complex<f32>]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::matrix::{matrix_inv, matrix_mul};
+    use crate::matrix::{matrix_inv, matrix_mul, MatrixMut, MatrixRef};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
@@ -1182,8 +1182,10 @@ mod tests {
         }
 
         let mut inverse = x2.clone();
-        matrix_inv(&mut inverse, k, k).unwrap();
-        matrix_mul(&inverse, k, k, &xty, k, 1, coefficients, k, 1).unwrap();
+        let mut inverse_view = MatrixMut::new(&mut inverse, k, k).unwrap();
+        matrix_inv(&mut inverse_view).unwrap();
+        let mut output = MatrixMut::new(coefficients, k, 1).unwrap();
+        matrix_mul(inverse_view.as_ref(), MatrixRef::new(&xty, k, 1).unwrap(), &mut output).unwrap();
     }
 
     #[test]
