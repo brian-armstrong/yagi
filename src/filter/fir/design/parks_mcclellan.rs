@@ -404,7 +404,7 @@ impl ParksMcClellanDesigner {
         }
 
         // compute Lagrange interpolating polynomial
-        poly_fit_lagrange_barycentric(&self.x, self.r + 1, &mut self.alpha);
+        poly_fit_lagrange_barycentric(&self.x, &mut self.alpha)?;
 
         // compute rho
         let mut t0 = 0.0; // numerator
@@ -427,7 +427,7 @@ impl ParksMcClellanDesigner {
     fn compute_error(&mut self) -> Result<()> {
         for i in 0..self.grid_size {
             let xf = (2.0 * std::f64::consts::PI * self.f[i]).cos();
-            let h = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf, self.r + 1);
+            let h = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf)?;
             self.e[i] = self.w[i] * (self.d[i] - h);
         }
         Ok(())
@@ -585,7 +585,7 @@ impl ParksMcClellanDesigner {
         for (i, gi) in g.iter_mut().enumerate() {
             let f = (i as f64) / (self.h_len as f64);
             let xf = (2.0 * std::f64::consts::PI * f).cos();
-            let cf = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf, self.r + 1);
+            let cf = poly_val_lagrange_barycentric(&self.x, &self.c, &self.alpha, xf)?;
 
             let g_val = if self.btype == FirPmBandType::Bandpass && self.s == 1 {
                 // odd filter length, even symmetry

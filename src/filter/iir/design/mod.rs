@@ -310,7 +310,7 @@ pub fn iir_design_bilinear_z(
     // multiply denominator by ((1-1/z)/(1+1/z))^na and expand
     for i in 0..na {
         // expand the polynomial (1+x)^i * (1-x)^(_a_order-i)
-        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz);
+        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz)?;
 
         // accumulate polynomial coefficients
         for j in 0..na {
@@ -325,7 +325,7 @@ pub fn iir_design_bilinear_z(
     mk = Complex32::new(1.0, 0.0);
     for i in 0..nb {
         // expand the polynomial (1+x)^i * (1-x)^(_a_order-i)
-        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz);
+        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz)?;
 
         // accumulate polynomial coefficients
         for j in 0..na {
@@ -364,16 +364,25 @@ pub fn iir_design_d2tf(
     b: &mut [f32],
     a: &mut [f32],
 ) -> Result<()> {
-    let mut q = vec![Complex32::new(0.0, 0.0); n + 1];
+    let roots = n.checked_add(1).ok_or_else(|| Error::Range("filter order overflows".into()))?;
+    let zd = zd.get(..n).ok_or_else(|| Error::Range("zero slice is shorter than filter order".into()))?;
+    let pd = pd.get(..n).ok_or_else(|| Error::Range("pole slice is shorter than filter order".into()))?;
+    let b = b
+        .get_mut(..roots)
+        .ok_or_else(|| Error::Range("numerator slice is shorter than filter order plus one".into()))?;
+    let a = a
+        .get_mut(..roots)
+        .ok_or_else(|| Error::Range("denominator slice is shorter than filter order plus one".into()))?;
+    let mut q = vec![Complex32::new(0.0, 0.0); roots];
 
     // expand poles
-    poly_expandroots(pd, n, &mut q);
+    poly_expandroots(pd, &mut q)?;
     for i in 0..=n {
         a[i] = q[n - i].re;
     }
 
     // expand zeros
-    poly_expandroots(zd, n, &mut q);
+    poly_expandroots(zd, &mut q)?;
     for i in 0..=n {
         b[i] = (q[n - i] * k).re;
     }
@@ -729,7 +738,7 @@ pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
     }
 
     let mut roots = vec![Complex32::new(0.0, 0.0); n - 1];
-    if polyf_findroots(&a_hat, n, &mut roots).is_err() {
+    if polyf_findroots(&a_hat, &mut roots).is_err() {
         return Err(Error::Internal("could not find roots of polynomial".into()));
     }
 

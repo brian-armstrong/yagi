@@ -87,14 +87,14 @@ impl EqGainState {
         }
 
         unwrap_phase(&mut y_arg);
-        poly_fit(&x_freq, &y_abs, n, &mut p_abs, order + 1)?;
-        poly_fit(&x_freq, &y_arg, n, &mut p_arg, order + 1)?;
+        poly_fit(&x_freq, &y_abs, &mut p_abs)?;
+        poly_fit(&x_freq, &y_arg, &mut p_arg)?;
 
         for i in 0..m {
             let mut freq = if i > m2 { i as f32 - m as f32 } else { i as f32 };
             freq /= m as f32;
-            let a = poly_val(&p_abs, order + 1, freq);
-            let theta = poly_val(&p_arg, order + 1, freq);
+            let a = poly_val(&p_abs, freq);
+            let theta = poly_val(&p_arg, freq);
             gain[i] = if allocation[i] == SubcarrierType::Null {
                 Complex32::new(0.0, 0.0)
             } else {

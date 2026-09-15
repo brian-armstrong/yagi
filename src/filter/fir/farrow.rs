@@ -132,7 +132,7 @@ where
             let n = i * (self.q + 1);
             // the polynomials are fit against fractional_delay, but evaluated at -fractional_delay: a
             // positive delay shifts the sinc the other way.
-            let v = poly_val(&self.p[n..n + self.q + 1], self.q + 1, -fractional_delay);
+            let v = poly_val(&self.p[n..n + self.q + 1], -fractional_delay);
             self.htmp[i] = v;
             sum += v;
         }
@@ -218,7 +218,7 @@ where
             }
 
             // fit a polynomial in mu through those samples
-            poly_fit(&mu_vect, &hp_vect, self.q + 1, &mut p, self.q + 1)?;
+            poly_fit(&mu_vect, &hp_vect, &mut p)?;
 
             let n = i * (self.q + 1);
             for (dst, &src) in self.p[n..n + self.q + 1].iter_mut().zip(p.iter()) {
@@ -230,7 +230,7 @@ where
         let mut sum = 0.0f32;
         for i in 0..self.h_len {
             let n = i * (self.q + 1);
-            sum += poly_val(&self.p[n..n + self.q + 1], self.q + 1, 0.0);
+            sum += poly_val(&self.p[n..n + self.q + 1], 0.0);
         }
         self.gamma = if sum.abs() > f32::EPSILON { 1.0 / sum } else { 1.0 };
 
