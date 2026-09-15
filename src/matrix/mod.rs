@@ -871,6 +871,12 @@ mod tests {
     }
 
     #[test]
+    fn test_matrix_det_rejects_malformed_input_buffer() {
+        assert!(matrix_det(&[1.0f32, 2.0, 3.0], 2, 2).is_err());
+        assert!(matrix_det(&[1.0f32, 2.0, 3.0, 4.0, 5.0], 2, 2).is_err());
+    }
+
+    #[test]
     fn test_matrix_base_initializers_validate_shape() {
         let mut identity = [0.0f32; 4];
         matrix_eye(&mut identity, 2).unwrap();

@@ -1,6 +1,5 @@
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
-use crate::matrix::{matrix_access, matrix_inv, matrix_ludecomp_doolittle, FloatComplex};
+use crate::matrix::{matrix_inv, matrix_ludecomp_doolittle, FloatComplex, MatrixMut, MatrixRef};
 
 /// Add elements of two matrices
 ///
@@ -198,8 +197,9 @@ where
     if r != 2 || c != 2 {
         return Err(Error::Range("matrix_det2x2(), invalid dimensions".to_string()));
     }
+    let x = MatrixRef::new(x, r, c)?;
 
-    Ok(x[0] * x[3] - x[1] * x[2])
+    Ok(x[(0, 0)] * x[(1, 1)] - x[(0, 1)] * x[(1, 0)])
 }
 
 /// Matrix determinant (n x n)
@@ -212,20 +212,25 @@ where
     }
 
     let n = r;
+    let x = MatrixRef::new(x, n, n)?;
     if n == 2 {
-        return matrix_det2x2(x, 2, 2);
+        return matrix_det2x2(x.as_slice(), 2, 2);
     }
 
+    let square_len = n
+        .checked_mul(n)
+        .ok_or_else(|| Error::Range("matrix_det(), matrix dimensions overflow usize".to_string()))?;
+
     // Compute L/U decomposition (Doolittle's method)
-    let mut l = vec![T::default(); n * n];
-    let mut u = vec![T::default(); n * n];
-    let mut p = vec![T::default(); n * n];
-    matrix_ludecomp_doolittle(x, n, n, &mut l, &mut u, &mut p)?;
+    let mut l = vec![T::default(); square_len];
+    let mut u = vec![T::default(); square_len];
+    let mut p = vec![T::default(); square_len];
+    matrix_ludecomp_doolittle(x.as_slice(), n, n, &mut l, &mut u, &mut p)?;
 
     // Evaluate along the diagonal of U
     let mut det = T::one();
-    for i in 0..n {
-        det *= matrix_access(&u, n, n, i, i);
+    for (row_index, row) in MatrixRef::new(&u, n, n)?.rows().enumerate() {
+        det *= row[row_index];
     }
 
     Ok(det)
