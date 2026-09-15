@@ -1,7 +1,7 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_access, matrix_access_mut, matrix_mul, FloatComplex};
+use crate::matrix::{matrix_mul, FloatComplex, MatrixMut, MatrixRef};
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Eqrls")]
@@ -49,6 +49,9 @@ where
         if filter_length == 0 {
             return Err(Error::Config("equalizer length must be greater than 0".into()));
         }
+        let square_len = filter_length
+            .checked_mul(filter_length)
+            .ok_or_else(|| Error::Config("equalizer length squared overflows usize".into()))?;
 
         Ok(Self {
             p: filter_length,
@@ -57,13 +60,13 @@ where
             h0: vec![0.0.into(); filter_length],
             w0: vec![0.0.into(); filter_length],
             w1: vec![0.0.into(); filter_length],
-            p0: vec![0.0.into(); filter_length * filter_length],
-            p1: vec![0.0.into(); filter_length * filter_length],
+            p0: vec![0.0.into(); square_len],
+            p1: vec![0.0.into(); square_len],
             g: vec![0.0.into(); filter_length],
             xp0: vec![0.0.into(); filter_length],
             zeta: 0.0.into(),
-            gxl: vec![0.0.into(); filter_length * filter_length],
-            gxlp0: vec![0.0.into(); filter_length * filter_length],
+            gxl: vec![0.0.into(); square_len],
+            gxlp0: vec![0.0.into(); square_len],
             n: 0,
             buffer: Window::new(filter_length)?,
         })
@@ -88,11 +91,9 @@ where
     pub fn reset(&mut self) {
         self.n = 0;
 
-        for i in 0..self.p {
-            for j in 0..self.p {
-                let v = if i == j { 1.0 / self.delta } else { 0.0 };
-                matrix_access_mut(&mut self.p0, self.p, self.p, i, j, v.into());
-            }
+        self.p0.fill(T::default());
+        for (row_index, row) in self.p0.chunks_exact_mut(self.p).enumerate() {
+            row[row_index] = (1.0 / self.delta).into();
         }
 
         self.w0.copy_from_slice(&self.h0);
@@ -124,29 +125,32 @@ where
     pub fn step(&mut self, d: T, d_hat: T) -> Result<()> {
         let alpha = d - d_hat;
         let x = self.buffer.read();
+        let p0 = MatrixRef::new(&self.p0, self.p, self.p)?;
 
-        for c in 0..self.p {
-            self.xp0[c] = (0..self.p).map(|r| x[r] * matrix_access(&self.p0, self.p, self.p, r, c)).sum();
+        self.xp0.fill(T::default());
+        for (&x_value, p0_row) in x.iter().zip(p0.rows()) {
+            for (xp0_value, &p0_value) in self.xp0.iter_mut().zip(p0_row) {
+                *xp0_value += x_value * p0_value;
+            }
         }
 
         self.zeta = self.xp0.iter().zip(x).map(|(&xp, &xi)| xp * xi.conj()).sum::<T>() + self.lambda.into();
 
-        for r in 0..self.p {
-            self.g[r] =
-                (0..self.p).map(|c| matrix_access(&self.p0, self.p, self.p, r, c) * x[c].conj()).sum::<T>() / self.zeta;
+        for (gain, p0_row) in self.g.iter_mut().zip(p0.rows()) {
+            *gain = p0_row.iter().zip(x).map(|(&p0_value, &x_value)| p0_value * x_value.conj()).sum::<T>() / self.zeta;
         }
 
-        for r in 0..self.p {
-            for c in 0..self.p {
-                let v = self.g[r] * x[c] / self.lambda.into();
-                matrix_access_mut(&mut self.gxl, self.p, self.p, r, c, v);
+        let mut gxl = MatrixMut::new(&mut self.gxl, self.p, self.p)?;
+        for (&gain, gxl_row) in self.g.iter().zip(gxl.rows_mut()) {
+            for (gxl_value, &x_value) in gxl_row.iter_mut().zip(x) {
+                *gxl_value = gain * x_value / self.lambda.into();
             }
         }
 
         matrix_mul(&self.gxl, self.p, self.p, &self.p0, self.p, self.p, &mut self.gxlp0, self.p, self.p)?;
 
-        for i in 0..self.p * self.p {
-            self.p1[i] = self.p0[i] / self.lambda.into() - self.gxlp0[i];
+        for ((p1_value, &p0_value), &gxlp0_value) in self.p1.iter_mut().zip(&self.p0).zip(&self.gxlp0) {
+            *p1_value = p0_value / self.lambda.into() - gxlp0_value;
         }
 
         for i in 0..self.p {
@@ -171,6 +175,14 @@ where
     pub fn train(&mut self, w: &mut [T], x: &[T], d: &[T], n: usize) -> Result<()> {
         if n < self.p {
             return Err(Error::Config("training sequence less than filter order".into()));
+        }
+        if w.len() != self.p {
+            return Err(Error::Config("weight length must match equalizer length".into()));
+        }
+        if x.len() < n || d.len() < n {
+            return Err(Error::Config(
+                "training input and desired lengths must cover the requested sample count".into(),
+            ));
         }
 
         self.reset();
@@ -336,5 +348,17 @@ mod tests {
 
         assert!(equalizer.set_coefficients(&[1.0, 0.0]).is_err());
         assert_eq!(equalizer.execute().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn test_eqrls_train_rejects_short_buffers() {
+        let mut equalizer = RecursiveLeastSquaresEqualizer::<f32>::new(3).unwrap();
+        let mut weights = [0.0f32; 3];
+        let input = [0.0f32; 3];
+        let desired = [0.0f32; 3];
+
+        assert!(equalizer.train(&mut weights[..2], &input, &desired, 3).is_err());
+        assert!(equalizer.train(&mut weights, &input[..2], &desired, 3).is_err());
+        assert!(equalizer.train(&mut weights, &input, &desired[..2], 3).is_err());
     }
 }
