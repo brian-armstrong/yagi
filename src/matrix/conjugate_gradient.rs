@@ -1,10 +1,24 @@
 use num_traits::{Float, Zero};
-use std::slice;
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_mul_vec, matrix_transpose_mul, FloatComplex};
+use crate::matrix::view::{MatrixMut, MatrixRef};
+use crate::matrix::{matrix_mul_vec, FloatComplex};
 
 const DEBUG_CGSOLVE: bool = false;
+
+/// Compute the Hermitian inner product, preserving left-to-right accumulation.
+fn vector_dot_hermitian<T>(left: &[T], right: &[T]) -> T
+where
+    T: FloatComplex,
+{
+    debug_assert_eq!(left.len(), right.len());
+
+    let mut sum = T::default();
+    for (&left_value, &right_value) in left.iter().zip(right) {
+        sum += left_value.conj() * right_value;
+    }
+    sum
+}
 
 /// Solve linear system of equations using conjugate gradient method
 ///  _A      :   symmetric positive definite matrix [size: _n x _n]
@@ -21,8 +35,14 @@ where
         return Err(Error::Range("matrix_cgsolve(), system dimension cannot be zero".to_owned()));
     }
 
+    let max_iterations = n
+        .checked_mul(4)
+        .ok_or_else(|| Error::Range("matrix_cgsolve(), iteration count overflows usize".to_owned()))?;
+    let a = MatrixRef::new(a, n, n)?;
+    let b = MatrixRef::new(b, n, 1)?;
+    let mut x = MatrixMut::new(x, n, 1)?;
+
     // options
-    let max_iterations = 4 * n; // maximum number of iterations
     let tol = T::Real::from(1e-6); // error tolerance
 
     // TODO : check options
@@ -42,22 +62,19 @@ where
     let mut ax1 = vec![T::zero(); n];
 
     // d0 = b - A*x0 (assume x0 = {0, 0, 0, ...0})
-    d0[..n].copy_from_slice(&b[..n]);
+    d0.copy_from_slice(b.as_slice());
 
     // r0 = d0
     r0.copy_from_slice(&d0);
 
-    let mut delta_init = T::zero();
-    let mut delta0 = T::zero();
-
     // delta_init = b^T * b
-    matrix_transpose_mul(b, n, 1, slice::from_mut(&mut delta_init))?;
+    let delta_init = vector_dot_hermitian(b.as_slice(), b.as_slice());
 
     // delta0 = r0^T * r0
-    matrix_transpose_mul(&r0, n, 1, slice::from_mut(&mut delta0))?;
+    let mut delta0 = vector_dot_hermitian(&r0, &r0);
 
     // save best solution
-    x.copy_from_slice(&x0);
+    x.as_mut_slice().copy_from_slice(&x0);
     let mut i = 0; // iteration counter
     let mut res_opt = T::Real::zero();
 
@@ -68,10 +85,10 @@ where
         }
 
         // q = A*d0
-        matrix_mul_vec(a, n, n, &d0, &mut q)?;
+        matrix_mul_vec(a.as_slice(), n, n, &d0, &mut q)?;
 
         // gamma = d0^T * q
-        let gamma: T = d0.iter().zip(q.iter()).map(|(&d, &q)| d.conj() * q).sum::<T>();
+        let gamma = vector_dot_hermitian(&d0, &q);
 
         // step size: alpha = (r0^T * r0) / (d0^T * A * d0)
         //                  = delta0 / gamma
@@ -83,8 +100,8 @@ where
         }
 
         // update x
-        for j in 0..n {
-            x1[j] = x0[j] + alpha * d0[j];
+        for ((x1_value, &x0_value), &d0_value) in x1.iter_mut().zip(&x0).zip(&d0) {
+            *x1_value = x0_value + alpha * d0_value;
         }
 
         if DEBUG_CGSOLVE {
@@ -95,26 +112,25 @@ where
         // update r
         if (i + 1) % 50 == 0 {
             // periodically re-compute: r = b - A*x1
-            matrix_mul_vec(a, n, n, &x1, &mut ax1)?;
-            for j in 0..n {
-                r1[j] = b[j] - ax1[j];
+            matrix_mul_vec(a.as_slice(), n, n, &x1, &mut ax1)?;
+            for ((r1_value, &b_value), &ax1_value) in r1.iter_mut().zip(b.as_slice()).zip(&ax1) {
+                *r1_value = b_value - ax1_value;
             }
         } else {
-            for j in 0..n {
-                r1[j] = r0[j] - alpha * q[j];
+            for ((r1_value, &r0_value), &q_value) in r1.iter_mut().zip(&r0).zip(&q) {
+                *r1_value = r0_value - alpha * q_value;
             }
         }
 
         // delta1 = r1^T * r1
-        let mut delta1 = T::zero();
-        matrix_transpose_mul(&r1, n, 1, slice::from_mut(&mut delta1))?;
+        let delta1 = vector_dot_hermitian(&r1, &r1);
 
         // update beta
         let beta = delta1 / delta0;
 
         // d1 = r + beta*d0
-        for j in 0..n {
-            d1[j] = r1[j] + beta * d0[j];
+        for ((d1_value, &r1_value), &d0_value) in d1.iter_mut().zip(&r1).zip(&d0) {
+            *d1_value = r1_value + beta * d0_value;
         }
 
         // compute residual
@@ -122,7 +138,7 @@ where
         if i == 0 || res < res_opt {
             // save best solution
             res_opt = res;
-            x.copy_from_slice(&x1);
+            x.as_mut_slice().copy_from_slice(&x1);
         }
 
         if DEBUG_CGSOLVE {

@@ -769,6 +769,50 @@ mod tests {
     }
 
     #[test]
+    fn test_matrix_cgsolve_converges() {
+        let a = [4.0f32, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0];
+        let b = [1.0f32, 2.0, 3.0];
+        let mut x = [0.0f32; 3];
+
+        matrix_cgsolve(&a, 3, &b, &mut x, None).unwrap();
+
+        let residual_squared = (0..3)
+            .map(|row| {
+                let ax = (0..3).map(|column| a[row * 3 + column] * x[column]).sum::<f32>();
+                let residual = b[row] - ax;
+                residual * residual
+            })
+            .sum::<f32>();
+        assert!(residual_squared.sqrt() < 1e-5, "residual was {residual_squared:e}");
+    }
+
+    #[test]
+    fn test_matrix_cgsolve_zero_rhs_terminates_at_zero_solution() {
+        let a = [2.0f32, 1.0, 1.0, 2.0];
+        let b = [0.0f32; 2];
+        let mut x = [42.0f32; 2];
+
+        matrix_cgsolve(&a, 2, &b, &mut x, None).unwrap();
+
+        assert_eq!(x, [0.0; 2]);
+    }
+
+    #[test]
+    fn test_matrix_cgsolve_validates_buffers() {
+        let a = [2.0f32, 1.0, 1.0, 2.0];
+        let b = [1.0f32, 1.0];
+        let mut x = [42.0f32; 2];
+
+        assert!(matrix_cgsolve(&a[..3], 2, &b, &mut x, None).is_err());
+        assert_eq!(x, [42.0; 2]);
+        assert!(matrix_cgsolve(&a, 2, &b[..1], &mut x, None).is_err());
+        assert_eq!(x, [42.0; 2]);
+        assert!(matrix_cgsolve(&a, 2, &b, &mut x[..1], None).is_err());
+        assert_eq!(x, [42.0; 2]);
+        assert!(matrix_cgsolve::<f32>(&[], 0, &[], &mut [], None).is_err());
+    }
+
+    #[test]
     fn test_matrix_qr_typed_wrappers_match_generic_implementation() {
         let mut generic_q = [0.0f32; 16];
         let mut generic_r = [0.0f32; 16];
