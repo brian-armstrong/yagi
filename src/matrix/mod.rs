@@ -16,8 +16,6 @@ pub mod qr_decomposition;
 pub mod sparse;
 mod view;
 
-pub(crate) use view::MatrixMut;
-
 pub use crate::matrix::base::*;
 pub use crate::matrix::cholesky::*;
 pub use crate::matrix::conjugate_gradient::*;

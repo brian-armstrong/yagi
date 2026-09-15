@@ -3,7 +3,7 @@ use num_traits::{One, Zero};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_inv, matrix_mul, matrix_trans, FloatComplex, MatrixMut};
+use crate::matrix::{matrix_inv, matrix_mul, FloatComplex};
 
 /// Evaluate polynomial
 ///
@@ -55,35 +55,29 @@ where
         return Err(Error::Range("sample count must be at least the coefficient count".to_owned()));
     }
 
-    let n = x.len();
     let k = p.len();
 
-    let x_matrix_len =
-        n.checked_mul(k).ok_or_else(|| Error::Range("Vandermonde matrix dimensions overflow".to_owned()))?;
-    let mut x_matrix = vec![T::default(); x_matrix_len];
-    let mut vandermonde = MatrixMut::new(&mut x_matrix, n, k)?;
-    for (row, &sample) in vandermonde.rows_mut().zip(x) {
-        let mut v = T::one();
-        for coefficient in row {
-            *coefficient = v;
-            v *= sample;
-        }
-    }
-
-    // Compute transpose of X
-    let mut xt_matrix = x_matrix.clone();
-    matrix_trans(&mut xt_matrix, n, k)?;
-
-    // Compute [X']*y
     let mut xty = vec![T::default(); k];
-    matrix_mul(&xt_matrix, k, n, y, n, 1, &mut xty, k, 1)?;
-
-    // Compute [X']*X
     let x2_len = k
         .checked_mul(k)
         .ok_or_else(|| Error::Range("normal-equation matrix dimensions overflow".to_owned()))?;
     let mut x2 = vec![T::default(); x2_len];
-    matrix_mul(&xt_matrix, k, n, &x_matrix, n, k, &mut x2, k, k)?;
+
+    // rather than computing XT, XTy and XTX as separate passes, we can compute XTy and XTX directly.
+    // this skips the relevant matrix convenience functions in favor of saving some computation
+    for (&sample, &value) in x.iter().zip(y) {
+        let mut x_power = T::one();
+        for (xty_entry, x2_row) in xty.iter_mut().zip(x2.chunks_exact_mut(k)) {
+            *xty_entry += x_power * value;
+
+            let mut other_power = T::one();
+            for x2_entry in x2_row {
+                *x2_entry += x_power * other_power;
+                other_power *= sample;
+            }
+            x_power *= sample;
+        }
+    }
 
     // Compute inv([X']*X)
     let mut g = x2.clone();
