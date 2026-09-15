@@ -813,6 +813,28 @@ mod tests {
     }
 
     #[test]
+    fn test_matrix_cgsolve_reports_breakdown_without_changing_output() {
+        let a = [0.0f32; 4];
+        let b = [1.0f32, 0.0];
+        let mut x = [42.0f32; 2];
+
+        let error = matrix_cgsolve(&a, 2, &b, &mut x, None).unwrap_err();
+
+        assert!(matches!(error, crate::error::Error::NoConvergence(_)));
+        assert_eq!(x, [42.0; 2]);
+    }
+
+    #[test]
+    fn test_matrix_cgsolve_rejects_nonfinite_inputs_without_changing_output() {
+        let a = [f32::NAN, 0.0, 0.0, 1.0];
+        let b = [1.0f32, 0.0];
+        let mut x = [42.0f32; 2];
+
+        assert!(matrix_cgsolve(&a, 2, &b, &mut x, None).is_err());
+        assert_eq!(x, [42.0; 2]);
+    }
+
+    #[test]
     fn test_matrix_qr_typed_wrappers_match_generic_implementation() {
         let mut generic_q = [0.0f32; 16];
         let mut generic_r = [0.0f32; 16];

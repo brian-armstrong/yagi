@@ -60,6 +60,7 @@ where
     let mut r1 = vec![T::zero(); n];
     let mut q = vec![T::zero(); n];
     let mut ax1 = vec![T::zero(); n];
+    let mut best_x = vec![T::zero(); n];
 
     // d0 = b - A*x0 (assume x0 = {0, 0, 0, ...0})
     d0.copy_from_slice(b.as_slice());
@@ -69,12 +70,17 @@ where
 
     // delta_init = b^T * b
     let delta_init = vector_dot_hermitian(b.as_slice(), b.as_slice());
+    if !delta_init.is_finite() {
+        return Err(Error::NoConvergence("matrix_cgsolve(), initial residual is not finite".to_string()));
+    }
 
     // delta0 = r0^T * r0
     let mut delta0 = vector_dot_hermitian(&r0, &r0);
+    if !delta0.is_finite() {
+        return Err(Error::NoConvergence("matrix_cgsolve(), initial residual is not finite".to_string()));
+    }
 
     // save best solution
-    x.as_mut_slice().copy_from_slice(&x0);
     let mut i = 0; // iteration counter
     let mut res_opt = T::Real::zero();
 
@@ -89,10 +95,18 @@ where
 
         // gamma = d0^T * q
         let gamma = vector_dot_hermitian(&d0, &q);
+        if !gamma.is_finite() || gamma.re() <= T::Real::zero() {
+            return Err(Error::NoConvergence(
+                "matrix_cgsolve(), search direction has non-positive or non-finite curvature".to_string(),
+            ));
+        }
 
         // step size: alpha = (r0^T * r0) / (d0^T * A * d0)
         //                  = delta0 / gamma
         let alpha = delta0 / gamma;
+        if !alpha.is_finite() {
+            return Err(Error::NoConvergence("matrix_cgsolve(), step size is not finite".to_string()));
+        }
 
         if DEBUG_CGSOLVE {
             println!("  alpha  = {:e}", alpha.re());
@@ -124,9 +138,15 @@ where
 
         // delta1 = r1^T * r1
         let delta1 = vector_dot_hermitian(&r1, &r1);
+        if !delta1.is_finite() {
+            return Err(Error::NoConvergence("matrix_cgsolve(), residual is not finite".to_string()));
+        }
 
         // update beta
         let beta = delta1 / delta0;
+        if !beta.is_finite() {
+            return Err(Error::NoConvergence("matrix_cgsolve(), search-direction update is not finite".to_string()));
+        }
 
         // d1 = r + beta*d0
         for ((d1_value, &r1_value), &d0_value) in d1.iter_mut().zip(&r1).zip(&d0) {
@@ -135,10 +155,13 @@ where
 
         // compute residual
         let res = Float::sqrt(delta1.abs() / delta_init.abs());
+        if !res.is_finite() {
+            return Err(Error::NoConvergence("matrix_cgsolve(), relative residual is not finite".to_string()));
+        }
         if i == 0 || res < res_opt {
             // save best solution
             res_opt = res;
-            x.as_mut_slice().copy_from_slice(&x1);
+            best_x.copy_from_slice(&x1);
         }
 
         if DEBUG_CGSOLVE {
@@ -155,5 +178,6 @@ where
         i += 1;
     }
 
+    x.as_mut_slice().copy_from_slice(&best_x);
     Ok(())
 }
