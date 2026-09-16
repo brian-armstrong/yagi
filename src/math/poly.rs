@@ -3,7 +3,7 @@ use num_traits::{Float, One, Zero};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
-use crate::matrix::{ColMatrixMut, ColMatrixRef, FloatComplex};
+use crate::matrix::{ColMatrixMut, FloatComplex, LeastSquaresWorkspace};
 
 /// Evaluate polynomial
 ///
@@ -52,37 +52,52 @@ where
     if x.len() != y.len() {
         return Err(Error::Range("independent and dependent variable slices must have equal lengths".to_owned()));
     }
-    if p.is_empty() {
+    if y.iter().any(|value| !value.abs().is_finite()) {
+        return Err(Error::Value("polynomial fit inputs must be finite".to_owned()));
+    }
+
+    let mut workspace = vandermonde_workspace(x, p.len())?;
+    workspace.solve(y, p)
+}
+
+/// Build and factor the Vandermonde matrix for a polynomial fit over `x`.
+///
+/// Column `k` holds `x[row]^k`, so a solve against this workspace fits a
+/// polynomial with `coefficient_count` coefficients through samples at `x`.
+///
+/// # Arguments
+///
+/// * `x` - Independent variable, one sample per row
+/// * `coefficient_count` - Number of polynomial coefficients (columns)
+pub(crate) fn vandermonde_workspace<T>(x: &[T], coefficient_count: usize) -> Result<LeastSquaresWorkspace<T>>
+where
+    T: FloatComplex,
+{
+    if coefficient_count == 0 {
         return Err(Error::Range("coefficient slice must not be empty".to_owned()));
     }
-    if x.len() < p.len() {
+    if x.len() < coefficient_count {
         return Err(Error::Range("sample count must be at least the coefficient count".to_owned()));
     }
-    if x.iter().chain(y).any(|value| !value.abs().is_finite()) {
+    if x.iter().any(|value| !value.abs().is_finite()) {
         return Err(Error::Value("polynomial fit inputs must be finite".to_owned()));
     }
 
     let rows = x.len();
-    let columns = p.len();
     let matrix_len = rows
-        .checked_mul(columns)
+        .checked_mul(coefficient_count)
         .ok_or_else(|| Error::Range("Vandermonde matrix dimensions overflow".to_owned()))?;
-
-    let dimension_scale = <T::Real as num_traits::NumCast>::from(rows.max(columns))
-        .ok_or_else(|| Error::Range("polynomial fit dimensions cannot be represented".to_owned()))?;
 
     // construct a column-major view of the Vandermonde matrix
     let mut matrix_storage = vec![T::zero(); matrix_len];
-    let mut matrix = ColMatrixMut::new(&mut matrix_storage, rows, columns)?;
-    let mut y = y.to_vec();
+    let mut matrix = ColMatrixMut::new(&mut matrix_storage, rows, coefficient_count)?;
 
     // first column: all 1s
     matrix.column_mut(0).fill(T::one());
 
-    for column in 1..columns {
+    for column in 1..coefficient_count {
         let (previous, current) =
             matrix.two_columns_mut(column - 1, column).expect("adjacent Vandermonde columns are in bounds");
-
         for ((value, &previous_power), &sample) in current.iter_mut().zip(previous.iter()).zip(x) {
             // matrix[(row, column)] = matrix[(row, column - 1)] * x[row]
             let power = previous_power * sample;
@@ -93,130 +108,7 @@ where
         }
     }
 
-    let two = T::Real::one() + T::Real::one();
-    let mut largest_diagonal = T::Real::zero();
-    let mut reflector_storage = vec![T::zero(); rows];
-
-    // reduce Vandermonde to upper-triangular R, working one column at a time
-    // at the same time, apply Householder reflections to y
-    for column in 0..columns {
-        let active_column = &matrix.column(column)[column..];
-
-        // find the norm of the remaining elements of this column
-        let mut norm_scale = T::Real::zero();
-        let mut norm_sum = T::Real::one();
-        for value in active_column {
-            let magnitude = value.abs();
-            if magnitude != T::Real::zero() {
-                if norm_scale < magnitude {
-                    // new largest magnitude found: update the scale and rescale the sum
-                    let ratio = norm_scale / magnitude;
-                    norm_sum = T::Real::one() + norm_sum * ratio * ratio;
-                    norm_scale = magnitude;
-                } else {
-                    // current magnitude smaller than scale: just update the sum
-                    let ratio = magnitude / norm_scale;
-                    norm_sum = norm_sum + ratio * ratio;
-                }
-            }
-        }
-        // resolve norm from scale and sum
-        let norm = norm_scale * norm_sum.sqrt();
-        if !norm.is_finite() || norm == T::Real::zero() {
-            return Err(Error::Value("polynomial fit matrix is rank deficient".to_owned()));
-        }
-
-        let leading = active_column[0];
-        let leading_magnitude = leading.abs();
-        let phase = if leading_magnitude == T::Real::zero() {
-            T::one()
-        } else {
-            leading / T::from(leading_magnitude).unwrap()
-        };
-        // select opposite phase of leading element with magnitude `norm`
-        let diagonal = -phase * T::from(norm).unwrap();
-
-        // copy column to reflector, subtract diagonal from first element
-        let reflector = &mut reflector_storage[..rows - column];
-        reflector.copy_from_slice(active_column);
-        reflector[0] -= diagonal;
-
-        // replace the active column with diagonal value
-        // with the reflector constructed, we are done with this column
-        let reduced_column = &mut matrix.column_mut(column)[column..];
-        reduced_column[0] = diagonal;
-        reduced_column[1..].fill(T::zero());
-        largest_diagonal = largest_diagonal.max(diagonal.abs());
-
-        // renormalize reflector after applying diagonal
-        let mut reflector_norm_squared = reflector.iter().fold(T::Real::zero(), |sum, value| {
-            let magnitude = value.abs();
-            sum + magnitude * magnitude
-        });
-        if !reflector_norm_squared.is_finite() || reflector_norm_squared == T::Real::zero() {
-            let scale = reflector.iter().fold(T::Real::zero(), |scale, value| scale.max(value.abs()));
-            if !scale.is_finite() || scale == T::Real::zero() {
-                return Err(Error::Value("polynomial fit reflector is not finite".to_owned()));
-            }
-            let scale = T::from(scale).unwrap();
-            for value in reflector.iter_mut() {
-                *value = *value / scale;
-            }
-            reflector_norm_squared = reflector.iter().fold(T::Real::zero(), |sum, value| {
-                let magnitude = value.abs();
-                sum + magnitude * magnitude
-            });
-        }
-        let reflector_scale = T::from(two / reflector_norm_squared).unwrap();
-
-        // finally, apply the projection from the calculated reflector to our Vandermonde matrix
-        // we only need to apply it to columns to the right of the current column
-        for trailing_column in matrix.columns_mut().skip(column + 1) {
-            let trailing_column = &mut trailing_column[column..];
-            // projection = sum(conj(reflector[j]) * matrix[j]) * 2 / (|reflector|^2)
-            let projection = reflector
-                .iter()
-                .zip(trailing_column.iter())
-                .map(|(&reflector_value, &matrix_value)| reflector_value.conj() * matrix_value)
-                .sum::<T>()
-                * reflector_scale;
-            // now apply projection to this column
-            // matrix[(row, column)] = matrix[(row, column)] - reflection[row] * projection
-            for (matrix_value, &reflector_value) in trailing_column.iter_mut().zip(reflector.iter()) {
-                *matrix_value -= reflector_value * projection;
-            }
-        }
-        // apply same projection to y. each reflection is applied as we reduce the matrix.
-        let projection =
-            reflector.iter().enumerate().map(|(offset, &value)| value.conj() * y[column + offset]).sum::<T>()
-                * reflector_scale;
-        for (offset, &value) in reflector.iter().enumerate() {
-            y[column + offset] -= value * projection;
-        }
-    }
-
-    let rank_tolerance = T::Real::epsilon() * dimension_scale * largest_diagonal;
-    let matrix: ColMatrixRef<'_, T> = matrix.as_ref();
-    // now solve by back substitution
-    let mut solution = vec![T::zero(); columns];
-    for row in (0..columns).rev() {
-        let diagonal = matrix.column(row)[row];
-        if !diagonal.abs().is_finite() || diagonal.abs() <= rank_tolerance {
-            return Err(Error::Value("polynomial fit matrix is numerically rank deficient".to_owned()));
-        }
-
-        let mut value = y[row];
-        for column in row + 1..columns {
-            value -= matrix.column(column)[row] * solution[column];
-        }
-        solution[row] = value / diagonal;
-        if !solution[row].abs().is_finite() {
-            return Err(Error::Value("polynomial fit solution is not finite".to_owned()));
-        }
-    }
-
-    p.copy_from_slice(&solution);
-    Ok(())
+    LeastSquaresWorkspace::from_design_matrix(matrix.as_ref())
 }
 
 /// Expands the polynomial:
@@ -1292,6 +1184,21 @@ mod tests {
         }
         for (&x, &expected) in x.iter().zip(&y) {
             assert_abs_diff_eq!(poly_val(&coefficients, x), expected, epsilon = 1e-4);
+        }
+    }
+
+    #[test]
+    fn test_poly_fit_workspace_reuses_independent_variable_samples() {
+        let x = [-2.0f64, -1.0, 0.0, 1.0, 2.0];
+        let mut workspace = vandermonde_workspace(&x, 3).unwrap();
+        let mut actual = [0.0; 3];
+
+        for expected in [[1.0, -0.5, 0.25], [-2.0, 3.0, -1.0]] {
+            let y = x.map(|sample| poly_val(&expected, sample));
+            workspace.solve(&y, &mut actual).unwrap();
+            for (&actual, &expected) in actual.iter().zip(&expected) {
+                assert_abs_diff_eq!(actual, expected, epsilon = 1e-12);
+            }
         }
     }
 

@@ -9,7 +9,7 @@ use crate::buffer::Window;
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
 use crate::math::{poly_fit, poly_val};
-use crate::matrix::{matrix_linsolve, MatrixRef};
+use crate::matrix::{ColMatrixMut, LeastSquaresWorkspace, MatrixMut, MatrixRef};
 use crate::nco::{unwrap_phase, Nco, NcoBackend};
 use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
@@ -31,7 +31,7 @@ pub enum EqGainMethod {
 /// Runtime state for the acquisition channel estimator.
 enum EqGainState {
     Poly { order: usize },
-    Dft(DftEqGainState),
+    Dft(Box<DftEqGainState>),
 }
 
 impl EqGainState {
@@ -110,13 +110,13 @@ impl EqGainState {
 
 /// Persistent state for the time-domain channel fit.
 struct DftEqGainState {
+    num_subcarriers: usize,
     num_taps: usize,
     active: Vec<usize>,
     basis: Vec<Complex32>,
-    gram: Vec<Complex32>,
+    least_squares: LeastSquaresWorkspace<Complex32>,
     rhs: Vec<Complex32>,
     taps: Vec<Complex32>,
-    solve_scratch: Vec<Complex32>,
 }
 
 impl DftEqGainState {
@@ -127,40 +127,101 @@ impl DftEqGainState {
     /// number of *negative*-delay taps the time-domain channel fit reserves.
     const EQGAIN_LEAD_TAPS: usize = 2;
 
-    fn new(num_subcarriers: usize, num_taps: usize, allocation: &[SubcarrierType]) -> Self {
-        let active = allocation
+    fn new(num_subcarriers: usize, num_taps: usize, allocation: &[SubcarrierType]) -> Result<Self> {
+        if allocation.len() != num_subcarriers {
+            return Err(Error::Range(
+                "OFDM channel-estimator allocation length must match the subcarrier count".into(),
+            ));
+        }
+        if num_taps == 0 {
+            return Err(Error::Range("OFDM channel estimator must have at least one tap".into()));
+        }
+
+        let active: Vec<_> = allocation
             .iter()
             .enumerate()
             .filter_map(|(k, &p)| (p != SubcarrierType::Null).then_some(k))
             .collect();
+        if num_taps > active.len() || num_taps > num_subcarriers {
+            return Err(Error::Range("OFDM channel-estimator tap count exceeds the usable subcarrier count".into()));
+        }
 
-        // basis[t * M + k] = exp(-j 2 pi k * delay(t) / M), where the
+        // basis[(k, t)] = exp(-j 2 pi k * delay(t) / M), where the
         // tap delays run from -lead upward so a slightly early sampling
         // instant stays representable. always preserve at least one tap
         // for positive delay
         let lead = Self::EQGAIN_LEAD_TAPS.min(num_subcarriers).min(num_taps - 1);
-        let mut basis = vec![Complex32::new(0.0, 0.0); num_taps * num_subcarriers];
+        let basis_len = num_subcarriers
+            .checked_mul(num_taps)
+            .ok_or_else(|| Error::Range("OFDM channel-estimator basis dimensions overflow".into()))?;
+        // pick subcarrier-major access since that's what estimate() wants
+        let mut basis = vec![Complex32::new(0.0, 0.0); basis_len];
+        let mut basis_view = MatrixMut::new(&mut basis, num_subcarriers, num_taps)?;
         for t in 0..num_taps {
             let delay = (t + num_subcarriers - lead) % num_subcarriers;
             for k in 0..num_subcarriers {
                 let theta = -2.0 * std::f32::consts::PI * (k as f32) * (delay as f32) / (num_subcarriers as f32);
-                basis[t * num_subcarriers + k] = Complex32::from_polar(1.0, theta);
+                basis_view[(k, t)] = Complex32::from_polar(1.0, theta);
             }
         }
 
-        Self {
+        // create a reusable least-squares solver for our equalizer. the ridge-
+        // regularized design matrix stacks the DFT basis (sampled on the active
+        // subcarriers) over sqrt(lambda) * I, solving the system
+        //   [ A         ] taps = [ gain ]
+        //   [ sqrt(l)*I ]        [ 0    ]
+        // for 6 active subcarriers and 4 taps (augmented_rows = 10):
+        //
+        //              tap 0      tap 1      tap 2      tap 3
+        //            +-----------------------------------------+
+        //   obs 0    | A[0][0]   A[0][1]   A[0][2]   A[0][3]   |   <- DFT basis at active[0]
+        //   obs 1    | A[1][0]   A[1][1]   A[1][2]   A[1][3]   |                   active[1]
+        //   obs 2    | A[2][0]   A[2][1]   A[2][2]   A[2][3]   |                   active[2]
+        //   obs 3    | A[3][0]   A[3][1]   A[3][2]   A[3][3]   |                   active[3]
+        //   obs 4    | A[4][0]   A[4][1]   A[4][2]   A[4][3]   |                   active[4]
+        //   obs 5    | A[5][0]   A[5][1]   A[5][2]   A[5][3]   |                   active[5]
+        //            | sqrt(l)   0         0         0         |   <- ridge block = sqrt(lambda) * I
+        //            | 0         sqrt(l)   0         0         |
+        //            | 0         0         sqrt(l)   0         |
+        //            | 0         0         0         sqrt(l)   |
+        //            +-----------------------------------------+
+        let observations = active.len();
+        let augmented_rows = observations
+            .checked_add(num_taps)
+            .ok_or_else(|| Error::Range("OFDM channel-estimator augmented dimensions overflow".into()))?;
+        let factor_len = augmented_rows
+            .checked_mul(num_taps)
+            .ok_or_else(|| Error::Range("OFDM channel-estimator augmented dimensions overflow".into()))?;
+        let ridge = Self::EQGAIN_RIDGE * observations as f32;
+        let ridge_scale = ridge.sqrt();
+        let mut factors = vec![Complex32::new(0.0, 0.0); factor_len];
+        let mut matrix = ColMatrixMut::new(&mut factors, augmented_rows, num_taps)?;
+        for tap in 0..num_taps {
+            let column = matrix.column_mut(tap);
+            for (value, &subcarrier) in column[..observations].iter_mut().zip(&active) {
+                *value = basis_view[(subcarrier, tap)];
+            }
+            column[observations + tap] = Complex32::new(ridge_scale, 0.0);
+        }
+        let least_squares = LeastSquaresWorkspace::from_design_matrix(matrix.as_ref())?;
+
+        Ok(Self {
+            num_subcarriers,
             num_taps,
             active,
             basis,
-            gram: vec![Complex32::new(0.0, 0.0); num_taps * num_taps],
-            rhs: vec![Complex32::new(0.0, 0.0); num_taps],
+            least_squares,
+            rhs: vec![Complex32::new(0.0, 0.0); augmented_rows],
             taps: vec![Complex32::new(0.0, 0.0); num_taps],
-            solve_scratch: vec![Complex32::new(0.0, 0.0); num_taps * (num_taps + 1)],
-        }
+        })
     }
 
     /// Fit time-domain taps to the channel response on the active carriers.
     fn estimate(&mut self, gain: &mut [Complex32]) -> Result<()> {
+        if gain.len() != self.num_subcarriers {
+            return Err(Error::Range("OFDM channel-estimator gain length must match the subcarrier count".into()));
+        }
+
         // fit a finite-length channel impulse response using selected columns of the
         // DFT matrix, then reconstruct the per-subcarrier channel response.
         // van de Beek et al., "On Channel Estimation in OFDM Systems," VTC 1995
@@ -168,46 +229,25 @@ impl DftEqGainState {
         let n = self.active.len();
         let taps = self.num_taps;
 
-        debug_assert_eq!(self.basis.len(), taps * m);
-        debug_assert_eq!(self.gram.len(), taps * taps);
-        debug_assert_eq!(self.rhs.len(), taps);
+        debug_assert_eq!(self.basis.len(), m * taps);
+        debug_assert_eq!(self.rhs.len(), n + taps);
         debug_assert_eq!(self.taps.len(), taps);
-        debug_assert_eq!(self.solve_scratch.len(), taps * (taps + 1));
 
-        self.gram.fill(Complex32::new(0.0, 0.0));
-        self.rhs.fill(Complex32::new(0.0, 0.0));
-
-        for &k in &self.active {
-            let gk = gain[k];
-            for r in 0..taps {
-                let ar = self.basis[r * m + k];
-                self.rhs[r] += ar.conj() * gk;
-                for c in 0..taps {
-                    self.gram[r * taps + c] += ar.conj() * self.basis[c * m + k];
-                }
-            }
+        for (value, &subcarrier) in self.rhs[..n].iter_mut().zip(&self.active) {
+            *value = gain[subcarrier];
         }
+        self.rhs[n..].fill(Complex32::new(0.0, 0.0));
+        self.least_squares.solve(&self.rhs, &mut self.taps)?;
 
-        // the guard bands leave gaps in k, so the highest taps can be poorly
-        // observed. this bounds the solution rather than letting an
-        // ill-conditioned system amplify noise.
-        let ridge = Self::EQGAIN_RIDGE * n as f32;
-        for r in 0..taps {
-            self.gram[r * taps + r] += Complex32::new(ridge, 0.0);
-        }
-
-        matrix_linsolve(
-            MatrixRef::new(&self.gram, taps, taps)?,
-            &self.rhs,
-            &mut self.taps,
-            Some(&mut self.solve_scratch),
-        )?;
-
+        // reconstruct each subcarrier's response from the taps
+        let basis = MatrixRef::new(&self.basis, m, taps)?;
         gain.fill(Complex32::new(0.0, 0.0));
         for &k in &self.active {
-            for t in 0..taps {
-                gain[k] += self.taps[t] * self.basis[t * m + k];
+            let mut sum = Complex32::new(0.0, 0.0);
+            for (&tap, &basis_value) in self.taps.iter().zip(basis.row(k)) {
+                sum += tap * basis_value;
             }
+            gain[k] = sum;
         }
 
         Ok(())
@@ -314,7 +354,7 @@ impl OfdmFrameAcquisition {
             backoff_phase,
             detect_threshold: if m > 44 { 0.35 } else { 0.35 + 0.01 * (44 - m) as f32 },
             sync_threshold: if m > 44 { 0.30 } else { 0.30 + 0.01 * (44 - m) as f32 },
-            eqgain: EqGainState::Dft(DftEqGainState::new(m, taps, allocation)),
+            eqgain: EqGainState::Dft(Box::new(DftEqGainState::new(m, taps, allocation)?)),
         })
     }
 
@@ -358,7 +398,7 @@ impl OfdmFrameAcquisition {
                         active.min(m)
                     )));
                 }
-                EqGainState::Dft(DftEqGainState::new(m, num_taps, config.allocation()))
+                EqGainState::Dft(Box::new(DftEqGainState::new(m, num_taps, config.allocation())?))
             }
         };
         Ok(())
@@ -1031,6 +1071,7 @@ impl OfdmFrameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::matrix::{matrix_linsolve, MatrixRef};
     use crate::multichannel::{ofdmframe_init_default_sctype, OfdmFrameGenerator};
     use crate::random::{crandnf, randf};
     use approx::assert_abs_diff_eq;
@@ -1229,6 +1270,103 @@ mod tests {
         let small = new_framesync(32, 8, 0, None).unwrap();
         assert_abs_diff_eq!(small.acquisition.detect_threshold, 0.47, epsilon = 1e-6);
         assert_abs_diff_eq!(small.acquisition.sync_threshold, 0.42, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_dft_eqgain_rejects_invalid_shapes_and_preserves_gain_on_error() {
+        let allocation = vec![SubcarrierType::Data; 8];
+        assert!(DftEqGainState::new(8, 0, &allocation).is_err());
+        assert!(DftEqGainState::new(8, 9, &allocation).is_err());
+        assert!(DftEqGainState::new(8, 2, &allocation[..7]).is_err());
+
+        let mut state = DftEqGainState::new(8, 2, &allocation).unwrap();
+        let mut short_gain = vec![Complex32::new(42.0, -7.0); 7];
+        let original = short_gain.clone();
+        assert!(state.estimate(&mut short_gain).is_err());
+        assert_eq!(short_gain, original);
+
+        let mut nonfinite_gain = vec![Complex32::new(1.0, 0.0); 8];
+        nonfinite_gain[3].re = f32::NAN;
+        let original = nonfinite_gain.clone();
+        assert!(state.estimate(&mut nonfinite_gain).is_err());
+        for (&actual, &expected) in nonfinite_gain.iter().zip(&original) {
+            assert_eq!(actual.re.to_bits(), expected.re.to_bits());
+            assert_eq!(actual.im.to_bits(), expected.im.to_bits());
+        }
+    }
+
+    fn estimate_dft_with_normal_equations(state: &DftEqGainState, gain: &[Complex32]) -> Vec<Complex32> {
+        let m = state.num_subcarriers;
+        let taps = state.num_taps;
+        let basis = MatrixRef::new(&state.basis, m, taps).unwrap();
+        let mut gram = vec![Complex32::new(0.0, 0.0); taps * taps];
+        let mut rhs = vec![Complex32::new(0.0, 0.0); taps];
+        for &subcarrier in &state.active {
+            let basis_row = basis.row(subcarrier);
+            for row in 0..taps {
+                let left = basis_row[row];
+                rhs[row] += left.conj() * gain[subcarrier];
+                for column in 0..taps {
+                    gram[row * taps + column] += left.conj() * basis_row[column];
+                }
+            }
+        }
+        let ridge = DftEqGainState::EQGAIN_RIDGE * state.active.len() as f32;
+        for diagonal in 0..taps {
+            gram[diagonal * taps + diagonal] += Complex32::new(ridge, 0.0);
+        }
+
+        let mut coefficients = vec![Complex32::new(0.0, 0.0); taps];
+        matrix_linsolve(MatrixRef::new(&gram, taps, taps).unwrap(), &rhs, &mut coefficients, None).unwrap();
+        let mut output = vec![Complex32::new(0.0, 0.0); m];
+        for &subcarrier in &state.active {
+            for (tap, &basis_value) in basis.row(subcarrier).iter().enumerate() {
+                output[subcarrier] += coefficients[tap] * basis_value;
+            }
+        }
+        output
+    }
+
+    #[test]
+    fn test_dft_eqgain_augmented_qr_matches_normal_equations() {
+        let m = 64;
+        let mut allocation = vec![SubcarrierType::Null; m];
+        ofdmframe_init_default_sctype(&mut allocation).unwrap();
+        let mut state = DftEqGainState::new(m, 12, &allocation).unwrap();
+        let mut gain: Vec<_> = (0..m)
+            .map(|subcarrier| {
+                let x = subcarrier as f32;
+                Complex32::new((0.17 * x).sin() + 0.2, (0.11 * x).cos() - 0.1)
+            })
+            .collect();
+        let expected = estimate_dft_with_normal_equations(&state, &gain);
+
+        state.estimate(&mut gain).unwrap();
+
+        for (&actual, &expected) in gain.iter().zip(&expected) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 2e-4);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 2e-4);
+        }
+    }
+
+    #[test]
+    fn test_dft_eqgain_reuses_factorization_without_stale_observations() {
+        let m = 16;
+        let allocation = vec![SubcarrierType::Data; m];
+        let mut reused = DftEqGainState::new(m, 4, &allocation).unwrap();
+        let mut first: Vec<_> = (0..m).map(|i| Complex32::new(i as f32 * 0.1, -0.25)).collect();
+        reused.estimate(&mut first).unwrap();
+
+        let second: Vec<_> = (0..m).map(|i| Complex32::new(-0.2, i as f32 * 0.05)).collect();
+        let mut reused_output = second.clone();
+        reused.estimate(&mut reused_output).unwrap();
+        let mut fresh_output = second;
+        DftEqGainState::new(m, 4, &allocation).unwrap().estimate(&mut fresh_output).unwrap();
+
+        for (&actual, &expected) in reused_output.iter().zip(&fresh_output) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-6);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-6);
+        }
     }
 
     fn ofdmframesync_test_cfo_noise(epsilon: f32, snr_db: f32, num_data: usize, pad: usize) {

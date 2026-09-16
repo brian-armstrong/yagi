@@ -232,8 +232,27 @@ pub(crate) struct ColMatrixRef<'a, T> {
 }
 
 impl<'a, T> ColMatrixRef<'a, T> {
+    pub(crate) fn new(data: &'a [T], rows: usize, cols: usize) -> Result<Self> {
+        Ok(Self { inner: MatrixRef::new(data, cols, rows)? })
+    }
+
+    /// Return the underlying column-major storage.
+    pub(crate) fn as_slice(&self) -> &'a [T] {
+        self.inner.as_slice()
+    }
+
+    /// Return `(rows, columns)`.
+    pub(crate) fn shape(&self) -> (usize, usize) {
+        let (cols, rows) = self.inner.shape();
+        (rows, cols)
+    }
+
     pub(crate) fn column(&self, column: usize) -> &[T] {
         self.inner.row(column)
+    }
+
+    pub(crate) fn columns(&self) -> impl Iterator<Item = &[T]> {
+        self.inner.rows()
     }
 }
 
@@ -266,10 +285,6 @@ impl<'a, T> ColMatrixMut<'a, T> {
 
     pub(crate) fn column_mut(&mut self, column: usize) -> &mut [T] {
         self.inner.row_mut(column)
-    }
-
-    pub(crate) fn columns_mut(&mut self) -> MatrixRowsMut<'_, T> {
-        self.inner.rows_mut()
     }
 
     pub(crate) fn two_columns_mut(&mut self, first: usize, second: usize) -> Option<(&mut [T], &mut [T])> {
@@ -371,8 +386,8 @@ mod tests {
         first[1] = 7;
         third[0] = 8;
         matrix.column_mut(1)[0] = 9;
-        for column in matrix.columns_mut() {
-            column[0] += 1;
+        for column in 0..3 {
+            matrix.column_mut(column)[0] += 1;
         }
 
         assert_eq!(matrix.column(1), [10, 5]);

@@ -8,6 +8,7 @@ mod base;
 mod cholesky;
 mod conjugate_gradient;
 mod gram_schmidt;
+mod householder_qr;
 mod inverse;
 mod linear_solve;
 mod lu_decomposition;
@@ -20,6 +21,7 @@ pub use base::{matrix_eye, matrix_ones, matrix_print, matrix_zeros, FloatComplex
 pub use cholesky::matrix_chol;
 pub use conjugate_gradient::matrix_cgsolve;
 pub use gram_schmidt::{matrix_gramschmidt, matrix_proj};
+pub(crate) use householder_qr::LeastSquaresWorkspace;
 pub use inverse::{matrix_gjelim, matrix_inv};
 pub use linear_solve::matrix_linsolve;
 pub use lu_decomposition::{matrix_ludecomp_crout, matrix_ludecomp_doolittle};
@@ -30,7 +32,7 @@ pub use math::{
 };
 pub use qr_decomposition::matrix_qrdecomp_gramschmidt;
 pub use sparse::*;
-pub(crate) use view::{ColMatrixMut, ColMatrixRef};
+pub(crate) use view::ColMatrixMut;
 pub use view::{MatrixMut, MatrixRef, MatrixRowsMut};
 
 #[cfg(test)]

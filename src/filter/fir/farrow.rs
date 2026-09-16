@@ -13,7 +13,7 @@ use crate::filter::fir::design::fir_group_delay;
 use crate::filter::fir::design::freqresponse;
 use crate::filter::fir::design::kaiser_beta_stopband_attenuation;
 use crate::filter::Sample;
-use crate::math::poly::{poly_fit, poly_val};
+use crate::math::poly::{poly_val, vandermonde_workspace};
 use crate::math::sincd;
 use crate::math::windows::kaiser;
 
@@ -196,29 +196,26 @@ where
 
     /// generate the polynomials representing each filter tap
     fn genpoly(&mut self) -> Result<()> {
-        // run this in f64. we are soling the normal equations here and are sensitive
-        // to stability issues in f32. this only runs once at construction, so the
-        // extra precision is worth it
+        // Design in f64 because the Vandermonde fit can be ill-conditioned in
+        // f32. The resulting error is static in the stored f32 coefficients.
         let beta = kaiser_beta_stopband_attenuation(self.as_);
-        let mut mu_vect = vec![0.0f64; self.q + 1];
+        let mu_vect: Vec<_> = (0..=self.q).map(|j| 2.0 * j as f64 / self.q as f64 - 1.0).collect();
+        let mut workspace = vandermonde_workspace(&mu_vect, self.q + 1)?;
         let mut hp_vect = vec![0.0f64; self.q + 1];
         let mut p = vec![0.0f64; self.q + 1];
 
         for i in 0..self.h_len {
             let x = i as f64 - (self.h_len - 1) as f64 / 2.0;
             let h1 = kaiser(i, self.h_len, beta)? as f64;
-            for j in 0..=self.q {
+            for (&mu, hp) in mu_vect.iter().zip(&mut hp_vect) {
                 // here we diverge from liquid. we use the full [-1.0, 1.0] range so that
                 // set_delay can use the full range
-                let mu = 2.0 * j as f64 / self.q as f64 - 1.0;
                 let h0 = sincd(2.0 * self.fc as f64 * (x + mu));
-
-                mu_vect[j] = mu;
-                hp_vect[j] = h0 * h1;
+                *hp = h0 * h1;
             }
 
             // fit a polynomial in mu through those samples
-            poly_fit(&mu_vect, &hp_vect, &mut p)?;
+            workspace.solve(&hp_vect, &mut p)?;
 
             let n = i * (self.q + 1);
             for (dst, &src) in self.p[n..n + self.q + 1].iter_mut().zip(p.iter()) {
