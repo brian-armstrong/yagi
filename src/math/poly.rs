@@ -1,9 +1,9 @@
 use num_complex::Complex;
-use num_traits::{One, Zero};
+use num_traits::{Float, One, Zero};
 use std::cmp::Ordering;
 
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_linsolve, FloatComplex, MatrixRef};
+use crate::matrix::{ColMatrixMut, ColMatrixRef, FloatComplex};
 
 /// Evaluate polynomial
 ///
@@ -30,7 +30,10 @@ where
     y
 }
 
-/// Fit polynomial to set of data points
+/// Fit a polynomial to a set of data points with Householder QR.
+///
+/// The output is left unchanged when the inputs are invalid, non-finite,
+/// or numerically rank deficient.
 ///
 /// # Arguments
 ///
@@ -40,7 +43,8 @@ where
 ///
 /// # Returns
 ///
-/// `Ok(())` on success, `Err(())` on failure
+/// `Ok(())` on success, or an error when the dimensions, values, or numerical
+/// rank do not allow a finite fit.
 pub fn poly_fit<T>(x: &[T], y: &[T], p: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
@@ -54,34 +58,164 @@ where
     if x.len() < p.len() {
         return Err(Error::Range("sample count must be at least the coefficient count".to_owned()));
     }
+    if x.iter().chain(y).any(|value| !value.abs().is_finite()) {
+        return Err(Error::Value("polynomial fit inputs must be finite".to_owned()));
+    }
 
-    let k = p.len();
+    let rows = x.len();
+    let columns = p.len();
+    let matrix_len = rows
+        .checked_mul(columns)
+        .ok_or_else(|| Error::Range("Vandermonde matrix dimensions overflow".to_owned()))?;
 
-    let mut xty = vec![T::default(); k];
-    let x2_len = k
-        .checked_mul(k)
-        .ok_or_else(|| Error::Range("normal-equation matrix dimensions overflow".to_owned()))?;
-    let mut x2 = vec![T::default(); x2_len];
+    let dimension_scale = <T::Real as num_traits::NumCast>::from(rows.max(columns))
+        .ok_or_else(|| Error::Range("polynomial fit dimensions cannot be represented".to_owned()))?;
 
-    // rather than computing XT, XTy and XTX as separate passes, we can compute XTy and XTX directly.
-    // this skips the relevant matrix convenience functions in favor of saving some computation
-    for (&sample, &value) in x.iter().zip(y) {
-        let mut x_power = T::one();
-        for (xty_entry, x2_row) in xty.iter_mut().zip(x2.chunks_exact_mut(k)) {
-            *xty_entry += x_power * value;
+    // construct a column-major view of the Vandermonde matrix
+    let mut matrix_storage = vec![T::zero(); matrix_len];
+    let mut matrix = ColMatrixMut::new(&mut matrix_storage, rows, columns)?;
+    let mut y = y.to_vec();
 
-            let mut other_power = T::one();
-            for x2_entry in x2_row {
-                *x2_entry += x_power * other_power;
-                other_power *= sample;
+    // first column: all 1s
+    matrix.column_mut(0).fill(T::one());
+
+    for column in 1..columns {
+        let (previous, current) =
+            matrix.two_columns_mut(column - 1, column).expect("adjacent Vandermonde columns are in bounds");
+
+        for ((value, &previous_power), &sample) in current.iter_mut().zip(previous.iter()).zip(x) {
+            // matrix[(row, column)] = matrix[(row, column - 1)] * x[row]
+            let power = previous_power * sample;
+            if !power.abs().is_finite() {
+                return Err(Error::Value("Vandermonde matrix contains a non-finite value".to_owned()));
             }
-            x_power *= sample;
+            *value = power;
         }
     }
 
-    // solve [X']*X*p = [X']*y directly rather than forming the inverse
-    matrix_linsolve(MatrixRef::new(&x2, k, k)?, &xty, p, None)?;
+    let two = T::Real::one() + T::Real::one();
+    let mut largest_diagonal = T::Real::zero();
+    let mut reflector_storage = vec![T::zero(); rows];
 
+    // reduce Vandermonde to upper-triangular R, working one column at a time
+    // at the same time, apply Householder reflections to y
+    for column in 0..columns {
+        let active_column = &matrix.column(column)[column..];
+
+        // find the norm of the remaining elements of this column
+        let mut norm_scale = T::Real::zero();
+        let mut norm_sum = T::Real::one();
+        for value in active_column {
+            let magnitude = value.abs();
+            if magnitude != T::Real::zero() {
+                if norm_scale < magnitude {
+                    // new largest magnitude found: update the scale and rescale the sum
+                    let ratio = norm_scale / magnitude;
+                    norm_sum = T::Real::one() + norm_sum * ratio * ratio;
+                    norm_scale = magnitude;
+                } else {
+                    // current magnitude smaller than scale: just update the sum
+                    let ratio = magnitude / norm_scale;
+                    norm_sum = norm_sum + ratio * ratio;
+                }
+            }
+        }
+        // resolve norm from scale and sum
+        let norm = norm_scale * norm_sum.sqrt();
+        if !norm.is_finite() || norm == T::Real::zero() {
+            return Err(Error::Value("polynomial fit matrix is rank deficient".to_owned()));
+        }
+
+        let leading = active_column[0];
+        let leading_magnitude = leading.abs();
+        let phase = if leading_magnitude == T::Real::zero() {
+            T::one()
+        } else {
+            leading / T::from(leading_magnitude).unwrap()
+        };
+        // select opposite phase of leading element with magnitude `norm`
+        let diagonal = -phase * T::from(norm).unwrap();
+
+        // copy column to reflector, subtract diagonal from first element
+        let reflector = &mut reflector_storage[..rows - column];
+        reflector.copy_from_slice(active_column);
+        reflector[0] -= diagonal;
+
+        // replace the active column with diagonal value
+        // with the reflector constructed, we are done with this column
+        let reduced_column = &mut matrix.column_mut(column)[column..];
+        reduced_column[0] = diagonal;
+        reduced_column[1..].fill(T::zero());
+        largest_diagonal = largest_diagonal.max(diagonal.abs());
+
+        // renormalize reflector after applying diagonal
+        let mut reflector_norm_squared = reflector.iter().fold(T::Real::zero(), |sum, value| {
+            let magnitude = value.abs();
+            sum + magnitude * magnitude
+        });
+        if !reflector_norm_squared.is_finite() || reflector_norm_squared == T::Real::zero() {
+            let scale = reflector.iter().fold(T::Real::zero(), |scale, value| scale.max(value.abs()));
+            if !scale.is_finite() || scale == T::Real::zero() {
+                return Err(Error::Value("polynomial fit reflector is not finite".to_owned()));
+            }
+            let scale = T::from(scale).unwrap();
+            for value in reflector.iter_mut() {
+                *value = *value / scale;
+            }
+            reflector_norm_squared = reflector.iter().fold(T::Real::zero(), |sum, value| {
+                let magnitude = value.abs();
+                sum + magnitude * magnitude
+            });
+        }
+        let reflector_scale = T::from(two / reflector_norm_squared).unwrap();
+
+        // finally, apply the projection from the calculated reflector to our Vandermonde matrix
+        // we only need to apply it to columns to the right of the current column
+        for trailing_column in matrix.columns_mut().skip(column + 1) {
+            let trailing_column = &mut trailing_column[column..];
+            // projection = sum(conj(reflector[j]) * matrix[j]) * 2 / (|reflector|^2)
+            let projection = reflector
+                .iter()
+                .zip(trailing_column.iter())
+                .map(|(&reflector_value, &matrix_value)| reflector_value.conj() * matrix_value)
+                .sum::<T>()
+                * reflector_scale;
+            // now apply projection to this column
+            // matrix[(row, column)] = matrix[(row, column)] - reflection[row] * projection
+            for (matrix_value, &reflector_value) in trailing_column.iter_mut().zip(reflector.iter()) {
+                *matrix_value -= reflector_value * projection;
+            }
+        }
+        // apply same projection to y. each reflection is applied as we reduce the matrix.
+        let projection =
+            reflector.iter().enumerate().map(|(offset, &value)| value.conj() * y[column + offset]).sum::<T>()
+                * reflector_scale;
+        for (offset, &value) in reflector.iter().enumerate() {
+            y[column + offset] -= value * projection;
+        }
+    }
+
+    let rank_tolerance = T::Real::epsilon() * dimension_scale * largest_diagonal;
+    let matrix: ColMatrixRef<'_, T> = matrix.as_ref();
+    // now solve by back substitution
+    let mut solution = vec![T::zero(); columns];
+    for row in (0..columns).rev() {
+        let diagonal = matrix.column(row)[row];
+        if !diagonal.abs().is_finite() || diagonal.abs() <= rank_tolerance {
+            return Err(Error::Value("polynomial fit matrix is numerically rank deficient".to_owned()));
+        }
+
+        let mut value = y[row];
+        for column in row + 1..columns {
+            value -= matrix.column(column)[row] * solution[column];
+        }
+        solution[row] = value / diagonal;
+        if !solution[row].abs().is_finite() {
+            return Err(Error::Value("polynomial fit solution is not finite".to_owned()));
+        }
+    }
+
+    p.copy_from_slice(&solution);
     Ok(())
 }
 
@@ -780,7 +914,6 @@ pub fn polyf_findroots(p: &[f32], roots: &mut [Complex<f32>]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::matrix::{matrix_inv, matrix_mul, MatrixMut, MatrixRef};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
@@ -1162,44 +1295,58 @@ mod tests {
         }
     }
 
-    fn poly_fit_inverse_reference(x: &[f32], y: &[f32], coefficients: &mut [f32]) {
-        let k = coefficients.len();
-        let mut xty = vec![0.0f32; k];
-        let mut x2 = vec![0.0f32; k * k];
+    #[test]
+    fn test_poly_fit_recovers_high_order_coefficients() {
+        let expected: Vec<f64> =
+            (0..12).map(|i| if i % 2 == 0 { 1.0 / (i + 1) as f64 } else { -1.0 / (i + 1) as f64 }).collect();
+        let x: Vec<f32> = (0..48).map(|i| -1.0 + 2.0 * i as f32 / 47.0).collect();
+        let y: Vec<f32> = x
+            .iter()
+            .map(|&sample| {
+                expected.iter().rev().fold(0.0, |value, &coefficient| value * sample as f64 + coefficient) as f32
+            })
+            .collect();
+        let mut coefficients = vec![0.0f32; expected.len()];
 
-        for (&sample, &value) in x.iter().zip(y) {
-            let mut x_power = 1.0;
-            for (xty_entry, x2_row) in xty.iter_mut().zip(x2.chunks_exact_mut(k)) {
-                *xty_entry += x_power * value;
+        poly_fit(&x, &y, &mut coefficients).unwrap();
 
-                let mut other_power = 1.0;
-                for x2_entry in x2_row {
-                    *x2_entry += x_power * other_power;
-                    other_power *= sample;
-                }
-                x_power *= sample;
-            }
+        for (&actual, &expected) in coefficients.iter().zip(&expected) {
+            assert_abs_diff_eq!(actual as f64, expected, epsilon = 2e-4);
         }
-
-        let mut inverse = x2.clone();
-        let mut inverse_view = MatrixMut::new(&mut inverse, k, k).unwrap();
-        matrix_inv(&mut inverse_view).unwrap();
-        let mut output = MatrixMut::new(coefficients, k, 1).unwrap();
-        matrix_mul(inverse_view.as_ref(), MatrixRef::new(&xty, k, 1).unwrap(), &mut output).unwrap();
     }
 
     #[test]
-    fn test_poly_fit_direct_solve_matches_inverse_reference() {
-        let x = [-1.0f32, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0];
-        let y = [2.25f32, 1.6640625, 1.15625, 0.73828125, 0.375, 0.07421875, -0.15625, -0.30859375, -0.375];
-        let mut direct = [0.0f32; 4];
-        let mut inverse = [0.0f32; 4];
+    fn test_poly_fit_clustered_f64_samples() {
+        let expected = [0.25f64, -0.5, 0.75, -0.2, 0.1, -0.05, 0.025, -0.0125];
+        let x: Vec<f64> = (0..32).map(|i| 0.75 + 0.5 * i as f64 / 31.0).collect();
+        let y: Vec<f64> = x.iter().map(|&sample| poly_val(&expected, sample)).collect();
+        let mut coefficients = [0.0f64; 8];
 
-        poly_fit(&x, &y, &mut direct).unwrap();
-        poly_fit_inverse_reference(&x, &y, &mut inverse);
+        poly_fit(&x, &y, &mut coefficients).unwrap();
 
-        for (&direct, &inverse) in direct.iter().zip(&inverse) {
-            assert_abs_diff_eq!(direct, inverse, epsilon = 1e-5);
+        for (&actual, &expected) in coefficients.iter().zip(&expected) {
+            assert_abs_diff_eq!(actual, expected, epsilon = 1e-7);
+        }
+    }
+
+    #[test]
+    fn test_poly_fit_complex_samples() {
+        let expected = [Complex::new(0.5f64, -0.25), Complex::new(-0.75, 0.125), Complex::new(0.2, 0.4)];
+        let x = [
+            Complex::new(-1.0, 0.25),
+            Complex::new(-0.5, -0.75),
+            Complex::new(0.0, 0.5),
+            Complex::new(0.5, -0.25),
+            Complex::new(1.0, 0.75),
+        ];
+        let y = x.map(|sample| poly_val(&expected, sample));
+        let mut coefficients = [Complex::new(0.0, 0.0); 3];
+
+        poly_fit(&x, &y, &mut coefficients).unwrap();
+
+        for (&actual, &expected) in coefficients.iter().zip(&expected) {
+            assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-12);
+            assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-12);
         }
     }
 
@@ -1235,6 +1382,23 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(coefficients, [42.0, -7.0, 3.0]);
+    }
+
+    #[test]
+    fn test_poly_fit_rejects_nonfinite_and_rank_deficient_inputs() {
+        let original = [42.0f32, -7.0, 3.0];
+
+        for (x, y) in [
+            ([0.0, f32::INFINITY, 2.0], [1.0, 2.0, 3.0]),
+            ([0.0, 1.0, 2.0], [1.0, f32::NAN, 3.0]),
+            ([1.0, 1.0, 1.0], [1.0, 2.0, 3.0]),
+        ] {
+            let mut coefficients = original;
+            let result = poly_fit(&x, &y, &mut coefficients);
+
+            assert!(result.is_err());
+            assert_eq!(coefficients, original);
+        }
     }
 
     #[test]

@@ -225,9 +225,75 @@ impl<'a, T> Iterator for MatrixRowsMut<'a, T> {
     }
 }
 
+/// A checked, column-major matrix view used by internal column-oriented kernels.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ColMatrixRef<'a, T> {
+    inner: MatrixRef<'a, T>,
+}
+
+impl<'a, T> ColMatrixRef<'a, T> {
+    pub(crate) fn column(&self, column: usize) -> &[T] {
+        self.inner.row(column)
+    }
+}
+
+impl<T> Index<(usize, usize)> for ColMatrixRef<'_, T> {
+    type Output = T;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        &self.inner[(index.1, index.0)]
+    }
+}
+
+/// A checked, mutable column-major matrix view used by internal column-oriented kernels.
+#[derive(Debug)]
+pub(crate) struct ColMatrixMut<'a, T> {
+    inner: MatrixMut<'a, T>,
+}
+
+impl<'a, T> ColMatrixMut<'a, T> {
+    pub(crate) fn new(data: &'a mut [T], rows: usize, cols: usize) -> Result<Self> {
+        Ok(Self { inner: MatrixMut::new(data, cols, rows)? })
+    }
+
+    pub(crate) fn as_ref(&self) -> ColMatrixRef<'_, T> {
+        ColMatrixRef { inner: self.inner.as_ref() }
+    }
+
+    pub(crate) fn column(&self, column: usize) -> &[T] {
+        self.inner.row(column)
+    }
+
+    pub(crate) fn column_mut(&mut self, column: usize) -> &mut [T] {
+        self.inner.row_mut(column)
+    }
+
+    pub(crate) fn columns_mut(&mut self) -> MatrixRowsMut<'_, T> {
+        self.inner.rows_mut()
+    }
+
+    pub(crate) fn two_columns_mut(&mut self, first: usize, second: usize) -> Option<(&mut [T], &mut [T])> {
+        self.inner.two_rows_mut(first, second)
+    }
+}
+
+impl<T> Index<(usize, usize)> for ColMatrixMut<'_, T> {
+    type Output = T;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        &self.inner[(index.1, index.0)]
+    }
+}
+
+impl<T> IndexMut<(usize, usize)> for ColMatrixMut<'_, T> {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        &mut self.inner[(index.1, index.0)]
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{MatrixMut, MatrixRef};
+    use super::{ColMatrixMut, MatrixMut, MatrixRef};
 
     #[test]
     fn test_matrix_views_require_exact_shape() {
@@ -290,6 +356,29 @@ mod tests {
         assert_eq!(readonly.shape(), (2, 3));
         assert_eq!(readonly.as_slice(), [1, 9, 4, 8, 5, 7]);
         assert_eq!(matrix.as_mut_slice(), [1, 9, 4, 8, 5, 7]);
+    }
+
+    #[test]
+    fn test_column_major_views() {
+        let mut data = [1u8, 4, 2, 5, 3, 6];
+        let mut matrix = ColMatrixMut::new(&mut data, 2, 3).unwrap();
+
+        let readonly = matrix.as_ref();
+        assert_eq!(readonly.column(1), [2, 5]);
+        assert_eq!(readonly[(1, 2)], 6);
+
+        let (first, third) = matrix.two_columns_mut(0, 2).unwrap();
+        first[1] = 7;
+        third[0] = 8;
+        matrix.column_mut(1)[0] = 9;
+        for column in matrix.columns_mut() {
+            column[0] += 1;
+        }
+
+        assert_eq!(matrix.column(1), [10, 5]);
+        assert_eq!(matrix[(1, 0)], 7);
+        assert_eq!(matrix.as_ref()[(0, 2)], 9);
+        assert_eq!(data, [2, 7, 10, 5, 9, 6]);
     }
 
     #[test]

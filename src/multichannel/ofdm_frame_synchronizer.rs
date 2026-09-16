@@ -57,11 +57,12 @@ impl EqGainState {
         let n = allocation.iter().filter(|&&p| p != SubcarrierType::Null).count();
         let order = order.min(n - 1).min(10);
 
-        let mut x_freq = vec![0.0f32; n];
-        let mut y_abs = vec![0.0f32; n];
+        // the order can approach the sample count, making the system unstable in f32
+        let mut x_freq = vec![0.0f64; n];
+        let mut y_abs = vec![0.0f64; n];
         let mut y_arg = vec![0.0f32; n];
-        let mut p_abs = vec![0.0f32; order + 1];
-        let mut p_arg = vec![0.0f32; order + 1];
+        let mut p_abs = vec![0.0f64; order + 1];
+        let mut p_arg = vec![0.0f64; order + 1];
 
         let mut idx = 0;
         for i in 0..m {
@@ -74,9 +75,9 @@ impl EqGainState {
                         "ofdmframesync_estimate_eqgain_poly(), pilot subcarrier mismatch".into(),
                     ));
                 }
-                x_freq[idx] = if k > m2 { k as f32 - m as f32 } else { k as f32 };
-                x_freq[idx] /= m as f32;
-                y_abs[idx] = gain[k].norm();
+                x_freq[idx] = if k > m2 { k as f64 - m as f64 } else { k as f64 };
+                x_freq[idx] /= m as f64;
+                y_abs[idx] = gain[k].norm() as f64;
                 y_arg[idx] = gain[k].arg();
                 idx += 1;
             }
@@ -87,14 +88,15 @@ impl EqGainState {
         }
 
         unwrap_phase(&mut y_arg);
+        let y_arg: Vec<f64> = y_arg.into_iter().map(f64::from).collect();
         poly_fit(&x_freq, &y_abs, &mut p_abs)?;
         poly_fit(&x_freq, &y_arg, &mut p_arg)?;
 
         for i in 0..m {
-            let mut freq = if i > m2 { i as f32 - m as f32 } else { i as f32 };
-            freq /= m as f32;
-            let a = poly_val(&p_abs, freq);
-            let theta = poly_val(&p_arg, freq);
+            let mut freq = if i > m2 { i as f64 - m as f64 } else { i as f64 };
+            freq /= m as f64;
+            let a = poly_val(&p_abs, freq) as f32;
+            let theta = poly_val(&p_arg, freq) as f32;
             gain[i] = if allocation[i] == SubcarrierType::Null {
                 Complex32::new(0.0, 0.0)
             } else {

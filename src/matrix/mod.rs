@@ -30,6 +30,7 @@ pub use math::{
 };
 pub use qr_decomposition::matrix_qrdecomp_gramschmidt;
 pub use sparse::*;
+pub(crate) use view::{ColMatrixMut, ColMatrixRef};
 pub use view::{MatrixMut, MatrixRef, MatrixRowsMut};
 
 #[cfg(test)]
