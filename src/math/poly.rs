@@ -439,12 +439,13 @@ where
     }
 
     for (j, weight) in w.iter_mut().enumerate() {
+        let xj = x[j];
         *weight = T::from(1.0);
         for (k, &xk) in x.iter().enumerate() {
             if j == k {
                 continue;
             }
-            *weight = *weight * (x[j] - xk);
+            *weight = *weight * (xj - xk);
         }
 
         if *weight == T::from(0.0) {
@@ -490,8 +491,9 @@ where
             return Ok(yj);
         }
 
-        t0 += wj * yj / g;
-        t1 += wj / g;
+        let scaled_weight = wj / g;
+        t0 += scaled_weight * yj;
+        t1 += scaled_weight;
     }
 
     Ok(t0 / t1)
@@ -809,7 +811,23 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
-    // TODO tests for poly_fit_lagrange_barycentric and poly_interp_lagrange_barycentric
+    #[test]
+    fn test_poly_lagrange_barycentric_recovers_cubic() {
+        let polynomial = |x: f64| ((0.25 * x + 0.5) * x - 2.0) * x + 1.0;
+        let x = [-1.5f64, -0.25, 0.5, 2.0];
+        let y = x.map(polynomial);
+        let mut weights = [0.0f64; 4];
+
+        poly_fit_lagrange_barycentric(&x, &mut weights).unwrap();
+
+        for x0 in [-1.0, -0.5, 0.0, 0.25, 1.0, 1.5] {
+            let actual = poly_val_lagrange_barycentric(&x, &y, &weights, x0).unwrap();
+            assert_abs_diff_eq!(actual, polynomial(x0), epsilon = 1e-12);
+        }
+        for (&x0, &expected) in x.iter().zip(&y) {
+            assert_eq!(poly_val_lagrange_barycentric(&x, &y, &weights, x0), Ok(expected));
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_polyf_fit_q3n3)]
