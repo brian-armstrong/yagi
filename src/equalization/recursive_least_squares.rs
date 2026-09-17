@@ -1,25 +1,20 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::matrix::{matrix_mul, FloatComplex, MatrixMut, MatrixRef};
+use crate::matrix::{FloatComplex, MatrixRef};
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Eqrls")]
 pub struct RecursiveLeastSquaresEqualizer<T> {
-    p: usize,      // filter order
-    lambda: f32,   // RLS forgetting factor
-    delta: f32,    // RLS initialization factor
-    h0: Vec<T>,    // initial coefficients
-    w0: Vec<T>,    // weights [px1]
-    w1: Vec<T>,    // weights [px1]
-    p0: Vec<T>,    // recursion matrix [pxp]
-    p1: Vec<T>,    // recursion matrix [pxp]
-    g: Vec<T>,     // gain vector [px1]
-    xp0: Vec<T>,   // [1xp]
-    zeta: T,       // constant
-    gxl: Vec<T>,   // [pxp]
-    gxlp0: Vec<T>, // [pxp]
-    n: usize,      // input counter
+    p: usize,    // filter order
+    lambda: f32, // RLS forgetting factor
+    delta: f32,  // RLS initialization factor
+    h0: Vec<T>,  // initial coefficients
+    w0: Vec<T>,  // weights [px1]
+    p0: Vec<T>,  // recursion matrix [pxp]
+    g: Vec<T>,   // gain vector [px1]
+    xp0: Vec<T>, // [1xp]
+    n: usize,    // input counter
     buffer: Window<T>,
 }
 
@@ -59,14 +54,9 @@ where
             delta: 0.1,
             h0: vec![0.0.into(); filter_length],
             w0: vec![0.0.into(); filter_length],
-            w1: vec![0.0.into(); filter_length],
             p0: vec![0.0.into(); square_len],
-            p1: vec![0.0.into(); square_len],
             g: vec![0.0.into(); filter_length],
             xp0: vec![0.0.into(); filter_length],
-            zeta: 0.0.into(),
-            gxl: vec![0.0.into(); square_len],
-            gxlp0: vec![0.0.into(); square_len],
             n: 0,
             buffer: Window::new(filter_length)?,
         })
@@ -134,34 +124,30 @@ where
             }
         }
 
-        self.zeta = self.xp0.iter().zip(x).map(|(&xp, &xi)| xp * xi.conj()).sum::<T>() + self.lambda.into();
+        let zeta = self.xp0.iter().zip(x).map(|(&xp, &xi)| xp * xi.conj()).sum::<T>() + self.lambda.into();
 
         for (gain, p0_row) in self.g.iter_mut().zip(p0.rows()) {
-            *gain = p0_row.iter().zip(x).map(|(&p0_value, &x_value)| p0_value * x_value.conj()).sum::<T>() / self.zeta;
+            *gain = p0_row.iter().zip(x).map(|(&p0_value, &x_value)| p0_value * x_value.conj()).sum::<T>() / zeta;
         }
 
-        let mut gxl = MatrixMut::new(&mut self.gxl, self.p, self.p)?;
-        for (&gain, gxl_row) in self.g.iter().zip(gxl.rows_mut()) {
-            for (gxl_value, &x_value) in gxl_row.iter_mut().zip(x) {
-                *gxl_value = gain * x_value / self.lambda.into();
+        // we can do some substitution here to reduce the amount of math needed
+        // specifically, we don't need a matrix_mul of (`g` * `x`) and `p0`. we can reassociate
+        // p0_new = (p0 - (g * x) * p0)/lambda -> (p0 - (g * xp0))/lambda
+        // (we already have xp0 = x * p0, so rather than computing (g * x) and multiplying by p0,
+        //  we can just reuse xp0 and multiply by g)
+        let lambda: T = self.lambda.into();
+        let one: T = 1.0.into();
+        let lambda_inv = one / lambda;
+        for (p0_row, &gain) in self.p0.chunks_exact_mut(self.p).zip(&self.g) {
+            for (p0_value, &xp0_value) in p0_row.iter_mut().zip(&self.xp0) {
+                *p0_value = (*p0_value - gain * xp0_value) * lambda_inv;
             }
         }
 
-        let left = MatrixRef::new(&self.gxl, self.p, self.p)?;
-        let right = MatrixRef::new(&self.p0, self.p, self.p)?;
-        let mut output = MatrixMut::new(&mut self.gxlp0, self.p, self.p)?;
-        matrix_mul(left, right, &mut output)?;
-
-        for ((p1_value, &p0_value), &gxlp0_value) in self.p1.iter_mut().zip(&self.p0).zip(&self.gxlp0) {
-            *p1_value = p0_value / self.lambda.into() - gxlp0_value;
+        for (weight, &gain) in self.w0.iter_mut().zip(&self.g) {
+            *weight += alpha * gain;
         }
 
-        for i in 0..self.p {
-            self.w1[i] = self.w0[i] + alpha * self.g[i];
-        }
-
-        self.w0.copy_from_slice(&self.w1);
-        self.p0.copy_from_slice(&self.p1);
         Ok(())
     }
 
