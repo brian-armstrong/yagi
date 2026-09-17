@@ -422,41 +422,39 @@ where
 /// * `w` - Output barycentric weights, the same length as `x`
 pub fn poly_fit_lagrange_barycentric<T>(x: &[T], w: &mut [T]) -> Result<()>
 where
-    T: Copy
-        + std::ops::Mul<Output = T>
-        + std::ops::Add<Output = T>
-        + std::ops::Sub<Output = T>
-        + std::ops::Div<Output = T>
-        + std::ops::Neg<Output = T>
-        + From<f32>
-        + PartialEq,
+    T: FloatComplex,
 {
     if x.len() != w.len() {
         return Err(Error::Range("input and weight slices must have equal lengths".to_owned()));
     }
     if x.is_empty() {
-        return Ok(());
+        return Err(Error::Range("input and weight slices must not be empty".to_owned()));
+    }
+    if !x.iter().all(|value| value.is_finite()) {
+        return Err(Error::Value("interpolation nodes must be finite".to_owned()));
     }
 
     for (j, weight) in w.iter_mut().enumerate() {
         let xj = x[j];
-        *weight = T::from(1.0);
+        *weight = T::one();
         for (k, &xk) in x.iter().enumerate() {
             if j == k {
                 continue;
             }
-            *weight = *weight * (xj - xk);
+            *weight *= xj - xk;
         }
-
-        if *weight == T::from(0.0) {
-            *weight = *weight + T::from(1.0e-9);
+        if *weight == T::zero() || !weight.is_finite() {
+            return Err(Error::Value("interpolation nodes must be distinct and produce finite weights".to_owned()));
         }
-        *weight = T::from(1.0) / *weight;
+        *weight = T::one() / *weight;
     }
 
-    let w0 = w[0] + T::from(1.0e-9);
+    let w0 = w[0];
     for wj in w {
         *wj = *wj / w0;
+        if !wj.is_finite() {
+            return Err(Error::Value("normalized barycentric weight is not finite".to_owned()));
+        }
     }
     Ok(())
 }
@@ -465,10 +463,10 @@ where
 ///
 /// # Arguments
 ///
-/// * `x` - Input array (known)
-/// * `y` - Output array (known), the same length as `x`
-/// * `w` - Barycentric weights, the same length as `x`
-/// * `x0` - Evaluation point
+/// * `x` - Distinct, finite interpolation nodes
+/// * `y` - Finite values at each node, the same length as `x`
+/// * `w` - Finite, nonzero barycentric weights produced for `x`
+/// * `x0` - Finite evaluation point
 ///
 /// # Returns
 ///
@@ -480,23 +478,41 @@ where
     if x.len() != y.len() || x.len() != w.len() {
         return Err(Error::Range("input, output, and weight slices must have equal lengths".to_owned()));
     }
-    let mut t0 = T::from(0.0).unwrap();
-    let mut t1 = T::from(0.0).unwrap();
-    let tol = T::Real::from(1.0e-6);
+    if x.is_empty() {
+        return Err(Error::Range("input, output, and weight slices must not be empty".to_owned()));
+    }
+    if !x0.is_finite() {
+        return Err(Error::Value("interpolation point must be finite".to_owned()));
+    }
+    if x.iter().chain(y).chain(w).any(|value| !value.is_finite()) || w.iter().any(|&weight| weight == T::zero()) {
+        return Err(Error::Value(
+            "interpolation values and weights must be finite and weights must be nonzero".to_owned(),
+        ));
+    }
+
+    let mut t0 = T::zero();
+    let mut t1 = T::zero();
 
     for ((&xj, &yj), &wj) in x.iter().zip(y).zip(w) {
-        let g = x0 - xj;
-
-        if g.abs() < tol {
-            return Ok(yj);
+        if x0 == xj {
+            return if yj.is_finite() {
+                Ok(yj)
+            } else {
+                Err(Error::Value("barycentric interpolation result is not finite".to_owned()))
+            };
         }
 
+        let g = x0 - xj;
         let scaled_weight = wj / g;
         t0 += scaled_weight * yj;
         t1 += scaled_weight;
     }
 
-    Ok(t0 / t1)
+    let value = t0 / t1;
+    if !value.is_finite() {
+        return Err(Error::Value("barycentric interpolation result is not finite".to_owned()));
+    }
+    Ok(value)
 }
 
 /// Finds the complex roots of the polynomial using the Durand-Kerner method
@@ -827,6 +843,27 @@ mod tests {
         for (&x0, &expected) in x.iter().zip(&y) {
             assert_eq!(poly_val_lagrange_barycentric(&x, &y, &weights, x0), Ok(expected));
         }
+    }
+
+    #[test]
+    fn test_poly_lagrange_barycentric_interpolates_between_close_nodes() {
+        let x = [0.0f64, 5.0e-7];
+        let y = [0.0f64, 1.0];
+        let mut weights = [0.0f64; 2];
+
+        poly_fit_lagrange_barycentric(&x, &mut weights).unwrap();
+
+        let actual = poly_val_lagrange_barycentric(&x, &y, &weights, 2.5e-7).unwrap();
+        assert_abs_diff_eq!(actual, 0.5, epsilon = 1e-12);
+        assert_eq!(poly_val_lagrange_barycentric(&x, &y, &weights, x[0]), Ok(y[0]));
+    }
+
+    #[test]
+    fn test_poly_val_lagrange_barycentric_rejects_invalid_values() {
+        assert!(poly_val_lagrange_barycentric::<f64>(&[], &[], &[], 0.0).is_err());
+        assert!(poly_val_lagrange_barycentric(&[0.0f64, 1.0], &[1.0, f64::NAN], &[-1.0, 1.0], 0.5).is_err());
+        assert!(poly_val_lagrange_barycentric(&[0.0f64, 1.0], &[1.0, 2.0], &[0.0, 1.0], 0.5).is_err());
+        assert!(poly_val_lagrange_barycentric(&[0.0f64, 1.0], &[1.0, 2.0], &[-1.0, 1.0], f64::NAN).is_err());
     }
 
     #[test]
@@ -1351,7 +1388,7 @@ mod tests {
         assert_eq!(roots, [0.0]);
 
         poly_fit_lagrange::<f32>(&[], &[], &mut []).unwrap();
-        poly_fit_lagrange_barycentric::<f32>(&[], &mut []).unwrap();
+        assert!(poly_fit_lagrange_barycentric::<f32>(&[], &mut []).is_err());
     }
 
     #[test]

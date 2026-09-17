@@ -404,7 +404,32 @@ impl ParksMcClellanDesigner {
         }
 
         // compute Lagrange interpolating polynomial
-        poly_fit_lagrange_barycentric(&self.x, &mut self.alpha)?;
+        if self.x.windows(2).any(|pair| pair[0] == pair[1]) {
+            // this handles the case where create_grid places two entries at the same frequency
+
+            // this degenerate case requires a small weight perturbation to resolve
+            // rather than do the perturbation in poly_fit_lagrange_barycentric, do it for this
+            // branch specifically
+            for (j, weight) in self.alpha.iter_mut().enumerate() {
+                *weight = 1.0;
+                for (k, &node) in self.x.iter().enumerate() {
+                    if j != k {
+                        *weight *= self.x[j] - node;
+                    }
+                }
+                if *weight == 0.0 {
+                    *weight += 1.0e-9;
+                }
+                *weight = weight.recip();
+            }
+
+            let w0 = self.alpha[0] + 1.0e-9;
+            for weight in &mut self.alpha {
+                *weight /= w0;
+            }
+        } else {
+            poly_fit_lagrange_barycentric(&self.x, &mut self.alpha)?;
+        }
 
         // compute rho
         let mut t0 = 0.0; // numerator
