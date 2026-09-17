@@ -1073,8 +1073,10 @@ mod tests {
     use super::*;
     use crate::matrix::{matrix_linsolve, MatrixRef};
     use crate::multichannel::{ofdmframe_init_default_sctype, OfdmFrameGenerator};
-    use crate::random::{crandnf, randf};
+    use crate::random::randf;
     use approx::assert_abs_diff_eq;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use test_macro::autotest_annotate;
 
     fn new_framegen(
@@ -1369,7 +1371,67 @@ mod tests {
         }
     }
 
-    fn ofdmframesync_test_cfo_noise(epsilon: f32, snr_db: f32, num_data: usize, pad: usize) {
+    #[test]
+    fn test_dft_eqgain_reduces_deterministic_noise() {
+        let m = 64;
+        let taps = 8;
+        let mut allocation = vec![SubcarrierType::Null; m];
+        ofdmframe_init_default_sctype(&mut allocation).unwrap();
+        let mut state = DftEqGainState::new(m, taps, &allocation).unwrap();
+
+        // arbitrarily choose some multipath degradation to apply here
+        let multipath_taps = [
+            Complex32::new(0.0, 0.0),
+            Complex32::new(0.0, 0.0),
+            Complex32::new(0.8, -0.1),
+            Complex32::new(0.25, 0.15),
+            Complex32::new(-0.1, 0.05),
+            Complex32::new(0.0, 0.0),
+            Complex32::new(0.0, 0.0),
+            Complex32::new(0.0, 0.0),
+        ];
+
+        let mut clean = vec![Complex32::new(0.0, 0.0); m];
+        let basis = MatrixRef::new(&state.basis, m, taps).unwrap();
+        for &subcarrier in &state.active {
+            clean[subcarrier] = basis.row(subcarrier).iter().zip(&multipath_taps).map(|(&a, &x)| a * x).sum();
+        }
+
+        // noisy = clean + noisy channel
+        let mut noisy = clean.clone();
+        for &subcarrier in &state.active {
+            let k = subcarrier as f32;
+            noisy[subcarrier] += Complex32::new(0.01 * (0.71 * k).sin(), 0.01 * (0.37 * k).cos());
+        }
+
+        let input_error: f32 =
+            state.active.iter().map(|&subcarrier| (noisy[subcarrier] - clean[subcarrier]).norm_sqr()).sum();
+
+        let mut fitted = noisy.clone();
+        state.estimate(&mut fitted).unwrap();
+
+        let output_error: f32 =
+            state.active.iter().map(|&subcarrier| (fitted[subcarrier] - clean[subcarrier]).norm_sqr()).sum();
+
+        assert!(output_error < input_error, "channel fit should reduce observation noise");
+        for (&actual, &expected) in state.taps.iter().zip(&multipath_taps) {
+            assert!((actual - expected).norm() < 0.01, "recovered tap {actual} differs from {expected}");
+        }
+
+        let basis = MatrixRef::new(&state.basis, m, taps).unwrap();
+        let ridge = DftEqGainState::EQGAIN_RIDGE * state.active.len() as f32;
+        for tap in 0..taps {
+            let mut residual = state.taps[tap] * ridge;
+            for &subcarrier in &state.active {
+                let row = basis.row(subcarrier);
+                let fitted: Complex32 = row.iter().zip(&state.taps).map(|(&a, &x)| a * x).sum();
+                residual += row[tap].conj() * (fitted - noisy[subcarrier]);
+            }
+            assert!(residual.norm() < 2e-4, "ridge optimality residual {residual}");
+        }
+    }
+
+    fn ofdmframesync_test_cfo_noise(epsilon: f32, snr_db: f32, num_data: usize, pad: usize, rng: &mut impl Rng) {
         let m = 64;
         let cp_len = 8;
         let dphi = 2.0 * std::f32::consts::PI * epsilon / m as f32;
@@ -1383,7 +1445,7 @@ mod tests {
         assert_eq!(fs.cfo(), 0.0, "cfo starts at zero");
 
         let x: Vec<Complex32> =
-            (0..m).map(|_| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * randf())).collect();
+            (0..m).map(|_| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * rng.gen::<f32>())).collect();
 
         let frame = make_frame(&mut fg, m, cp_len, num_data, &x);
 
@@ -1394,7 +1456,15 @@ mod tests {
         // apply noise and cfo
         for (i, v) in y.iter_mut().enumerate() {
             *v *= Complex32::from_polar(1.0, dphi * i as f32);
-            *v += crandnf() * nstd * std::f32::consts::FRAC_1_SQRT_2;
+            let u1 = loop {
+                let value = rng.gen::<f32>();
+                if value != 0.0 {
+                    break value;
+                }
+            };
+            let u2 = rng.gen::<f32>();
+            let noise = Complex32::from_polar((-2.0 * u1.ln()).sqrt(), 2.0 * std::f32::consts::PI * u2);
+            *v += noise * nstd * std::f32::consts::FRAC_1_SQRT_2;
         }
 
         let symbols = collect_symbols(&mut fs, &y);
@@ -1421,13 +1491,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "flaky: needs investigation"]
     fn test_ofdmframesync_cfo_noise() {
+        let mut rng = StdRng::seed_from_u64(0x1234_5678_09ab_cdef);
         for epsilon in [0.2f32, 0.3f32, 0.4f32] {
             for snr_db in [60.0f32, 30.0, 20.0, 10.0] {
                 for num_data in [1, 2, 4, 8, 16, 32] {
                     for pad in [0, 3, 7, 19, 251, 1021] {
-                        ofdmframesync_test_cfo_noise(epsilon, snr_db, num_data, pad);
+                        ofdmframesync_test_cfo_noise(epsilon, snr_db, num_data, pad, &mut rng);
                     }
                 }
             }
