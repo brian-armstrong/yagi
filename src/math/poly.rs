@@ -845,11 +845,17 @@ pub fn polyf_findroots(p: &[f32], roots: &mut [Complex<f32>]) -> Result<()> {
     // Sort roots for consistent ordering
     roots_double.sort_by(poly_sort_roots_compare);
 
-    // Copy back to original
-    for (root, root_double) in roots.iter_mut().zip(roots_double) {
-        *root = Complex::new(root_double.re as f32, root_double.im as f32);
+    let mut roots_single = Vec::with_capacity(roots_double.len());
+    for root in roots_double {
+        let root = Complex::new(root.re as f32, root.im as f32);
+        if !root.re.is_finite() || !root.im.is_finite() {
+            return Err(Error::Value("root cannot be represented as a finite f32 value".to_owned()));
+        }
+        roots_single.push(root);
     }
 
+    // Copy back to original
+    roots.copy_from_slice(&roots_single);
     Ok(())
 }
 
