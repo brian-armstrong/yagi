@@ -16,14 +16,14 @@ pub use self::modular_arithmetic::*;
 pub use self::poly::*;
 pub use self::windows::*;
 
-use libm::{erfcf, erff};
+use libm::erfcf;
 use std::f32::consts::{PI, SQRT_2};
 
 use crate::error::{Error, Result};
 
 /// Q-function
 pub fn qf(z: f32) -> f32 {
-    0.5 * (1.0 - erff(z / SQRT_2))
+    0.5 * erfcf(z / SQRT_2)
 }
 
 /// Marcum Q-function
@@ -148,6 +148,11 @@ mod tests {
         assert_abs_diff_eq!(qf(2.0), 0.022750132, epsilon = tol);
         assert_abs_diff_eq!(qf(3.0), 0.001349898, epsilon = tol);
         assert_abs_diff_eq!(qf(4.0), 0.000031671, epsilon = tol);
+    }
+
+    #[test]
+    fn test_q_positive_tail() {
+        assert_abs_diff_eq!(qf(10.0), 7.619853e-24, epsilon = 1e-29);
     }
 
     #[test]
