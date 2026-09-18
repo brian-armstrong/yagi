@@ -122,6 +122,8 @@ where
 /// Expand `(1 + x)^n` into ascending-power coefficients.
 ///
 /// `c` must contain `n + 1` elements. When `n` is zero, `c[0]` is set to zero.
+/// Binomial coefficients grow rapidly with `n`. Floating-point coefficients can
+/// overflow or lose precision at high orders.
 ///
 /// # Errors
 ///
@@ -158,6 +160,8 @@ where
 ///
 /// `c` must contain `m + k + 1` elements. When both orders are zero, this
 /// routine sets `c[0]` to zero.
+/// Coefficients can grow rapidly with the combined order. Floating-point
+/// coefficients can overflow or lose precision at high orders.
 ///
 /// # Errors
 ///
@@ -203,6 +207,9 @@ where
 ///
 /// `p` must contain one more element than `r`. With no roots, this routine
 /// sets `p[0]` to zero.
+/// Coefficient magnitudes can grow rapidly with the number or scale of roots.
+/// Floating-point coefficients can overflow or lose precision for large or
+/// poorly scaled root sets.
 ///
 /// # Errors
 ///
@@ -241,6 +248,10 @@ where
 ///
 /// `a` and `b` must have the same length. `p` must contain one more element.
 /// With no roots, this routine sets `p[0]` to zero.
+/// Every element of `b` must be nonzero. This routine does not validate that
+/// requirement, so division by zero follows the scalar type's behavior.
+/// Coefficient magnitudes can also grow rapidly with the number or scale of
+/// roots.
 ///
 /// # Errors
 ///
@@ -323,6 +334,10 @@ where
 /// the same interpolant repeatedly. `x` and `y` must have the same length. An
 /// empty sample set evaluates to zero.
 ///
+/// This routine does not validate distinct nodes. Duplicate nodes cause
+/// division by zero. The direct formulation can also lose precision quickly as
+/// the number of nodes grows or nodes become closely spaced.
+///
 /// # Errors
 ///
 /// Returns an error when `x` and `y` have different lengths.
@@ -359,6 +374,11 @@ where
 /// The interpolation nodes in `x` must be distinct. The resulting coefficients
 /// are written to `p` in ascending-power order. `x`, `y`, and `p` must have the
 /// same length.
+///
+/// This routine does not validate distinct nodes. Duplicate nodes cause
+/// division by zero. Converting an interpolant to power-basis coefficients can
+/// also lose precision quickly as the number of nodes grows or nodes become
+/// closely spaced.
 ///
 /// # Errors
 ///
@@ -525,6 +545,9 @@ where
 /// final coefficient must be exactly one. `roots` must contain one fewer
 /// element than `p`. The output is only written after the iteration converges.
 ///
+/// Durand-Kerner is sensitive to repeated or closely spaced roots. It is not a
+/// general-purpose root finder for high-order power-basis polynomials.
+///
 /// # Errors
 ///
 /// Returns an error when the input lengths or leading coefficient are invalid.
@@ -607,6 +630,10 @@ pub fn poly_findroots_durandkerner(p: &[f64], roots: &mut [Complex<f64>]) -> Res
 /// Its highest-order coefficient must be nonzero. `roots` must contain one
 /// fewer element than `p`. The output is written only after all roots are
 /// finite.
+///
+/// Root finding from high-order power-basis coefficients can be poorly
+/// conditioned, especially for repeated or closely spaced roots. This routine
+/// can return `Error::NoConvergence` for such inputs.
 ///
 /// # Errors
 ///
@@ -819,6 +846,10 @@ pub fn poly_sort_roots_compare(a: &Complex<f64>, b: &Complex<f64>) -> Ordering {
 /// The calculation uses f64 intermediate values before converting the roots
 /// to f32. All coefficients must be finite and the highest-order coefficient
 /// must be nonzero.
+///
+/// Root finding from high-order power-basis coefficients can be poorly
+/// conditioned, especially for repeated or closely spaced roots. Use a
+/// dedicated numerical library when that case must be handled reliably.
 ///
 /// # Errors
 ///
