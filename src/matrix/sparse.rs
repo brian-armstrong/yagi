@@ -31,6 +31,14 @@ use crate::error::{Error, Result};
 //
 #[derive(Debug, Clone)]
 #[doc(alias = "SMatrix")]
+/// A sparse matrix with row and column entry lists.
+///
+/// The matrix stores each nonzero value in both a row list and a column list.
+/// Row and column indexes use `u16`, so indexes above 65535 and dimensions
+/// greater than 65536 are not supported reliably.
+///
+/// This is a retained compatibility representation. It is not a
+/// general-purpose sparse matrix API.
 pub struct SparseMatrix<T> {
     m: usize,              // number of rows
     n: usize,              // number of columns
@@ -45,8 +53,11 @@ pub struct SparseMatrix<T> {
 }
 
 impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> SparseMatrix<T> {
-    /// Create a matrix with the given number of rows and columns, initialized
-    /// with zeros.
+    /// Create an empty sparse matrix.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either dimension is zero.
     pub fn new(rows: usize, columns: usize) -> Result<Self> {
         if rows == 0 || columns == 0 {
             return Err(Error::Config("matrix dimensions must be greater than zero".to_string()));
@@ -66,7 +77,17 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         })
     }
 
-    /// Create a matrix with the given dimensions from a row-major array.
+    /// Create a sparse matrix from row-major values.
+    ///
+    /// Values equal to `T::default()` are omitted. Extra values are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either dimension is zero.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `values` contains fewer than `rows * columns` elements.
     pub fn from_array(values: &[T], rows: usize, columns: usize) -> Result<Self> {
         let mut q = Self::new(rows, columns)?;
 
@@ -81,7 +102,10 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(q)
     }
 
-    /// print compact form
+    /// Print the sparse row and column lists to standard output.
+    ///
+    /// The output is intended for inspection and debugging. Its format is not
+    /// stable.
     pub fn print(&self) {
         println!("dims : {} {}", self.m, self.n);
         println!("max  : {} {}", self.max_num_mlist, self.max_num_nlist);
@@ -143,7 +167,10 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    /// print expanded form
+    /// Print the full dense form to standard output.
+    ///
+    /// The output is intended for inspection and debugging. Its format is not
+    /// stable.
     pub fn print_expanded(&self) {
         for i in 0..self.m {
             let mut t = 0;
@@ -161,12 +188,14 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    /// get matrix dimensions
+    /// Return `(rows, columns)`.
     pub fn size(&self) -> (usize, usize) {
         (self.m, self.n)
     }
 
-    /// zero all values, retaining memory allocation
+    /// Replace every stored value with zero while retaining its entry lists.
+    ///
+    /// Subsequent multiplication still visits these stored zero entries.
     pub fn clear(&mut self) {
         for i in 0..self.m {
             for j in 0..self.num_mlist[i] {
@@ -181,7 +210,11 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    /// zero all values, clearing memory
+    /// Reset the matrix's logical entry counts.
+    ///
+    /// This retained compatibility routine preserves its backing entry lists.
+    /// Do not use it to reuse a matrix after entries have been set. Construct a
+    /// new matrix instead.
     pub fn reset(&mut self) {
         for i in 0..self.m {
             self.num_mlist[i] = 0;
@@ -194,7 +227,14 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         self.max_num_nlist = 0;
     }
 
-    /// determine if element is set
+    /// Return whether an entry is stored at `(row, column)`.
+    ///
+    /// A stored entry can hold `T::default()`. This method reports storage, not
+    /// whether the numeric value is nonzero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `(row, column)` is outside the matrix.
     pub fn isset(&self, row: usize, column: usize) -> Result<bool> {
         if row >= self.m || column >= self.n {
             return Err(Error::Range(format!(
@@ -246,7 +286,13 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(())
     }
 
-    /// delete element at index
+    /// Remove the stored entry at `(row, column)`.
+    ///
+    /// Removing an absent entry succeeds without changing the matrix.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `(row, column)` is outside the matrix.
     pub fn delete(&mut self, row: usize, column: usize) -> Result<()> {
         if row > self.m || column > self.n {
             return Err(Error::Range(format!(
@@ -284,7 +330,14 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(())
     }
 
-    /// set element value at index
+    /// Store `value` at `(row, column)`.
+    ///
+    /// Values equal to `T::default()` remain stored. Use [`SparseMatrix::delete`]
+    /// to remove an entry.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `(row, column)` is outside the matrix.
     pub fn set(&mut self, row: usize, column: usize, value: T) {
         if row >= self.m || column >= self.n {
             panic!("smatrix_set({},{}), index exceeds matrix dimension ({},{})", row, column, self.m, self.n);
@@ -304,7 +357,13 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         self.nvals[column][nindex] = value;
     }
 
-    /// get element value at index (return zero if not set)
+    /// Return the value at `(row, column)`.
+    ///
+    /// Returns `T::default()` when no entry is stored there.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `(row, column)` is outside the matrix.
     pub fn get(&self, row: usize, column: usize) -> T {
         if row >= self.m || column >= self.n {
             panic!("smatrix_get({},{}), index exceeds matrix dimension ({},{})", row, column, self.m, self.n);
@@ -317,7 +376,10 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    /// initialize to identity matrix
+    /// Set the logical entries on the main diagonal to one.
+    ///
+    /// This method calls [`SparseMatrix::reset`]. Do not use it to reuse a
+    /// matrix that already contains entries.
     pub fn eye(&mut self) {
         // reset all elements
         self.reset();
@@ -329,7 +391,15 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         }
     }
 
-    /// multiply two sparse matrices
+    /// Multiply two sparse matrices.
+    ///
+    /// `c` must have `self.rows()` rows and `b.columns()` columns. The column
+    /// count of `self` must equal the row count of `b`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the matrix shapes cannot be multiplied. `c` is
+    /// unchanged on error.
     pub fn mul(&self, b: &SparseMatrix<T>, c: &mut SparseMatrix<T>) -> Result<()> {
         // validate input
         if c.m != self.m || c.n != b.n || self.n != b.m {
@@ -386,10 +456,14 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
         Ok(())
     }
 
-    /// multiply by vector
-    ///  self  :   sparse matrix
-    ///  x  :   input vector [size: _n x 1]
-    ///  y  :   output vector [size: _m x 1]
+    /// Multiply this matrix by a column vector.
+    ///
+    /// `x` must have at least one element per matrix column. `y` must have at
+    /// least one element per matrix row.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either slice is too short.
     pub fn vmul(&self, x: &[T], y: &mut [T]) {
         // initialize to zero
         for yi in &mut y[..self.m] {
@@ -426,16 +500,19 @@ impl<T: Default + Copy + PartialEq + std::fmt::Display + One + Add<Output = T>> 
 impl SparseMatrix<u8> {
     // ...
 
-    /// Multiply sparse binary matrix by floating-point matrix
+    /// Multiply a sparse binary matrix by a row-major f32 matrix.
     ///
-    /// # Arguments
+    /// `x` has declared shape `(mx, nx)`. `y` has declared shape `(my, ny)`.
+    /// The operation requires `mx == self.columns()`, `my == self.rows()`, and
+    /// `ny == nx`.
     ///
-    /// * `x` - Input matrix with dimensions `mx` x `nx`
-    /// * `y` - Output matrix with dimensions `my` x `ny`
+    /// # Errors
     ///
-    /// # Returns
+    /// Returns an error if the declared shapes cannot be multiplied.
     ///
-    /// * `Ok(())` if successful, `Err(())` if dimensions are invalid
+    /// # Panics
+    ///
+    /// Panics if `x` or `y` is shorter than its declared shape.
     pub fn mul_f32(&self, x: &[f32], mx: usize, nx: usize, y: &mut [f32], my: usize, ny: usize) -> Result<()> {
         // ensure lengths are valid
         if my != self.m || ny != nx || self.n != mx {
@@ -457,12 +534,14 @@ impl SparseMatrix<u8> {
         Ok(())
     }
 
-    /// Multiply sparse binary matrix by floating-point vector
+    /// Multiply a sparse binary matrix by an f32 column vector.
     ///
-    /// # Arguments
+    /// `x` must have at least one element per matrix column. `y` must have at
+    /// least one element per matrix row.
     ///
-    /// * `x` - Input vector with length `self.n`
-    /// * `y` - Output vector with length `self.m`
+    /// # Panics
+    ///
+    /// Panics if either slice is too short.
     pub fn vmul_f32(&self, x: &[f32], y: &mut [f32]) {
         for i in 0..self.m {
             // reset total
@@ -475,11 +554,12 @@ impl SparseMatrix<u8> {
         }
     }
 
-    // TODO these are supposed to be integrated into mul/vmul
+    /// Reduce a binary value modulo two.
     pub fn wrap_bool(v: u8) -> u8 {
         v % 2
     }
 
+    /// Reduce every binary value modulo two.
     pub fn wrap_bools(v: &mut [u8]) {
         for vi in v.iter_mut() {
             *vi %= 2;

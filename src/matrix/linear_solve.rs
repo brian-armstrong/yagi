@@ -2,20 +2,21 @@ use crate::error::{Error, Result};
 use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::{matrix_gjelim, FloatComplex};
 
-/// Solve linear system of n equations: Ax = b
+/// Solve the square linear system `A * x = b`.
 ///
-/// # Arguments
+/// `a` must be square. `b` and `x` must each have one element per row of `a`.
+/// Passing `scratch` avoids a temporary allocation. It must contain at least
+/// `n * (n + 1)` elements, where `n` is the dimension of `a`. Extra elements
+/// are ignored.
 ///
-/// * `a` - System matrix [size: n x n]
-/// * `n` - System size
-/// * `b` - Equality vector [size: n x 1]
-/// * `x` - Solution vector [size: n x 1]
-/// * `scratch` - Optional augmented-matrix storage, at least `n * (n + 1)`
-///   elements. When omitted, the solver allocates temporary storage.
+/// This retained compatibility routine uses Gauss-Jordan elimination. Use a
+/// dedicated linear-algebra library for a robust general-purpose solver.
 ///
-/// # Returns
+/// # Errors
 ///
-/// `Ok(())` if successful, `Err(...)` otherwise
+/// Returns an error for invalid shapes, insufficient scratch storage, an
+/// overflowing augmented shape, or a singular system. `x` is unchanged on
+/// error. Caller-provided scratch can be modified when elimination fails.
 pub fn matrix_linsolve<T>(a: MatrixRef<'_, T>, b: &[T], x: &mut [T], scratch: Option<&mut [T]>) -> Result<()>
 where
     T: FloatComplex,

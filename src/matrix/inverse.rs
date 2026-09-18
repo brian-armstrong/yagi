@@ -3,7 +3,16 @@ use crate::matrix::view::MatrixMut;
 use crate::matrix::FloatComplex;
 use num_traits::Zero;
 
-/// Compute matrix inverse
+/// Replace a square matrix with its inverse.
+///
+/// This retained compatibility routine uses Gauss-Jordan elimination. Use a
+/// dedicated linear-algebra library when a robust general-purpose inverse or
+/// linear solve is needed.
+///
+/// # Errors
+///
+/// Returns an error if `x` is not square, its augmented shape overflows, or it
+/// is singular to machine precision. `x` is unchanged on error.
 pub fn matrix_inv<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -45,7 +54,19 @@ where
     Ok(())
 }
 
-/// Gauss-Jordan elimination
+/// Reduce a matrix in place with Gauss-Jordan elimination.
+///
+/// `x` must have at least as many columns as rows. The routine selects the
+/// largest available pivot in each column, then normalizes each pivot row.
+///
+/// This retained compatibility routine is intended for the existing small
+/// matrix paths. Use a dedicated linear-algebra library for general-purpose
+/// elimination.
+///
+/// # Errors
+///
+/// Returns an error if `x` has more rows than columns or a pivot is zero. `x`
+/// can be partly reduced when an error is returned.
 pub fn matrix_gjelim<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,

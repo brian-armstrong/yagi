@@ -4,11 +4,20 @@ use crate::error::{Error, Result};
 use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::FloatComplex;
 
-/// Compute Cholesky decomposition of a symmetric/Hermitian positive-
-/// definite matrix as A = L * L^T
-///  _a      :   input square matrix [size: _n x _n]
-///  _n      :   input matrix dimension
-///  _l      :   output lower-triangular matrix
+/// Factor a positive-definite matrix as `A = L * L^H`.
+///
+/// `l` receives the lower-triangular factor. `a` and `l` must have the same
+/// square shape.
+///
+/// This retained compatibility routine does not verify that `a` is Hermitian.
+/// Use a dedicated linear-algebra library for a general-purpose Cholesky
+/// factorization.
+///
+/// # Errors
+///
+/// Returns an error if the matrices are not equally sized and square, or a
+/// diagonal term shows that `a` is not positive definite. `l` can be partly
+/// written when factorization fails.
 pub fn matrix_chol<T>(a: MatrixRef<'_, T>, l: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,

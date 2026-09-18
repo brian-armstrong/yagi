@@ -1,8 +1,12 @@
-// Matrix module
-// Current state:
-// - Autotests matching and passing
-// - ready to use
-// - may rethink later - struct or trait based approach may be interesting
+//! Dense matrix views and matrix operations.
+//!
+//! [`MatrixRef`] and [`MatrixMut`] are the canonical dense interfaces. They
+//! borrow exactly-sized, row-major storage and validate the requested shape at
+//! construction. Matrix operations use those views to validate relationships
+//! between input and output shapes before changing output.
+//!
+//! Some retained routines have historical names or numerical limitations. Their
+//! individual documentation describes those contracts.
 
 mod base;
 mod cholesky;

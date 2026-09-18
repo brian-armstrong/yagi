@@ -1,3 +1,8 @@
+//! Borrowed views over dense matrix storage.
+//!
+//! [`MatrixRef`] and [`MatrixMut`] offer a checked, two-dimensional access for
+//! borrowed slices. Shapes are validated at construction.
+
 use std::ops::{Index, IndexMut};
 
 use crate::error::{Error, Result};
@@ -13,9 +18,22 @@ fn validate_shape(actual_len: usize, rows: usize, cols: usize) -> Result<()> {
     Ok(())
 }
 
-/// A checked, row-major matrix view.
+/// A read-only view over a checked, row-major matrix buffer.
 ///
-/// This allows better structured access to a slice of elements. Checks length at construction.
+/// Element `(row, column)` is stored at `row * columns + column`.
+/// [`MatrixRef::new`] requires the buffer length to match the requested shape.
+///
+/// # Examples
+///
+/// ```
+/// use yagi::matrix::MatrixRef;
+///
+/// let matrix = MatrixRef::new(&[1, 2, 3, 4, 5, 6], 2, 3)?;
+/// assert_eq!(matrix.shape(), (2, 3));
+/// assert_eq!(matrix.row(1), &[4, 5, 6]);
+/// assert_eq!(matrix[(0, 2)], 3);
+/// # Ok::<(), yagi::error::Error>(())
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct MatrixRef<'a, T> {
     data: &'a [T],
@@ -25,6 +43,11 @@ pub struct MatrixRef<'a, T> {
 
 impl<'a, T> MatrixRef<'a, T> {
     /// Construct a view over an exactly-sized row-major buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `rows * cols` overflows or does not equal
+    /// `data.len()`.
     pub fn new(data: &'a [T], rows: usize, cols: usize) -> Result<Self> {
         validate_shape(data.len(), rows, cols)?;
         Ok(Self { data, rows, cols })
@@ -40,7 +63,11 @@ impl<'a, T> MatrixRef<'a, T> {
         (self.rows, self.cols)
     }
 
-    /// Return one row. Panics when `row` is out of bounds.
+    /// Return one row.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `row` is out of bounds.
     pub fn row(&self, row: usize) -> &[T] {
         let range = self.row_range(row);
         &self.data[range]
@@ -51,7 +78,11 @@ impl<'a, T> MatrixRef<'a, T> {
         (0..self.rows).map(move |row| self.row(row))
     }
 
-    /// Iterate over a column. Panics when `column` is out of bounds.
+    /// Iterate over a column in increasing row order.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `column` is out of bounds.
     pub fn column(&self, column: usize) -> impl Iterator<Item = &T> {
         assert!(column < self.cols, "matrix column index out of bounds");
         self.data.chunks_exact(self.cols).map(move |row| &row[column])
@@ -72,7 +103,25 @@ impl<T> Index<(usize, usize)> for MatrixRef<'_, T> {
     }
 }
 
-/// A checked, mutable row-major matrix view.
+/// A mutable view over a checked, row-major matrix buffer.
+///
+/// This is the mutable counterpart to [`MatrixRef`]. Changes through the view
+/// are written directly into the borrowed buffer.
+///
+/// # Examples
+///
+/// ```
+/// use yagi::matrix::MatrixMut;
+///
+/// let mut data = [1, 2, 3, 4];
+/// {
+///     let mut matrix = MatrixMut::new(&mut data, 2, 2)?;
+///     matrix.row_mut(1).copy_from_slice(&[5, 6]);
+///     matrix[(0, 1)] = 7;
+/// }
+/// assert_eq!(data, [1, 7, 5, 6]);
+/// # Ok::<(), yagi::error::Error>(())
+/// ```
 #[derive(Debug)]
 pub struct MatrixMut<'a, T> {
     data: &'a mut [T],
@@ -82,6 +131,11 @@ pub struct MatrixMut<'a, T> {
 
 impl<'a, T> MatrixMut<'a, T> {
     /// Construct a mutable view over an exactly-sized row-major buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `rows * cols` overflows or does not equal
+    /// `data.len()`.
     pub fn new(data: &'a mut [T], rows: usize, cols: usize) -> Result<Self> {
         validate_shape(data.len(), rows, cols)?;
         Ok(Self { data, rows, cols })
@@ -107,13 +161,21 @@ impl<'a, T> MatrixMut<'a, T> {
         (self.rows, self.cols)
     }
 
-    /// Return one row. Panics when `row` is out of bounds.
+    /// Return one row.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `row` is out of bounds.
     pub fn row(&self, row: usize) -> &[T] {
         let range = self.row_range(row);
         &self.data[range]
     }
 
-    /// Return one row mutably. Panics when `row` is out of bounds.
+    /// Return one row mutably.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `row` is out of bounds.
     pub fn row_mut(&mut self, row: usize) -> &mut [T] {
         let range = self.row_range(row);
         &mut self.data[range]
@@ -124,7 +186,11 @@ impl<'a, T> MatrixMut<'a, T> {
         MatrixRowsMut { remaining: &mut *self.data, rows_remaining: self.rows, cols: self.cols }
     }
 
-    /// Iterate over a column. Panics when `column` is out of bounds.
+    /// Iterate over a column in increasing row order.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `column` is out of bounds.
     pub fn column(&self, column: usize) -> impl Iterator<Item = &T> {
         assert!(column < self.cols, "matrix column index out of bounds");
         self.data.chunks_exact(self.cols).map(move |row| &row[column])
@@ -202,7 +268,10 @@ impl<T> IndexMut<(usize, usize)> for MatrixMut<'_, T> {
     }
 }
 
-/// Mutable matrix row iterator
+/// An iterator over disjoint mutable rows in row-major order.
+///
+/// This type is returned by [`MatrixMut::rows_mut`]. It is not normally
+/// constructed directly.
 pub struct MatrixRowsMut<'a, T> {
     remaining: &'a mut [T],
     rows_remaining: usize,

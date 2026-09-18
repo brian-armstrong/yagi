@@ -4,7 +4,19 @@ use crate::error::{Error, Result};
 use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::FloatComplex;
 
-/// Q/R decomposition using the Gram-Schmidt algorithm
+/// Factor a square matrix as `X = Q * R` with classical Gram-Schmidt.
+///
+/// `q` and `r` must have the same square shape as `x`. `q` receives the
+/// orthonormal columns and `r` receives the upper-triangular factor.
+///
+/// This retained compatibility routine does not detect rank-deficient input
+/// and can lose accuracy for nearly dependent columns. Use a dedicated
+/// linear-algebra library for a general-purpose QR factorization.
+///
+/// # Errors
+///
+/// Returns an error if `x` is not square or either output shape differs from
+/// `x`. Outputs are unchanged on those errors.
 pub fn matrix_qrdecomp_gramschmidt<T>(
     x: MatrixRef<'_, T>,
     q: &mut MatrixMut<'_, T>,

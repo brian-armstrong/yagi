@@ -2,7 +2,20 @@ use crate::error::{Error, Result};
 use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::FloatComplex;
 
-/// L/U/P decomposition, Crout's method
+/// Factor a square matrix with Crout's L/U decomposition.
+///
+/// `l`, `u`, and `p` must have the same square shape as `x`. `l` receives the
+/// lower-triangular factor, `u` receives a unit-diagonal upper-triangular
+/// factor, and `p` receives the identity matrix.
+///
+/// This retained compatibility routine does not pivot or detect singular
+/// matrices. Its permutation output is always the identity. Use a dedicated
+/// linear-algebra library for a general-purpose LU factorization.
+///
+/// # Errors
+///
+/// Returns an error if any matrix is not square with the shape of `x`. Outputs
+/// are unchanged on that error.
 pub fn matrix_ludecomp_crout<T>(
     x: MatrixRef<'_, T>,
     l: &mut MatrixMut<'_, T>,
@@ -54,7 +67,20 @@ where
     Ok(())
 }
 
-/// L/U/P decomposition, Doolittle's method
+/// Factor a square matrix with Doolittle's L/U decomposition.
+///
+/// `l`, `u`, and `p` must have the same square shape as `x`. `l` receives a
+/// unit-diagonal lower-triangular factor, `u` receives the upper-triangular
+/// factor, and `p` receives the identity matrix.
+///
+/// This retained compatibility routine does not pivot or detect singular
+/// matrices. Its permutation output is always the identity. Use a dedicated
+/// linear-algebra library for a general-purpose LU factorization.
+///
+/// # Errors
+///
+/// Returns an error if any matrix is not square with the shape of `x`. Outputs
+/// are unchanged on that error.
 pub fn matrix_ludecomp_doolittle<T>(
     x: MatrixRef<'_, T>,
     l: &mut MatrixMut<'_, T>,

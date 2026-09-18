@@ -20,11 +20,22 @@ where
     sum
 }
 
-/// Solve linear system of equations using conjugate gradient method
-///  _A      :   symmetric positive definite matrix [size: _n x _n]
-///  _b      :   equality [size: _n x 1]
-///  _x      :   solution estimate [size: _n x 1]
-///  _opts   :   options (ignored for now)
+/// Solve `A * x = b` with conjugate gradient iteration.
+///
+/// `a` must be a nonempty Hermitian positive-definite matrix. `b` and `x`
+/// must have one element per row of `a`. The solver starts from zero, uses a
+/// relative tolerance of `1e-6`, and runs at most `4 * n` iterations. `_opts`
+/// is reserved and currently ignored.
+///
+/// This retained compatibility routine does not validate that `a` is Hermitian
+/// positive definite. Use a dedicated linear-algebra library when convergence
+/// guarantees or configurable stopping criteria are needed.
+///
+/// # Errors
+///
+/// Returns an error for invalid shapes, an iteration-count overflow, or a
+/// non-finite residual or search direction. `x` is unchanged on error. If the
+/// iteration limit is reached, the best estimate found so far is returned.
 pub fn matrix_cgsolve<T>(a: MatrixRef<'_, T>, b: &[T], x: &mut [T], _opts: Option<()>) -> Result<()>
 where
     T: FloatComplex,

@@ -4,7 +4,16 @@ use crate::error::{Error, Result};
 use crate::matrix::view::{MatrixMut, MatrixRef};
 use crate::matrix::FloatComplex;
 
-/// Compute projection of _u onto _v, store in _e
+/// Project `v` onto `u` and write the result to `e`.
+///
+/// All three vectors must have the same length.
+///
+/// This retained compatibility routine does not reject a zero or nearly zero
+/// `u`. That input can produce non-finite output.
+///
+/// # Errors
+///
+/// Returns an error if the vector lengths differ. `e` is unchanged on error.
 pub fn matrix_proj<T>(u: &[T], v: &[T], e: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
@@ -31,7 +40,19 @@ where
     Ok(())
 }
 
-/// Orthonormalization using the Gram-Schmidt algorithm
+/// Orthonormalize the columns of `x` with classical Gram-Schmidt.
+///
+/// `v` receives a matrix with the same shape as `x`. The matrix must have at
+/// least one row and one column.
+///
+/// This retained compatibility routine does not detect linearly dependent or
+/// nearly dependent columns. Use a dedicated linear-algebra library for a
+/// general-purpose orthonormalization.
+///
+/// # Errors
+///
+/// Returns an error for zero dimensions or a mismatched output shape. `v` is
+/// unchanged on those errors. It can be partly written on a later failure.
 pub fn matrix_gramschmidt<T>(x: MatrixRef<'_, T>, v: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
