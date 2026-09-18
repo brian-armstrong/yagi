@@ -24,7 +24,7 @@ pub fn is_prime(n: u32) -> bool {
     }
 
     let mut r = 5;
-    while r * r <= n {
+    while r <= n / r {
         if n.is_multiple_of(r) || n.is_multiple_of(r + 2) {
             return false;
         }
@@ -154,12 +154,18 @@ pub fn gcd(mut p: u32, mut q: u32) -> Result<u32> {
 /// # Returns
 ///
 /// Result of modular exponentiation
-pub fn modpow(base: u32, exp: u32, n: u32) -> u32 {
-    let mut c = 1;
-    for _ in 0..exp {
-        c = (c * base) % n;
+pub fn modpow(base: u32, exp: u32, n: u32) -> Result<u32> {
+    if n == 0 {
+        return Err(Error::Value("modulus must be greater than zero".to_string()));
     }
-    c
+
+    let mut c = 1u64;
+    let base = u64::from(base);
+    let modulus = u64::from(n);
+    for _ in 0..exp {
+        c = (c * base) % modulus;
+    }
+    Ok(c as u32)
 }
 
 /// Find smallest primitive root of n
@@ -185,9 +191,16 @@ pub fn primitive_root(_n: u32) -> u32 {
 ///
 /// Smallest primitive root
 pub fn primitive_root_prime(n: u32) -> Result<u32> {
+    if n < 2 || !is_prime(n) {
+        return Err(Error::Value("input must be prime".to_string()));
+    }
+    if n == 2 {
+        return Ok(1);
+    }
+
     // find unique factors of n-1
     let mut unique_factors = Vec::with_capacity(MAX_FACTORS);
-    let num_unique_factors = unique_factor(n - 1, &mut unique_factors).unwrap();
+    let num_unique_factors = unique_factor(n - 1, &mut unique_factors)?;
 
     // search for minimum integer for which
     //   g^( (n-1)/m ) != 1 (mod n)
@@ -196,7 +209,7 @@ pub fn primitive_root_prime(n: u32) -> Result<u32> {
         let mut is_root = true;
         for &factor in &unique_factors[0..num_unique_factors] {
             let e = (n - 1) / factor;
-            if modpow(g, e, n) == 1 {
+            if modpow(g, e, n)? == 1 {
                 // not a root
                 is_root = false;
                 break;
@@ -233,8 +246,8 @@ pub fn totient(x: u32) -> u32 {
 
                 if p != k {
                     // factor is unique
-                    t *= k - 1;
                     t /= k;
+                    t *= k - 1;
                 }
                 p = k;
                 break;
@@ -261,6 +274,11 @@ mod tests {
         for (n, &expected_is_prime) in IS_PRIME_ARRAY.iter().enumerate() {
             assert_eq!(is_prime(n as u32), expected_is_prime != 0);
         }
+    }
+
+    #[test]
+    fn test_prime_large() {
+        assert!(is_prime(4_294_967_291));
     }
 
     #[test]
@@ -334,14 +352,24 @@ mod tests {
 
     #[test]
     fn test_modpow() {
-        assert_eq!(modpow(2, 3, 5), 3);
-        assert_eq!(modpow(3, 4, 7), 4);
+        assert_eq!(modpow(2, 3, 5), Ok(3));
+        assert_eq!(modpow(3, 4, 7), Ok(4));
+        assert!(modpow(2, 3, 0).is_err());
+
+        let base = u32::MAX / 2;
+        let modulus = u32::MAX;
+        let expected = (u64::from(base) * u64::from(base) % u64::from(modulus)) as u32;
+        assert_eq!(modpow(base, 2, modulus), Ok(expected));
     }
 
     #[test]
     fn test_primitive_root_prime() {
+        assert_eq!(primitive_root_prime(2), Ok(1));
         assert_eq!(primitive_root_prime(5).unwrap(), 2);
         assert_eq!(primitive_root_prime(7).unwrap(), 3);
+        assert!(primitive_root_prime(0).is_err());
+        assert!(primitive_root_prime(1).is_err());
+        assert!(primitive_root_prime(4).is_err());
     }
 
     const IS_PRIME_ARRAY: [u8; 2500] = [

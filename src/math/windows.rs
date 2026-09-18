@@ -66,20 +66,35 @@ pub fn window(window_type: WindowType, i: usize, wlen: usize, arg: f32) -> Resul
         WindowType::BlackmanHarris7 => blackman_harris7(i, wlen),
         WindowType::Kaiser => kaiser(i, wlen, arg),
         WindowType::FlatTop => flat_top(i, wlen),
-        WindowType::Triangular => triangular(i, wlen, arg as usize),
-        WindowType::RcosTaper => rcos_taper(i, wlen, arg as usize),
+        WindowType::Triangular => triangular(i, wlen, window_arg_as_usize(arg, "Triangular")?),
+        WindowType::RcosTaper => rcos_taper(i, wlen, window_arg_as_usize(arg, "Raised-cosine taper")?),
         WindowType::Kbd => kbd(i, wlen, arg),
         WindowType::Unknown => Err(Error::Config("Unknown window type".to_string())),
     }
 }
 
+fn validate_window_index(i: usize, wlen: usize, name: &str) -> Result<()> {
+    if wlen == 0 {
+        return Err(Error::Value(format!("{name} window: window length must be greater than zero")));
+    }
+    if i >= wlen {
+        return Err(Error::Value(format!("{name} window: sample index must be less than window length")));
+    }
+    Ok(())
+}
+
+fn window_arg_as_usize(arg: f32, name: &str) -> Result<usize> {
+    if !arg.is_finite() || arg < 0.0 || arg.fract() != 0.0 || arg > usize::MAX as f32 {
+        return Err(Error::Value(format!("{name} window: argument must be a non-negative integer")));
+    }
+    Ok(arg as usize)
+}
+
 /// Implement individual window functions
 pub fn kaiser(i: usize, wlen: usize, beta: f32) -> Result<f32> {
-    if i >= wlen {
-        return Err(Error::Value("Kaiser window: sample index must not exceed window length".to_string()));
-    }
-    if beta < 0.0 {
-        return Err(Error::Value("Kaiser window: beta must be greater than or equal to zero".to_string()));
+    validate_window_index(i, wlen, "Kaiser")?;
+    if !beta.is_finite() || beta < 0.0 {
+        return Err(Error::Value("Kaiser window: beta must be finite and greater than or equal to zero".to_string()));
     }
     if wlen == 1 {
         return Ok(1.0);
@@ -94,24 +109,27 @@ pub fn kaiser(i: usize, wlen: usize, beta: f32) -> Result<f32> {
 }
 
 pub fn hamming(i: usize, wlen: usize) -> Result<f32> {
-    if i > wlen {
-        return Err(Error::Value("Hamming window: sample index must not exceed window length".to_string()));
+    validate_window_index(i, wlen, "Hamming")?;
+    if wlen == 1 {
+        return Ok(1.0);
     }
 
     Ok(0.53836 - 0.46164 * ((2.0 * PI * i as f32) / (wlen - 1) as f32).cos())
 }
 
 pub fn hann(i: usize, wlen: usize) -> Result<f32> {
-    if i > wlen {
-        return Err(Error::Value("Hann window: sample index must not exceed window length".to_string()));
+    validate_window_index(i, wlen, "Hann")?;
+    if wlen == 1 {
+        return Ok(1.0);
     }
 
     Ok(0.5 - 0.5 * ((2.0 * PI * i as f32) / (wlen - 1) as f32).cos())
 }
 
 pub fn blackman_harris(i: usize, wlen: usize) -> Result<f32> {
-    if i > wlen {
-        return Err(Error::Value("Blackman-Harris window: sample index must not exceed window length".to_string()));
+    validate_window_index(i, wlen, "Blackman-Harris")?;
+    if wlen == 1 {
+        return Ok(1.0);
     }
 
     let a0 = 0.35875;
@@ -124,8 +142,9 @@ pub fn blackman_harris(i: usize, wlen: usize) -> Result<f32> {
 }
 
 pub fn blackman_harris7(i: usize, wlen: usize) -> Result<f32> {
-    if i > wlen {
-        return Err(Error::Value("Blackman-Harris 7 window: sample index must not exceed window length".to_string()));
+    validate_window_index(i, wlen, "Blackman-Harris 7")?;
+    if wlen == 1 {
+        return Ok(1.0);
     }
 
     let a0 = 0.27105;
@@ -144,8 +163,9 @@ pub fn blackman_harris7(i: usize, wlen: usize) -> Result<f32> {
 }
 
 pub fn flat_top(i: usize, wlen: usize) -> Result<f32> {
-    if i > wlen {
-        return Err(Error::Value("Flat-top window: sample index must not exceed window length".to_string()));
+    validate_window_index(i, wlen, "Flat-top")?;
+    if wlen == 1 {
+        return Ok(1.0);
     }
 
     let a0 = 1.000;
@@ -159,14 +179,12 @@ pub fn flat_top(i: usize, wlen: usize) -> Result<f32> {
 }
 
 pub fn triangular(i: usize, wlen: usize, n: usize) -> Result<f32> {
-    if i > wlen {
-        return Err(Error::Value("Triangular window: sample index must not exceed window length".to_string()));
-    }
-    if n != wlen - 1 && n != wlen && n != wlen + 1 {
-        return Err(Error::Value("Triangular window: sub-length must be in wlen+{{-1,0,1}}".to_string()));
-    }
+    validate_window_index(i, wlen, "Triangular")?;
     if n == 0 {
         return Err(Error::Value("Triangular window: sub-length must be greater than zero".to_string()));
+    }
+    if n.abs_diff(wlen) > 1 {
+        return Err(Error::Value("Triangular window: sub-length must be in wlen+{{-1,0,1}}".to_string()));
     }
 
     let v0 = i as f32 - (wlen - 1) as f32 / 2.0;
@@ -175,9 +193,7 @@ pub fn triangular(i: usize, wlen: usize, n: usize) -> Result<f32> {
 }
 
 pub fn rcos_taper(i: usize, wlen: usize, t: usize) -> Result<f32> {
-    if i > wlen {
-        return Err(Error::Value("Raised-cosine taper window: sample index must not exceed window length".to_string()));
-    }
+    validate_window_index(i, wlen, "Raised-cosine taper")?;
     if t > wlen / 2 {
         return Err(Error::Value(
             "Raised-cosine taper window: taper length cannot exceed half window length".to_string(),
@@ -194,11 +210,9 @@ pub fn rcos_taper(i: usize, wlen: usize, t: usize) -> Result<f32> {
 }
 
 pub fn kbd(i: usize, wlen: usize, beta: f32) -> Result<f32> {
-    if i >= wlen {
-        return Err(Error::Value("KBD window: index exceeds maximum".to_string()));
-    }
-    if wlen == 0 {
-        return Err(Error::Value("KBD window: window length must be greater than zero".to_string()));
+    validate_window_index(i, wlen, "KBD")?;
+    if !beta.is_finite() || beta < 0.0 {
+        return Err(Error::Value("KBD window: beta must be finite and greater than or equal to zero".to_string()));
     }
     if !wlen.is_multiple_of(2) {
         return Err(Error::Value("KBD window: window length must be even".to_string()));
@@ -229,8 +243,8 @@ pub fn kbd_window(wlen: usize, beta: f32) -> Result<Vec<f32>> {
     if !wlen.is_multiple_of(2) {
         return Err(Error::Value("KBD window: window length must be even".to_string()));
     }
-    if beta < 0.0 {
-        return Err(Error::Value("KBD window: beta must be positive".to_string()));
+    if !beta.is_finite() || beta < 0.0 {
+        return Err(Error::Value("KBD window: beta must be finite and greater than or equal to zero".to_string()));
     }
 
     let m = wlen / 2;
@@ -343,6 +357,17 @@ mod tests {
     }
 
     #[test]
+    fn test_window_single_sample() {
+        assert_eq!(hamming(0, 1).unwrap(), 1.0);
+        assert_eq!(hann(0, 1).unwrap(), 1.0);
+        assert_eq!(blackman_harris(0, 1).unwrap(), 1.0);
+        assert_eq!(blackman_harris7(0, 1).unwrap(), 1.0);
+        assert_eq!(flat_top(0, 1).unwrap(), 1.0);
+        assert_eq!(triangular(0, 1, 1).unwrap(), 1.0);
+        assert_eq!(rcos_taper(0, 1, 0).unwrap(), 1.0);
+    }
+
+    #[test]
     #[autotest_annotate(autotest_window_flattop)]
     fn test_window_flattop() {
         window_testbench(WindowType::FlatTop, 71, 0.0);
@@ -432,33 +457,33 @@ mod tests {
         assert!(kbd_window(0, 10.0).is_err()); // Length is zero
         assert!(kbd_window(7, 10.0).is_err()); // Length is odd
         assert!(kbd_window(20, -1.0).is_err()); // Beta value is negative
+        assert!(kbd_window(20, f32::NAN).is_err());
 
         // Invalid Kaiser window parameters
         assert!(kaiser(12, 10, 10.0).is_err()); // Index exceeds maximum
         assert!(kaiser(12, 20, -1.0).is_err()); // Beta value is negative
+        assert!(kaiser(0, 10, f32::NAN).is_err());
 
-        // Hamming
-        assert!(hamming(12, 10).is_err()); // Index exceeds maximum
-
-        // Hann
-        assert!(hann(12, 10).is_err()); // Index exceeds maximum
-
-        // Blackman-Harris
-        assert!(blackman_harris(12, 10).is_err()); // Index exceeds maximum
-
-        // Blackman-Harris 7
-        assert!(blackman_harris7(12, 10).is_err()); // Index exceeds maximum
-
-        // Flat-top
-        assert!(flat_top(12, 10).is_err()); // Index exceeds maximum
+        for window in [hamming as fn(usize, usize) -> Result<f32>, hann, blackman_harris, blackman_harris7, flat_top] {
+            assert!(window(12, 10).is_err());
+            assert!(window(10, 10).is_err());
+            assert!(window(0, 0).is_err());
+        }
 
         // Triangular
         assert!(triangular(12, 10, 10).is_err()); // Index exceeds maximum
+        assert!(triangular(10, 10, 10).is_err()); // Index exceeds maximum
+        assert!(triangular(0, 0, 1).is_err()); // Window length is zero
         assert!(triangular(7, 10, 15).is_err()); // Sub-length is out of range
         assert!(triangular(1, 1, 0).is_err()); // Sub-length is zero
 
         // Raised-cosine taper
         assert!(rcos_taper(12, 10, 4).is_err()); // Index exceeds maximum
+        assert!(rcos_taper(10, 10, 4).is_err()); // Index exceeds maximum
+        assert!(rcos_taper(0, 0, 0).is_err()); // Window length is zero
         assert!(rcos_taper(7, 10, 8).is_err()); // Taper length exceeds maximum
+
+        assert!(window(WindowType::Triangular, 0, 10, 2.5).is_err());
+        assert!(window(WindowType::RcosTaper, 0, 10, -1.0).is_err());
     }
 }

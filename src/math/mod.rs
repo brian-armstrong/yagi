@@ -42,6 +42,10 @@ pub fn marcumqf(m: i32, alpha: f32, beta: f32) -> f32 {
 pub fn marcumq1f(alpha: f32, beta: f32) -> f32 {
     const NUM_MARCUMQ1_ITERATIONS: usize = 64;
 
+    if beta == 0.0 {
+        return 1.0;
+    }
+
     let t0 = (-0.5 * (alpha * alpha + beta * beta)).exp();
     let mut t1 = 1.0;
     let a_div_b = alpha / beta;
@@ -151,6 +155,12 @@ mod tests {
     fn test_sincf() {
         let tol = 1e-3f32;
         assert_abs_diff_eq!(sincf(0.0), 1.0, epsilon = tol);
+    }
+
+    #[test]
+    fn test_marcumq1f_zero_beta() {
+        assert_eq!(marcumq1f(0.0, 0.0), 1.0);
+        assert_eq!(marcumq1f(3.0, 0.0), 1.0);
     }
 
     #[test]

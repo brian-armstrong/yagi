@@ -99,7 +99,7 @@ pub fn uppergammaf(z: f32, alpha: f32) -> f32 {
 
 /// compute n!
 pub fn factorialf(n: u32) -> f32 {
-    gammaf((n + 1) as f32).abs()
+    gammaf(n as f32 + 1.0).abs()
 }
 
 #[cfg(test)]
@@ -246,5 +246,7 @@ mod tests {
         for &(n, expected) in &test_vectors {
             assert_abs_diff_eq!(factorialf(n), expected, epsilon = EPSILON);
         }
+
+        assert!(factorialf(u32::MAX).is_infinite());
     }
 }
