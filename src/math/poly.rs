@@ -603,14 +603,16 @@ pub fn poly_findroots_durandkerner(p: &[f64], roots: &mut [Complex<f64>]) -> Res
 
 /// Find the complex roots of a real polynomial using Bairstow's method.
 ///
-/// `p` must contain at least two coefficients in ascending-power order.
-/// `roots` must contain one fewer element than `p`. An iteration failure may
-/// leave `roots` partially written.
+/// `p` must contain at least two finite coefficients in ascending-power order.
+/// Its highest-order coefficient must be nonzero. `roots` must contain one
+/// fewer element than `p`. The output is written only after all roots are
+/// finite.
 ///
 /// # Errors
 ///
-/// Returns an error when the input lengths are invalid or the iteration does
-/// not converge.
+/// Returns an error when the input lengths or coefficients are invalid, the
+/// iteration does not converge, or a root is non-finite. `roots` is unchanged
+/// on error.
 pub fn poly_findroots_bairstow(p: &[f64], roots: &mut [Complex<f64>]) -> Result<()> {
     if p.len() < 2 {
         return Err(Error::Range("order must be greater than 0".to_owned()));
@@ -618,54 +620,69 @@ pub fn poly_findroots_bairstow(p: &[f64], roots: &mut [Complex<f64>]) -> Result<
     if roots.len() != p.len() - 1 {
         return Err(Error::Range("root slice length must be one less than coefficient slice length".to_owned()));
     }
-
-    let mut p0 = p.to_vec();
-    let mut p1 = vec![0.0; p.len()];
-    let mut p_buf;
-    let mut pr_buf = &mut p1;
-
-    let mut n = p.len();
-    let r = p.len() % 2;
-    let l = (p.len() - r) / 2;
-    let mut root_index = 0;
-    for i in 0..l - 1 + r {
-        // Set polynomial and reduced polynomial buffer pointers
-        if i % 2 == 0 {
-            p_buf = &mut p0;
-            pr_buf = &mut p1;
-        } else {
-            p_buf = &mut p1;
-            pr_buf = &mut p0;
-        }
-
-        // Initial estimates for u, v
-        if p_buf[n - 1] == 0.0 {
-            // TODO maybe error case
-            p_buf[n - 1] = 1e-12;
-        }
-        let mut u = p_buf[n - 2] / p_buf[n - 1];
-        let mut v = p_buf[n - 3] / p_buf[n - 1];
-
-        // Compute factor using Bairstow's recursion
-        if n > 3 {
-            poly_findroots_bairstow_persistent(&p_buf[..n], &mut pr_buf[..n - 2], &mut u, &mut v)?;
-        }
-
-        // Compute complex roots of x^2 + u*x + v
-        let r0 = Complex::new(-0.5 * u, 0.0) + 0.5 * Complex::new(u * u - 4.0 * v, 0.0).sqrt();
-        let r1 = Complex::new(-0.5 * u, 0.0) - 0.5 * Complex::new(u * u - 4.0 * v, 0.0).sqrt();
-
-        roots[root_index] = r0;
-        roots[root_index + 1] = r1;
-        root_index += 2;
-
-        n -= 2;
+    if p.iter().any(|coefficient| !coefficient.is_finite()) {
+        return Err(Error::Value("polynomial coefficients must be finite".to_owned()));
+    }
+    if p.last() == Some(&0.0) {
+        return Err(Error::Value("highest-order polynomial coefficient must be nonzero".to_owned()));
     }
 
-    if r == 0 {
-        roots[root_index] = Complex::new(-pr_buf[0] / pr_buf[1], 0.0);
+    let mut result = vec![Complex::new(0.0, 0.0); roots.len()];
+    if p.len() == 2 {
+        // A first-order polynomial has one root and no quadratic factor.
+        result[0] = Complex::new(-p[0] / p[1], 0.0);
+    } else {
+        let mut p0 = p.to_vec();
+        let mut p1 = vec![0.0; p.len()];
+        let mut p_buf;
+        let mut pr_buf = &mut p1;
+
+        let mut n = p.len();
+        let r = p.len() % 2;
+        let l = (p.len() - r) / 2;
+        let mut root_index = 0;
+        for i in 0..l - 1 + r {
+            // Set polynomial and reduced polynomial buffer pointers
+            if i % 2 == 0 {
+                p_buf = &mut p0;
+                pr_buf = &mut p1;
+            } else {
+                p_buf = &mut p1;
+                pr_buf = &mut p0;
+            }
+
+            // Initial estimates for u, v
+            if p_buf[n - 1] == 0.0 {
+                return Err(Error::NoConvergence("reduced polynomial has a zero leading coefficient".to_owned()));
+            }
+            let mut u = p_buf[n - 2] / p_buf[n - 1];
+            let mut v = p_buf[n - 3] / p_buf[n - 1];
+
+            // Compute factor using Bairstow's recursion
+            if n > 3 {
+                poly_findroots_bairstow_persistent(&p_buf[..n], &mut pr_buf[..n - 2], &mut u, &mut v)?;
+            }
+
+            // Compute complex roots of x^2 + u*x + v
+            let r0 = Complex::new(-0.5 * u, 0.0) + 0.5 * Complex::new(u * u - 4.0 * v, 0.0).sqrt();
+            let r1 = Complex::new(-0.5 * u, 0.0) - 0.5 * Complex::new(u * u - 4.0 * v, 0.0).sqrt();
+
+            result[root_index] = r0;
+            result[root_index + 1] = r1;
+            root_index += 2;
+
+            n -= 2;
+        }
+
+        if r == 0 {
+            result[root_index] = Complex::new(-pr_buf[0] / pr_buf[1], 0.0);
+        }
     }
 
+    if result.iter().any(|root| !root.re.is_finite() || !root.im.is_finite()) {
+        return Err(Error::NoConvergence("root solver produced a non-finite root".to_owned()));
+    }
+    roots.copy_from_slice(&result);
     Ok(())
 }
 
@@ -1386,6 +1403,37 @@ mod tests {
         let result = poly_findroots_bairstow(&coefficients, &mut roots);
 
         assert!(result.is_err());
+        assert_eq!(roots, [Complex::new(42.0, -7.0)]);
+    }
+
+    #[test]
+    fn test_poly_findroots_bairstow_finds_linear_root() {
+        let coefficients = [-3.0f64, 2.0];
+        let mut roots = [Complex::new(42.0f64, -7.0)];
+
+        poly_findroots_bairstow(&coefficients, &mut roots).unwrap();
+
+        assert_eq!(roots, [Complex::new(1.5, 0.0)]);
+
+        let coefficients = [-3.0f32, 2.0];
+        let mut roots = [Complex::new(42.0f32, -7.0)];
+
+        polyf_findroots(&coefficients, &mut roots).unwrap();
+
+        assert_eq!(roots, [Complex::new(1.5, 0.0)]);
+    }
+
+    #[test]
+    fn test_poly_findroots_bairstow_rejects_invalid_coefficients() {
+        for coefficients in [[f64::NAN, 1.0], [1.0, 0.0]] {
+            let mut roots = [Complex::new(42.0f64, -7.0)];
+
+            assert!(poly_findroots_bairstow(&coefficients, &mut roots).is_err());
+            assert_eq!(roots, [Complex::new(42.0, -7.0)]);
+        }
+
+        let mut roots = [Complex::new(42.0f32, -7.0)];
+        assert!(polyf_findroots(&[1.0, 0.0], &mut roots).is_err());
         assert_eq!(roots, [Complex::new(42.0, -7.0)]);
     }
 
