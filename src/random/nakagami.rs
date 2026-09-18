@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::math::gamma::{lngammaf, lowergammaf};
+use crate::math::gamma::{lngammaf, lnlowergammaf};
 use crate::random::randgammaf;
 
 pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
@@ -65,7 +65,25 @@ pub fn randnakmf_cdf(x: f32, m: f32, omega: f32) -> Result<f32> {
         return Ok(0.0);
     }
 
-    let t0 = lowergammaf(m, x * x * m / omega);
-    let t1 = lngammaf(m);
-    Ok((t0 - t1).exp())
+    let argument = x * x * m / omega;
+    if !argument.is_finite() {
+        return Err(Error::Range("x^2 * m / omega is not representable".to_string()));
+    }
+
+    let cdf = (lnlowergammaf(m, argument) - lngammaf(m)).exp();
+    if !cdf.is_finite() || !(0.0..=1.0).contains(&cdf) {
+        return Err(Error::Range("Nakagami CDF could not be evaluated for these parameters".to_string()));
+    }
+    Ok(cdf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_randnakmf_cdf_rayleigh() {
+        assert_abs_diff_eq!(randnakmf_cdf(1.0, 1.0, 1.0).unwrap(), 1.0 - (-1.0f32).exp(), epsilon = 1e-5);
+    }
 }

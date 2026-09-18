@@ -65,17 +65,47 @@ pub fn randgammaf_pdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
 //
 pub fn randgammaf_cdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     // validate input
-    if alpha <= 0.0 {
+    if !alpha.is_finite() || alpha <= 0.0 {
         return Err(Error::Config("alpha must be greater than zero".to_string()));
-    } else if beta <= 0.0 {
+    } else if !beta.is_finite() || beta <= 0.0 {
         return Err(Error::Config("beta must be greater than zero".to_string()));
     }
 
     if x <= 0.0 {
         return Ok(0.0);
     }
+    if !x.is_finite() {
+        return Err(Error::Value("x must be finite".to_string()));
+    }
 
-    Ok(lowergammaf(alpha, x / beta) / gammaf(alpha))
+    let argument = x / beta;
+    if !argument.is_finite() {
+        return Err(Error::Range("x / beta is not representable".to_string()));
+    }
+
+    let lower = lowergammaf(alpha, argument);
+    let gamma = gammaf(alpha);
+    if !lower.is_finite() || !gamma.is_finite() {
+        return Err(Error::Range("Gamma CDF is not representable for these parameters".to_string()));
+    }
+
+    let cdf = lower / gamma;
+    if !cdf.is_finite() || !(0.0..=1.0).contains(&cdf) {
+        return Err(Error::Range("Gamma CDF could not be evaluated for these parameters".to_string()));
+    }
+    Ok(cdf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_randgammaf_cdf_bounds() {
+        assert_abs_diff_eq!(randgammaf_cdf(1.0, 2.0, 1.0).unwrap(), 1.0 - 2.0 / std::f32::consts::E, epsilon = 1e-5);
+        assert!(randgammaf_cdf(50.0, 50.0, 1.0).is_err());
+    }
 }
 
 // generate x ~ Gamma(delta,1)
