@@ -967,6 +967,14 @@ mod tests {
     }
 
     #[test]
+    fn test_iirdes_isstable_n1() {
+        let b = [1.0f32, 0.0];
+
+        assert!(iir_design_is_stable(&b, &[1.0, -0.5], 2).unwrap());
+        assert!(!iir_design_is_stable(&b, &[1.0, -1.5], 2).unwrap());
+    }
+
+    #[test]
     #[autotest_annotate(autotest_iirdes_butter_2)]
     fn test_iirdes_butter_2() {
         // design butterworth filter
