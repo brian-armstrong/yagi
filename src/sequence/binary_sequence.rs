@@ -2,7 +2,11 @@ use super::maximal_length_sequence::MaximalLengthSequence;
 use crate::error::{Error, Result};
 use crate::utility::bits::count_ones;
 
-/// binary sequence
+/// A fixed-length binary sequence.
+///
+/// Bit index `0` is the rightmost bit. Index `length() - 1` is the leftmost
+/// bit. [`Self::push`] appends a bit at index `0` and shifts existing bits
+/// toward higher indices.
 #[derive(Debug, Clone)]
 #[doc(alias = "BSequence")]
 pub struct BinarySequence {
@@ -13,6 +17,9 @@ pub struct BinarySequence {
 }
 
 impl BinarySequence {
+    /// Create a zero-filled binary sequence with `num_bits` bits.
+    ///
+    /// A zero-length sequence can be inspected but cannot accept pushed bits.
     pub fn new(num_bits: usize) -> Self {
         // round up to the nearest 32 (number of bits in a u32)
         let s_len = num_bits.div_ceil(32);
@@ -24,8 +31,19 @@ impl BinarySequence {
         bs
     }
 
-    /// initialize two sequences to complementary codes.  sequences must
-    /// be of length at least 8 and a power of 2 (e.g. 8, 16, 32, 64,...)
+    /// Initialize `qa` and `qb` with a complementary pair of binary codes.
+    ///
+    /// Both sequences must have the same length. The length must be a power of
+    /// two and at least eight bits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the lengths differ, are shorter than eight bits,
+    /// or are not a multiple of eight.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the matching length is a non-power-of-two multiple of eight.
     pub fn create_ccodes(qa: &mut BinarySequence, qb: &mut BinarySequence) -> Result<()> {
         if qa.num_bits != qb.num_bits {
             return Err(Error::Config("sequence lengths must match".into()));
@@ -73,6 +91,9 @@ impl BinarySequence {
         Ok(())
     }
 
+    /// Copy one nominal period from `ms` into a binary sequence.
+    ///
+    /// Bits are appended in the order returned by [`MaximalLengthSequence::advance`].
     pub fn from_msequence(ms: &mut MaximalLengthSequence) -> Result<Self> {
         let mut bs = BinarySequence::new(ms.length() as usize);
         bs.reset();
@@ -82,11 +103,19 @@ impl BinarySequence {
         Ok(bs)
     }
 
+    /// Clear every bit in the sequence.
     pub fn reset(&mut self) {
         self.s.fill(0);
     }
 
-    /// initialize sequence on external array
+    /// Initialize the sequence from most-significant-bit-first bytes.
+    ///
+    /// The first bit in `v` becomes the leftmost bit of the sequence. `v` must
+    /// contain at least `ceil(length() / 8)` bytes. Extra bytes are ignored.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `v` is too short.
     pub fn init(&mut self, v: &[u8]) {
         let mut k = 0;
         let mut byte = 0;
@@ -102,11 +131,14 @@ impl BinarySequence {
         }
     }
 
+    /// Print the sequence length to standard output.
     pub fn print(&self) {
         println!("<bsequence, bits={}>", self.num_bits);
     }
 
-    /// push bits in from the right
+    /// Append the low bit of `bit` at the right end of the sequence.
+    ///
+    /// Existing bits shift toward the left. The leftmost bit is discarded.
     pub fn push(&mut self, bit: u32) {
         let p = 32;
         self.s[0] = (self.s[0] << 1) & self.bit_mask_msb;
@@ -121,14 +153,23 @@ impl BinarySequence {
         self.s[l - 1] |= bit & 1;
     }
 
-    /// circular shift (left)
+    /// Rotate the sequence left by one bit.
+    ///
+    /// The leftmost bit becomes the rightmost bit.
     pub fn circshift(&mut self) {
         let msb_mask = 1u32.checked_shl(self.num_bits_msb as u32 - 1).unwrap_or(0);
         let b = (self.s[0] & msb_mask) >> (self.num_bits_msb - 1);
         self.push(b);
     }
 
-    /// Correlate two binary sequences together
+    /// Count matching bit positions in two binary sequences.
+    ///
+    /// Convert the result to the usual bipolar correlation with
+    /// `2 * matches - length()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the sequences use different internal word counts.
     pub fn correlate(&self, bs2: &BinarySequence) -> Result<i32> {
         if self.s.len() != bs2.s.len() {
             return Err(Error::Config("binary sequences must be the same length".into()));
@@ -144,7 +185,13 @@ impl BinarySequence {
         Ok(rxy)
     }
 
-    /// compute the binary addition of two bit sequences
+    /// Compute the bitwise XOR of two binary sequences.
+    ///
+    /// Stores the result in `bs3`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the sequences use different internal word counts.
     pub fn add(&self, bs2: &BinarySequence, bs3: &mut BinarySequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
@@ -157,7 +204,13 @@ impl BinarySequence {
         Ok(())
     }
 
-    /// compute the binary multiplication of two bit sequences
+    /// Compute the bitwise AND of two binary sequences.
+    ///
+    /// Stores the result in `bs3`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the sequences use different internal word counts.
     pub fn mul(&self, bs2: &BinarySequence, bs3: &mut BinarySequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
@@ -170,16 +223,23 @@ impl BinarySequence {
         Ok(())
     }
 
-    /// accumulate the 1's in a binary sequence
+    /// Count the one bits in the sequence.
     pub fn accumulate(&self) -> u32 {
         self.s.iter().map(|&x| count_ones(x)).sum()
     }
 
+    /// Return the number of bits in the sequence.
     pub fn length(&self) -> usize {
         self.num_bits
     }
 
-    // return the i-th bit of the sequence
+    /// Return the bit at `index`.
+    ///
+    /// Index `0` selects the rightmost bit.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `index >= length()`.
     pub fn index(&self, index: usize) -> Result<u32> {
         if index >= self.num_bits {
             return Err(Error::Config(format!("invalid index {}", index)));

@@ -36,7 +36,10 @@ const MSEQUENCE_GENPOLY_M29: u32 = 0x10000002; // 29   536,870,911
 const MSEQUENCE_GENPOLY_M30: u32 = 0x20000029; // 30   1,073,741,823
 const MSEQUENCE_GENPOLY_M31: u32 = 0x40000004; // 31   2,147,483,647
 
-/// maximal-length sequence
+/// A linear-feedback shift-register sequence.
+///
+/// [`Self::from_degree`] selects a known maximal-length polynomial. [`Self::new`]
+/// and [`Self::from_genpoly`] accept arbitrary polynomials.
 #[derive(Debug, Clone, Copy)]
 #[doc(alias = "MSequence")]
 pub struct MaximalLengthSequence {
@@ -50,6 +53,18 @@ pub struct MaximalLengthSequence {
 impl MaximalLengthSequence {
     /// Create a maximal-length sequence with the given generator polynomial
     /// degree and initial shift-register state.
+    ///
+    /// The nominal period is `2^degree - 1`. `generator_polynomial` and
+    /// `initial_state` are stored without validation.
+    ///
+    /// # Warning
+    ///
+    /// An arbitrary polynomial may not be primitive. A zero seed or a
+    /// non-primitive polynomial can produce a shorter period.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `degree` is outside `2..=31`.
     pub fn new(degree: u32, generator_polynomial: u32, initial_state: u32) -> Result<Self> {
         if !(MIN_MSEQUENCE_M..=MAX_MSEQUENCE_M).contains(&degree) {
             return Err(Error::Config(format!("degree ({}) not in range", degree)));
@@ -58,6 +73,14 @@ impl MaximalLengthSequence {
         Ok(Self { m: degree, g: generator_polynomial, a: initial_state, n: (1 << degree) - 1, state: initial_state })
     }
 
+    /// Create an LFSR sequence from a generator polynomial.
+    ///
+    /// The most significant set bit determines the degree. The initial state
+    /// is `1`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the polynomial degree is outside `2..=31`.
     pub fn from_genpoly(generator_polynomial: u32) -> Result<Self> {
         let t = msb_index(generator_polynomial);
         if t < 2 {
@@ -68,6 +91,13 @@ impl MaximalLengthSequence {
         Self::new(m, generator_polynomial, a)
     }
 
+    /// Create a maximal-length sequence with a built-in polynomial.
+    ///
+    /// The built-in table covers degrees `2..=31`. The initial state is `1`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `degree` is outside `2..=31`.
     pub fn from_degree(degree: u32) -> Result<Self> {
         let g = match degree {
             2 => MSEQUENCE_GENPOLY_M2,
@@ -105,6 +135,7 @@ impl MaximalLengthSequence {
         Self::from_genpoly(g)
     }
 
+    /// Advance the shift register and return its next output bit.
     pub fn advance(&mut self) -> u32 {
         let b = bdotprod(self.state, self.g);
         self.state <<= 1;
@@ -113,6 +144,9 @@ impl MaximalLengthSequence {
         b
     }
 
+    /// Pack successive output bits into a most-significant-bit-first symbol.
+    ///
+    /// Only the final 32 bits are retained when `bps > 32`.
     pub fn generate_symbol(&mut self, bps: u32) -> u32 {
         let mut s = 0;
         for _ in 0..bps {
@@ -122,28 +156,40 @@ impl MaximalLengthSequence {
         s
     }
 
+    /// Restore the initial shift-register state.
     pub fn reset(&mut self) {
         self.state = self.a;
     }
 
-    /// Getter methods
+    /// Return the degree of the generator polynomial.
     pub fn genpoly_length(&self) -> u32 {
         self.m
     }
+    /// Return the nominal sequence period `2^degree - 1`.
     pub fn length(&self) -> u32 {
         self.n
     }
+    /// Return the generator polynomial.
     pub fn genpoly(&self) -> u32 {
         self.g
     }
+    /// Return the current shift-register state.
     pub fn state(&self) -> u32 {
         self.state
     }
 
+    /// Set the current shift-register state.
+    ///
+    /// The state is not validated. A zero state stops an XOR-feedback register
+    /// from advancing through a maximal-length sequence.
     pub fn set_state(&mut self, state: u32) {
         self.state = state;
     }
 
+    /// Measure the recurrence period from the current state.
+    ///
+    /// This advances the sequence. For a primitive polynomial and nonzero
+    /// state, the result is the nominal [`Self::length`].
     pub fn measure_period(&mut self) -> u32 {
         let s = self.state();
         let mut period = 0;
@@ -157,6 +203,11 @@ impl MaximalLengthSequence {
         period
     }
 
+    /// Measure the period produced by `g` with initial state `1`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the degree encoded by `g` is outside `2..=31`.
     pub fn genpoly_period(g: u32) -> Result<u32> {
         let mut q = MaximalLengthSequence::from_genpoly(g)?;
         Ok(q.measure_period())
