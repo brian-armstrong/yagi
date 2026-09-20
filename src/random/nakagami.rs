@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::math::gamma::{lngammaf, lnlowergammaf};
+use crate::math::{lngammaf, lnlowergammaf};
 use crate::random::randgammaf;
 
 pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {

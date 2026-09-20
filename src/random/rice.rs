@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::math::bessel::lnbesselif;
+use crate::math::lnbesselif;
 use crate::math::marcumq1f;
 use crate::random::crandnf;
 use num_complex::Complex;

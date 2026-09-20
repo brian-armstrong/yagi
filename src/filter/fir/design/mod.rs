@@ -20,8 +20,7 @@ pub use root_raised_cosine::*;
 
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
-use crate::math::sincf;
-use crate::math::windows;
+use crate::math::{kaiser, sincf, window, WindowType};
 
 use num_complex::{Complex32, Complex64, ComplexFloat};
 
@@ -284,15 +283,15 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
 /// Design FIR filter using generic window/taper method
 ///
 /// # Arguments
-/// * `wtype`  : window type, e.g. windows::WindowType::Hamming
-/// * `n`      : filter length, n > 0
-/// * `fc`     : cutoff frequency, 0 < fc < 0.5
-/// * `arg`    : window-specific argument, if required
+/// * `window_type` : window type, e.g. [`WindowType::Hamming`]
+/// * `n`           : filter length, n > 0
+/// * `fc`          : cutoff frequency, 0 < fc < 0.5
+/// * `arg`         : window-specific argument, if required
 ///
 /// # Returns
 ///
 /// Vec of filter coefficients
-pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f32) -> Result<Vec<f32>> {
+pub fn fir_design_windowf(window_type: WindowType, n: usize, fc: f32, arg: f32) -> Result<Vec<f32>> {
     // validate input
     if fc <= 0.0 || fc > 0.5 {
         return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", fc)));
@@ -311,7 +310,7 @@ pub fn fir_design_windowf(wtype: windows::WindowType, n: usize, fc: f32, arg: f3
         let h1 = sincf(2.0 * fc * t);
 
         // window
-        let h2 = windows::window(wtype, i, n, arg)?;
+        let h2 = window(window_type, i, n, arg)?;
 
         // composite
         *hi = h1 * h2;
@@ -354,7 +353,7 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
         let p = -(2.0 * std::f32::consts::PI * f0 * ((i as f32) - (m as f32))).cos();
 
         // window
-        let w = windows::kaiser(i, h.len(), beta)?;
+        let w = kaiser(i, h.len(), beta)?;
 
         // save un-normalized filter
         h[i] = p * w;
@@ -481,7 +480,7 @@ pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f
         let r = 1.5 * k / (k + 1.0) * (2.0 * std::f32::consts::PI * fd * t * theta.cos()).cos();
 
         // window
-        let w = windows::kaiser(i, n, beta)?;
+        let w = kaiser(i, n, beta)?;
 
         // composite
         *hi = (j + r) * w;
@@ -719,7 +718,7 @@ mod tests {
     use test_macro::autotest_annotate;
 
     use crate::fft::{fft_run, Direction};
-    use crate::math::windows::WindowType;
+    use crate::math::WindowType;
     use crate::utility::test_helpers::{validate_psd_signalf, PsdRegion};
 
     fn test_harness_matched_filter(

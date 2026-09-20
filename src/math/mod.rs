@@ -1,32 +1,52 @@
-// Math module
-// Current state:
-// - Autotests matching and passing
-// - ready to use
+//! Mathematical special functions, number theory, polynomials, and windows.
+//!
+//! Scalar special functions in this module use `f32` unless their name ends
+//! with `d`. Polynomial functions define their coefficient order in their own
+//! documentation.
 
-pub mod bessel;
-pub mod complex;
-pub mod gamma;
-pub mod modular_arithmetic;
-pub mod poly;
-pub mod windows;
+mod bessel;
+mod complex_tests;
+mod gamma;
+mod modular_arithmetic;
+mod poly;
+mod windows;
 
-pub use self::bessel::*;
-pub use self::gamma::*;
-pub use self::modular_arithmetic::*;
-pub use self::poly::*;
-pub use self::windows::*;
+pub use bessel::{besseli0f, besselif, besselj0f, besseljf, lnbesselif};
+pub use gamma::{factorialf, gammaf, lngammaf, lnlowergammaf, lnuppergammaf, lowergammaf, uppergammaf};
+pub use modular_arithmetic::{factor, gcd, is_prime, modpow, primitive_root_prime, totient, unique_factor};
+pub(crate) use poly::vandermonde_workspace;
+pub use poly::{
+    poly_expandbinomial, poly_expandbinomial_pm, poly_expandroots, poly_expandroots2, poly_findroots_bairstow,
+    poly_findroots_durandkerner, poly_fit, poly_fit_lagrange, poly_fit_lagrange_barycentric, poly_interp_lagrange,
+    poly_mul, poly_val, poly_val_lagrange_barycentric, polyf_findroots,
+};
+pub use windows::{
+    blackman_harris4, blackman_harris7, flat_top, get_window_type, hamming, hann, kaiser, kbd, kbd_window,
+    print_windows, rcos_taper, triangular, window, WindowType,
+};
 
 use libm::erfcf;
 use std::f32::consts::{PI, SQRT_2};
 
 use crate::error::{Error, Result};
 
-/// Q-function
+/// Evaluate the standard normal upper-tail probability at `z`.
+///
+/// Returns `P(Z > z)` for a standard normal random variable `Z`.
 pub fn qf(z: f32) -> f32 {
     0.5 * erfcf(z / SQRT_2)
 }
 
-/// Marcum Q-function
+/// Approximate the order-`m` Marcum Q function.
+///
+/// `m` is the positive integer order. `alpha` and `beta` are non-negative
+/// arguments.
+///
+/// # Warning
+///
+/// This uses an approximation. It is intended for the parameter ranges used
+/// by the surrounding signal-processing routines, not as a general numerical
+/// Marcum-Q implementation.
 pub fn marcumqf(m: i32, alpha: f32, beta: f32) -> f32 {
     // Use approximation [Helstrom:1992] (Eq. 25)
     // Q_M(a,b) ~ erfc(x),
@@ -38,7 +58,14 @@ pub fn marcumqf(m: i32, alpha: f32, beta: f32) -> f32 {
     erfcf(x)
 }
 
-/// Marcum Q-function (M=1)
+/// Evaluate the order-one Marcum Q function.
+///
+/// `alpha` and `beta` must be non-negative. `beta == 0` returns `1`.
+///
+/// # Warning
+///
+/// The fixed-length series can lose accuracy for extreme arguments. Use a
+/// dedicated special-functions library when that accuracy is important.
 pub fn marcumq1f(alpha: f32, beta: f32) -> f32 {
     const NUM_MARCUMQ1_ITERATIONS: usize = 64;
 
@@ -63,7 +90,9 @@ pub fn marcumq1f(alpha: f32, beta: f32) -> f32 {
     t0 * y
 }
 
-/// compute sinc(x) = sin(pi*x) / (pi*x)
+/// Evaluate `sin(pi * x) / (pi * x)`.
+///
+/// The value at zero is `1`.
 pub fn sincf(x: f32) -> f32 {
     if x.abs() < 0.01 {
         (PI * x / 2.0).cos() * (PI * x / 4.0).cos() * (PI * x / 8.0).cos()
@@ -72,6 +101,9 @@ pub fn sincf(x: f32) -> f32 {
     }
 }
 
+/// Evaluate `sin(pi * x) / (pi * x)` in `f64`.
+///
+/// The value at zero is `1`.
 pub fn sincd(x: f64) -> f64 {
     if x.abs() < 0.01 {
         (std::f64::consts::PI * x / 2.0).cos()
@@ -82,7 +114,13 @@ pub fn sincd(x: f64) -> f64 {
     }
 }
 
-/// next power of 2 : y = ceil(log2(_x))
+/// Return the smallest exponent `p` for which `2^p >= x`.
+///
+/// For example, `nextpow2(9)` returns `4`.
+///
+/// # Errors
+///
+/// Returns an error when `x` is zero.
 pub fn nextpow2(mut x: u32) -> Result<u32> {
     if x == 0 {
         return Err(Error::Value("nextpow2(), input must be greater than zero".to_owned()));
@@ -97,7 +135,16 @@ pub fn nextpow2(mut x: u32) -> Result<u32> {
     Ok(n)
 }
 
-/// (n choose k) = n! / ( k! (n-k)! )
+/// Compute the binomial coefficient `n choose k`.
+///
+/// # Errors
+///
+/// Returns an error when `k > n`.
+///
+/// # Warning
+///
+/// The result is represented as `f32`. Large coefficients cannot be
+/// represented exactly and may overflow or lose precision.
 pub fn nchoosek(n: u32, k: u32) -> Result<f32> {
     if k > n {
         return Err(Error::Value(("invalid input: k cannot exceed n").to_owned()));

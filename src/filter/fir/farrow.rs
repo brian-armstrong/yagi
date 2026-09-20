@@ -13,9 +13,9 @@ use crate::filter::fir::design::fir_group_delay;
 use crate::filter::fir::design::freqresponse;
 use crate::filter::fir::design::kaiser_beta_stopband_attenuation;
 use crate::filter::Sample;
-use crate::math::poly::{poly_val, vandermonde_workspace};
+use crate::math::kaiser;
 use crate::math::sincd;
-use crate::math::windows::kaiser;
+use crate::math::{poly_val, vandermonde_workspace};
 
 /// Finite impulse response (FIR) Farrow filter for timing delay
 #[derive(Clone, Debug)]

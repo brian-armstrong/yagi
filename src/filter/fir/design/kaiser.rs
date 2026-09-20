@@ -1,6 +1,5 @@
 use crate::error::{Error, Result};
-use crate::math::sincf;
-use crate::math::windows;
+use crate::math::{kaiser, sincf};
 
 /// Design FIR using kaiser window
 ///
@@ -41,7 +40,7 @@ pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32
         let h1 = sincf(2.0 * fc * t);
 
         // kaiser window
-        let h2 = windows::kaiser(i, n, beta)?;
+        let h2 = kaiser(i, n, beta)?;
 
         // composite
         *h_i = h1 * h2;

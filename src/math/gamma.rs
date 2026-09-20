@@ -1,9 +1,19 @@
+//! Gamma and incomplete-gamma functions for `f32` arguments.
+//!
+//! The incomplete-gamma functions return unregularized values. Divide by
+//! `Gamma(z)` to obtain a regularized probability when the values are
+//! representable.
+
 use std::f32::consts::PI;
 
 const LOWERGAMMA_MIN_ITERATIONS: usize = 50;
 const LOWERGAMMA_MAX_ITERATIONS: usize = 1000;
 
-/// log(Gamma(z))
+/// Evaluate `ln(Gamma(z))` for positive `z`.
+///
+/// # Panics
+///
+/// Panics when `z <= 0`.
 pub fn lngammaf(z: f32) -> f32 {
     if z <= 0.0 {
         panic!("lngammaf(), undefined for z <= 0");
@@ -21,7 +31,14 @@ pub fn lngammaf(z: f32) -> f32 {
     }
 }
 
-/// Gamma(z)
+/// Evaluate the gamma function at `z`.
+///
+/// Positive arguments use `exp(ln(Gamma(z)))`. Negative non-integer arguments
+/// use the reflection formula.
+///
+/// # Panics
+///
+/// Panics at zero and negative integer poles.
 pub fn gammaf(z: f32) -> f32 {
     if z < 0.0 {
         // use identities
@@ -41,7 +58,19 @@ pub fn gammaf(z: f32) -> f32 {
     }
 }
 
-/// ln(gamma(z,alpha)) : lower incomplete gamma function
+/// Evaluate the logarithm of the lower incomplete gamma function.
+///
+/// Returns `ln(gamma(z, alpha))`, where the integral runs from `0` to
+/// `alpha`. Both arguments must be positive.
+///
+/// # Warning
+///
+/// This direct series can overflow or lose accuracy for large arguments. It
+/// does not return an error when that happens.
+///
+/// # Panics
+///
+/// Panics when `z <= 0`.
 pub fn lnlowergammaf(z: f32, alpha: f32) -> f32 {
     let t0 = z * alpha.ln();
     let t1 = lngammaf(z);
@@ -82,22 +111,50 @@ pub fn lnlowergammaf(z: f32, alpha: f32) -> f32 {
     t0 + t1 + t2 + t3.ln()
 }
 
-/// ln(Gamma(z,alpha)) : upper incomplete gamma function
+/// Evaluate the logarithm of the upper incomplete gamma function.
+///
+/// Returns `ln(Gamma(z, alpha))`, where the integral runs from `alpha` to
+/// infinity. Both arguments must be positive.
+///
+/// # Warning
+///
+/// This routine subtracts the lower incomplete gamma from `Gamma(z)`. It can
+/// lose all useful precision when the upper tail is small.
+///
+/// # Panics
+///
+/// Panics when `z <= 0`.
 pub fn lnuppergammaf(z: f32, alpha: f32) -> f32 {
     (gammaf(z) - lowergammaf(z, alpha)).ln()
 }
 
-/// gamma(z,alpha) : lower incomplete gamma function
+/// Evaluate the lower incomplete gamma function.
+///
+/// Returns `gamma(z, alpha)`, where the integral runs from `0` to `alpha`.
+/// Both arguments must be positive.
+///
+/// # Warning
+///
+/// This routine inherits the range and accuracy limits of [`lnlowergammaf`].
 pub fn lowergammaf(z: f32, alpha: f32) -> f32 {
     lnlowergammaf(z, alpha).exp()
 }
 
-/// Gamma(z,alpha) : upper incomplete gamma function
+/// Evaluate the upper incomplete gamma function.
+///
+/// Returns `Gamma(z, alpha)`, where the integral runs from `alpha` to
+/// infinity. Both arguments must be positive.
+///
+/// # Warning
+///
+/// This routine inherits the cancellation in [`lnuppergammaf`].
 pub fn uppergammaf(z: f32, alpha: f32) -> f32 {
     lnuppergammaf(z, alpha).exp()
 }
 
-/// compute n!
+/// Compute `n!` as `f32`.
+///
+/// Returns infinity when the factorial is not representable as `f32`.
 pub fn factorialf(n: u32) -> f32 {
     gammaf(n as f32 + 1.0).abs()
 }

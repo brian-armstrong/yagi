@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::math::gamma::{gammaf, lowergammaf};
+use crate::math::{gammaf, lowergammaf};
 use crate::random::randf;
 
 pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {

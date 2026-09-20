@@ -81,8 +81,8 @@ mod tests {
         m2 = (m2 / NUM_TRIALS as f32) - m1 * m1;
 
         // compute expected moments (closed-form solution)
-        let t0 = crate::math::gamma::gammaf(1.0 + 1.0 / alpha);
-        let t1 = crate::math::gamma::gammaf(1.0 + 2.0 / alpha);
+        let t0 = crate::math::gammaf(1.0 + 1.0 / alpha);
+        let t1 = crate::math::gammaf(1.0 + 2.0 / alpha);
         let m1_exp = beta * t0 + gamma;
         let m2_exp = beta * beta * (t1 - t0 * t0);
 

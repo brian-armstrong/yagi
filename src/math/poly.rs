@@ -833,7 +833,7 @@ fn poly_findroots_bairstow_persistent(p: &[f64], p1: &mut [f64], u: &mut f64, v:
 /// Roots with smaller real parts sort first. Roots with equal real parts sort
 /// with larger imaginary parts first. The comparison is total, including for
 /// NaN values.
-pub fn poly_sort_roots_compare(a: &Complex<f64>, b: &Complex<f64>) -> Ordering {
+fn poly_sort_roots_compare(a: &Complex<f64>, b: &Complex<f64>) -> Ordering {
     a.re.total_cmp(&b.re).then_with(|| b.im.total_cmp(&a.im))
 }
 

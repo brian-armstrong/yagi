@@ -241,7 +241,7 @@ impl Nco {
 #[cfg(test)]
 mod tests {
     use crate::fft::SpectralPeriodogram;
-    use crate::math::windows::{hann, WindowType};
+    use crate::math::{hann, WindowType};
     use crate::nco::{Nco, NcoBackend};
     use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
     use lazy_static::lazy_static;
@@ -801,7 +801,7 @@ mod tests {
             buf_0[i] = Complex::new(1.0 / (nfft as f32).sqrt(), 0.0);
         }
 
-        let mut psd = SpectralPeriodogram::new(nfft, WindowType::BlackmanHarris, nfft, nfft / 2).unwrap();
+        let mut psd = SpectralPeriodogram::new(nfft, WindowType::BlackmanHarris4, nfft, nfft / 2).unwrap();
 
         while psd.num_samples_total() < num_samples {
             nco.mix_block_up(&buf_0, &mut buf_1).unwrap();

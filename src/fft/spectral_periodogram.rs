@@ -1,8 +1,9 @@
 use crate::buffer::Window;
 use crate::error::{Error, Result};
 use crate::fft::{Direction, Fft};
-use crate::math::windows;
-use crate::math::WindowType;
+use crate::math::{
+    blackman_harris4, blackman_harris7, flat_top, hamming, hann, kaiser, kbd, rcos_taper, triangular, WindowType,
+};
 use num_complex::Complex32;
 use num_traits::Zero;
 use std::cmp::max;
@@ -95,20 +96,20 @@ where
         spgram.set_alpha(-1.0)?;
 
         // create window
-        let mut g = 0.0;
+        let mut g = 0.0f32;
         let beta = 10.0;
         let zeta = 3.0;
         for i in 0..window_length {
             let w = match spgram.wtype {
-                WindowType::Hamming => windows::hamming(i, window_length)?,
-                WindowType::Hann => windows::hann(i, window_length)?,
-                WindowType::BlackmanHarris => windows::blackman_harris(i, window_length)?,
-                WindowType::BlackmanHarris7 => windows::blackman_harris7(i, window_length)?,
-                WindowType::Kaiser => windows::kaiser(i, window_length, beta)?,
-                WindowType::FlatTop => windows::flat_top(i, window_length)?,
-                WindowType::Triangular => windows::triangular(i, window_length, window_length)?,
-                WindowType::RcosTaper => windows::rcos_taper(i, window_length, window_length / 3)?,
-                WindowType::Kbd => windows::kbd(i, window_length, zeta)?,
+                WindowType::Hamming => hamming(i, window_length)?,
+                WindowType::Hann => hann(i, window_length)?,
+                WindowType::BlackmanHarris4 => blackman_harris4(i, window_length)?,
+                WindowType::BlackmanHarris7 => blackman_harris7(i, window_length)?,
+                WindowType::Kaiser => kaiser(i, window_length, beta)?,
+                WindowType::FlatTop => flat_top(i, window_length)?,
+                WindowType::Triangular => triangular(i, window_length, window_length)?,
+                WindowType::RcosTaper => rcos_taper(i, window_length, window_length / 3)?,
+                WindowType::Kbd => kbd(i, window_length, zeta)?,
                 _ => return Err(Error::Config("unknown window type".into())),
             };
             spgram.w[i] = w;
@@ -450,7 +451,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_spgramcf_noise_blackmanharris)]
     fn test_spgramcf_noise_blackmanharris() {
-        testbench_spgramcf_noise(800, 0, 0, WindowType::BlackmanHarris, -80.0);
+        testbench_spgramcf_noise(800, 0, 0, WindowType::BlackmanHarris4, -80.0);
     }
 
     #[test]

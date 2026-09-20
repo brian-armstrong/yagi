@@ -1,11 +1,29 @@
-use crate::math::gamma;
+//! Bessel functions for real `f32` arguments.
+//!
+//! These routines use fixed-length series and a simple asymptotic expression.
+//! They are intended for the non-negative arguments used by the surrounding
+//! DSP code.
+
+use super::gamma;
 use std::f32;
 
 const NUM_BESSELI_ITERATIONS: usize = 64;
 const NUM_BESSELJ_ITERATIONS: usize = 128;
 const NUM_BESSELJ0_ITERATIONS: usize = 16;
 
-/// log(I_v(z)) : log Modified Bessel function of the first kind
+/// Evaluate `ln(I_nu(z))`, where `I_nu` is the modified Bessel function.
+///
+/// `nu` and `z` should be finite and non-negative. At `z == 0`, the result is
+/// `0` for `nu == 0` and negative infinity otherwise.
+///
+/// # Warning
+///
+/// This fixed-length series is not a general special-functions implementation.
+/// It can lose accuracy for large order or argument.
+///
+/// # Panics
+///
+/// Panics when `nu` causes an invalid gamma-function argument.
 pub fn lnbesselif(nu: f32, z: f32) -> f32 {
     // special case: check for zeros; besseli_nu(0) = (nu = 0 ? 1 : 0)
     if z == 0.0 {
@@ -40,7 +58,14 @@ pub fn lnbesselif(nu: f32, z: f32) -> f32 {
     t0 + y.ln()
 }
 
-/// I_v(z) : Modified Bessel function of the first kind
+/// Evaluate `I_nu(z)`, the modified Bessel function of the first kind.
+///
+/// `nu` and `z` should be finite and non-negative. At `z == 0`, the result is
+/// `1` for `nu == 0` and `0` otherwise.
+///
+/// # Warning
+///
+/// This routine inherits the range and accuracy limits of [`lnbesselif`].
 pub fn besselif(nu: f32, z: f32) -> f32 {
     // special case: check for zeros; besseli_nu(0) = (nu = 0 ? 1 : 0)
     if z == 0.0 {
@@ -61,12 +86,21 @@ pub fn besselif(nu: f32, z: f32) -> f32 {
     lnbesselif(nu, z).exp()
 }
 
-/// I_0(z) : Modified bessel function of the first kind (order zero)
+/// Evaluate the order-zero modified Bessel function `I_0(z)`.
+///
+/// The implementation is intended for finite, non-negative `z`.
 pub fn besseli0f(z: f32) -> f32 {
     besselif(0.0, z)
 }
 
-/// J_v(z) : Bessel function of the first kind
+/// Evaluate `J_nu(z)`, the Bessel function of the first kind.
+///
+/// `nu` and `z` should be finite and non-negative. At `z == 0`, the result is
+/// `1` for `nu == 0` and `0` otherwise.
+///
+/// # Warning
+///
+/// This fixed-length series can lose accuracy for large order or argument.
 pub fn besseljf(nu: f32, z: f32) -> f32 {
     // special case: check for zeros; besselj_nu(0) = (nu = 0 ? 1 : 0)
     if z == 0.0 {
@@ -105,7 +139,13 @@ pub fn besseljf(nu: f32, z: f32) -> f32 {
     j
 }
 
-/// J_0(z) : Bessel function of the first kind (order zero)
+/// Evaluate the order-zero Bessel function `J_0(z)`.
+///
+/// # Warning
+///
+/// For `abs(z) > 10`, this uses only the leading asymptotic term. It is useful
+/// for the filter-design callers in this crate, but it is not a uniformly
+/// accurate `J_0` implementation.
 pub fn besselj0f(z: f32) -> f32 {
     // large signal approximation, see
     // Gross, F. B "New Approximations to J0 and J1 Bessel Functions,"

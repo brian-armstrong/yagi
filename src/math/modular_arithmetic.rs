@@ -1,16 +1,15 @@
+//! Small integer number-theory routines.
+//!
+//! These routines use trial division and direct repeated multiplication. They
+//! are suitable for small inputs and simple checks, not large-number work.
+
 use crate::error::{Error, Result};
 
 const MAX_FACTORS: usize = 40;
 
-/// Determine if number is prime (slow, simple method)
+/// Return whether `n` is prime.
 ///
-/// # Arguments
-///
-/// * `n` - Number to check for primality
-///
-/// # Returns
-///
-/// `true` if prime, `false` otherwise
+/// This uses trial division. `0` and `1` are not prime.
 pub fn is_prime(n: u32) -> bool {
     // check base cases (0, 1, 2, 3, divisible by 2, divisible by 3)
     if n <= 1 {
@@ -33,17 +32,18 @@ pub fn is_prime(n: u32) -> bool {
     true
 }
 
-/// Compute number's prime factors
+/// Append the prime factors of `n` to `factors`.
 ///
-/// # Arguments
+/// Repeated factors appear once for each multiplicity. The return value is the
+/// number of factors appended by this call.
 ///
-/// * `n` - Number to factor
-/// * `factors` - Output slice of factors [size: MAX_FACTORS x 1]
+/// # Warning
 ///
-/// # Returns
+/// This routine is intended for small inputs.
 ///
-/// A tuple containing:
-/// - The number of factors found
+/// # Errors
+///
+/// Returns an error if the implementation reaches its factor-count limit.
 pub fn factor(n: u32, factors: &mut Vec<u32>) -> Result<usize> {
     let mut num = n;
     let mut num_factors = 0;
@@ -64,21 +64,22 @@ pub fn factor(n: u32, factors: &mut Vec<u32>) -> Result<usize> {
         return Err(Error::NoConvergence("could not factor number in MAX_FACTORS numbers".to_string()));
     }
 
-    factors.shrink_to_fit();
     Ok(num_factors)
 }
 
-/// Compute number's unique prime factors
+/// Append the distinct prime factors of `n` to an empty `factors` vector.
 ///
-/// # Arguments
+/// The return value is the number of factors appended by this call.
 ///
-/// * `n` - Number to factor
-/// * `factors` - Output slice of factors [size: MAX_FACTORS x 1]
+/// # Warning
 ///
-/// # Returns
+/// `factors` must be empty. The routine does not validate that precondition
+/// and can return an incorrect result when it contains earlier values. It is
+/// intended for small inputs.
 ///
-/// A tuple containing:
-/// - The number of unique factors found
+/// # Errors
+///
+/// Returns an error if the implementation reaches its factor-count limit.
 pub fn unique_factor(n: u32, factors: &mut Vec<u32>) -> Result<usize> {
     let mut num = n;
     let mut num_factors = 0;
@@ -106,16 +107,11 @@ pub fn unique_factor(n: u32, factors: &mut Vec<u32>) -> Result<usize> {
     Ok(num_factors)
 }
 
-/// Compute greatest common divisor between two integers p and q
+/// Compute the greatest common divisor of two positive integers.
 ///
-/// # Arguments
+/// # Errors
 ///
-/// * `p` - First integer
-/// * `q` - Second integer
-///
-/// # Returns
-///
-/// Greatest common divisor
+/// Returns an error when either input is zero.
 pub fn gcd(mut p: u32, mut q: u32) -> Result<u32> {
     // check base cases
     if p == 0 || q == 0 {
@@ -143,17 +139,16 @@ pub fn gcd(mut p: u32, mut q: u32) -> Result<u32> {
     Ok(gcd)
 }
 
-/// Compute c = base^exp (mod n)
+/// Compute `base^exp mod n`.
 ///
-/// # Arguments
+/// # Errors
 ///
-/// * `base` - Base
-/// * `exp` - Exponent
-/// * `n` - Modulus
+/// Returns an error when `n` is zero.
 ///
-/// # Returns
+/// # Warning
 ///
-/// Result of modular exponentiation
+/// This uses one multiplication per unit of `exp`. It is intended for small
+/// exponents.
 pub fn modpow(base: u32, exp: u32, n: u32) -> Result<u32> {
     if n == 0 {
         return Err(Error::Value("modulus must be greater than zero".to_string()));
@@ -168,28 +163,16 @@ pub fn modpow(base: u32, exp: u32, n: u32) -> Result<u32> {
     Ok(c as u32)
 }
 
-/// Find smallest primitive root of n
+/// Find the smallest primitive root of a prime `n`.
 ///
-/// # Arguments
+/// # Errors
 ///
-/// * `n` - Number to find primitive root for
+/// Returns an error when `n` is not prime.
 ///
-/// # Returns
+/// # Warning
 ///
-/// Smallest primitive root
-pub fn primitive_root(_n: u32) -> u32 {
-    unimplemented!()
-}
-
-/// Find smallest primitive root of n (assuming n is prime)
-///
-/// # Arguments
-///
-/// * `n` - Prime number to find primitive root for
-///
-/// # Returns
-///
-/// Smallest primitive root
+/// This uses trial division and direct modular exponentiation. It is intended
+/// for small primes.
 pub fn primitive_root_prime(n: u32) -> Result<u32> {
     if n < 2 || !is_prime(n) {
         return Err(Error::Value("input must be prime".to_string()));
@@ -225,15 +208,14 @@ pub fn primitive_root_prime(n: u32) -> Result<u32> {
     Err(Error::Value("No primitive root found for prime".to_string()))
 }
 
-/// Euler's totient function
+/// Compute Euler's totient function.
 ///
-/// # Arguments
+/// Returns the number of positive integers no greater than `x` that are
+/// coprime with `x`. This routine returns `0` when `x` is zero.
 ///
-/// * `n` - Number to compute totient for
+/// # Warning
 ///
-/// # Returns
-///
-/// Euler's totient
+/// This uses trial division and is intended for small inputs.
 pub fn totient(x: u32) -> u32 {
     let mut t = x;
     let mut n = x;
