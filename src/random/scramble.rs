@@ -1,9 +1,14 @@
+//! Byte and soft-bit scrambling with a fixed repeating mask.
+
 // Define the scramble masks as constants
 const SCRAMBLE_MASK0: u8 = 0xCA;
 const SCRAMBLE_MASK1: u8 = 0xCC;
 const SCRAMBLE_MASK2: u8 = 0x53;
 const SCRAMBLE_MASK3: u8 = 0x5F;
 
+/// Scramble bytes in place with the fixed four-byte mask.
+///
+/// Applying [`unscramble_data`] to the result recovers the original bytes.
 pub fn scramble_data(x: &mut [u8]) {
     // t = 4*(floor(_n/4))
     let t = x.len() & !3;
@@ -28,12 +33,22 @@ pub fn scramble_data(x: &mut [u8]) {
     }
 }
 
+/// Recover bytes scrambled by [`scramble_data`].
+///
+/// This applies the same fixed mask a second time.
 pub fn unscramble_data(x: &mut [u8]) {
     // for now apply simple static mask (re-run scramble)
     scramble_data(x);
 }
 
-/// unscramble soft bits
+/// Recover soft bits scrambled by [`scramble_data`].
+///
+/// `x` contains one soft decision per bit in most-significant-bit-first order.
+/// Values near `0` favor a zero bit. Values near `255` favor a one bit. The
+/// function inverts the likelihood for mask bits set to one.
+///
+/// Only complete groups of eight soft bits are processed. A trailing group
+/// shorter than eight elements is left unchanged.
 pub fn unscramble_data_soft(x: &mut [u8]) {
     for (i, chunk) in x.as_chunks_mut::<8>().0.iter_mut().enumerate() {
         let mask = match i % 4 {

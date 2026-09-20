@@ -1,7 +1,13 @@
 use crate::error::{Error, Result};
 use crate::random::randf;
 
-/// Weibull
+/// Generate a Weibull random sample.
+///
+/// `alpha` is the shape, `beta` is the scale, and `gamma` is the location.
+///
+/// # Errors
+///
+/// Returns an error when `alpha <= 0` or `beta <= 0`.
 pub fn randweibf(alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {
@@ -20,7 +26,14 @@ pub fn randweibf(alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     Ok(gamma + beta * (-u.ln()).powf(1.0 / alpha))
 }
 
-/// Weibull random number probability distribution function
+/// Evaluate the probability density of a Weibull distribution.
+///
+/// `alpha` is the shape, `beta` is the scale, and `gamma` is the location.
+/// Returns `0` when `x < gamma`.
+///
+/// # Errors
+///
+/// Returns an error when `alpha <= 0` or `beta <= 0`.
 pub fn randweibf_pdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {
@@ -37,6 +50,14 @@ pub fn randweibf_pdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     Ok((alpha / beta) * (t / beta).powf(alpha - 1.0) * (-((t / beta).powf(alpha))).exp())
 }
 
+/// Evaluate the cumulative distribution of a Weibull distribution.
+///
+/// `alpha` is the shape, `beta` is the scale, and `gamma` is the location.
+/// Returns `0` when `x <= gamma`.
+///
+/// # Errors
+///
+/// Returns an error when `alpha <= 0` or `beta <= 0`.
 pub fn randweibf_cdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {

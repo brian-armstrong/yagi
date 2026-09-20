@@ -2,6 +2,14 @@ use crate::error::{Error, Result};
 use crate::math::{lngammaf, lnlowergammaf};
 use crate::random::randgammaf;
 
+/// Generate a Nakagami-m random sample.
+///
+/// `m` is the shape and must be at least `0.5`. `omega` is the positive
+/// spread parameter.
+///
+/// # Errors
+///
+/// Returns an error when `m < 0.5` or `omega <= 0`.
 pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
     // validate input
     if m < 0.5 {
@@ -19,14 +27,13 @@ pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
     Ok(x.sqrt())
 }
 
-/// Nakagami-m distribution probability distribution function
-/// Nakagami-m
-///  f(x) = (2/Gamma(m)) (m/omega)^m x^(2m-1) exp{-(m/omega)x^2}
-/// where
-///      m       : shape parameter, m >= 0.5
-///      omega   : spread parameter, omega > 0
-///      Gamma(z): regular complete gamma function
-///      x >= 0
+/// Evaluate the probability density of a Nakagami-m distribution.
+///
+/// `m` is the shape and `omega` is the spread. Returns `0` when `x <= 0`.
+///
+/// # Errors
+///
+/// Returns an error when `m < 0.5` or `omega <= 0`.
 pub fn randnakmf_pdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     // validate input
     if m < 0.5 {
@@ -47,12 +54,14 @@ pub fn randnakmf_pdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     Ok(2.0 * (-t0 + t1 + t2 + t3).exp())
 }
 
-// Nakagami-m distribution cumulative distribution function
-//  F(x) = gamma(m, x^2 m / omega) / Gamma(m)
-//  where
-//      gamma(z,a) = lower incomplete gamma function
-//      Gamma(z)   = regular gamma function
-//
+/// Evaluate the cumulative distribution of a Nakagami-m distribution.
+///
+/// `m` is the shape and `omega` is the spread. Returns `0` when `x <= 0`.
+///
+/// # Errors
+///
+/// Returns an error when `m < 0.5`, `omega <= 0`, or the calculation is not
+/// representable as `f32`.
 pub fn randnakmf_cdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     // validate input
     if m < 0.5 {

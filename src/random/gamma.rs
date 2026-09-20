@@ -2,6 +2,19 @@ use crate::error::{Error, Result};
 use crate::math::{gammaf, lowergammaf};
 use crate::random::randf;
 
+/// Generate a gamma random sample.
+///
+/// `alpha` is the shape and `beta` is the scale. The sample has mean
+/// `alpha * beta`.
+///
+/// # Warning
+///
+/// This rejection sampler expects finite parameters. A non-finite `alpha` can
+/// make the integer component take an impractical time to generate.
+///
+/// # Errors
+///
+/// Returns an error when `alpha <= 0` or `beta <= 0`.
 pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {
@@ -26,15 +39,13 @@ pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {
     Ok(beta * (x_delta + x_n))
 }
 
-/// Gamma distribution probability distribution function
-///          x^(a-1) exp{-x/b)
-///  f(x) = -------------------
-///            Gamma(a) b^a
-///  where
-///      a = alpha, a > 0
-///      b = beta,  b > 0
-///      Gamma(z) = regular gamma function
-///      x >= 0
+/// Evaluate the probability density of a gamma distribution.
+///
+/// `alpha` is the shape and `beta` is the scale. Returns `0` when `x <= 0`.
+///
+/// # Errors
+///
+/// Returns an error when `alpha <= 0` or `beta <= 0`.
 pub fn randgammaf_pdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {
@@ -55,14 +66,15 @@ pub fn randgammaf_pdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     Ok((t0 * t1) / (t2 * t3))
 }
 
-// Gamma distribution cumulative distribution function
-//  F(x) = gamma(a,x/b) / Gamma(a)
-//  where
-//      a = alpha,  alpha > 0
-//      b = beta,   beta > 0
-//      gamma(a,z) = lower incomplete gamma function
-//      Gamma(z)   = regular gamma function
-//
+/// Evaluate the cumulative distribution of a gamma distribution.
+///
+/// `alpha` is the finite positive shape and `beta` is the finite positive
+/// scale. Returns `0` when `x <= 0`.
+///
+/// # Errors
+///
+/// Returns an error for non-finite or non-positive parameters, a non-finite
+/// positive `x`, or values that cannot be represented by the calculation.
 pub fn randgammaf_cdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     // validate input
     if !alpha.is_finite() || alpha <= 0.0 {

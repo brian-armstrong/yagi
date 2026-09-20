@@ -1,7 +1,13 @@
 use crate::error::{Error, Result};
 use crate::random::randf;
 
-/// Exponential
+/// Generate an exponential random sample with rate `lambda`.
+///
+/// The sample has mean `1 / lambda`.
+///
+/// # Errors
+///
+/// Returns an error when `lambda <= 0`.
 pub fn randexpf(lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {
@@ -20,7 +26,13 @@ pub fn randexpf(lambda: f32) -> Result<f32> {
     Ok(-u.ln() / lambda)
 }
 
-/// Exponential random number probability distribution function
+/// Evaluate the probability density of an exponential distribution.
+///
+/// Returns `0` when `x < 0`.
+///
+/// # Errors
+///
+/// Returns an error when `lambda <= 0`.
 pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {
@@ -34,7 +46,13 @@ pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
     }
 }
 
-/// Exponential random number cumulative distribution function
+/// Evaluate the cumulative distribution of an exponential distribution.
+///
+/// Returns `0` when `x < 0`.
+///
+/// # Errors
+///
+/// Returns an error when `lambda <= 0`.
 pub fn randexpf_cdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {

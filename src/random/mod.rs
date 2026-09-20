@@ -1,9 +1,8 @@
-// Random module
-// Current state:
-// - Autotests matching for rng functions
-// - Distribution tests turned off for nakm, ricek, uniform
-// - Some replacement may be possible from stdlib or other crates
-// - Module orginization still WIP
+//! Random samples, probability distributions, and packet scramblers.
+//!
+//! The sample generators use the thread-local random-number generator. They
+//! are useful for DSP simulation and stochastic algorithms. They do not expose
+//! a reproducible seed or stream.
 
 pub mod exponential;
 pub mod gamma;

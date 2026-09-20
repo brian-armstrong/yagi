@@ -4,6 +4,14 @@ use crate::math::marcumq1f;
 use crate::random::crandnf;
 use num_complex::Complex;
 
+/// Generate a Rice-K random sample.
+///
+/// `k` is the non-negative shape parameter. `omega` is the positive spread
+/// parameter.
+///
+/// # Errors
+///
+/// Returns an error when `k < 0` or `omega <= 0`.
 pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
     // validate input
     if k < 0.0 {
@@ -21,16 +29,19 @@ pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
     Ok(y.norm())
 }
 
-/// Rice-K random number probability distribution function
-///  f(x) = (x/sigma^2) exp{ -(x^2+s^2)/(2sigma^2) } I0( x s / sigma^2 )
-/// where
-///  s     = sqrt( omega*K/(K+1) )
-///  sigma = sqrt(0.5 omega/(K+1))
-/// and
-///  K     = shape parameter
-///  omega = spread parameter
-///  I0    = modified Bessel function of the first kind
-///  x >= 0
+/// Evaluate the probability density of a Rice-K distribution.
+///
+/// `k` is the non-negative shape parameter. `omega` is the positive spread
+/// parameter. Returns `0` when `x < 0`.
+///
+/// # Warning
+///
+/// The modified Bessel calculation is truncated for a large scaled argument.
+/// The function returns `0` in that tail rather than a small nonzero density.
+///
+/// # Errors
+///
+/// Returns an error when `k < 0` or `omega <= 0`.
 pub fn randricekf_pdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // validate input
     if k < 0.0 {
@@ -62,17 +73,36 @@ pub fn randricekf_pdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // Ok((x / sig2) * (-t / (2.0 * sig2)).exp() * lnbesselif(0.0, x * s / sig2))
 }
 
-/// Rice-K random number cumulative distribution function
+/// Evaluate the cumulative distribution of a Rice-K distribution.
+///
+/// `x`, `k`, and `omega` must be finite. `k` is non-negative and `omega` is
+/// positive. Returns `0` when `x <= 0`. At `k == 0`, this uses the Rayleigh
+/// CDF.
+///
+/// # Warning
+///
+/// The Marcum-Q evaluation uses ratio shortcuts and can saturate to `0` or
+/// `1` before the mathematical CDF reaches either endpoint.
+///
+/// # Errors
+///
+/// Returns an error for non-finite inputs, `k < 0`, or `omega <= 0`.
 pub fn randricekf_cdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // validate input
-    if k < 0.0 {
+    if !k.is_finite() || k < 0.0 {
         return Err(Error::Config("k must be non-negative".to_string()));
-    } else if omega <= 0.0 {
+    } else if !omega.is_finite() || omega <= 0.0 {
         return Err(Error::Config("omega must be greater than zero".to_string()));
+    }
+    if !x.is_finite() {
+        return Err(Error::Value("x must be finite".to_string()));
     }
 
     if x <= 0.0 {
         return Ok(0.0);
+    }
+    if k == 0.0 {
+        return Ok(1.0 - (-(x * x) / omega).exp());
     }
 
     let s = ((omega * k) / (k + 1.0)).sqrt();
@@ -137,5 +167,17 @@ mod tests {
 
         assert_abs_diff_eq!(m1, m1_exp, epsilon = TOL);
         assert_abs_diff_eq!(m2, m2_exp, epsilon = TOL);
+    }
+
+    #[test]
+    fn test_randricekf_cdf_zero_k() {
+        assert_abs_diff_eq!(randricekf_cdf(1.0, 0.0, 1.0).unwrap(), 1.0 - (-1.0f32).exp(), epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_randricekf_cdf_rejects_nonfinite_inputs() {
+        assert!(randricekf_cdf(f32::NAN, 1.0, 1.0).is_err());
+        assert!(randricekf_cdf(1.0, f32::INFINITY, 1.0).is_err());
+        assert!(randricekf_cdf(1.0, 1.0, f32::INFINITY).is_err());
     }
 }

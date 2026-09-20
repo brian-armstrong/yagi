@@ -6,7 +6,7 @@ use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
 use crate::error::{Error, Result};
 
-/// Gauss
+/// Generate a standard normal sample with mean `0` and variance `1`.
 pub fn randnf() -> f32 {
     let mut rng = rand::thread_rng();
 
@@ -22,11 +22,16 @@ pub fn randnf() -> f32 {
     (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).sin()
 }
 
+/// Add real Gaussian noise to `x`.
+///
+/// The added noise has standard deviation `abs(nstd)`.
 pub fn awgn(x: &mut f32, nstd: f32) {
     *x += randnf() * nstd;
 }
 
-/// Complex Gauss
+/// Generate a circular complex Gaussian sample.
+///
+/// The real and imaginary components each have mean `0` and variance `1`.
 pub fn crandnf() -> Complex<f32> {
     let mut rng = rand::thread_rng();
 
@@ -44,11 +49,20 @@ pub fn crandnf() -> Complex<f32> {
     Complex::from_polar(r, theta)
 }
 
+/// Add circular complex Gaussian noise to `x`.
+///
+/// The added noise has total mean-square value `nstd^2`.
 pub fn cawgn(x: &mut Complex<f32>, nstd: f32) {
     *x += crandnf() * nstd * FRAC_1_SQRT_2;
 }
 
-/// Gauss random number probability distribution function
+/// Evaluate the probability density of a normal distribution.
+///
+/// `eta` is the mean. `sig` is the positive standard deviation.
+///
+/// # Errors
+///
+/// Returns an error when `sig <= 0`.
 pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     if sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));
@@ -59,7 +73,13 @@ pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     Ok((-t * t / (2.0 * s2)).exp() / (2.0 * PI * s2).sqrt())
 }
 
-/// Gauss random number cumulative distribution function
+/// Evaluate the cumulative distribution of a normal distribution.
+///
+/// `eta` is the mean. `sig` is the positive standard deviation.
+///
+/// # Errors
+///
+/// Returns an error when `sig <= 0`.
 pub fn randnf_cdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     if sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));

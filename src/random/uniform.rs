@@ -1,13 +1,15 @@
 use crate::error::{Error, Result};
 use rand::Rng;
 
-/// Uniform random number generator
+/// Generate a uniform random sample in `[0, 1)`.
 pub fn randf() -> f32 {
     let mut rng = rand::thread_rng();
     rng.gen::<f32>()
 }
 
-/// Uniform random number probability distribution function
+/// Evaluate the probability density of the unit uniform distribution.
+///
+/// Returns `1` for `x` in `[0, 1]` and `0` outside that interval.
 pub fn randf_pdf(x: f32) -> f32 {
     if x < 0.0 || x > 1.0 {
         0.0
@@ -16,12 +18,16 @@ pub fn randf_pdf(x: f32) -> f32 {
     }
 }
 
-/// Uniform random number cumulative distribution function
+/// Evaluate the cumulative distribution of the unit uniform distribution.
 pub fn randf_cdf(x: f32) -> f32 {
     x.clamp(0.0, 1.0)
 }
 
-/// Uniform random number generator with arbitrary bounds
+/// Generate a uniform random sample in `[a, b)`.
+///
+/// # Errors
+///
+/// Returns an error when `a >= b`.
 pub fn randuf(a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf({},{}) has invalid range", a, b)));
@@ -30,7 +36,11 @@ pub fn randuf(a: f32, b: f32) -> Result<f32> {
     Ok(a + (b - a) * randf())
 }
 
-/// Uniform random number probability distribution function
+/// Evaluate the probability density of a uniform distribution on `[a, b]`.
+///
+/// # Errors
+///
+/// Returns an error when `a >= b`.
 pub fn randuf_pdf(x: f32, a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf_pdf({},{},{}) has invalid range", x, a, b)));
@@ -39,7 +49,11 @@ pub fn randuf_pdf(x: f32, a: f32, b: f32) -> Result<f32> {
     Ok(if x < a || x > b { 0.0 } else { 1.0 / (b - a) })
 }
 
-/// Uniform random number cumulative distribution function
+/// Evaluate the cumulative distribution of a uniform distribution on `[a, b]`.
+///
+/// # Errors
+///
+/// Returns an error when `a >= b`.
 pub fn randuf_cdf(x: f32, a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf_cdf({},{},{}) has invalid range", x, a, b)));
