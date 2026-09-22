@@ -1,8 +1,7 @@
 const DEBUG_MATRIX_GRAMSCHMIDT: bool = false;
 
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
-use crate::matrix::FloatComplex;
+use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
 /// Project `v` onto `u` and write the result to `e`.
 ///

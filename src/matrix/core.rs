@@ -1,38 +1,8 @@
-use num_complex::{Complex, ComplexFloat};
+use num_complex::ComplexFloat;
 use num_traits::{Float, Zero};
 
 use crate::error::Result;
-use crate::matrix::view::{MatrixMut, MatrixRef};
-
-/// Identify whether a scalar type has an imaginary component.
-pub trait IsComplex {
-    /// Return true for complex scalar types.
-    fn is_complex() -> bool;
-}
-
-impl IsComplex for f32 {
-    fn is_complex() -> bool {
-        false
-    }
-}
-
-impl IsComplex for f64 {
-    fn is_complex() -> bool {
-        false
-    }
-}
-
-impl IsComplex for Complex<f32> {
-    fn is_complex() -> bool {
-        true
-    }
-}
-
-impl IsComplex for Complex<f64> {
-    fn is_complex() -> bool {
-        true
-    }
-}
+use crate::matrix::{MatrixMut, MatrixRef};
 
 /// Scalar types accepted by the dense matrix routines.
 pub trait FloatComplex:
@@ -43,7 +13,6 @@ pub trait FloatComplex:
     + std::ops::MulAssign
     + Default
     + std::iter::Sum
-    + IsComplex
 {
 }
 
@@ -54,8 +23,7 @@ impl<
             + std::ops::SubAssign
             + std::ops::MulAssign
             + Default
-            + std::iter::Sum
-            + IsComplex,
+            + std::iter::Sum,
     > FloatComplex for T
 {
 }

@@ -1,8 +1,7 @@
 use num_traits::{Float, One, Zero};
 
 use crate::error::{Error, Result};
-use crate::matrix::view::{ColMatrixMut, ColMatrixRef};
-use crate::matrix::FloatComplex;
+use crate::matrix::{ColMatrixMut, ColMatrixRef, FloatComplex};
 
 /// Reusable least-squares workspace for a tall, full-column-rank matrix.
 ///
@@ -275,8 +274,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::LeastSquaresWorkspace;
-    use crate::matrix::view::ColMatrixRef;
-    use crate::matrix::FloatComplex;
+    use crate::matrix::{ColMatrixRef, FloatComplex};
     use approx::assert_abs_diff_eq;
     use num_complex::Complex64;
     use num_traits::Zero;

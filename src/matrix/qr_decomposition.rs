@@ -1,8 +1,7 @@
 use num_traits::{Float, Zero};
 
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
-use crate::matrix::FloatComplex;
+use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
 /// Factor a square matrix as `X = Q * R` with classical Gram-Schmidt.
 ///

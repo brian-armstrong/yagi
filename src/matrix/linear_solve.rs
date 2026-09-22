@@ -1,6 +1,5 @@
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
-use crate::matrix::{matrix_gjelim, FloatComplex};
+use crate::matrix::{matrix_gjelim, FloatComplex, MatrixMut, MatrixRef};
 
 /// Solve the square linear system `A * x = b`.
 ///

@@ -1,8 +1,7 @@
 use num_traits::{Float, Zero};
 
 use crate::error::{Error, Result};
-use crate::matrix::view::MatrixRef;
-use crate::matrix::{matrix_mul_vec, FloatComplex};
+use crate::matrix::{matrix_mul_vec, FloatComplex, MatrixRef};
 
 const DEBUG_CGSOLVE: bool = false;
 

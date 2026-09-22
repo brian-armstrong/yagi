@@ -1,6 +1,5 @@
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
-use crate::matrix::FloatComplex;
+use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
 /// Factor a square matrix with Crout's L/U decomposition.
 ///

@@ -1,8 +1,7 @@
 use num_traits::{Float, Zero};
 
 use crate::error::{Error, Result};
-use crate::matrix::view::{MatrixMut, MatrixRef};
-use crate::matrix::FloatComplex;
+use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
 /// Factor a positive-definite matrix as `A = L * L^H`.
 ///
@@ -41,7 +40,7 @@ where
                 a_jj.re()
             )));
         }
-        if T::is_complex() && Float::abs(a_jj.im()) > T::Real::zero() {
+        if a_jj.im().abs() > T::Real::zero() {
             return Err(Error::Value(format!(
                 "matrix_chol(), matrix is not positive definite (|imag{{A[{},{}]}}| = {:e} > 0)",
                 j,

@@ -271,31 +271,12 @@ where
     Ok(det)
 }
 
-/// Transpose a matrix in place using the historical complex convention.
+/// Transpose a matrix in place.
 ///
-/// For complex values, this routine computes the conjugate transpose `X^H`.
-/// The name is retained for compatibility. The view retains its original shape,
-/// so rectangular matrices must be reinterpreted with swapped dimensions after
-/// the call.
+/// For complex values, this computes the ordinary transpose `X^T` without
+/// conjugation. The view retains its original shape, so rectangular matrices
+/// must be reinterpreted with swapped dimensions after the call.
 pub fn matrix_trans<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
-where
-    T: FloatComplex,
-{
-    matrix_hermitian(x)?;
-
-    for xi in x.as_mut_slice() {
-        *xi = xi.conj();
-    }
-    Ok(())
-}
-
-/// Transpose a matrix in place using the historical complex convention.
-///
-/// For complex values, this routine computes the ordinary transpose `X^T`
-/// without conjugation. The name is retained for compatibility. The view
-/// retains its original shape, so rectangular matrices must be reinterpreted
-/// with swapped dimensions after the call.
-pub fn matrix_hermitian<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
 {
@@ -312,11 +293,25 @@ where
     Ok(())
 }
 
-/// Compute `X * X^H`.
+/// Replace a matrix with its conjugate transpose in place.
 ///
-/// `xxt` must have shape `(x.rows(), x.rows())`. The name is retained for
-/// compatibility. For complex matrices this is the Hermitian product, not the
-/// ordinary transpose product.
+/// For complex values, this computes `X^H`. The view retains its original
+/// shape, so rectangular matrices must be reinterpreted with swapped
+/// dimensions after the call.
+pub fn matrix_hermitian<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
+where
+    T: FloatComplex,
+{
+    matrix_trans(x)?;
+    for value in x.as_mut_slice() {
+        *value = value.conj();
+    }
+    Ok(())
+}
+
+/// Compute `X * X^T`.
+///
+/// `xxt` must have shape `(x.rows(), x.rows())`.
 ///
 /// # Errors
 ///
@@ -334,7 +329,7 @@ where
         for (xxt_value, other_row) in xxt_row.iter_mut().zip(x.rows()) {
             let mut sum = T::default();
             for (&left, &right) in x_row.iter().zip(other_row) {
-                sum += left * right.conj();
+                sum += left * right;
             }
             *xxt_value = sum;
         }
@@ -342,11 +337,9 @@ where
     Ok(())
 }
 
-/// Compute `X^H * X`.
+/// Compute `X^T * X`.
 ///
-/// `xtx` must have shape `(x.columns(), x.columns())`. The name is retained
-/// for compatibility. For complex matrices this is the Hermitian product, not
-/// the ordinary transpose product.
+/// `xtx` must have shape `(x.columns(), x.columns())`.
 ///
 /// # Errors
 ///
@@ -364,18 +357,16 @@ where
     for x_row in x.rows() {
         for (row_index, &left) in x_row.iter().enumerate() {
             for (xtx_value, &right) in xtx.row_mut(row_index).iter_mut().zip(x_row) {
-                *xtx_value += left.conj() * right;
+                *xtx_value += left * right;
             }
         }
     }
     Ok(())
 }
 
-/// Compute `X * X^T`.
+/// Compute `X * X^H`.
 ///
-/// `xxh` must have shape `(x.rows(), x.rows())`. The name is retained for
-/// compatibility. For complex matrices this product does not conjugate either
-/// factor.
+/// `xxh` must have shape `(x.rows(), x.rows())`.
 ///
 /// # Errors
 ///
@@ -393,7 +384,7 @@ where
         for (xxh_value, other_row) in xxh_row.iter_mut().zip(x.rows()) {
             let mut sum = T::default();
             for (&left, &right) in x_row.iter().zip(other_row) {
-                sum += left * right;
+                sum += left * right.conj();
             }
             *xxh_value = sum;
         }
@@ -401,11 +392,9 @@ where
     Ok(())
 }
 
-/// Compute `X^T * X`.
+/// Compute `X^H * X`.
 ///
-/// `xhx` must have shape `(x.columns(), x.columns())`. The name is retained
-/// for compatibility. For complex matrices this product does not conjugate
-/// either factor.
+/// `xhx` must have shape `(x.columns(), x.columns())`.
 ///
 /// # Errors
 ///
@@ -423,7 +412,7 @@ where
     for x_row in x.rows() {
         for (row_index, &left) in x_row.iter().enumerate() {
             for (xhx_value, &right) in xhx.row_mut(row_index).iter_mut().zip(x_row) {
-                *xhx_value += left * right;
+                *xhx_value += left.conj() * right;
             }
         }
     }

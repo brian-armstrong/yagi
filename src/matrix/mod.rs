@@ -1,42 +1,43 @@
 //! Dense matrix views and matrix operations.
 //!
-//! [`MatrixRef`] and [`MatrixMut`] are the canonical dense interfaces. They
+//! [`MatrixRef`](crate::matrix::MatrixRef) and
+//! [`MatrixMut`](crate::matrix::MatrixMut) are the canonical dense interfaces. They
 //! borrow exactly-sized, row-major storage and validate the requested shape at
 //! construction. Matrix operations use those views to validate relationships
 //! between input and output shapes before changing output.
 //!
-//! Some retained routines have historical names or numerical limitations. Their
-//! individual documentation describes those contracts.
+//! Some retained routines have numerical limitations. Their individual
+//! documentation describes those contracts.
 
-mod base;
 mod cholesky;
 mod conjugate_gradient;
+mod core;
 mod gram_schmidt;
 mod householder_qr;
 mod inverse;
 mod linear_solve;
 mod lu_decomposition;
-mod math;
+mod operations;
 mod qr_decomposition;
 mod sparse;
 mod view;
 
-pub use base::{matrix_eye, matrix_ones, matrix_print, matrix_zeros, FloatComplex, IsComplex};
 pub use cholesky::matrix_chol;
 pub use conjugate_gradient::matrix_cgsolve;
+pub use core::{matrix_eye, matrix_ones, matrix_print, matrix_zeros, FloatComplex};
 pub use gram_schmidt::{matrix_gramschmidt, matrix_proj};
 pub(crate) use householder_qr::LeastSquaresWorkspace;
 pub use inverse::{matrix_gjelim, matrix_inv};
 pub use linear_solve::matrix_linsolve;
 pub use lu_decomposition::{matrix_ludecomp_crout, matrix_ludecomp_doolittle};
-pub use math::{
+pub use operations::{
     matrix_add, matrix_aug, matrix_det, matrix_det2x2, matrix_div, matrix_hermitian, matrix_hermitian_mul, matrix_mul,
     matrix_mul_hermitian, matrix_mul_transpose, matrix_mul_vec, matrix_pdiv, matrix_pmul, matrix_sub, matrix_trans,
     matrix_transpose_mul,
 };
 pub use qr_decomposition::matrix_qrdecomp_gramschmidt;
-pub use sparse::*;
-pub(crate) use view::ColMatrixMut;
+pub use sparse::SparseMatrix;
+pub(crate) use view::{ColMatrixMut, ColMatrixRef};
 pub use view::{MatrixMut, MatrixRef, MatrixRowsMut};
 
 #[cfg(test)]
@@ -649,8 +650,8 @@ mod tests {
         )
         .unwrap();
 
-        // compute Q*Q^T
-        matrix_mul_transpose(MatrixRef::new(&q, 4, 4).unwrap(), &mut MatrixMut::new(&mut qqt_test, 4, 4).unwrap())
+        // compute Q*Q^H
+        matrix_mul_hermitian(MatrixRef::new(&q, 4, 4).unwrap(), &mut MatrixMut::new(&mut qqt_test, 4, 4).unwrap())
             .unwrap();
 
         // ensure Q*R = A
@@ -659,7 +660,7 @@ mod tests {
             assert_abs_diff_eq!(MATRIXCF_DATA_QRDECOMP_A[i].im, qr_test[i].im, epsilon = tol);
         }
 
-        // ensure Q*Q^T = I(4)
+        // ensure Q*Q^H = I(4)
         let mut i4 = [Complex::new(0.0, 0.0); 16];
         matrix_eye(&mut MatrixMut::new(&mut i4, 4, 4).unwrap()).unwrap();
         for i in 0..16 {
@@ -711,23 +712,23 @@ mod tests {
 
         // run tests
         for i in 0..25 {
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].re, xxt[i].re, epsilon = tol);
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].im, xxt[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].re, xxt[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].im, xxt[i].im, epsilon = tol);
         }
 
         for i in 0..25 {
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].re, xxh[i].re, epsilon = tol);
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXH[i].im, xxh[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].re, xxh[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XXT[i].im, xxh[i].im, epsilon = tol);
         }
 
         for i in 0..16 {
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].re, xtx[i].re, epsilon = tol);
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].im, xtx[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].re, xtx[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].im, xtx[i].im, epsilon = tol);
         }
 
         for i in 0..16 {
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].re, xhx[i].re, epsilon = tol);
-            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XHX[i].im, xhx[i].im, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].re, xhx[i].re, epsilon = tol);
+            assert_abs_diff_eq!(MATRIXCF_DATA_TRANSMUL_XTX[i].im, xhx[i].im, epsilon = tol);
         }
     }
 
@@ -1112,7 +1113,7 @@ mod tests {
             Complex::new(5.0, 6.0),
             Complex::new(11.0, 12.0),
         ];
-        assert_eq!(hermitian, expected);
-        assert_eq!(trans, expected.map(|value| value.conj()));
+        assert_eq!(trans, expected);
+        assert_eq!(hermitian, expected.map(|value| value.conj()));
     }
 }

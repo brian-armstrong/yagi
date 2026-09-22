@@ -1,6 +1,5 @@
 use crate::error::{Error, Result};
-use crate::matrix::view::MatrixMut;
-use crate::matrix::FloatComplex;
+use crate::matrix::{FloatComplex, MatrixMut};
 use num_traits::Zero;
 
 /// Replace a square matrix with its inverse.
