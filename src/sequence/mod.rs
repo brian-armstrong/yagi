@@ -1,8 +1,8 @@
 //! Binary sequences and linear-feedback shift-register generators.
 //!
-//! [`BinarySequence`](crate::sequence::BinarySequence) stores a fixed number
+//! [`BinarySequence`] stores a fixed number
 //! of bits for correlation and binary code operations.
-//! [`MaximalLengthSequence`](crate::sequence::MaximalLengthSequence) generates
+//! [`MaximalLengthSequence`] generates
 //! LFSR sequences from a built-in or caller-provided polynomial.
 
 mod binary_sequence;

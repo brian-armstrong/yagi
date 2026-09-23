@@ -1,8 +1,8 @@
 //! Bit packing, bit counting, and byte-array shift operations.
 //!
 //! These low-level helpers operate directly on caller-provided byte slices.
-//! Bit shifts are limited to fewer than eight positions. Byte shifts accept
-//! any amount and fill vacated elements with zero.
+//! Bit shifts are limited to fewer than eight positions. Non-circular byte
+//! shifts accept any amount and fill vacated elements with zero.
 //! Bit packing uses most-significant-bit-first order within each byte.
 
 mod bits;
