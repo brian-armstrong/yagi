@@ -6,9 +6,13 @@
 
 use crate::error::{Error, Result};
 
-/// shift array to the left b bits, filling in zeros
-///   src : source array
-///   b   : number of bits to shift, in [0,7]
+/// Shift a big-endian byte array left by `b` bits.
+///
+/// Vacated low-order bits are zero-filled. An empty slice is unchanged.
+///
+/// # Errors
+///
+/// Returns an error when `b >= 8`.
 pub fn lbshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
@@ -24,9 +28,13 @@ pub fn lbshift(src: &mut [u8], b: usize) -> Result<()> {
     Ok(())
 }
 
-/// shift array to the right b bits, filling in zeros
-///   src : source array
-///   b   : number of bits to shift, in [0,7]
+/// Shift a big-endian byte array right by `b` bits.
+///
+/// Vacated high-order bits are zero-filled. An empty slice is unchanged.
+///
+/// # Errors
+///
+/// Returns an error when `b >= 8`.
 pub fn rbshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
@@ -42,9 +50,13 @@ pub fn rbshift(src: &mut [u8], b: usize) -> Result<()> {
     Ok(())
 }
 
-/// circular shift array to the left b bits
-///   src : source array
-///   b   : number of bits to shift, in [0,7]
+/// Rotate a big-endian byte array left by `b` bits.
+///
+/// An empty slice is unchanged.
+///
+/// # Errors
+///
+/// Returns an error when `b >= 8`.
 pub fn lbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
@@ -75,9 +87,13 @@ pub fn lbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     Ok(())
 }
 
-/// circular shift array to the right b bits
-///   src : source array
-///   b   : number of bits to shift, in [0,7]
+/// Rotate a big-endian byte array right by `b` bits.
+///
+/// An empty slice is unchanged.
+///
+/// # Errors
+///
+/// Returns an error when `b >= 8`.
 pub fn rbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
