@@ -1,8 +1,8 @@
-//
-// compand.rs
-//
-// mu-law compander: compress and expand signal dynamic range
-//
+//! Mu-law amplitude companding.
+//!
+//! The real functions preserve sign. The complex functions preserve phase and
+//! apply the curve to magnitude. Inputs are not clipped to the usual unit
+//! range.
 
 use crate::error::{Error, Result};
 use num_complex::Complex32;
@@ -17,9 +17,18 @@ fn expand_magnitude(y: f32, mu: f32) -> f32 {
     (1.0 / mu) * ((1.0 + mu).powf(y) - 1.0)
 }
 
-/// compress a real sample using mu-law encoding
-///   x  : input sample
-///   mu : compression factor, mu > 0
+/// Compress a real sample with the mu-law curve.
+///
+/// `mu` controls the amount of compression and must be positive. The function
+/// preserves the sign of `x` and does not clip values outside `[-1, 1]`.
+///
+/// # Errors
+///
+/// Returns an error when `mu <= 0`.
+///
+/// # Warning
+///
+/// Nonfinite `mu` values are accepted and produce nonfinite results.
 pub fn compress_mulaw(x: f32, mu: f32) -> Result<f32> {
     if mu <= 0.0 {
         return Err(Error::Range("compress_mulaw(), mu out of range".into()));
@@ -27,9 +36,18 @@ pub fn compress_mulaw(x: f32, mu: f32) -> Result<f32> {
     Ok(compress_magnitude(x.abs(), mu).copysign(x))
 }
 
-/// expand a real sample using mu-law decoding
-///   y  : input sample
-///   mu : compression factor, mu > 0
+/// Expand a real mu-law-compressed sample.
+///
+/// `mu` must match the value used for compression. The function preserves sign
+/// and does not clip values outside `[-1, 1]`.
+///
+/// # Errors
+///
+/// Returns an error when `mu <= 0`.
+///
+/// # Warning
+///
+/// Nonfinite `mu` values are accepted and produce nonfinite results.
 pub fn expand_mulaw(y: f32, mu: f32) -> Result<f32> {
     if mu <= 0.0 {
         return Err(Error::Range("expand_mulaw(), mu out of range".into()));
@@ -37,9 +55,17 @@ pub fn expand_mulaw(y: f32, mu: f32) -> Result<f32> {
     Ok(expand_magnitude(y.abs(), mu).copysign(y))
 }
 
-/// compress a complex sample using mu-law encoding, preserving phase
-///   x  : input sample
-///   mu : compression factor, mu > 0
+/// Compress a complex sample's magnitude with mu-law.
+///
+/// The phase of `x` is preserved. `mu` must be positive.
+///
+/// # Errors
+///
+/// Returns an error when `mu <= 0`.
+///
+/// # Warning
+///
+/// Nonfinite `mu` values are accepted and produce nonfinite results.
 pub fn compress_cf_mulaw(x: Complex32, mu: f32) -> Result<Complex32> {
     if mu <= 0.0 {
         return Err(Error::Range("compress_cf_mulaw(), mu out of range".into()));
@@ -48,9 +74,18 @@ pub fn compress_cf_mulaw(x: Complex32, mu: f32) -> Result<Complex32> {
     Ok(Complex32::from_polar(compress_magnitude(x.norm(), mu), x.arg()))
 }
 
-/// expand a complex sample using mu-law decoding, preserving phase
-///   y  : input sample
-///   mu : compression factor, mu > 0
+/// Expand a complex mu-law-compressed magnitude.
+///
+/// The phase of `y` is preserved. `mu` must match the value used for
+/// compression and be positive.
+///
+/// # Errors
+///
+/// Returns an error when `mu <= 0`.
+///
+/// # Warning
+///
+/// Nonfinite `mu` values are accepted and produce nonfinite results.
 pub fn expand_cf_mulaw(y: Complex32, mu: f32) -> Result<Complex32> {
     if mu <= 0.0 {
         return Err(Error::Range("expand_cf_mulaw(), mu out of range".into()));

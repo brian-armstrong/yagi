@@ -1,13 +1,9 @@
-// Quantization module
-// Current state:
-// - compand ready to use (+autotests), mu-law only (liquid's A-law is an
-//   empty stub upstream)
-// - quantize ready to use (+autotests), liquid's quantizer.inline.c
-// - liquid's structured quantizer (quantizer.proto.c) is deliberately not
-//   ported: its execute_adc/execute_dac are stubs that write 0 and ignore the
-//   requested range, so there is no upstream behavior to reproduce
-//
-// the two halves compose: compand to warp the amplitude, then quantize.
+//! Mu-law companding and uniform sign-magnitude quantization.
+//!
+//! Use [`compress_mulaw`] before [`quantize_adc`] to give low-amplitude signals
+//! more code resolution. Recover samples with [`quantize_dac`] and
+//! [`expand_mulaw`]. The uniform quantizer represents real values near
+//! `[-1, 1]` with a sign bit and magnitude bits.
 
 pub mod compand;
 pub mod quantize;

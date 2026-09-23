@@ -1,11 +1,8 @@
-//
-// quantize.rs
-//
-// uniform quantizer: 'analog' signal in [-1, 1]
-//
-// samples are coded sign-magnitude. the most significant of the num_bits bits
-// holds the sign and the remaining bits hold the magnitude. note this leaves
-// two codes for zero (+0 and -0) and no code for exactly zero on output
+//! Uniform sign-magnitude quantization for real samples near `[-1, 1]`.
+//!
+//! The most significant code bit is the sign. Remaining bits encode magnitude.
+//! The ADC clips finite out-of-range values. The DAC reconstructs at each bin's
+//! midpoint, so neither zero code reconstructs exactly to zero.
 
 use crate::error::{Error, Result};
 
@@ -13,11 +10,22 @@ use crate::error::{Error, Result};
 //  works up to 32 bits.
 const QUANTIZER_MAX_BITS: usize = 32;
 
-/// quantize a sample: analog to digital converter
-///   x        : input sample in [-1,1]
-///   num_bits : number of bits per sample, in [0,32]
+/// Quantize one real sample to a sign-magnitude code.
 ///
-/// values outside [-1,1] are clipped to the largest representable magnitude.
+/// `num_bits` may range from zero through 32. A width of zero always returns
+/// zero. For nonzero widths, the top bit is the sign and remaining bits encode
+/// magnitude. Finite values outside `[-1, 1]` clip to the largest magnitude.
+/// Negative zero encodes as positive zero.
+///
+/// # Errors
+///
+/// Returns an error when `num_bits > 32`.
+///
+/// # Warning
+///
+/// `f32` has about 24 bits of precision, so widths above 24 do not provide
+/// distinct amplitude resolution throughout the range. `NaN` encodes as
+/// positive zero.
 pub fn quantize_adc(x: f32, num_bits: usize) -> Result<u32> {
     if num_bits > QUANTIZER_MAX_BITS {
         return Err(Error::Range("quantize_adc(), maximum bits exceeded".into()));
@@ -49,11 +57,16 @@ pub fn quantize_adc(x: f32, num_bits: usize) -> Result<u32> {
     Ok(r)
 }
 
-/// reconstruct a sample: digital to analog converter
-///   s        : quantized sample
-///   num_bits : number of bits per sample, in [0,32]
+/// Reconstruct a real sample from a sign-magnitude code.
 ///
-/// bits above num_bits are ignored.
+/// `num_bits` may range from zero through 32. A width of zero returns zero.
+/// Bits above the selected width are ignored. The magnitude is reconstructed
+/// at the center of its quantization interval, so a zero-magnitude code maps
+/// to positive or negative half of one least-significant interval.
+///
+/// # Errors
+///
+/// Returns an error when `num_bits > 32`.
 pub fn quantize_dac(s: u32, num_bits: usize) -> Result<f32> {
     if num_bits > QUANTIZER_MAX_BITS {
         return Err(Error::Range("quantize_dac(), maximum bits exceeded".into()));
