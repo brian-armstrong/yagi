@@ -3,7 +3,7 @@
 //
 // there is no block codec built on this symbol-level primitive, matching liquid
 
-use crate::utility::bits::bdotprod;
+use crate::utility::bdotprod;
 
 // parity bit coverage mask for encoder (collapsed version of figure
 // in hamming128, stripping out parity bits P1, P2, P4, P8 and only

@@ -6,7 +6,7 @@
 // buffer_0 -> buffer_1 and the interleaver runs buffer_1 -> buffer_0.
 
 use crate::error::{Error, Result};
-use crate::random::scramble::{scramble_data, unscramble_data};
+use crate::random::{scramble_data, unscramble_data};
 
 use super::crc::{self, CrcScheme};
 use super::fec::Fec;

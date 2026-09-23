@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::utility::bits::{bdotprod, msb_index};
+use crate::utility::{bdotprod, msb_index};
 
 const MIN_MSEQUENCE_M: u32 = 2;
 const MAX_MSEQUENCE_M: u32 = 31;

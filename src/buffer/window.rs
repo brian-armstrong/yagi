@@ -16,7 +16,7 @@ impl<T: Default + Clone + Copy> Window<T> {
             return Err(Error::Config("window size must be greater than zero".to_string()));
         }
 
-        let m = crate::utility::bits::msb_index(capacity as u32) as usize;
+        let m = crate::utility::msb_index(capacity as u32) as usize;
         let n_pow2 = 1 << m;
         let mask = n_pow2 - 1;
         let num_allocated = n_pow2 + capacity - 1;

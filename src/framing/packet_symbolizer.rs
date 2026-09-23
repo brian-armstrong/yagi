@@ -7,7 +7,7 @@
 
 use crate::error::{Error, Result};
 use crate::fec::{CrcScheme, FecScheme, Packetizer};
-use crate::utility::bits::repack_bytes;
+use crate::utility::repack_bytes;
 
 /// packet encoder/decoder producing symbol indices
 #[derive(Debug, Clone)]

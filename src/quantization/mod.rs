@@ -12,5 +12,5 @@
 pub mod compand;
 pub mod quantize;
 
-pub use compand::*;
-pub use quantize::*;
+pub use compand::{compress_cf_mulaw, compress_mulaw, expand_cf_mulaw, expand_mulaw};
+pub use quantize::{quantize_adc, quantize_dac};

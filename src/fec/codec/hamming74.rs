@@ -3,7 +3,7 @@
 //
 
 use crate::fec::scheme::block_enc_msg_len;
-use crate::utility::bits::{pack_array, unpack_array};
+use crate::utility::{pack_array, unpack_array};
 
 // encoder look-up table
 #[rustfmt::skip]

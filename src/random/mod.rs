@@ -4,22 +4,23 @@
 //! are useful for DSP simulation and stochastic algorithms. They do not expose
 //! a reproducible seed or stream.
 
-pub mod exponential;
-pub mod gamma;
-pub mod nakagami;
-pub mod normal;
-pub mod rice;
-pub mod scramble;
-pub mod uniform;
-pub mod weibull;
+mod exponential;
+mod gamma;
+mod nakagami;
+mod normal;
+mod rice;
+mod scramble;
+mod uniform;
+mod weibull;
 
-pub use exponential::*;
-pub use gamma::*;
-pub use nakagami::*;
-pub use normal::*;
-pub use rice::*;
-pub use uniform::*;
-pub use weibull::*;
+pub use exponential::{randexpf, randexpf_cdf, randexpf_pdf};
+pub use gamma::{randgammaf, randgammaf_cdf, randgammaf_pdf};
+pub use nakagami::{randnakmf, randnakmf_cdf, randnakmf_pdf};
+pub use normal::{awgn, cawgn, crandnf, randnf, randnf_cdf, randnf_pdf};
+pub use rice::{randricekf, randricekf_cdf, randricekf_pdf};
+pub use scramble::{scramble_data, unscramble_data, unscramble_data_soft};
+pub use uniform::{randf, randf_cdf, randf_pdf, randuf, randuf_cdf, randuf_pdf};
+pub use weibull::{randweibf, randweibf_cdf, randweibf_pdf};
 
 #[cfg(test)]
 mod tests {

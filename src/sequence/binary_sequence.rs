@@ -1,6 +1,6 @@
 use super::maximal_length_sequence::MaximalLengthSequence;
 use crate::error::{Error, Result};
-use crate::utility::bits::count_ones;
+use crate::utility::count_ones;
 
 /// A fixed-length binary sequence.
 ///

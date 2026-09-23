@@ -9,7 +9,7 @@
 //              P4  .   .   .   x   x   x   x   .   .   .   .   x
 //              P8  .   .   .   .   .   .   .   x   x   x   x   x
 
-use crate::utility::bits::bdotprod;
+use crate::utility::bdotprod;
 
 // parity bit coverage mask for encoder (collapsed version of figure
 // above, stripping out parity bits P1, P2, P4, P8 and only including
