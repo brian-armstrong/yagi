@@ -1,5 +1,9 @@
 use core::f32;
 
+/// Hold a recent peak value over a rolling sample history.
+///
+/// This helper is used by [`super::Limiter`] to sustain gain reduction after a
+/// detected peak.
 pub struct PeakHold {
     hold: usize,
     current: Vec<f32>,
@@ -8,16 +12,24 @@ pub struct PeakHold {
 }
 
 impl PeakHold {
+    /// Create a peak hold with `hold` samples per internal history block.
+    ///
+    /// # Panics
+    ///
+    /// `hold` must be nonzero. The constructor does not validate this and a
+    /// later [`Self::execute`] will panic otherwise.
     pub fn new(hold: usize) -> Self {
         Self { hold, current: vec![], current_max: f32::MIN, previous: vec![f32::MIN; hold] }
     }
 
+    /// Clear the peak history.
     pub fn reset(&mut self) {
         self.current.clear();
         self.current_max = f32::MIN;
         self.previous = vec![f32::MIN; self.hold];
     }
 
+    /// Record `input` and return the held peak.
     pub fn execute(&mut self, input: f32) -> f32 {
         self.current.push(input);
         self.current_max = self.current_max.max(input);

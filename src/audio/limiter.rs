@@ -3,6 +3,11 @@ use crate::buffer::{Window, WindowedDelay};
 
 // inspired by the excellent post at https://signalsmith-audio.co.uk/writing/2022/limiter/ by Geraint Luff
 
+/// A look-ahead peak limiter for real audio samples.
+///
+/// The limiter delays output by `attack` samples so it can reduce gain before
+/// a detected peak reaches the output. `hold` extends peak gain reduction and
+/// `release` controls its recovery in samples.
 pub struct Limiter {
     limit: f32,
     delay: WindowedDelay<f32>,
@@ -16,6 +21,15 @@ pub struct Limiter {
 }
 
 impl Limiter {
+    /// Create a limiter.
+    ///
+    /// `limit` is the positive linear output magnitude limit. `attack`,
+    /// `hold`, and `release` are measured in samples.
+    ///
+    /// # Panics
+    ///
+    /// `attack + hold` must be nonzero. The constructor does not validate this
+    /// and a later [`Self::execute`] will panic otherwise.
     pub fn new(limit: f32, attack: usize, hold: usize, release: usize) -> Self {
         let mut smoothing_window = Window::new(attack + 1).unwrap();
         for _ in 0..smoothing_window.len() {
@@ -34,6 +48,7 @@ impl Limiter {
         }
     }
 
+    /// Restore the limiter to its initial delayed, unity-gain state.
     pub fn reset(&mut self) {
         self.peak_hold.reset();
         self.delay.reset();
@@ -46,6 +61,9 @@ impl Limiter {
         }
     }
 
+    /// Process one sample and return its delayed, limited output.
+    ///
+    /// Output is delayed by the configured attack length.
     pub fn execute(&mut self, input: f32) -> f32 {
         self.delay.push(input);
 

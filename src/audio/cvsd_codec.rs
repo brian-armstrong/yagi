@@ -5,17 +5,14 @@
 use crate::error::{Error, Result};
 use crate::filter::IirFilter;
 
-/// continuously variable slope delta encoder/decoder
+/// A continuously variable slope delta codec.
 ///
-/// A CVSD codec transmits one bit per sample. For each sample, the codec can
-/// either add (1) or subtract (0) one step size's worth of amplitude to the
-/// signal. The step size adapts, growing when the output is all-ones or all-zeros
-/// and shrinking otherwise.
+/// CVSD transmits one bit per input sample. A one raises the reconstructed
+/// reference and a zero lowers it. The step size grows after `num_bits`
+/// matching bits and shrinks otherwise.
 ///
-/// # Signal conditioning
-///
-/// Pre-emphasis/de-emphasis filters boost the high-frequency contributions
-/// of the signal to improve intelligibility.
+/// Use separate instances for encoding and decoding. Both sides must use the
+/// same `num_bits`, slope multiplier, and conditioning setting.
 #[derive(Debug, Clone)]
 #[doc(alias = "Cvsd")]
 pub struct CvsdCodec {
@@ -44,8 +41,14 @@ struct Filters {
 impl CvsdCodec {
     /// Create a CVSD codec.
     ///
-    /// * `num_bits` - Number of adjacent bits to observe
-    /// * `slope_multiplier` - Factor by which the adaptive step size grows or shrinks
+    /// `num_bits` is the length of the matching-bit history. `slope_multiplier`
+    /// controls how much the step size grows or shrinks. The codec starts with
+    /// no signal conditioning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_bits` is outside `1..=8` or
+    /// `slope_multiplier <= 1`.
     pub fn new(num_bits: usize, slope_multiplier: f32) -> Result<Self> {
         if num_bits == 0 {
             return Err(Error::Config("cvsd num_bits must be positive".into()));
@@ -72,7 +75,14 @@ impl CvsdCodec {
         })
     }
 
-    /// enable signal conditioning
+    /// Enable CVSD pre-emphasis and de-emphasis filters.
+    ///
+    /// `alpha` is the pre-emphasis coefficient. The matching de-emphasis
+    /// filter and its fixed DC-blocking coefficient are applied during decode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `alpha` is outside `[0, 1]` or is non-finite.
     pub fn with_conditioning(mut self, alpha: f32) -> Result<Self> {
         if !(0.0..=1.0).contains(&alpha) {
             return Err(Error::Config("cvsd alpha must be in [0,1]".into()));
@@ -100,27 +110,29 @@ impl CvsdCodec {
         Ok(self)
     }
 
-    /// number of adjacent bits observed
+    /// Return the number of matching bits used to adapt the step size.
     pub fn num_bits(&self) -> usize {
         self.num_bits
     }
 
-    /// slope adjustment multiplier
+    /// Return the step-size slope multiplier.
     pub fn slope_multiplier(&self) -> f32 {
         self.zeta
     }
 
-    /// pre-/de-emphasis filter coefficient
+    /// Return the pre-emphasis and de-emphasis coefficient.
     pub fn alpha(&self) -> f32 {
         self.alpha
     }
 
-    /// DC-blocking coefficient used by the decoder's de-emphasis filter
+    /// Return the decoder DC-blocking coefficient.
+    ///
+    /// Returns zero when conditioning is disabled.
     pub fn beta(&self) -> f32 {
         self.beta
     }
 
-    /// is signal conditioning applied?
+    /// Return whether signal conditioning is enabled.
     pub fn conditioning(&self) -> bool {
         self.filters.is_some()
     }
@@ -150,7 +162,10 @@ impl CvsdCodec {
         self.ref_ = self.ref_.clamp(-1.0, 1.0);
     }
 
-    /// encode single sample
+    /// Encode one audio sample into a one-bit CVSD symbol.
+    ///
+    /// A return value of `1` raises the reference. A return value of `0`
+    /// lowers it. The codec state advances with every call.
     pub fn encode(&mut self, audio_sample: f32) -> u8 {
         // push audio sample through pre-filter
         let y = match &mut self.filters {
@@ -166,7 +181,10 @@ impl CvsdCodec {
         bit
     }
 
-    /// decode single sample
+    /// Decode the low bit of `bit` into one audio sample.
+    ///
+    /// The codec state advances with every call. Bits above the low bit are
+    /// ignored.
     pub fn decode(&mut self, bit: u8) -> f32 {
         self.step(bit);
 
@@ -177,7 +195,14 @@ impl CvsdCodec {
         }
     }
 
-    /// encode 8 samples
+    /// Encode the first eight samples of `audio` into one byte.
+    ///
+    /// The first sample becomes the most significant bit. Extra input samples
+    /// are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `audio` contains fewer than eight samples.
     pub fn encode8(&mut self, audio: &[f32]) -> Result<u8> {
         if audio.len() < 8 {
             return Err(Error::Config("cvsd encode8 requires 8 samples".into()));
@@ -191,7 +216,14 @@ impl CvsdCodec {
         Ok(data)
     }
 
-    /// decode 8 samples
+    /// Decode one byte into the first eight elements of `audio`.
+    ///
+    /// The most significant bit is decoded first. Elements beyond the written
+    /// prefix are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `audio` contains fewer than eight elements.
     pub fn decode8(&mut self, data: u8, audio: &mut [f32]) -> Result<()> {
         if audio.len() < 8 {
             return Err(Error::Config("cvsd decode8 requires room for 8 samples".into()));
