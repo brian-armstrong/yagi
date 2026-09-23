@@ -1,8 +1,9 @@
-// NCO module
-// Current state:
-// - Nco ready (+autotests)
-// - oscillator backends are internal implementation details
-// - TableOscillator ready to use
+//! Numerically controlled oscillators, mixers, and phase-unwrapping helpers.
+//!
+//! [`Nco`] synthesizes a complex sinusoid from a fixed-point
+//! phase accumulator. [`TableOscillator`] advances
+//! through a caller-provided complex sequence. Frequencies and phases are
+//! measured in radians per sample and radians, respectively.
 
 mod direct_backend;
 mod interpolated_lookup_table_backend;

@@ -1,15 +1,15 @@
-//
-// utilities.rs
-//
-// Numerically-controlled oscillator (nco) utilities
-//
+//! Phase-unwrapping helpers.
 
 use std::f32::consts::PI;
 
-/// unwrap phase of array (basic)
+/// Unwrap a phase sequence in place.
 ///
-/// removes 2*pi discontinuities so a phase sequence becomes continuous by
-/// adjusting each sample to lie within pi of its predecessor.
+/// Adds or subtracts whole turns so each sample lies within `pi` radians of its
+/// predecessor. Empty and one-sample slices are unchanged.
+///
+/// # Warning
+///
+/// Inputs must be finite. Infinite values do not terminate the adjustment loop.
 pub fn unwrap_phase(theta: &mut [f32]) {
     for i in 1..theta.len() {
         while theta[i] - theta[i - 1] > PI {
@@ -21,7 +21,16 @@ pub fn unwrap_phase(theta: &mut [f32]) {
     }
 }
 
-/// unwrap phase of array (advanced)
+/// Unwrap a phase sequence using its mean phase increment.
+///
+/// This estimates the average adjacent increment before removing whole-turn
+/// discontinuities.
+///
+/// # Warning
+///
+/// This compatibility routine is not used within the crate and has not been
+/// validated as thoroughly as [`unwrap_phase`]. Prefer [`unwrap_phase`] unless
+/// its mean-increment behavior is specifically required.
 pub fn unwrap_phase2(theta: &mut [f32]) {
     // TODO: verify this method
     let n = theta.len();

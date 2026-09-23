@@ -9,11 +9,11 @@ use super::lookup_table_backend::LookupTableBackend;
 
 const PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 
-/// Numerical strategy used to synthesize the oscillator's sine and cosine.
+/// Numerical strategy used to synthesize sine and cosine.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[doc(alias = "OscScheme")]
 pub enum NcoBackend {
-    /// Evaluate sine and cosine directly.
+    /// Evaluate sine and cosine directly from the accumulator phase.
     Direct,
     /// Use the nearest entry in a sine lookup table.
     LookupTable,
@@ -28,7 +28,11 @@ enum BackendState {
     InterpolatedLookupTable(InterpolatedLookupTableBackend),
 }
 
-/// Numerically controlled oscillator with a 32-bit phase accumulator.
+/// A sinusoidal numerically controlled oscillator with a 32-bit phase accumulator.
+///
+/// Set phase in radians and frequency in radians per sample. [`Self::step`]
+/// advances the accumulator by one sample. Single-sample mixers do not step;
+/// block mixers step after each output sample.
 #[derive(Debug, Clone)]
 #[doc(alias = "Osc")]
 pub struct Nco {
@@ -40,7 +44,10 @@ pub struct Nco {
 }
 
 impl Nco {
-    /// Create a new NCO
+    /// Create an oscillator using `backend` for sine and cosine evaluation.
+    ///
+    /// The initial phase and frequency are zero. The PLL bandwidth starts at
+    /// 0.1.
     pub fn new(backend: NcoBackend) -> Self {
         let data = match backend {
             NcoBackend::Direct => BackendState::Direct(DirectBackend::new()),
@@ -60,43 +67,49 @@ impl Nco {
         nco
     }
 
-    /// Reset internal state
+    /// Reset phase and frequency to zero.
+    ///
+    /// This retains the selected backend and PLL bandwidth.
     pub fn reset(&mut self) {
         self.theta = 0;
         self.d_theta = 0;
     }
 
-    /// Set frequency
+    /// Set the frequency in radians per sample.
+    ///
+    /// The fixed-point accumulator wraps the supplied value modulo one turn.
     pub fn set_frequency(&mut self, frequency: f32) {
         self.d_theta = Self::constrain(frequency);
     }
 
-    /// Adjust frequency
+    /// Add a frequency offset in radians per sample.
     pub fn adjust_frequency(&mut self, frequency_offset: f32) {
         self.d_theta = self.d_theta.wrapping_add(Self::constrain(frequency_offset));
     }
 
-    /// Set phase
+    /// Set the current phase in radians.
+    ///
+    /// The fixed-point accumulator wraps the supplied value modulo one turn.
     pub fn set_phase(&mut self, phase: f32) {
         self.theta = Self::constrain(phase);
     }
 
-    /// Adjust phase
+    /// Add a phase offset in radians.
     pub fn adjust_phase(&mut self, phase_offset: f32) {
         self.theta = self.theta.wrapping_add(Self::constrain(phase_offset));
     }
 
-    /// Increment internal phase
+    /// Advance phase by one sample at the configured frequency.
     pub fn step(&mut self) {
         self.theta = self.theta.wrapping_add(self.d_theta);
     }
 
-    /// Get phase
+    /// Return the current phase in `[0, 2*pi)` radians.
     pub fn phase(&self) -> f32 {
         2.0 * PI * self.theta as f32 / ((1u64 << 32) as f32)
     }
 
-    /// Get frequency
+    /// Return the frequency in `[-pi, pi)` radians per sample.
     pub fn frequency(&self) -> f32 {
         let d_theta = 2.0 * PI * self.d_theta as f32 / (1u64 << 32) as f32;
         if d_theta > PI {
@@ -106,7 +119,9 @@ impl Nco {
         }
     }
 
-    /// Compute sine of internal phase
+    /// Return the sine of the current phase.
+    ///
+    /// This does not advance the oscillator.
     pub fn sin(&self) -> f32 {
         match self.osc {
             BackendState::Direct(ref direct) => direct.sin(self.theta),
@@ -115,7 +130,9 @@ impl Nco {
         }
     }
 
-    /// Compute cosine of internal phase
+    /// Return the cosine of the current phase.
+    ///
+    /// This does not advance the oscillator.
     pub fn cos(&self) -> f32 {
         match self.osc {
             BackendState::Direct(ref direct) => direct.cos(self.theta),
@@ -124,7 +141,9 @@ impl Nco {
         }
     }
 
-    /// Compute sine and cosine of internal phase
+    /// Return the sine and cosine of the current phase.
+    ///
+    /// This does not advance the oscillator.
     pub fn sin_cos(&self) -> (f32, f32) {
         match self.osc {
             BackendState::Direct(ref direct) => direct.sin_cos(self.theta),
@@ -133,12 +152,18 @@ impl Nco {
         }
     }
 
-    /// Compute complex exponential of internal phase
+    /// Return `exp(j * phase())`.
+    ///
+    /// This does not advance the oscillator.
     pub fn cexp(&self) -> Complex<f32> {
         let (sin, cos) = self.sin_cos();
         Complex::new(cos, sin)
     }
 
+    /// Return a scaled sine at harmonic `n` of the current phase.
+    ///
+    /// `offset` is in radians. This returns
+    /// `scale * sin(n * phase() + offset)` and does not advance the oscillator.
     pub fn sin_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
         let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
         match self.osc {
@@ -148,6 +173,10 @@ impl Nco {
         }
     }
 
+    /// Return a scaled cosine at harmonic `n` of the current phase.
+    ///
+    /// `offset` is in radians. This returns
+    /// `scale * cos(n * phase() + offset)` and does not advance the oscillator.
     pub fn cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> f32 {
         let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
         match self.osc {
@@ -157,6 +186,9 @@ impl Nco {
         }
     }
 
+    /// Return scaled sine and cosine at harmonic `n` of the current phase.
+    ///
+    /// `offset` is in radians. This does not advance the oscillator.
     pub fn sin_cos_harmonic(&self, n: u32, offset: f32, scale: f32) -> (f32, f32) {
         let theta = self.theta.wrapping_mul(n).wrapping_add(Self::constrain(offset));
         match self.osc {
@@ -177,7 +209,14 @@ impl Nco {
 
     // PLL methods
 
-    /// Set PLL bandwidth
+    /// Set the PLL loop bandwidth.
+    ///
+    /// The bandwidth controls the phase and frequency corrections made by
+    /// [`Self::pll_step`]. A value of zero disables those corrections.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `bw` is negative.
     pub fn pll_set_bandwidth(&mut self, bw: f32) {
         if bw < 0.0 {
             panic!("Bandwidth must be positive");
@@ -186,7 +225,10 @@ impl Nco {
         self.beta = bw.sqrt();
     }
 
-    /// Advance PLL phase
+    /// Apply one PLL correction from a phase error in radians.
+    ///
+    /// This adjusts both phase and frequency. It does not advance one sample;
+    /// call [`Self::step`] separately.
     pub fn pll_step(&mut self, dphi: f32) {
         self.adjust_frequency(dphi * self.alpha);
         self.adjust_phase(dphi * self.beta);
@@ -194,13 +236,23 @@ impl Nco {
 
     // Mixing methods
 
-    /// Mix up
+    /// Multiply one sample by `exp(j * phase())`.
+    ///
+    /// This does not advance the oscillator.
     pub fn mix_up(&self, input: Complex<f32>) -> Complex<f32> {
         let (sin, cos) = self.sin_cos();
         input * Complex::new(cos, sin)
     }
 
-    /// Mix block up
+    /// Mix every input sample up and advance once per sample.
+    ///
+    /// The first `input.len()` elements of `output` receive the results.
+    /// Remaining output elements are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The oscillator
+    /// and output are unchanged on error.
     pub fn mix_block_up(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Range("output length must be at least the input length".to_owned()));
@@ -212,13 +264,23 @@ impl Nco {
         Ok(input.len())
     }
 
-    /// Mix down
+    /// Multiply one sample by `exp(-j * phase())`.
+    ///
+    /// This does not advance the oscillator.
     pub fn mix_down(&self, input: Complex<f32>) -> Complex<f32> {
         let (sin, cos) = self.sin_cos();
         input * Complex::new(cos, sin).conj()
     }
 
-    /// Mix block down
+    /// Mix every input sample down and advance once per sample.
+    ///
+    /// The first `input.len()` elements of `output` receive the results.
+    /// Remaining output elements are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The oscillator
+    /// and output are unchanged on error.
     pub fn mix_block_down(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Range("output length must be at least the input length".to_owned()));
