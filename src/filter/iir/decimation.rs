@@ -151,10 +151,20 @@ where
     ///
     /// * `input` - The input samples (size: `n * decimation_factor`)
     /// * `output` - The output samples (size: `n`)
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) {
+    ///
+    /// Returns the number of output samples written, `n`.
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if !input.len().is_multiple_of(self.decimation_factor) {
+            return Err(Error::Config("input length must be a multiple of the decimation factor".into()));
+        }
+        let n = input.len() / self.decimation_factor;
+        if output.len() < n {
+            return Err(Error::Config("output length must be at least the number of output samples".into()));
+        }
         for (i, xi) in input.chunks(self.decimation_factor).enumerate() {
             output[i] = self.execute(xi);
         }
+        Ok(n)
     }
 
     /// Get the group delay at a given frequency
@@ -207,5 +217,23 @@ mod tests {
         }
 
         // objects are automatically destroyed when they go out of scope
+    }
+
+    #[test]
+    fn test_iirdecim_execute_block_output_capacity() {
+        let mut q = IirDecimationFilter::<Complex32, f32>::new_butterworth(3, 7).unwrap();
+        let x = vec![Complex32::new(1.0, 0.0); 12]; // 4 output samples
+
+        // input not a multiple of the decimation factor is an error
+        assert!(q.execute_block(&x[..11], &mut [Complex32::default(); 8]).is_err());
+
+        // undersized output is an error
+        assert!(q.execute_block(&x, &mut [Complex32::default(); 3]).is_err());
+
+        // oversized output is accepted
+        let mut y = vec![Complex32::new(-9.0, -9.0); 8];
+        assert_eq!(q.execute_block(&x, &mut y).unwrap(), 4);
+        assert_eq!(y[4], Complex32::new(-9.0, -9.0));
+        assert_eq!(y[7], Complex32::new(-9.0, -9.0));
     }
 }

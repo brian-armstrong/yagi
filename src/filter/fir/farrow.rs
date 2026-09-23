@@ -167,11 +167,15 @@ where
     }
 
     /// execute the filter on a block of samples
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
+        }
         for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             self.push(xi);
             *yi = self.execute();
         }
+        Ok(input.len())
     }
 
     /// compute the complex frequency response at a given frequency
@@ -238,6 +242,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
 
     /// estimate the group delay of an impulse response from the phase at a
@@ -258,7 +263,7 @@ mod tests {
         let mut x = vec![0.0f32; n];
         x[0] = 1.0;
         let mut y = vec![0.0f32; n];
-        q.execute_block(&x, &mut y);
+        q.execute_block(&x, &mut y).unwrap();
         y
     }
 
@@ -344,7 +349,7 @@ mod tests {
         let mut x = vec![Complex32::new(0.0, 0.0); n];
         x[0] = Complex32::new(1.0, -1.0);
         let mut y = vec![Complex32::new(0.0, 0.0); n];
-        q.execute_block(&x, &mut y);
+        q.execute_block(&x, &mut y).unwrap();
 
         let re: Vec<f32> = y.iter().map(|v| v.re).collect();
         let im: Vec<f32> = y.iter().map(|v| -v.im).collect();
@@ -371,5 +376,11 @@ mod tests {
         assert!(q.set_delay(-1.01).is_err());
         assert!(q.set_delay(1.0).is_ok());
         assert!(q.set_delay(-1.0).is_ok());
+    }
+
+    #[test]
+    fn test_firfarrow_execute_block_contract() {
+        let q = FirFarrowFilter::<f32, f32>::new(9, 3, 0.45, 60.0).unwrap();
+        validate_block_execute(&q, &[1.0, -0.5, 0.25], -9.0, FirFarrowFilter::execute_block);
     }
 }

@@ -1,6 +1,6 @@
 use crate::buffer::Window;
 use crate::dotprod::DotProd;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::filter::{self, Sample};
 
 use super::polyphase_bank::FirPolyphaseFilterBank;
@@ -140,13 +140,15 @@ where
     }
 
     /// Execute one phase for a block of input samples.
-    pub fn execute_block(&mut self, phase: usize, input: &[T], output: &mut [T]) -> Result<()> {
+    pub fn execute_block(&mut self, phase: usize, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
+        }
         let (h, block_h) = self.bank.phase_coefficients(phase)?;
-        let num_samples = input.len().min(output.len());
         let bank = &self.bank;
-        self.w.execute_block_contiguous(&input[..num_samples], |indices, history| {
+        self.w.execute_block_contiguous(input, |indices, history| {
             bank.execute_block_with_coefficients(history, &mut output[indices], h, block_h);
         });
-        Ok(())
+        Ok(input.len())
     }
 }

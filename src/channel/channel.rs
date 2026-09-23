@@ -274,15 +274,17 @@ impl Channel {
     ///
     /// * `input` - input array
     /// * `output` - output array, same length as `input`
-    pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Config("channel_execute_block(), input and output lengths must match".into()));
+    pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config(
+                "channel_execute_block(), output length must be at least the input length".into(),
+            ));
         }
         // apply channel effects on each input sample
         for (x_i, y_i) in input.iter().zip(output.iter_mut()) {
             *y_i = self.execute(*x_i);
         }
-        Ok(())
+        Ok(input.len())
     }
 
     /// get the multipath channel coefficients currently in use
@@ -483,11 +485,18 @@ mod tests {
     }
 
     #[test]
-    fn test_channel_execute_block_length_mismatch() {
+    fn test_channel_execute_block_output_capacity() {
+        // undersized output is an error
         let mut q = Channel::new();
-        let x = vec![Complex32::new(0.0, 0.0); 8];
+        let x = vec![Complex32::new(1.0, 0.0); 8];
         let mut y = vec![Complex32::new(0.0, 0.0); 4];
         assert!(q.execute_block(&x, &mut y).is_err());
+
+        // oversized output is accepted
+        let mut y = vec![Complex32::new(-9.0, -9.0); 12];
+        assert_eq!(q.execute_block(&x, &mut y).unwrap(), 8);
+        assert_eq!(y[8], Complex32::new(-9.0, -9.0));
+        assert_eq!(y[11], Complex32::new(-9.0, -9.0));
     }
 
     #[test]

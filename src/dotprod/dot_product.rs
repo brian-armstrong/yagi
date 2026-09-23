@@ -58,10 +58,12 @@ where
 
     /// Execute overlapping dot products using this plan's prepared block
     /// strategy and its singular strategy for any remaining outputs.
-    pub(crate) fn execute_block(&self, x: &[T], h: &[Coeff], block_h: &[Coeff], y: &mut [T]) {
+    pub(crate) fn execute_block(&self, x: &[T], h: &[Coeff], block_h: &[Coeff], y: &mut [T]) -> usize {
         assert_eq!(h.len(), self.len, "Plan and coefficient lengths must be equal");
-        let expected = y.len().checked_add(h.len() - 1).expect("dot product block length overflow");
-        assert_eq!(x.len(), expected, "Invalid sliding dot product block length");
+
+        // number of full windows the input supports, clamped to the output capacity
+        let n = x.len().saturating_sub(h.len() - 1).min(y.len());
+        let y = &mut y[..n];
 
         let completed = self.block.as_ref().map_or(0, |block| {
             assert_eq!(block_h.len(), block.packed_len(), "Invalid packed coefficient length");
@@ -82,6 +84,8 @@ where
             let i = completed + i;
             *yi = unsafe { self.execute_unchecked(&x[i..i + h.len()], h) };
         }
+
+        n
     }
 }
 
@@ -188,13 +192,13 @@ where
 
     /// Execute overlapping dot products over a contiguous input span.
     ///
-    /// Produces `output[i] = self.execute(&input[i..i + self.len()])` for every output.
+    /// Produces `output[i] = self.execute(&input[i..i + self.len()])` for as many
+    /// sliding positions as `input` supports. At most `input.len() - self.len() + 1`
+    /// outputs are written, but fewer will be written if `output` is shorter.
     ///
-    /// # Panics
-    ///
-    /// Panics unless `input.len() == output.len() + self.len() - 1`.
-    pub fn execute_block(&self, input: &[T], output: &mut [T]) {
-        self.plan.execute_block(input, &self.h, &self.block_h, output);
+    /// Returns the number of outputs written.
+    pub fn execute_block(&self, input: &[T], output: &mut [T]) -> usize {
+        self.plan.execute_block(input, &self.h, &self.block_h, output)
     }
 
     fn checked(h: &[Coeff]) -> Result<&[Coeff]> {
@@ -736,10 +740,23 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Invalid sliding dot product block length")]
-    fn test_dotprod_execute_block_invalid_input_panics() {
-        let dp = DotProduct::<f32, f32>::new(&[1.0, 2.0, 3.0]).unwrap();
-        dp.execute_block(&[1.0, 2.0, 3.0], &mut [0.0, 0.0]);
+    fn test_dotprod_execute_block_output_capacity() {
+        let dp = DotProduct::<f32, f32>::new(&[1.0, 1.0, 1.0]).unwrap();
+
+        // oversized outputs
+        let mut y = [-9.0f32; 2];
+        assert_eq!(dp.execute_block(&[1.0, 2.0, 3.0], &mut y), 1);
+        assert_eq!(y[0], 6.0);
+        assert_eq!(y[1], -9.0); // tail untouched
+
+        // undersized outputs
+        let mut y = [0.0f32; 2];
+        assert_eq!(dp.execute_block(&[1.0, 1.0, 1.0, 1.0, 1.0], &mut y), 2);
+        assert_eq!(y, [3.0, 3.0]);
+
+        // input too short for any full window
+        let mut y = [0.0f32; 4];
+        assert_eq!(dp.execute_block(&[1.0, 2.0], &mut y), 0);
     }
 
     #[test]

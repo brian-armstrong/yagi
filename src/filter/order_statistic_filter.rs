@@ -58,11 +58,14 @@ where
         self.execute()
     }
 
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
+        }
         for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             *yi = self.execute_one(xi)?;
         }
-        Ok(())
+        Ok(input.len())
     }
 }
 
@@ -70,6 +73,7 @@ where
 mod tests {
     use super::*;
     use crate::random::randnf;
+    use crate::utility::test_helpers::validate_block_execute;
     use test_macro::autotest_annotate;
 
     #[test]
@@ -97,5 +101,11 @@ mod tests {
         }
 
         // No need to explicitly destroy objects in Rust
+    }
+
+    #[test]
+    fn test_ordfilt_execute_block_contract() {
+        let q = OrderStatisticFilter::<f32>::new(5, 2).unwrap();
+        validate_block_execute(&q, &[1.0, -0.5, 0.25], -9.0, OrderStatisticFilter::execute_block);
     }
 }

@@ -242,6 +242,9 @@ where
     ///
     /// Returns the number of output samples written, `input.len() / 2`.
     pub fn decim_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if !input.len().is_multiple_of(2) {
+            return Err(Error::Config("decimation input length must be a multiple of 2".into()));
+        }
         let n = input.len() / 2;
         if output.len() < n {
             return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n,)));
@@ -645,6 +648,20 @@ mod tests {
                 assert_eq!(q_block.decim_phase.len(), max_n);
             }
         }
+    }
+
+    #[test]
+    fn test_resamp2_decim_block_rejects_partial_pair() {
+        let mut q = HalfBandResampler::<Complex32, f32>::new(4, 0.0, 60.0).unwrap();
+        let mut q_ref = q.clone();
+        assert!(q.decim_execute_block(&[Complex32::default(); 3], &mut [Complex32::default(); 2]).is_err());
+
+        let input = [Complex32::new(1.0, -0.5), Complex32::new(0.25, 0.75)];
+        let mut actual = [Complex32::default(); 1];
+        let mut expected = [Complex32::default(); 1];
+        q.decim_execute_block(&input, &mut actual).unwrap();
+        q_ref.decim_execute_block(&input, &mut expected).unwrap();
+        assert_eq!(actual, expected);
     }
 
     #[test]

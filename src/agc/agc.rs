@@ -88,11 +88,14 @@ where
         Ok(y * self.scale)
     }
 
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
+        }
         for (x_i, y_i) in input.iter().zip(output.iter_mut()) {
             *y_i = self.execute(*x_i)?;
         }
-        Ok(())
+        Ok(input.len())
     }
 
     pub fn execute_input_block(&mut self, input: &[T]) -> Result<()> {
@@ -280,6 +283,7 @@ where
 mod tests {
     use super::*;
     use crate::random::randnf;
+    use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
@@ -582,5 +586,11 @@ mod tests {
             let y1 = q1.execute(x).unwrap();
             assert_eq!(y0, y1);
         }
+    }
+
+    #[test]
+    fn test_agc_execute_block_contract() {
+        let q = Agc::<f32>::new();
+        validate_block_execute(&q, &[0.25, -0.5, 1.0], -9.0, Agc::execute_block);
     }
 }

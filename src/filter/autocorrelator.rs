@@ -115,7 +115,7 @@ where
     ///
     ///  input      :   input array
     ///  rxx    :   output array
-    pub fn execute_block(&mut self, input: &[T], rxx: &mut [T]) -> Result<()> {
+    pub fn execute_block(&mut self, input: &[T], rxx: &mut [T]) -> Result<usize> {
         if rxx.len() < input.len() {
             return Err(Error::Range("autocorr output array too small".into()));
         }
@@ -127,7 +127,7 @@ where
             // compute output
             rxx[i] = self.execute();
         }
-        Ok(())
+        Ok(input.len())
     }
 
     /// return sum of squares of buffered samples
@@ -141,6 +141,7 @@ where
 mod tests {
     use super::*;
     use crate::sequence::MaximalLengthSequence;
+    use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
 
@@ -288,5 +289,11 @@ mod tests {
         let x = [Complex32::new(1.0, 0.0); 4];
         let mut rxx = [Complex32::new(0.0, 0.0); 3];
         assert!(q.execute_block(&x, &mut rxx).is_err());
+    }
+
+    #[test]
+    fn test_autocorr_execute_block_contract() {
+        let q = Autocorrelator::<f32>::new(8, 3).unwrap();
+        validate_block_execute(&q, &[1.0, -0.5, 0.25], -9.0, Autocorrelator::execute_block);
     }
 }

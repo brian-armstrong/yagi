@@ -4,6 +4,8 @@ use crate::error::{Error, Result};
 use crate::filter::{self, FirPolyphaseFilterBank, Sample};
 use crate::math::nextpow2;
 
+const PHASE_SCALE: u128 = 1 << 24;
+
 #[derive(Clone, Debug)]
 #[doc(alias = "Resamp")]
 pub struct ArbitraryResampler<T, Coeff = T> {
@@ -132,36 +134,25 @@ where
     // }
 
     pub fn num_output(&self, num_input: usize) -> usize {
-        let mut phase = self.phase;
-        let mut num_output = 0;
-        for _ in 0..num_input {
-            while phase <= 0x00ffffff {
-                num_output += 1;
-                phase += self.step;
-            }
-            phase -= 1 << 24;
-        }
-        num_output
+        // after consuming n inputs and producing k outputs, the accumulator is
+        // phase + k*step - n*PHASE_SCALE
+
+        let distance = (num_input as u128 * PHASE_SCALE).saturating_sub(self.phase as u128);
+        let count = distance.div_ceil(self.step as u128);
+        count.min(usize::MAX as u128) as usize
     }
 
     pub fn max_input(&self, max_output: usize) -> usize {
-        let mut phase = self.phase;
-        let mut output_count = 0;
-        let mut num_input = 0;
-        loop {
-            while phase <= 0x00ffffff {
-                output_count += 1;
-                if output_count > max_output {
-                    return num_input;
-                }
-                phase += self.step;
-            }
-            phase -= 1 << 24;
-            num_input += 1;
-        }
+        // k <= max_output when
+        // n*PHASE_SCALE <= max_output*step + phase.
+        let count = (max_output as u128 * self.step as u128 + self.phase as u128) / PHASE_SCALE;
+        count.min(usize::MAX as u128) as usize
     }
 
     pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<usize> {
+        if output.len() < self.num_output(1) {
+            return Err(Error::Config("output length too small for resampler output".into()));
+        }
         self.w.push(input);
 
         let mut n = 0;
@@ -177,6 +168,9 @@ where
     }
 
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < self.num_output(input.len()) {
+            return Err(Error::Config("output length too small for resampler output".into()));
+        }
         let mut ny = 0;
         let step = self.step;
         let bits_index = self.bits_index;
@@ -554,5 +548,101 @@ mod tests {
         let mut actual = vec![0.0; num_output];
         assert_eq!(q_block.execute_block(&input, &mut actual).unwrap(), nw);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resamp_execute_capacity_without_advancing() {
+        let mut q = ArbitraryResampler::<f32, f32>::from_rate(2.0).unwrap();
+        let mut q_ref = q.clone();
+        let required = q.num_output(1);
+        assert!(q.execute(1.0, &mut vec![0.0; required - 1]).is_err());
+
+        let mut actual = vec![-9.0; required + 2];
+        let mut expected = vec![0.0; required];
+        assert_eq!(q.execute(1.0, &mut actual).unwrap(), required);
+        q_ref.execute(1.0, &mut expected).unwrap();
+        assert_eq!(&actual[..required], &expected);
+        assert_eq!(&actual[required..], &[-9.0, -9.0]);
+
+        let mut q = ArbitraryResampler::<f32, f32>::from_rate(2.0).unwrap();
+        let mut q_ref = q.clone();
+        let input = [1.0, -0.5, 0.25];
+        let required = q.num_output(input.len());
+        assert!(q.execute_block(&input, &mut vec![0.0; required - 1]).is_err());
+        let mut actual = vec![-9.0; required + 2];
+        let mut expected = vec![0.0; required];
+        assert_eq!(q.execute_block(&input, &mut actual).unwrap(), required);
+        q_ref.execute_block(&input, &mut expected).unwrap();
+        assert_eq!(&actual[..required], &expected);
+        assert_eq!(&actual[required..], &[-9.0, -9.0]);
+        assert_eq!(q.execute_block(&[], &mut actual).unwrap(), 0);
+    }
+
+    fn iterative_num_output(phase: u32, step: u32, num_input: usize) -> usize {
+        const PHASE_SCALE: u128 = 1 << 24;
+
+        let mut phase = phase as u128;
+        let mut num_output = 0;
+        for _ in 0..num_input {
+            while phase < PHASE_SCALE {
+                num_output += 1;
+                phase += step as u128;
+            }
+            phase -= PHASE_SCALE;
+        }
+        num_output
+    }
+
+    fn iterative_max_input(phase: u32, step: u32, max_output: usize) -> usize {
+        const PHASE_SCALE: u128 = 1 << 24;
+
+        let mut phase = phase as u128;
+        let mut output_count = 0;
+        let mut num_input = 0;
+        loop {
+            while phase < PHASE_SCALE {
+                output_count += 1;
+                if output_count > max_output {
+                    return num_input;
+                }
+                phase += step as u128;
+            }
+            phase -= PHASE_SCALE;
+            num_input += 1;
+        }
+    }
+
+    #[test]
+    fn test_resamp_output_count_closed_forms() {
+        const PHASE_SCALE: u32 = 1 << 24;
+
+        let mut slow = ArbitraryResampler::<f32, f32>::from_rate(0.004).unwrap();
+        slow.execute(0.0, &mut [0.0]).unwrap();
+        let post_rate_change_phase = slow.phase;
+
+        for rate in [0.004, 0.127115323, 0.5, 1.0, 2f32.sqrt(), 2.0, 250.0] {
+            let mut q = ArbitraryResampler::<f32, f32>::from_rate(rate).unwrap();
+            let phases = [0, PHASE_SCALE - 1, PHASE_SCALE, q.step - 1, post_rate_change_phase];
+
+            for phase in phases {
+                q.phase = phase;
+
+                for num_input in [0, 1, 2, 3, 17, 257] {
+                    assert_eq!(
+                        q.num_output(num_input),
+                        iterative_num_output(phase, q.step, num_input),
+                        "rate={rate}, phase={phase}, num_input={num_input}",
+                    );
+                }
+
+                for max_output in [0, 1, 2, 7, 64] {
+                    assert_eq!(
+                        q.max_input(max_output),
+                        iterative_max_input(phase, q.step, max_output),
+                        "rate={rate}, phase={phase}, max_output={max_output}",
+                    );
+                }
+            }
+        }
     }
 }

@@ -176,6 +176,12 @@ where
         if self.channelizer_type != ChannelizerType::Analyzer {
             return Err(Error::Config("cannot execute analyzer on synthesizer channelizer".into()));
         }
+        if input.len() < self.num_channels_half {
+            return Err(Error::Config("input length must be at least num_channels/2".into()));
+        }
+        if output.len() < self.num_channels {
+            return Err(Error::Config("output length must be at least num_channels".into()));
+        }
 
         // load buffers in blocks of num_channels/2 starting
         // in the middle of the filter bank and moving in the negative direction
@@ -219,6 +225,12 @@ where
     pub fn execute_synthesizer(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.channelizer_type != ChannelizerType::Synthesizer {
             return Err(Error::Config("cannot execute synthesizer on analyzer channelizer".into()));
+        }
+        if input.len() < self.num_channels {
+            return Err(Error::Config("input length must be at least num_channels".into()));
+        }
+        if output.len() < self.num_channels_half {
+            return Err(Error::Config("output length must be at least num_channels/2".into()));
         }
 
         // copy input array to internal IFFT input buffer
@@ -437,5 +449,40 @@ mod tests {
         assert_eq!(q.channelizer_type(), ChannelizerType::Analyzer);
         assert_eq!(q.num_channels(), 76);
         assert_eq!(q.m(), 12);
+    }
+
+    #[test]
+    fn test_firpfbch2_execute() {
+        let channels = 8;
+        let half = channels / 2;
+        let sentinel = Complex32::new(-9.0, -9.0);
+
+        let mut analyzer =
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Analyzer, channels, 3, 60.0)
+                .unwrap();
+        let mut analyzer_ref = analyzer.clone();
+        let input = [Complex32::new(1.0, -0.5); 4];
+        assert!(analyzer.execute_analyzer(&input[..half - 1], &mut [Complex32::default(); 8]).is_err());
+        assert!(analyzer.execute_analyzer(&input, &mut [Complex32::default(); 7]).is_err());
+        let mut actual = [sentinel; 10];
+        let mut expected = [Complex32::default(); 8];
+        analyzer.execute_analyzer(&input, &mut actual).unwrap();
+        analyzer_ref.execute_analyzer(&input, &mut expected).unwrap();
+        assert_eq!(&actual[..channels], &expected);
+        assert_eq!(&actual[channels..], &[sentinel; 2]);
+
+        let mut synthesizer =
+            OversampledPolyphaseChannelizer::<Complex32>::new_kaiser(ChannelizerType::Synthesizer, channels, 3, 60.0)
+                .unwrap();
+        let mut synthesizer_ref = synthesizer.clone();
+        let input = [Complex32::new(1.0, -0.5); 8];
+        assert!(synthesizer.execute_synthesizer(&input[..channels - 1], &mut [Complex32::default(); 4]).is_err());
+        assert!(synthesizer.execute_synthesizer(&input, &mut [Complex32::default(); 3]).is_err());
+        let mut actual = [sentinel; 6];
+        let mut expected = [Complex32::default(); 4];
+        synthesizer.execute_synthesizer(&input, &mut actual).unwrap();
+        synthesizer_ref.execute_synthesizer(&input, &mut expected).unwrap();
+        assert_eq!(&actual[..half], &expected);
+        assert_eq!(&actual[half..], &[sentinel; 2]);
     }
 }

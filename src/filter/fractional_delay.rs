@@ -125,8 +125,11 @@ where
         self.pfb.execute(self.f_index)
     }
 
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
-        let n = input.len().min(output.len());
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
+        }
+        let n = input.len();
         let w_index = self.w_index;
         let f_index = self.f_index;
         let pfb = &mut self.pfb;
@@ -138,16 +141,17 @@ where
             }
 
             let delayed = &samples[w_index..w_index + indices.len()];
-            result = pfb.execute_block(f_index, delayed, &mut output[indices]);
+            result = pfb.execute_block(f_index, delayed, &mut output[indices]).map(|_| ());
         });
 
-        result
+        result.map(|()| n)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
@@ -333,5 +337,11 @@ mod tests {
             assert_abs_diff_eq!(actual.re, expected.re, epsilon = 1e-5);
             assert_abs_diff_eq!(actual.im, expected.im, epsilon = 1e-5);
         }
+    }
+
+    #[test]
+    fn test_fdelay_execute_block_contract() {
+        let q = FractionalDelay::<f32, f32>::new(20, 5, 64).unwrap();
+        validate_block_execute(&q, &[1.0, -0.5, 0.25], -9.0, FractionalDelay::execute_block);
     }
 }

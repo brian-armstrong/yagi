@@ -99,10 +99,14 @@ impl IirHilbertFilter {
         y
     }
 
-    pub fn r2c_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) {
+    pub fn r2c_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output length must be at least the input length".into()));
+        }
         for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             *yi = self.r2c_execute(xi);
         }
+        Ok(input.len())
     }
 
     pub fn c2r_execute(&mut self, input: Complex32) -> f32 {
@@ -130,10 +134,14 @@ impl IirHilbertFilter {
         y
     }
 
-    pub fn c2r_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) {
+    pub fn c2r_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output length must be at least the input length".into()));
+        }
         for (&xi, yi) in input.iter().zip(output.iter_mut()) {
             *yi = self.c2r_execute(xi);
         }
+        Ok(input.len())
     }
 
     pub fn decim_execute(&mut self, input: &[f32]) -> Complex32 {
@@ -152,10 +160,18 @@ impl IirHilbertFilter {
         y
     }
 
-    pub fn decim_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) {
+    pub fn decim_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
+        if !input.len().is_multiple_of(2) {
+            return Err(Error::Config("input length must be a multiple of 2".into()));
+        }
+        let n = input.len() / 2;
+        if output.len() < n {
+            return Err(Error::Config("output length must be at least input length / 2".into()));
+        }
         for (x_chunk, yi) in input.as_chunks::<2>().0.iter().zip(output.iter_mut()) {
             *yi = self.decim_execute(x_chunk);
         }
+        Ok(n)
     }
 
     pub fn interp_execute(&mut self, input: Complex32, output: &mut [f32]) {
@@ -171,10 +187,18 @@ impl IirHilbertFilter {
         self.state = 1 - self.state;
     }
 
-    pub fn interp_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) {
+    pub fn interp_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
+        let n_out = input
+            .len()
+            .checked_mul(2)
+            .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
+        if output.len() < n_out {
+            return Err(Error::Config("output length must be at least 2 * input length".into()));
+        }
         for (&xi, yi) in input.iter().zip(output.as_chunks_mut::<2>().0) {
             self.interp_execute(xi, yi);
         }
+        Ok(n_out)
     }
 }
 
@@ -183,7 +207,7 @@ mod tests {
     use super::*;
     use crate::filter;
     use crate::math::kaiser;
-    use crate::utility::test_helpers::{validate_psd_signal, validate_psd_signalf, PsdRegion};
+    use crate::utility::test_helpers::{validate_block_execute, validate_psd_signal, validate_psd_signalf, PsdRegion};
     use test_macro::autotest_annotate;
 
     #[test]
@@ -214,13 +238,13 @@ mod tests {
         }
 
         // run interpolation
-        q.interp_execute_block(&buf_0, &mut buf_1);
+        q.interp_execute_block(&buf_0, &mut buf_1).unwrap();
 
         // clear object
         q.reset();
 
         // run decimation
-        q.decim_execute_block(&buf_1, &mut buf_2);
+        q.decim_execute_block(&buf_1, &mut buf_2).unwrap();
 
         // verify input spectrum
         #[rustfmt::skip]
@@ -288,7 +312,7 @@ mod tests {
         }
 
         // run interpolation
-        q.c2r_execute_block(&buf_0, &mut buf_1);
+        q.c2r_execute_block(&buf_0, &mut buf_1).unwrap();
         // scale output
         for i in 0..num_samples {
             buf_1[i] *= 2.0;
@@ -298,7 +322,7 @@ mod tests {
         q.reset();
 
         // run decimation
-        q.r2c_execute_block(&buf_1, &mut buf_2);
+        q.r2c_execute_block(&buf_1, &mut buf_2).unwrap();
         // scale output
         for i in 0..num_samples {
             buf_2[i] *= 0.5;
@@ -397,5 +421,39 @@ mod tests {
             let y1 = q1.decim_execute(&x);
             assert_eq!(y0, y1);
         }
+    }
+
+    #[test]
+    fn test_iirhilbf_execute_block_output_capacity() {
+        let mut q = IirHilbertFilter::from_order(5).unwrap();
+
+        // interp: n complex in -> 2n real out
+        let x = vec![Complex32::new(1.0, -1.0); 4];
+        assert!(q.interp_execute_block(&x, &mut vec![0.0f32; 7]).is_err());
+        let mut y = vec![-9.0f32; 10];
+        assert_eq!(q.interp_execute_block(&x, &mut y).unwrap(), 8);
+        assert_eq!(y[8], -9.0); // tail untouched
+        assert_eq!(y[9], -9.0);
+
+        // decim: 2n real in -> n complex out
+        let xr = vec![1.0f32; 8];
+        assert!(q.decim_execute_block(&xr[..7], &mut vec![Complex32::default(); 4]).is_err());
+        assert!(q.decim_execute_block(&xr, &mut vec![Complex32::default(); 3]).is_err());
+        let mut yc = vec![Complex32::new(-9.0, -9.0); 6];
+        assert_eq!(q.decim_execute_block(&xr, &mut yc).unwrap(), 4);
+        assert_eq!(yc[4], Complex32::new(-9.0, -9.0)); // tail untouched
+
+        // one-to-one transforms reject undersized output before advancing state
+        let mut q_ref = q.clone();
+        assert!(q.r2c_execute_block(&xr, &mut vec![Complex32::default(); 7]).is_err());
+        let mut actual = vec![Complex32::default(); xr.len()];
+        let mut expected = vec![Complex32::default(); xr.len()];
+        assert_eq!(q.r2c_execute_block(&xr, &mut actual).unwrap(), xr.len());
+        q_ref.r2c_execute_block(&xr, &mut expected).unwrap();
+        assert_eq!(actual, expected);
+
+        let q = IirHilbertFilter::from_order(5).unwrap();
+        let input = [Complex32::new(1.0, -0.5), Complex32::new(0.25, 0.75), Complex32::new(-1.0, 0.0)];
+        validate_block_execute(&q, &input, -9.0, IirHilbertFilter::c2r_execute_block);
     }
 }

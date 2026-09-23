@@ -114,15 +114,21 @@ where
     }
 
     /// execute interpolation on block of input samples
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
-        if output.len() != input.len() * self.m {
-            return Err(Error::Config("output length must equal input length times the interpolation factor".into()));
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let required_output = input
+            .len()
+            .checked_mul(self.m)
+            .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
+        if output.len() < required_output {
+            return Err(Error::Config(
+                "output length must be at least input length times the interpolation factor".into(),
+            ));
         }
 
         for (i, &xi) in input.iter().enumerate() {
             self.execute(xi, &mut output[i * self.m..(i + 1) * self.m])?;
         }
-        Ok(())
+        Ok(required_output)
     }
 
     /// get system group delay at frequency fc
@@ -239,5 +245,21 @@ mod tests {
         }
 
         // objects are automatically destroyed when they go out of scope
+    }
+
+    #[test]
+    fn test_iirinterp_execute_block_capacity() {
+        let mut q = IirInterpolationFilter::<f32, f32>::new(3, &[1.0], &[1.0]).unwrap();
+        let mut q_ref = q.clone();
+        let input = [1.0, -0.5];
+        assert!(q.execute_block(&input, &mut [0.0; 5]).is_err());
+
+        let mut actual = [-9.0; 8];
+        let mut expected = [0.0; 6];
+        assert_eq!(q.execute_block(&input, &mut actual).unwrap(), 6);
+        q_ref.execute_block(&input, &mut expected).unwrap();
+        assert_eq!(&actual[..6], &expected);
+        assert_eq!(&actual[6..], &[-9.0, -9.0]);
+        assert_eq!(q.execute_block(&[], &mut actual).unwrap(), 0);
     }
 }

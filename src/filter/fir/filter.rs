@@ -437,9 +437,9 @@ where
     ///
     /// * `input` - buffer of input samples
     /// * `output` - buffer of output samples
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Config("input and output block lengths must be equal".into()));
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
         }
 
         let dp = &self.dp;
@@ -451,11 +451,11 @@ where
             }
         });
 
-        for yi in output {
+        for yi in &mut output[..input.len()] {
             *yi = *yi * self.scale;
         }
 
-        Ok(())
+        Ok(input.len())
     }
 
     /// set output scaling for filter
@@ -538,7 +538,9 @@ where
 mod tests {
     use super::*;
     use crate::filter::FirFilterShape;
-    use crate::utility::test_helpers::{validate_psd_firfilt, validate_psd_firfiltc, PsdRegion};
+    use crate::utility::test_helpers::{
+        validate_block_execute, validate_psd_firfilt, validate_psd_firfiltc, PsdRegion,
+    };
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
@@ -1255,5 +1257,11 @@ mod tests {
     #[autotest_annotate(autotest_firfilt_cccf_data_h23x64)]
     fn test_firfilt_cccf_data_h23x64() {
         firfilt_cccf_test(&FIRFILT_CCCF_DATA_H23X64_H, &FIRFILT_CCCF_DATA_H23X64_X, &FIRFILT_CCCF_DATA_H23X64_Y);
+    }
+
+    #[test]
+    fn test_firfilt_execute_block_contract() {
+        let q = FirFilter::<f32, f32>::new(&[0.25, 0.5, 0.25]).unwrap();
+        validate_block_execute(&q, &[1.0, -0.5, 0.25], -9.0, FirFilter::execute_block);
     }
 }

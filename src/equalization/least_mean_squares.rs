@@ -199,9 +199,12 @@ where
         Ok(y)
     }
 
-    pub fn execute_block(&mut self, k: usize, input: &[T], output: &mut [T]) -> Result<()> {
+    pub fn execute_block(&mut self, k: usize, input: &[T], output: &mut [T]) -> Result<usize> {
         if k == 0 {
             return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
+        }
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
         }
 
         for (i, &xi) in input.iter().enumerate() {
@@ -213,7 +216,7 @@ where
                 self.step_blind(d_hat);
             }
         }
-        Ok(())
+        Ok(input.len())
     }
 
     pub fn step(&mut self, d: T, d_hat: T) {
@@ -256,6 +259,7 @@ mod tests {
     use crate::math::{hamming, sincf};
     use crate::modem::{Modem, ModulationScheme};
     use crate::random::randnf;
+    use crate::utility::test_helpers::validate_block_execute;
     use num_complex::Complex;
     use test_macro::autotest_annotate;
 
@@ -537,5 +541,12 @@ mod tests {
         let w0 = q0.coefficients();
         let w1 = q1.coefficients();
         assert_eq!(w0, w1);
+    }
+
+    #[test]
+    fn test_eqlms_execute_block_contract() {
+        let q = LeastMeanSquaresEqualizer::<Complex<f32>>::new(7).unwrap();
+        let input = [Complex::new(1.0, -0.5), Complex::new(0.25, 0.75), Complex::new(-1.0, 0.0)];
+        validate_block_execute(&q, &input, Complex::new(-9.0, -9.0), |q, x, y| q.execute_block(2, x, y));
     }
 }

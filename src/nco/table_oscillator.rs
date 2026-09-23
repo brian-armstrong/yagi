@@ -188,9 +188,9 @@ impl TableOscillator {
     }
 
     /// rotate input block up by the table value, stepping each sample
-    pub fn mix_block_up(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("input and output must have the same length".into()));
+    pub fn mix_block_up(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".into()));
         }
         for (xi, yi) in input.iter().zip(output.iter_mut()) {
             // mix single sample up
@@ -199,13 +199,13 @@ impl TableOscillator {
             // step synth phase
             self.step();
         }
-        Ok(())
+        Ok(input.len())
     }
 
     /// rotate input block down by the table value, stepping each sample
-    pub fn mix_block_down(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("input and output must have the same length".into()));
+    pub fn mix_block_down(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".into()));
         }
         for (xi, yi) in input.iter().zip(output.iter_mut()) {
             // mix single sample down
@@ -214,7 +214,7 @@ impl TableOscillator {
             // step synth phase
             self.step();
         }
-        Ok(())
+        Ok(input.len())
     }
 
     /// spread a single symbol across a full table cycle
@@ -342,6 +342,7 @@ impl TableOscillator {
 mod tests {
     use super::*;
     use crate::sequence::MaximalLengthSequence;
+    use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
 
     // unit-magnitude DFT-like sequence: tab[i] = exp(j*2*pi*i/n)
@@ -533,5 +534,14 @@ mod tests {
         }
 
         assert_abs_diff_eq!(q.frequency(), f_ref, epsilon = 0.02);
+    }
+
+    #[test]
+    fn test_table_oscillator_block_contracts() {
+        let q = TableOscillator::new(&tab_cexp(8)).unwrap();
+        let input = [Complex32::new(1.0, -0.5), Complex32::new(0.25, 0.75), Complex32::new(-1.0, 0.0)];
+        let sentinel = Complex32::new(-9.0, -9.0);
+        validate_block_execute(&q, &input, sentinel, TableOscillator::mix_block_up);
+        validate_block_execute(&q, &input, sentinel, TableOscillator::mix_block_down);
     }
 }

@@ -145,6 +145,17 @@ where
     }
 
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        let (required_input, required_output) = match self.type_ {
+            ResampType::Interp => (1, 1usize << self.num_stages),
+            ResampType::Decim => (self.rate, 1),
+        };
+        if input.len() < required_input {
+            return Err(Error::Config("input length too small for half-band resampler step".into()));
+        }
+        if output.len() < required_output {
+            return Err(Error::Config("output length too small for half-band resampler step".into()));
+        }
+
         if self.num_stages == 0 {
             output[0] = input[0];
             return Ok(());
@@ -663,5 +674,32 @@ mod tests {
             q_ref.execute_block(&x, &mut y_ref).unwrap();
             assert_eq!(y, y_ref);
         }
+    }
+
+    #[test]
+    fn test_msresamp2_single_step_capacity_without_advancing() {
+        let mut interp =
+            MultiStageHalfBandResampler::<Complex32, f32>::new(ResampType::Interp, 2, 0.4, 0.0, 60.0).unwrap();
+        let mut interp_ref = interp.clone();
+        let input = [Complex32::new(1.0, -0.5)];
+        assert!(interp.execute(&input, &mut [Complex32::default(); 3]).is_err());
+        let mut actual = [Complex32::new(-9.0, -9.0); 6];
+        let mut expected = [Complex32::default(); 4];
+        interp.execute(&input, &mut actual).unwrap();
+        interp_ref.execute(&input, &mut expected).unwrap();
+        assert_eq!(&actual[..4], &expected);
+        assert_eq!(&actual[4..], &[Complex32::new(-9.0, -9.0); 2]);
+
+        let mut decim =
+            MultiStageHalfBandResampler::<Complex32, f32>::new(ResampType::Decim, 2, 0.4, 0.0, 60.0).unwrap();
+        let mut decim_ref = decim.clone();
+        let input = [Complex32::new(1.0, -0.5); 4];
+        assert!(decim.execute(&input[..3], &mut [Complex32::default(); 1]).is_err());
+        let mut actual = [Complex32::new(-9.0, -9.0); 2];
+        let mut expected = [Complex32::default(); 1];
+        decim.execute(&input, &mut actual).unwrap();
+        decim_ref.execute(&input, &mut expected).unwrap();
+        assert_eq!(actual[0], expected[0]);
+        assert_eq!(actual[1], Complex32::new(-9.0, -9.0));
     }
 }

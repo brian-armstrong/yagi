@@ -201,13 +201,19 @@ impl FirHilbertFilter {
     /// # Arguments
     ///
     /// * `input` - real-valued input array, [size: 2*n x 1]
-    /// * `n` - number of output samples
     /// * `output` - complex-valued output array, [size: n x 1]
-    pub fn decim_execute_block(&mut self, input: &[f32], n: usize, output: &mut [Complex32]) -> Result<()> {
-        for i in 0..n {
-            output[i] = self.decim_execute(&input[2 * i..2 * i + 2])?;
+    pub fn decim_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
+        if !input.len().is_multiple_of(2) {
+            return Err(Error::Config("decimation input length must be a multiple of 2".into()));
         }
-        Ok(())
+        let n = input.len() / 2;
+        if output.len() < n {
+            return Err(Error::Config("output length must be at least input length / 2".into()));
+        }
+        for (input, output) in input.as_chunks::<2>().0.iter().zip(output.iter_mut()) {
+            *output = self.decim_execute(input)?;
+        }
+        Ok(n)
     }
 
     /// Execute the Hilbert transform interpolator (complex-to-real)
@@ -238,13 +244,18 @@ impl FirHilbertFilter {
     /// # Arguments
     ///
     /// * `input` - complex-valued input array, [size: n x 1]
-    /// * `n` - number of output samples
     /// * `output` - real-valued output array, [size: 2*n x 1]
-    pub fn interp_execute_block(&mut self, input: &[Complex32], n: usize, output: &mut [f32]) -> Result<()> {
-        for i in 0..n {
-            self.interp_execute(input[i], &mut output[2 * i..2 * i + 2])?;
+    pub fn interp_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
+        let n = input.len();
+        let required_output =
+            n.checked_mul(2).ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
+        if output.len() < required_output {
+            return Err(Error::Config("output length must be at least 2 * input length".into()));
         }
-        Ok(())
+        for (&input, output) in input.iter().zip(output.as_chunks_mut::<2>().0) {
+            self.interp_execute(input, output)?;
+        }
+        Ok(required_output)
     }
 }
 
@@ -353,13 +364,13 @@ mod tests {
         }
 
         // run interpolation
-        q.interp_execute_block(&buf_0, num_samples, &mut buf_1).unwrap();
+        q.interp_execute_block(&buf_0, &mut buf_1).unwrap();
 
         // clear object
         q.reset();
 
         // run decimation
-        q.decim_execute_block(&buf_1, num_samples, &mut buf_2).unwrap();
+        q.decim_execute_block(&buf_1, &mut buf_2).unwrap();
 
         // verify input spectrum
         #[rustfmt::skip]
@@ -448,5 +459,35 @@ mod tests {
             assert_eq!(y0.re, y1.re);
             assert_eq!(y0.im, y1.im);
         }
+    }
+
+    #[test]
+    fn test_firhilb_block() {
+        let input_real = [1.0, -0.5, 0.25, 0.75];
+        let input_complex = [Complex32::new(1.0, -0.5), Complex32::new(0.25, 0.75)];
+
+        let mut decim = FirHilbertFilter::new(5, 60.0).unwrap();
+        let mut decim_ref = decim.clone();
+        assert!(decim.decim_execute_block(&input_real[..3], &mut [Complex32::default(); 2]).is_err());
+        assert!(decim.decim_execute_block(&input_real, &mut [Complex32::default(); 1]).is_err());
+        let sentinel = Complex32::new(-9.0, -9.0);
+        let mut actual = [sentinel; 3];
+        let mut expected = [Complex32::default(); 2];
+        assert_eq!(decim.decim_execute_block(&input_real, &mut actual).unwrap(), 2);
+        decim_ref.decim_execute_block(&input_real, &mut expected).unwrap();
+        assert_eq!(&actual[..2], &expected);
+        assert_eq!(actual[2], sentinel);
+        assert_eq!(decim.decim_execute_block(&[], &mut actual).unwrap(), 0);
+
+        let mut interp = FirHilbertFilter::new(5, 60.0).unwrap();
+        let mut interp_ref = interp.clone();
+        assert!(interp.interp_execute_block(&input_complex, &mut [0.0; 3]).is_err());
+        let mut actual = [-9.0; 6];
+        let mut expected = [0.0; 4];
+        assert_eq!(interp.interp_execute_block(&input_complex, &mut actual).unwrap(), 4);
+        interp_ref.interp_execute_block(&input_complex, &mut expected).unwrap();
+        assert_eq!(&actual[..4], &expected);
+        assert_eq!(&actual[4..], &[-9.0, -9.0]);
+        assert_eq!(interp.interp_execute_block(&[], &mut actual).unwrap(), 0);
     }
 }

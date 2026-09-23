@@ -115,14 +115,16 @@ impl TimeVaryingMultipathChannel {
     ///
     /// * `input` - input array
     /// * `output` - output array, same length as `input`
-    pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Config("tvmpch_execute_block(), input and output lengths must match".into()));
+    pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config(
+                "tvmpch_execute_block(), output length must be at least the input length".into(),
+            ));
         }
         for (x_i, y_i) in input.iter().zip(output.iter_mut()) {
             *y_i = self.execute_one(*x_i);
         }
-        Ok(())
+        Ok(input.len())
     }
 
     /// get filter length
@@ -144,6 +146,7 @@ impl TimeVaryingMultipathChannel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
 
     #[test]
@@ -223,5 +226,12 @@ mod tests {
         let mut y3 = vec![Complex32::new(0.0, 0.0); x.len()];
         q3.execute_block(&x, &mut y3).unwrap();
         assert_ne!(y0, y3);
+    }
+
+    #[test]
+    fn test_tvmpch_execute_block_contract() {
+        let q = TimeVaryingMultipathChannel::new_seeded(5, 0.1, 0.05, 17).unwrap();
+        let input = [Complex32::new(1.0, -0.5), Complex32::new(0.25, 0.75), Complex32::new(-1.0, 0.0)];
+        validate_block_execute(&q, &input, Complex32::new(-9.0, -9.0), |q, x, y| q.execute_block(x, y));
     }
 }

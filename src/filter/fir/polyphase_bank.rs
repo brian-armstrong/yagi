@@ -355,16 +355,15 @@ where
 
     /// Execute one phase over contiguous sliding histories
     ///
-    /// Produces `y[j] = self.execute(i, &history[j..j + self.filter_len()])`
-    /// for every output.
+    /// Produces `output[j] = self.execute(i, &history[j..j + self.filter_len()])`
+    /// for as many sliding positions as `history` supports. At most `history.len()
+    /// - self.filter_len() + 1` outputs are written, but fewer will be written if
+    /// `output` is shorter.
     ///
-    /// # Panics
-    ///
-    /// Panics unless `history.len() == y.len() + self.filter_len() - 1`.
-    pub fn execute_block(&self, i: usize, history: &[T], output: &mut [T]) -> Result<()> {
+    /// Returns `n`, the number of output samples written.
+    pub fn execute_block(&self, i: usize, history: &[T], output: &mut [T]) -> Result<usize> {
         let (h, block_h) = self.phase_coefficients(i)?;
-        self.execute_block_with_coefficients(history, output, h, block_h);
-        Ok(())
+        Ok(self.execute_block_with_coefficients(history, output, h, block_h))
     }
 
     /// Execute every phase over contiguous sliding histories, writing outputs
@@ -407,12 +406,19 @@ where
         Ok((h, block_h))
     }
 
-    pub(super) fn execute_block_with_coefficients(&self, history: &[T], y: &mut [T], h: &[Coeff], block_h: &[Coeff]) {
-        self.plan.execute_block(history, h, block_h, y);
+    pub(super) fn execute_block_with_coefficients(
+        &self,
+        history: &[T],
+        y: &mut [T],
+        h: &[Coeff],
+        block_h: &[Coeff],
+    ) -> usize {
+        let n = self.plan.execute_block(history, h, block_h, y);
 
-        for yi in y {
+        for yi in &mut y[..n] {
             *yi = *yi * self.scale;
         }
+        n
     }
 }
 
@@ -781,9 +787,20 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Invalid sliding dot product block length")]
-    fn test_firpfb_bank_execute_block_invalid_history_length() {
+    fn test_firpfb_bank_execute_block() {
         let bank = FirPolyphaseFilterBank::<f32, f32>::new(2, &[1.0, 2.0, 3.0, 4.0]).unwrap();
-        bank.execute_block(0, &[0.0, 0.0], &mut [0.0, 0.0]).unwrap();
+
+        // output longer than needed
+        let mut y = [-9.0f32; 2];
+        assert_eq!(bank.execute_block(0, &[0.0, 0.0], &mut y).unwrap(), 1);
+        assert_eq!(y[1], -9.0); // tail untouched
+
+        // output too short
+        let mut y = [0.0f32; 2];
+        assert_eq!(bank.execute_block(0, &[1.0, 2.0, 3.0, 4.0], &mut y).unwrap(), 2);
+
+        // input too short
+        let mut y = [0.0f32; 4];
+        assert_eq!(bank.execute_block(0, &[7.0], &mut y).unwrap(), 0);
     }
 }

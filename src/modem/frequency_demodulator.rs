@@ -40,15 +40,15 @@ impl FrequencyDemodulator {
         Ok(output)
     }
 
-    pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("input and output arrays must be same length".into()));
+    pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".into()));
         }
 
         for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
             *output_sample = self.demodulate(*input_sample)?;
         }
-        Ok(())
+        Ok(input.len())
     }
 }
 
@@ -56,6 +56,7 @@ impl FrequencyDemodulator {
 mod tests {
     use super::*;
     use crate::modem::FrequencyModulator;
+    use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
 
@@ -147,5 +148,12 @@ mod tests {
     #[autotest_annotate(autotest_freqmodem_kf_0_08)]
     fn test_freqmodem_kf_0_08() -> Result<()> {
         freqmodem_test(0.08)
+    }
+
+    #[test]
+    fn test_freqdem_block_contract() {
+        let q = FrequencyDemodulator::new(0.5).unwrap();
+        let input = [Complex32::new(1.0, -0.5), Complex32::new(0.25, 0.75), Complex32::new(-1.0, 0.0)];
+        validate_block_execute(&q, &input, -9.0, |q, x, y| q.demodulate_block(x, y));
     }
 }

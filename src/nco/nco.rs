@@ -201,15 +201,15 @@ impl Nco {
     }
 
     /// Mix block up
-    pub fn mix_block_up(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("Input and output slices must have the same length".to_owned()));
+    pub fn mix_block_up(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".to_owned()));
         }
         for (x, y) in input.iter().zip(output.iter_mut()) {
             *y = self.mix_up(*x);
             self.step();
         }
-        Ok(())
+        Ok(input.len())
     }
 
     /// Mix down
@@ -219,15 +219,15 @@ impl Nco {
     }
 
     /// Mix block down
-    pub fn mix_block_down(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("Input and output slices must have the same length".to_owned()));
+    pub fn mix_block_down(&mut self, input: &[Complex<f32>], output: &mut [Complex<f32>]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".to_owned()));
         }
         for (x, y) in input.iter().zip(output.iter_mut()) {
             *y = self.mix_down(*x);
             self.step();
         }
-        Ok(())
+        Ok(input.len())
     }
 
     // Helper functions
@@ -243,7 +243,7 @@ mod tests {
     use crate::fft::SpectralPeriodogram;
     use crate::math::{hann, WindowType};
     use crate::nco::{Nco, NcoBackend};
-    use crate::utility::test_helpers::{validate_psd_spgramcf, PsdRegion};
+    use crate::utility::test_helpers::{validate_block_execute, validate_psd_spgramcf, PsdRegion};
     use lazy_static::lazy_static;
     use num_complex::Complex;
     use std::f32::consts::PI;
@@ -957,5 +957,14 @@ mod tests {
         pub static ref NCO_SINCOS_FSQRT1_3: Vec<Complex<f32>> = generate_sincos(1.0 / 3.0_f32.sqrt(), 256);
         pub static ref NCO_SINCOS_FSQRT1_5: Vec<Complex<f32>> = generate_sincos(1.0 / 5.0_f32.sqrt(), 256);
         pub static ref NCO_SINCOS_FSQRT1_7: Vec<Complex<f32>> = generate_sincos(1.0 / 7.0_f32.sqrt(), 256);
+    }
+
+    #[test]
+    fn test_nco_block_contracts() {
+        let q = Nco::new(NcoBackend::LookupTable);
+        let input = [Complex::new(1.0, -0.5), Complex::new(0.25, 0.75), Complex::new(-1.0, 0.0)];
+        let sentinel = Complex::new(-9.0, -9.0);
+        validate_block_execute(&q, &input, sentinel, Nco::mix_block_up);
+        validate_block_execute(&q, &input, sentinel, Nco::mix_block_down);
     }
 }

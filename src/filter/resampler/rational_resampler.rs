@@ -195,21 +195,56 @@ where
     }
 
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        let q = self.q;
+        let p = self.p;
+        let required_input = self
+            .block_len
+            .checked_mul(q)
+            .ok_or_else(|| Error::Range("resampler input length overflow".into()))?;
+        let required_output = self
+            .block_len
+            .checked_mul(p)
+            .ok_or_else(|| Error::Range("resampler output length overflow".into()))?;
+        if input.len() < required_input {
+            return Err(Error::Config("input length must be at least block_len * q".into()));
+        }
+        if output.len() < required_output {
+            return Err(Error::Config("output length must be at least block_len * p".into()));
+        }
         for i in 0..self.block_len {
-            let q = self.q;
-            let p = self.p;
             self.execute_primitive(&input[i * q..(i + 1) * q], &mut output[i * p..(i + 1) * p])?;
         }
         Ok(())
     }
 
-    pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<()> {
-        for i in 0..n {
-            let q = self.q;
-            let p = self.p;
-            self.execute(&input[i * q..(i + 1) * q], &mut output[i * p..(i + 1) * p])?;
+    pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<usize> {
+        let input_block_size = self
+            .block_len
+            .checked_mul(self.q)
+            .ok_or_else(|| Error::Range("resampler input block length overflow".into()))?;
+        let output_block_size = self
+            .block_len
+            .checked_mul(self.p)
+            .ok_or_else(|| Error::Range("resampler output block length overflow".into()))?;
+        let required_input = n
+            .checked_mul(input_block_size)
+            .ok_or_else(|| Error::Range("resampler input length overflow".into()))?;
+        let required_output = n
+            .checked_mul(output_block_size)
+            .ok_or_else(|| Error::Range("resampler output length overflow".into()))?;
+        if input.len() < required_input {
+            return Err(Error::Config("input length must be at least n * q()".into()));
         }
-        Ok(())
+        if output.len() < required_output {
+            return Err(Error::Config("output length must be at least n * p()".into()));
+        }
+        for i in 0..n {
+            self.execute(
+                &input[i * input_block_size..(i + 1) * input_block_size],
+                &mut output[i * output_block_size..(i + 1) * output_block_size],
+            )?;
+        }
+        Ok(required_output)
     }
 
     fn execute_primitive(&mut self, x: &[T], y: &mut [T]) -> Result<()> {
@@ -619,5 +654,40 @@ mod tests {
             40.0,
             (5.0 * 40.0) / 3.0,
         );
+    }
+
+    #[test]
+    fn test_rresamp_crcf_num_output_non_coprime_rate() {
+        testbench_rresamp_crcf_num_output(6, 4);
+    }
+
+    #[test]
+    fn test_rresamp_block_non_coprime_boundaries() {
+        let mut single = RationalResampler::<f32, f32>::new_kaiser_simple(6, 4).unwrap();
+        let mut single_ref = single.clone();
+        let input = [1.0, -0.5, 0.25, 0.75];
+        assert!(single.execute(&input[..3], &mut [0.0; 6]).is_err());
+        assert!(single.execute(&input, &mut [0.0; 5]).is_err());
+        let mut actual = [-9.0; 8];
+        let mut expected = [0.0; 6];
+        single.execute(&input, &mut actual).unwrap();
+        single_ref.execute(&input, &mut expected).unwrap();
+        assert_eq!(&actual[..6], &expected);
+        assert_eq!(&actual[6..], &[-9.0, -9.0]);
+
+        let mut q = RationalResampler::<f32, f32>::new_kaiser_simple(6, 4).unwrap();
+        let mut q_ref = q.clone();
+
+        assert!(q.execute_block(&input[..3], 1, &mut [0.0; 6]).is_err());
+        assert!(q.execute_block(&input, 1, &mut [0.0; 5]).is_err());
+
+        let mut actual = [-9.0; 8];
+        let mut expected = [0.0; 6];
+        assert_eq!(q.execute_block(&input, 1, &mut actual).unwrap(), 6);
+        q_ref.execute_block(&input, 1, &mut expected).unwrap();
+        assert_eq!(&actual[..6], &expected);
+        assert_eq!(&actual[6..], &[-9.0, -9.0]);
+        assert_eq!(q.execute_block(&[], 0, &mut actual).unwrap(), 0);
+        assert!(q.execute_block(&[], usize::MAX, &mut []).is_err());
     }
 }

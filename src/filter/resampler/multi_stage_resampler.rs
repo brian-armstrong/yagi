@@ -140,6 +140,14 @@ where
     }
 
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        let required_output = self.num_output(input.len());
+        if output.len() < required_output {
+            return Err(Error::Config(format!(
+                "output length ({}) must be at least {}",
+                output.len(),
+                required_output,
+            )));
+        }
         match self.type_ {
             ResampType::Interp => self.interp_execute(input, output),
             ResampType::Decim => self.decim_execute(input, output),
@@ -656,13 +664,25 @@ mod tests {
             let n_out = q.num_output(x.len());
 
             let mut short = vec![Complex32::default(); n_out - 1];
+            assert!(q.execute(&x, &mut short).is_err());
+            let mut y = vec![Complex32::default(); n_out];
+            let mut y_ref = vec![Complex32::default(); n_out];
+            q.execute(&x, &mut y).unwrap();
+            q_ref.execute(&x, &mut y_ref).unwrap();
+            assert_eq!(y, y_ref);
+
+            let mut q = MultiStageResampler::<Complex32, f32>::new(rate, 60.0).unwrap();
+            let mut q_ref = q.clone();
             assert!(q.execute_block(&x, &mut short).is_err());
 
-            let mut y = vec![Complex32::default(); n_out];
+            let sentinel = Complex32::new(-9.0, -9.0);
+            let mut y = vec![sentinel; n_out + 2];
             let mut y_ref = vec![Complex32::default(); n_out];
             q.execute_block(&x, &mut y).unwrap();
             q_ref.execute_block(&x, &mut y_ref).unwrap();
-            assert_eq!(y, y_ref);
+            assert_eq!(&y[..n_out], &y_ref);
+            assert_eq!(&y[n_out..], &[sentinel; 2]);
+            assert_eq!(q.execute_block(&[], &mut y).unwrap(), 0);
         }
     }
 }

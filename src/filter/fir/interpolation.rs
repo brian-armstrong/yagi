@@ -231,8 +231,11 @@ where
     /// * `input` - input sample
     /// * `output` - output samples (size: `interp` x 1)
     pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
+        if output.len() != self.interpolation_factor {
+            return Err(Error::Config("output length must equal the interpolation factor".into()));
+        }
         self.w.push(input);
-        self.bank.execute_all(self.w.read(), &mut output[..self.interpolation_factor]);
+        self.bank.execute_all(self.w.read(), output);
         Ok(())
     }
 
@@ -569,6 +572,11 @@ mod tests {
         let mut expected = [0.0; 3];
         reference.execute(1.0, &mut expected).unwrap();
         assert_eq!(actual, expected);
+
+        let mut oversized = [-9.0; 8];
+        assert_eq!(interp.execute_block(&[0.25, -0.5], &mut oversized).unwrap(), 6);
+        assert_eq!(&oversized[6..], &[-9.0, -9.0]);
+        assert_eq!(interp.execute_block(&[], &mut oversized).unwrap(), 0);
     }
 
     #[test]

@@ -131,15 +131,15 @@ impl AmplitudeModem {
             + if self.suppressed_carrier { Complex32::new(0.0, 0.0) } else { Complex32::new(1.0, 0.0) })
     }
 
-    pub fn modulate_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("input and output arrays must be same length".into()));
+    pub fn modulate_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".into()));
         }
 
         for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
             *output_sample = self.modulate(*input_sample)?;
         }
-        Ok(())
+        Ok(input.len())
     }
 
     pub fn demodulate(&mut self, input: Complex32) -> Result<f32> {
@@ -151,15 +151,15 @@ impl AmplitudeModem {
         }
     }
 
-    pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("input and output arrays must be same length".into()));
+    pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".into()));
         }
 
         for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
             *output_sample = self.demodulate(*input_sample)?;
         }
-        Ok(())
+        Ok(input.len())
     }
 
     fn demod_dsb_pll_carrier(&mut self, y: Complex32) -> Result<f32> {
@@ -254,6 +254,7 @@ impl AmplitudeModem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility::test_helpers::validate_block_execute;
     use test_macro::autotest_annotate;
 
     // Help function to keep code base small
@@ -373,5 +374,17 @@ mod tests {
     #[autotest_annotate(autotest_ampmodem_lsb_carrier_off)]
     fn test_ampmodem_lsb_carrier_off() -> Result<()> {
         ampmodem_test_harness(0.8, AmpmodemType::Lsb, true, 0.00, 0.0)
+    }
+
+    #[test]
+    fn test_ampmodem_block_contracts() {
+        let modem = AmplitudeModem::new(0.5, AmpmodemType::Dsb, true).unwrap();
+        validate_block_execute(&modem, &[0.25, -0.5, 1.0], Complex32::new(-9.0, -9.0), |q, x, y| {
+            q.modulate_block(x, y)
+        });
+
+        let modem = AmplitudeModem::new(0.5, AmpmodemType::Dsb, true).unwrap();
+        let input = [Complex32::new(1.0, -0.5), Complex32::new(0.25, 0.75), Complex32::new(-1.0, 0.0)];
+        validate_block_execute(&modem, &input, -9.0, |q, x, y| q.demodulate_block(x, y));
     }
 }

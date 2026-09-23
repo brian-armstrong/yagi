@@ -756,9 +756,9 @@ where
     }
 
     /// execute filter block
-    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Config("input and output block lengths must be equal".into()));
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Config("output block length must be at least the input length".into()));
         }
 
         match self.filter_type {
@@ -780,7 +780,7 @@ where
             },
         }
 
-        Ok(())
+        Ok(input.len())
     }
 
     /// get filter length (order + 1)
@@ -823,7 +823,7 @@ mod tests {
     use super::*;
     use crate::fft::SpectralPeriodogram;
     use crate::random::randnf;
-    use crate::utility::test_helpers::{validate_psd_spectrum, PsdRegion};
+    use crate::utility::test_helpers::{validate_block_execute, validate_psd_spectrum, PsdRegion};
     use approx::assert_abs_diff_eq;
     use design::{IirBandType, IirFilterShape, IirFormat};
     use test_macro::autotest_annotate;
@@ -1382,5 +1382,11 @@ mod tests {
             &IIRFILT_CCCF_DATA_H7X64_X,
             &IIRFILT_CCCF_DATA_H7X64_Y,
         );
+    }
+
+    #[test]
+    fn test_iirfilt_execute_block_contract() {
+        let q = IirFilter::<f32, f32>::new(&[0.25, 0.25], &[1.0, -0.5]).unwrap();
+        validate_block_execute(&q, &[1.0, -0.5, 0.25], -9.0, IirFilter::execute_block);
     }
 }

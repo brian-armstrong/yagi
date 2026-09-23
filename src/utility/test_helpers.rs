@@ -118,3 +118,39 @@ pub fn validate_psd_spgramcf(spgram: &SpectralPeriodogram<Complex<f32>>, regions
     let psd = spgram.psd();
     validate_psd_spectrum(&psd, nfft, regions)
 }
+
+/// Validate the common one-input/one-output block contract.
+pub fn validate_block_execute<Q, I, O, F>(object: &Q, input: &[I], sentinel: O, execute: F)
+where
+    Q: Clone,
+    I: Copy,
+    O: Copy + PartialEq + std::fmt::Debug,
+    F: Fn(&mut Q, &[I], &mut [O]) -> Result<usize>,
+{
+    assert!(!input.is_empty());
+
+    let mut actual_object = object.clone();
+    let mut reference_object = object.clone();
+
+    // short output slice yields an error
+    let mut short = vec![sentinel; input.len() - 1];
+    assert!(execute(&mut actual_object, input, &mut short).is_err());
+
+    let mut actual = vec![sentinel; input.len()];
+    let mut expected = vec![sentinel; input.len()];
+    assert_eq!(execute(&mut actual_object, input, &mut actual).unwrap(), input.len());
+    assert_eq!(execute(&mut reference_object, input, &mut expected).unwrap(), input.len());
+    assert_eq!(actual, expected);
+
+    // extra output capacity is allowed and will not be written to
+    let mut oversized_object = object.clone();
+    let mut oversized = vec![sentinel; input.len() + 2];
+    assert_eq!(execute(&mut oversized_object, input, &mut oversized).unwrap(), input.len());
+    assert_eq!(&oversized[input.len()..], &[sentinel, sentinel]);
+
+    // empty input yields no changes to output
+    let mut empty_object = object.clone();
+    let mut empty_output = [sentinel, sentinel];
+    assert_eq!(execute(&mut empty_object, &[], &mut empty_output).unwrap(), 0);
+    assert_eq!(empty_output, [sentinel, sentinel]);
+}

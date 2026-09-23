@@ -57,21 +57,22 @@ impl FrequencyModulator {
         Ok(self.sincos_table[index as usize])
     }
 
-    pub fn modulate_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<()> {
-        if input.len() != output.len() {
-            return Err(Error::Range("input and output arrays must be same length".into()));
+    pub fn modulate_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
+        if output.len() < input.len() {
+            return Err(Error::Range("output length must be at least the input length".into()));
         }
 
         for (input_sample, output_sample) in input.iter().zip(output.iter_mut()) {
             *output_sample = self.modulate(*input_sample)?;
         }
-        Ok(())
+        Ok(input.len())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utility::test_helpers::validate_block_execute;
 
     #[test]
     fn test_freqmod_create() {
@@ -103,5 +104,11 @@ mod tests {
         assert!(mod_.modulate_block(&m, &mut s_short).is_err());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_freqmod_block_contract() {
+        let q = FrequencyModulator::new(0.5).unwrap();
+        validate_block_execute(&q, &[0.25, -0.5, 1.0], Complex32::new(-9.0, -9.0), |q, x, y| q.modulate_block(x, y));
     }
 }
