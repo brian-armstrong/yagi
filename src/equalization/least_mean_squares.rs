@@ -3,6 +3,12 @@ use crate::error::{Error, Result};
 use crate::filter;
 use num_complex::ComplexFloat;
 
+/// A normalized least-mean-squares adaptive equalizer.
+///
+/// Push received samples with [`Self::push`], calculate an estimate with
+/// [`Self::execute`], then update the filter with [`Self::step`] or
+/// [`Self::step_blind`]. The exported [`Self::weights`] use FIR
+/// order, with the first weight applied to the newest input sample.
 #[derive(Clone, Debug)]
 #[doc(alias = "Eqlms")]
 pub struct LeastMeanSquaresEqualizer<T> {
@@ -30,8 +36,11 @@ where
         + std::ops::Div<f32, Output = T>,
     f32: std::ops::Mul<T, Output = T>,
 {
-    /// Create an equalizer of the specified length with a unit coefficient at
-    /// its center.
+    /// Create an equalizer with a unit weight at its center tap.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `filter_length` is zero.
     pub fn new(filter_length: usize) -> Result<Self> {
         let mut q = Self::new_base(filter_length)?;
         q.h0[filter_length / 2] = 1.0.into();
@@ -39,7 +48,13 @@ where
         Ok(q)
     }
 
-    /// Create an equalizer with the specified initial coefficients.
+    /// Create an equalizer with initial FIR coefficients.
+    ///
+    /// The first coefficient multiplies the newest input sample.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients` is empty.
     pub fn from_coefficients(coefficients: &[T]) -> Result<Self> {
         let filter_length = coefficients.len();
         let mut q = Self::new_base(filter_length)?;
@@ -52,8 +67,15 @@ where
         Ok(q)
     }
 
-    /// Replace the equalizer coefficients without clearing its buffered input
-    /// or adaptive state.
+    /// Replace the initial and active FIR coefficients.
+    ///
+    /// The first coefficient multiplies the newest input sample. This retains
+    /// the input history and normalized-energy state.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients.len() != self.length()`. The
+    /// equalizer is unchanged on error.
     pub fn set_coefficients(&mut self, coefficients: &[T]) -> Result<()> {
         if coefficients.len() != self.h_len {
             return Err(Error::Config(format!(
@@ -92,6 +114,16 @@ where
         })
     }
 
+    /// Create an equalizer initialized with a root-Nyquist filter.
+    ///
+    /// `samples_per_symbol` must be at least two. `filter_delay` is measured
+    /// in symbols. `excess_bandwidth` must lie in `[0, 1]`.
+    /// `fractional_delay` is measured in samples and must lie in `[-1, 1]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when these parameters are outside their supported
+    /// ranges or the requested filter design fails.
     pub fn new_rnyquist(
         filter_shape: filter::FirFilterShape,
         samples_per_symbol: usize,
@@ -124,6 +156,15 @@ where
         Self::from_coefficients(&hc)
     }
 
+    /// Create an equalizer initialized with a Kaiser low-pass filter.
+    ///
+    /// `cutoff_frequency` is measured in cycles per sample and must lie in
+    /// `(0, 0.5]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `filter_length` is zero or
+    /// `cutoff_frequency` is outside `(0, 0.5]`.
     pub fn new_lowpass(filter_length: usize, cutoff_frequency: f32) -> Result<Self> {
         if filter_length == 0 {
             return Err(Error::Config("filter length must be greater than 0".into()));
@@ -138,6 +179,7 @@ where
         Self::from_coefficients(&hc)
     }
 
+    /// Restore the initial coefficients and clear the input history.
     pub fn reset(&mut self) {
         self.w0.copy_from_slice(&self.h0);
         self.buffer.reset();
@@ -147,10 +189,18 @@ where
         self.x2_sum = 0.0;
     }
 
+    /// Return the LMS learning rate.
     pub fn bw(&self) -> f32 {
         self.mu
     }
 
+    /// Set the LMS learning rate.
+    ///
+    /// A value of zero disables adaptation. Larger values adapt more strongly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `learning_rate` is negative.
     pub fn set_bw(&mut self, learning_rate: f32) -> Result<()> {
         if learning_rate < 0.0 {
             return Err(Error::Config("learning rate cannot be less than zero".into()));
@@ -159,35 +209,61 @@ where
         Ok(())
     }
 
+    /// Return the number of equalizer taps.
     pub fn length(&self) -> usize {
         self.h_len
     }
 
+    /// Return active weights in the internal oldest-to-newest orientation.
+    ///
+    /// Complex weights are stored conjugated. Use [`Self::weights`] for the
+    /// ordinary FIR coefficient order.
     pub fn coefficients(&self) -> &[T] {
         &self.w0
     }
 
+    /// Return active FIR coefficients in newest-to-oldest order.
+    ///
+    /// The first returned coefficient multiplies the newest input sample.
     pub fn weights(&self) -> Vec<T> {
         self.w0.iter().rev().map(|&x| x.conj()).collect()
     }
 
+    /// Append one received sample to the input history.
     pub fn push(&mut self, input: T) {
         self.buffer.push(input);
         self.update_sumsq(input);
         self.count += 1;
     }
 
+    /// Append every received sample in `x` to the input history.
     pub fn push_block(&mut self, x: &[T]) {
         for &xi in x {
             self.push(xi);
         }
     }
 
+    /// Compute the estimate for the current input history.
+    ///
+    /// This does not update the coefficients.
     pub fn execute(&self) -> Result<T> {
         let r = self.buffer.read();
         Ok(self.w0.iter().zip(r).map(|(&w, &x)| w.conj() * x).sum())
     }
 
+    /// Process one `k`-sample decimation interval.
+    ///
+    /// The estimate is computed after pushing `input[0]`. The remaining
+    /// `k - 1` samples are then appended to prepare for the next interval.
+    /// This method does not adapt the coefficients.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `k` is zero.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `input.len() < k`.
     pub fn decim_execute(&mut self, input: &[T], k: usize) -> Result<T> {
         if k == 0 {
             return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
@@ -199,6 +275,17 @@ where
         Ok(y)
     }
 
+    /// Process a block and perform blind updates every `k` samples.
+    ///
+    /// Every input sample produces one estimate. The first `input.len()`
+    /// elements of `output` receive those estimates. Blind updates begin with
+    /// the first sample, then recur at intervals of `k` samples once the input
+    /// history is full. Remaining output elements are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `k` is zero or `output` is shorter than `input`.
+    /// No samples are processed in either case.
     pub fn execute_block(&mut self, k: usize, input: &[T], output: &mut [T]) -> Result<usize> {
         if k == 0 {
             return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
@@ -219,6 +306,15 @@ where
         Ok(input.len())
     }
 
+    /// Update the equalizer from a desired value and its estimate.
+    ///
+    /// The update begins only after the input history is full. `d_hat` should
+    /// be the estimate returned by [`Self::execute`] for the current history.
+    ///
+    /// # Warning
+    ///
+    /// The normalized update divides by the input-history energy. A zero-energy
+    /// history produces nonfinite weights.
     pub fn step(&mut self, d: T, d_hat: T) {
         if !self.buf_full {
             if self.count < self.h_len {
@@ -239,6 +335,15 @@ where
         self.w0.copy_from_slice(&self.w1);
     }
 
+    /// Update the equalizer with a unit-magnitude estimate.
+    ///
+    /// This uses `d_hat / |d_hat|` as the desired value for constant-modulus
+    /// adaptation.
+    ///
+    /// # Warning
+    ///
+    /// A zero `d_hat` cannot be normalized and produces nonfinite weights once
+    /// the input history is full.
     pub fn step_blind(&mut self, d_hat: T) {
         let d = d_hat / d_hat.abs();
         self.step(d, d_hat)
