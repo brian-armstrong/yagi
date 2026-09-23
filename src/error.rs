@@ -1,15 +1,32 @@
+//! Shared error types for fallible yagi operations.
+
 use std::error;
 use std::fmt;
 
+/// Result type returned by fallible yagi operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Error returned by a yagi operation.
+///
+/// The variant classifies the broad cause. The contained message supplies the
+/// operation-specific detail. Callers should normally handle the error at the
+/// operation boundary instead of relying on a particular message.
 pub enum Error {
+    /// An internal invariant was not met.
+    ///
+    /// This usually indicates inconsistent internal state rather than invalid
+    /// caller input.
     Internal(String),
+    /// A constructor or configuration request is invalid.
     Config(String),
+    /// An input value is invalid for the requested operation.
     Value(String),
+    /// An input is outside the supported range or has an invalid length.
     Range(String),
+    /// The operation is not available in the current mode or state.
     Mode(String),
+    /// An iterative numerical algorithm did not converge.
     NoConvergence(String),
 }
 
