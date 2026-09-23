@@ -18,18 +18,17 @@ mod private {
     impl Sealed for Complex32 {}
 }
 
-/// Element type supported by vector operations whose result type differs from
-/// their input type.
+/// Element type supported by vector phase and magnitude operations.
 ///
-/// This trait is sealed. Yagi currently supports `f32` and `Complex32`.
+/// This sealed trait is implemented for `f32` and `Complex32`.
 pub trait VectorElement: Copy + private::Sealed {
-    /// One element of [`expj`]: complex phase rotation `exp{ j theta }`.
+    /// Construct one element from an angle in radians.
     fn expj(theta: f32) -> Self;
 
-    /// One element of [`arg`]: angle `arg{ x }`.
+    /// Return the phase angle in radians.
     fn arg(self) -> f32;
 
-    /// One element of [`abs`]: absolute value `|x|`.
+    /// Return the magnitude.
     fn abs(self) -> f32;
 }
 
@@ -69,11 +68,7 @@ impl VectorElement for f32 {
     }
 }
 
-/// Fill a vector with a scalar: `values[i] = value`.
-///
-/// # Arguments
-/// * `value` - scalar value
-/// * `values` - vector to fill
+/// Fill every element of `values` with `value`.
 pub fn fill<T>(value: T, values: &mut [T])
 where
     T: Copy,
@@ -83,14 +78,12 @@ where
     }
 }
 
-/// Add each element pointwise: `output[i] = left[i] + right[i]`.
+/// Add vectors elementwise.
 ///
-/// # Arguments
-/// * `left` - first input vector
-/// * `right` - second input vector
-/// * `output` - output vector
+/// Stores `left[i] + right[i]` in `output[i]`.
 ///
 /// # Panics
+///
 /// Panics if the vectors do not all have the same length.
 pub fn add<T>(left: &[T], right: &[T], output: &mut [T])
 where
@@ -104,9 +97,7 @@ where
     }
 }
 
-/// Add each element of `addend` to `values` in place.
-///
-/// `values[i] = values[i] + addend[i]`.
+/// Add `addend` to `values` elementwise in place.
 ///
 /// # Panics
 ///
@@ -122,14 +113,12 @@ where
     }
 }
 
-/// Add a scalar to each element: `output[i] = input[i] + value`.
+/// Add `value` to each element of `input`.
 ///
-/// # Arguments
-/// * `input` - input vector
-/// * `value` - scalar value
-/// * `output` - output vector
+/// Stores the result in `output`.
 ///
 /// # Panics
+///
 /// Panics if `input` and `output` do not have the same length.
 pub fn add_scalar<T>(input: &[T], value: T, output: &mut [T])
 where
@@ -142,7 +131,7 @@ where
     }
 }
 
-/// Add a scalar to every element of `values` in place.
+/// Add `value` to every element of `values` in place.
 pub fn add_scalar_in_place<T>(values: &mut [T], value: T)
 where
     T: Copy + Add<Output = T>,
@@ -152,14 +141,12 @@ where
     }
 }
 
-/// Multiply each element pointwise: `output[i] = left[i] * right[i]`.
+/// Multiply vectors elementwise.
 ///
-/// # Arguments
-/// * `left` - first input vector
-/// * `right` - second input vector
-/// * `output` - output vector
+/// Stores `left[i] * right[i]` in `output[i]`.
 ///
 /// # Panics
+///
 /// Panics if the vectors do not all have the same length.
 pub fn multiply<T>(left: &[T], right: &[T], output: &mut [T])
 where
@@ -173,9 +160,7 @@ where
     }
 }
 
-/// Multiply every element of `values` by the corresponding `factor` in place.
-///
-/// `values[i] = values[i] * factor[i]`.
+/// Multiply `values` by `factor` elementwise in place.
 ///
 /// # Panics
 ///
@@ -191,14 +176,12 @@ where
     }
 }
 
-/// Multiply each element by a scalar: `output[i] = input[i] * value`.
+/// Multiply each element of `input` by `value`.
 ///
-/// # Arguments
-/// * `input` - input vector
-/// * `value` - scalar value
-/// * `output` - output vector
+/// Stores the result in `output`.
 ///
 /// # Panics
+///
 /// Panics if `input` and `output` do not have the same length.
 pub fn multiply_scalar<T>(input: &[T], value: T, output: &mut [T])
 where
@@ -211,7 +194,7 @@ where
     }
 }
 
-/// Multiply every element of `values` by a scalar in place.
+/// Multiply every element of `values` by `value` in place.
 pub fn multiply_scalar_in_place<T>(values: &mut [T], value: T)
 where
     T: Copy + Mul<Output = T>,
@@ -221,10 +204,14 @@ where
     }
 }
 
-/// Compute the l2-norm of a vector: `sqrt{ sum{ |values[i]|^2 } }`.
+/// Compute the Euclidean norm of `values`.
 ///
-/// # Arguments
-/// * `values` - input vector
+/// Returns `sqrt(sum(|values[i]|^2))`. An empty slice has norm zero.
+///
+/// # Warning
+///
+/// This uses a direct `f32` sum of squares. Very large or small values can
+/// overflow or underflow before the square root.
 pub fn norm<T>(values: &[T]) -> f32
 where
     T: Copy + ComplexFloat<Real = f32>,
@@ -240,13 +227,15 @@ where
     norm.sqrt()
 }
 
-/// Scale a vector to its l2-norm: `output[i] = input[i] / norm(input)`.
+/// Scale `input` to unit Euclidean norm.
 ///
-/// # Arguments
-/// * `input` - input vector
-/// * `output` - output vector
+/// Stores `input[i] / norm(input)` in `output[i]`.
+///
+/// `input` must have a finite, nonzero norm. Zero or non-finite input can
+/// produce non-finite output values.
 ///
 /// # Panics
+///
 /// Panics if `input` and `output` do not have the same length.
 pub fn normalize<T>(input: &[T], output: &mut [T])
 where
@@ -266,7 +255,10 @@ where
     }
 }
 
-/// Scale `values` to unit l2-norm in place.
+/// Scale `values` to unit Euclidean norm in place.
+///
+/// `values` must have a finite, nonzero norm. Zero or non-finite input can
+/// produce non-finite values.
 pub fn normalize_in_place<T>(values: &mut [T])
 where
     T: Copy + ComplexFloat<Real = f32> + From<f32>,
@@ -278,10 +270,14 @@ where
     }
 }
 
-/// Compute the sum of squares: `sum{ |values[i]|^2 }`.
+/// Compute the sum of squared magnitudes of `values`.
 ///
-/// # Arguments
-/// * `values` - input vector
+/// An empty slice returns zero.
+///
+/// # Warning
+///
+/// This uses a direct `f32` accumulation and can overflow or underflow for
+/// large or small values.
 pub fn sum_squares<T>(values: &[T]) -> f32
 where
     T: Copy + ComplexFloat<Real = f32>,
@@ -295,15 +291,18 @@ where
     sum
 }
 
-/// Compute the l-p norm: `{ sum{ |values[i]|^p } }^(1/p)`.
+/// Compute the Lp norm of `values`.
 ///
-/// # Arguments
-/// * `values` - input vector
-/// * `order` - finite, positive norm order
+/// `order` must be finite and positive. An empty slice returns zero.
 ///
 /// # Panics
 ///
 /// Panics if `order` is not finite and positive.
+///
+/// # Warning
+///
+/// This direct power sum can overflow or underflow for extreme values or
+/// orders.
 pub fn p_norm<T>(values: &[T], order: f32) -> f32
 where
     T: Copy + ComplexFloat<Real = f32>,
@@ -319,16 +318,13 @@ where
     sum.powf(1.0 / order)
 }
 
-/// Compute complex phase rotation: `output[i] = exp{ j angles[i] }`.
+/// Convert angles in radians to unit phase values.
 ///
-/// For the real type this degenerates to the sign of the angle:
-/// `output[i] = angles[i] > 0 ? 1 : -1`.
-///
-/// # Arguments
-/// * `angles` - input angle vector, in radians
-/// * `output` - output vector
+/// For `Complex32`, stores `exp(j * angles[i])`. For `f32`, stores `1` for a
+/// positive angle and `-1` otherwise.
 ///
 /// # Panics
+///
 /// Panics if `angles` and `output` do not have the same length.
 pub fn expj<T: VectorElement>(angles: &[f32], output: &mut [T]) {
     assert_eq!(angles.len(), output.len());
@@ -338,15 +334,13 @@ pub fn expj<T: VectorElement>(angles: &[f32], output: &mut [T]) {
     }
 }
 
-/// Compute angle of each element: `angles[i] = arg{ input[i] }`.
+/// Extract phase angles in radians.
 ///
-/// For the real type this degenerates to `angles[i] = input[i] > 0 ? 0 : pi`.
-///
-/// # Arguments
-/// * `input` - input vector
-/// * `angles` - output angle vector, in radians
+/// For `Complex32`, outputs principal arguments. For `f32`, outputs `0` for a
+/// positive input and `pi` otherwise.
 ///
 /// # Panics
+///
 /// Panics if `input` and `angles` do not have the same length.
 pub fn arg<T: VectorElement>(input: &[T], angles: &mut [f32]) {
     assert_eq!(input.len(), angles.len());
@@ -356,13 +350,10 @@ pub fn arg<T: VectorElement>(input: &[T], angles: &mut [f32]) {
     }
 }
 
-/// Compute absolute value of each element: `output[i] = |input[i]|`.
-///
-/// # Arguments
-/// * `input` - input vector
-/// * `output` - output vector
+/// Compute magnitudes of `input`.
 ///
 /// # Panics
+///
 /// Panics if `input` and `output` do not have the same length.
 pub fn abs<T: VectorElement>(input: &[T], output: &mut [f32]) {
     assert_eq!(input.len(), output.len());
