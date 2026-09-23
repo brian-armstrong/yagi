@@ -1,5 +1,9 @@
 use crate::error::Result;
 
+/// A fixed sample delay line.
+///
+/// After [`Self::push`], [`Self::read`] returns the sample from `delay` calls
+/// earlier. A new delay line returns `T::default()` until that history fills.
 #[derive(Debug, Clone)]
 #[doc(alias = "WDelay")]
 pub struct WindowedDelay<T> {
@@ -9,6 +13,9 @@ pub struct WindowedDelay<T> {
 }
 
 impl<T: Default + Clone + Copy> WindowedDelay<T> {
+    /// Create a delay line with `delay` samples of delay.
+    ///
+    /// A delay of zero returns the most recently pushed sample.
     pub fn new(delay: usize) -> Result<Self> {
         let mut wdelay = WindowedDelay { v: vec![T::default(); delay + 1], delay, read_index: 0 };
 
@@ -16,7 +23,10 @@ impl<T: Default + Clone + Copy> WindowedDelay<T> {
         Ok(wdelay)
     }
 
-    /// Change the delay while preserving the buffered samples
+    /// Change the delay while preserving buffered samples.
+    ///
+    /// Increasing the delay prepends default values. Decreasing it retains the
+    /// newest samples that fit the new delay.
     pub fn set_delay(&mut self, delay: usize) -> Result<()> {
         if delay == self.delay {
             return Ok(());
@@ -36,15 +46,18 @@ impl<T: Default + Clone + Copy> WindowedDelay<T> {
         Ok(())
     }
 
+    /// Reset the delay line to `T::default()` samples.
     pub fn reset(&mut self) {
         self.read_index = 0;
         self.v.fill(T::default());
     }
 
+    /// Return the current delayed sample.
     pub fn read(&self) -> T {
         self.v[self.read_index]
     }
 
+    /// Push one sample into the delay line.
     pub fn push(&mut self, value: T) {
         self.v[self.read_index] = value;
         self.read_index += 1;

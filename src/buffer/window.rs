@@ -1,6 +1,10 @@
 use crate::error::{Error, Result};
 use std::ops::Range;
 
+/// A fixed-length history of the most recent samples.
+///
+/// [`Self::read`] returns exactly `len()` elements in oldest-to-newest order.
+/// A new window is filled with `T::default()` values.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Window<T> {
     v: Vec<T>,
@@ -11,6 +15,11 @@ pub struct Window<T> {
 }
 
 impl<T: Default + Clone + Copy> Window<T> {
+    /// Create a window history with `capacity` samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `capacity` is zero.
     pub fn new(capacity: usize) -> Result<Self> {
         if capacity == 0 {
             return Err(Error::Config("window size must be greater than zero".to_string()));
@@ -27,6 +36,14 @@ impl<T: Default + Clone + Copy> Window<T> {
         Ok(window)
     }
 
+    /// Change the history length while retaining recent samples.
+    ///
+    /// Shrinking retains the newest samples. Growing adds `T::default()` samples
+    /// at the old end of the history.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `n` is zero.
     pub fn resize(&mut self, n: usize) -> Result<()> {
         if n == self.len {
             return Ok(());
@@ -53,24 +70,36 @@ impl<T: Default + Clone + Copy> Window<T> {
         Ok(())
     }
 
+    /// Reset the history to `T::default()` values.
     pub fn reset(&mut self) {
         self.read_index = 0;
         self.v.fill(T::default());
     }
 
+    /// Return the sample history in oldest-to-newest order.
     pub fn read(&self) -> &[T] {
         &self.v[self.read_index..self.read_index + self.len]
     }
 
+    /// Return the fixed history length.
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Return `false`.
+    ///
+    /// A window always has a nonzero fixed length and represents its history with
+    /// default values before enough samples have been pushed.
     pub fn is_empty(&self) -> bool {
         // guaranteed to be nonzero by new
         false
     }
 
+    /// Return the sample at `index` in oldest-to-newest order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `index >= len()`.
     pub fn index(&self, index: usize) -> Result<T> {
         if index >= self.len {
             return Err(Error::Range("index value out of range".to_string()));
@@ -78,10 +107,16 @@ impl<T: Default + Clone + Copy> Window<T> {
         Ok(self.v[self.read_index + index])
     }
 
+    /// Replace the sample at `index` in the current history.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `index >= len()`.
     pub fn set(&mut self, index: usize, value: T) {
         self.v[self.read_index + index] = value;
     }
 
+    /// Append one sample and discard the oldest history element.
     pub fn push(&mut self, value: T) {
         self.read_index = (self.read_index + 1) & self.mask;
 
@@ -92,6 +127,7 @@ impl<T: Default + Clone + Copy> Window<T> {
         self.v[self.read_index + self.len - 1] = value;
     }
 
+    /// Append every element of `values` in order.
     pub fn write(&mut self, values: &[T]) {
         for value in values {
             self.push(*value);

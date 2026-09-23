@@ -4,17 +4,12 @@
 
 use crate::error::{Error, Result};
 
-/// circular (ring) buffer with zero-copy reads
-///
-/// A FIFO queue of fixed capacity.
-///
-/// # Zero-copy reads and writes
+/// A fixed-capacity FIFO ring buffer with zero-copy reads and writes.
 ///
 /// [`Self::read`] borrows a contiguous run of samples out of the ring without
-/// copying and without consuming them, [`Self::release`] consumes. This lets a
-/// consumer feed a filter or FFT straight from the ring's storage. Similarly,
-/// [`Self::reserve`] borrows a contiguous run of samples for writing, and
-/// [`Self::commit`] advances the internal write index after write.
+/// copying or consuming them. [`Self::reserve`] similarly borrows contiguous
+/// storage for writing. The paired [`Self::release`] and [`Self::commit`]
+/// calls advance the read and write positions.
 ///
 /// ```
 /// # use yagi::buffer::CircularBuffer;
@@ -53,18 +48,25 @@ pub struct CircularBuffer<T> {
 }
 
 impl<T: Default + Clone + Copy> CircularBuffer<T> {
-    /// create circular buffer object
+    /// Create a ring buffer with `max_size` elements of capacity.
     ///
-    ///  max_size   :   maximum buffer size
+    /// One read can borrow the entire queue contiguously.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `max_size` is zero.
     pub fn new(max_size: usize) -> Result<Self> {
         Self::new_max(max_size, max_size)
     }
 
-    /// create circular buffer object of a particular size, specifying the
-    /// maximum number of elements that can be read at any one time
+    /// Create a ring buffer with bounded zero-copy read length.
     ///
-    ///  max_size   :   maximum buffer size
-    ///  max_read   :   maximum size of a single borrowed read
+    /// `max_size` is the FIFO capacity. [`Self::read`] returns at most
+    /// `max_read` elements, even when more are queued.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either size is zero or `max_read > max_size`.
     pub fn new_max(max_size: usize, max_read: usize) -> Result<Self> {
         if max_size == 0 {
             return Err(Error::Config("cbuffer size must be greater than zero".into()));
@@ -88,46 +90,50 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
         })
     }
 
-    /// clear internal buffer
+    /// Clear the queue.
+    ///
+    /// Existing storage is retained but all elements are treated as released.
     pub fn reset(&mut self) {
         self.read_index = 0;
         self.write_index = 0;
         self.num_elements = 0;
     }
 
-    /// get number of elements currently in buffer
+    /// Return the number of queued elements.
     pub fn size(&self) -> usize {
         self.num_elements
     }
 
-    /// get maximum number of elements the buffer can hold
+    /// Return the queue capacity.
     pub fn max_size(&self) -> usize {
         self.max_size
     }
 
-    /// get maximum number of elements that can be read at any one time
+    /// Return the maximum length of one [`Self::read`] result.
     pub fn max_read(&self) -> usize {
         self.max_read
     }
 
-    /// get number of elements available for writing
+    /// Return the number of elements that can be appended without filling the queue.
     pub fn space_available(&self) -> usize {
         self.max_size - self.num_elements
     }
 
-    /// is buffer empty?
+    /// Return whether the queue is empty.
     pub fn is_empty(&self) -> bool {
         self.num_elements == 0
     }
 
-    /// is buffer full?
+    /// Return whether the queue is full.
     pub fn is_full(&self) -> bool {
         self.num_elements == self.max_size
     }
 
-    /// write a single sample into the buffer
+    /// Append one element to the queue.
     ///
-    ///  v          :   input sample
+    /// # Errors
+    ///
+    /// Returns an error when the queue is full.
     pub fn push(&mut self, v: T) -> Result<()> {
         // ensure buffer isn't already full
         if self.num_elements == self.max_size {
@@ -145,9 +151,12 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
         Ok(())
     }
 
-    /// write samples to the buffer
+    /// Append all elements of `v` to the queue.
     ///
-    ///  v          :   input samples
+    /// # Errors
+    ///
+    /// Returns an error when `v` does not fit in the available space. The queue
+    /// is unchanged on error.
     pub fn write(&mut self, v: &[T]) -> Result<()> {
         let n = v.len();
 
@@ -174,7 +183,11 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
         Ok(())
     }
 
-    /// remove and return a single element from the buffer
+    /// Remove and return the oldest queued element.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the queue is empty.
     pub fn pop(&mut self) -> Result<T> {
         // ensure there is at least one element
         if self.num_elements == 0 {
@@ -191,7 +204,7 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
         Ok(v)
     }
 
-    /// borrow a contiguous run of samples without consuming them
+    /// Borrow the oldest queued elements without consuming them.
     ///
     /// The returned slice may be shorter than `num_requested`: it is clamped to
     /// the number of elements held and to [`Self::max_read`]. Call
@@ -213,10 +226,15 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
         &self.v[self.read_index..self.read_index + n]
     }
 
-    /// release `n` samples from the buffer
+    /// Release `n` oldest queued elements.
     ///
-    /// Advances the read index past samples previously handed out by
-    /// [`Self::read`].
+    /// Call this after consuming a slice from [`Self::read`]. The buffer only
+    /// validates `n` against its current queue length, not against the length
+    /// of a previous read.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `n > size()`.
     pub fn release(&mut self, n: usize) -> Result<()> {
         // advance read_index by n making sure not to step on write_index
         if n > self.num_elements {
@@ -228,16 +246,14 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
         Ok(())
     }
 
-    /// reserve space for up to `n` samples, returning a mutable slice to write
-    /// into
+    /// Borrow contiguous storage for up to `n` new elements.
     ///
     /// Write into the returned slice, then call [`Self::commit`] with the number
     /// of samples actually produced, which may be fewer than the slice length.
     /// The buffer is not advanced until committed.
     ///
-    /// The slice is **shorter than `n`** when the request does not fit
-    /// contiguously. Reserve again after committing to get the rest,
-    /// mirroring how [`Self::read`] clamps and reports through the slice length.
+    /// The returned slice can be shorter than `n` when the request does not fit
+    /// contiguously. Reserve again after committing to get the remainder.
     ///
     /// ```
     /// # use yagi::buffer::CircularBuffer;
@@ -261,8 +277,10 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
     /// assert!(q.is_full());
     /// ```
     ///
-    /// Returns an error only when the buffer has no space at all, so that a
-    /// caller looping on the slice length cannot spin on an empty reservation.
+    /// # Errors
+    ///
+    /// Returns an error only when `n > 0` and the queue has no free space. A
+    /// zero-length reservation always succeeds.
     pub fn reserve(&mut self, n: usize) -> Result<&mut [T]> {
         let available = self.max_size - self.num_elements;
         if n > 0 && available == 0 {
@@ -276,9 +294,15 @@ impl<T: Default + Clone + Copy> CircularBuffer<T> {
         Ok(&mut self.v[self.write_index..self.write_index + n])
     }
 
-    /// commit `n` samples written into the slice from [`Self::reserve`]
+    /// Commit `n` elements written through [`Self::reserve`].
     ///
-    /// `n` must be no greater than the length of the slice `reserve` returned.
+    /// Call this after writing the reserved slice. The buffer validates `n`
+    /// against currently available contiguous capacity. It does not track the
+    /// exact length of a prior reservation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `n` exceeds currently available contiguous capacity.
     pub fn commit(&mut self, n: usize) -> Result<()> {
         let contiguous = self.max_size - self.write_index;
         if n > self.max_size - self.num_elements || n > contiguous {
