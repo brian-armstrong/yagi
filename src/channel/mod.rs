@@ -1,9 +1,9 @@
-// Channel module
-// Current state:
-// - Channel: generic channel emulator (multipath, shadowing, carrier offset,
-//   AWGN)
-// - TimeVaryingMultipathChannel: time-varying multipath channel emulator
-//   (Rayleigh-fading taps)
+//! Complex baseband channel emulators.
+//!
+//! [`Channel`] combines selected fixed multipath,
+//! shadowing, carrier-offset, and additive-noise impairments.
+//! [`TimeVaryingMultipathChannel`]
+//! models fading echo paths that change as samples are processed.
 
 mod channel;
 mod noise;

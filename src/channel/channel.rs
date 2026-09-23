@@ -16,11 +16,12 @@ use crate::sequence::MaximalLengthSequence;
 /// maximum multipath filter length liquid accepts
 const MAX_MULTIPATH_LEN: usize = 1000;
 
-/// Channel emulator
+/// A configurable complex baseband channel emulator.
 ///
-/// Impairments are opt-in. Any enabled impairments are applied in a fixed order
-/// regardless of the order the `add_*` methods are called: multipath,
-/// then shadowing, then carrier offset, then AWGN.
+/// Impairments are disabled at construction and enabled by the matching
+/// `add_*` method. [`Self::execute`] applies enabled impairments in this order:
+/// multipath, shadowing, carrier offset, then additive white Gaussian noise.
+/// Configuration order does not affect processing order.
 #[derive(Debug, Clone)]
 pub struct Channel {
     // additive white Gauss noise
@@ -51,9 +52,9 @@ pub struct Channel {
 }
 
 impl Channel {
-    /// create channel object with default parameters
+    /// Create a channel with every impairment disabled.
     ///
-    /// all impairments start disabled
+    /// Noise-driven impairments use the thread-local random-number generator.
     pub fn new() -> Self {
         let h = vec![Complex32::new(1.0, 0.0)];
         Self {
@@ -81,16 +82,20 @@ impl Channel {
         }
     }
 
-    /// create channel object drawing noise from a seeded generator
+    /// Create a channel that draws noise from a seeded generator.
+    ///
+    /// Channels with the same seed, configuration, and input sequence produce
+    /// the same noise-driven impairments.
     pub fn new_seeded(seed: u64) -> Self {
         let mut q = Self::new();
         q.noise = NoiseSource::seeded(seed);
         q
     }
 
-    /// reset internal state of the channel
+    /// Reset the state of enabled filters and the carrier oscillator.
     ///
-    /// clears the multipath filter history and the oscillator phase
+    /// This preserves the configured impairments and returns the multipath
+    /// history, shadowing filter, and carrier phase to their initial states.
     pub fn reset(&mut self) {
         self.channel_filter.reset();
         self.nco.reset();
@@ -101,12 +106,13 @@ impl Channel {
         }
     }
 
-    /// apply additive white Gaussian noise impairment
+    /// Enable additive white Gaussian noise.
     ///
-    /// # Arguments
+    /// * `noise_floor` - noise floor power spectral density \[dB\]
+    /// * `snr` - signal-to-noise ratio \[dB\]
     ///
-    /// * `noise_floor` - noise floor power spectral density [dB]
-    /// * `snr` - signal-to-noise ratio [dB]
+    /// The configured SNR also determines the signal gain applied before the
+    /// noise is added.
     pub fn add_awgn(&mut self, noise_floor: f32, snr: f32) {
         // enable module
         self.enabled_awgn = true;
@@ -119,12 +125,10 @@ impl Channel {
         self.gamma = 10.0f32.powf((self.snr + self.noise_floor) / 20.0);
     }
 
-    /// apply carrier offset impairment
+    /// Enable a carrier frequency and phase offset.
     ///
-    /// # Arguments
-    ///
-    /// * `frequency` - carrier frequency offset [radians/sample]
-    /// * `phase` - carrier phase offset [radians]
+    /// * `frequency` - carrier frequency offset \[radians/sample\]
+    /// * `phase` - carrier phase offset \[radians\]
     pub fn add_carrier_offset(&mut self, frequency: f32, phase: f32) {
         // enable module
         self.enabled_carrier = true;
@@ -138,11 +142,16 @@ impl Channel {
         self.nco.set_phase(self.phi);
     }
 
-    /// apply specific multi-path channel impairment coefficients
+    /// Enable multipath with the supplied impulse response.
     ///
-    /// # Arguments
+    /// The first coefficient multiplies the current input sample. Later
+    /// coefficients multiply successively older samples. The channel copies
+    /// `h` and clears its multipath history.
     ///
-    /// * `h` - channel coefficients
+    /// # Errors
+    ///
+    /// Returns an error when `h` is empty or contains more than 1,000
+    /// coefficients.
     pub fn add_multipath(&mut self, h: &[Complex32]) -> Result<()> {
         if h.is_empty() {
             return Err(Error::Mode("channel_add_multipath(), filter length is zero".into()));
@@ -162,11 +171,15 @@ impl Channel {
         Ok(())
     }
 
-    /// apply random multi-path channel impairment cofficients
+    /// Enable multipath with generated coefficients.
     ///
-    /// # Arguments
+    /// The first coefficient is one. Later coefficients come from a fixed
+    /// maximal-length sequence, so they are repeatable rather than sampled
+    /// from the channel's noise generator.
     ///
-    /// * `h_len` - number of channel coefficients
+    /// # Errors
+    ///
+    /// Returns an error when `h_len` is zero or exceeds 1,000.
     pub fn add_multipath_random(&mut self, h_len: usize) -> Result<()> {
         if h_len == 0 {
             return Err(Error::Mode("channel_add_multipath_random(), filter length is zero".into()));
@@ -194,12 +207,15 @@ impl Channel {
         Ok(())
     }
 
-    /// apply slowly-varying shadowing impairment
+    /// Enable slowly varying log-normal shadowing.
     ///
-    /// # Arguments
+    /// `sigma` controls the shadowing strength. `fd` is the normalized Doppler
+    /// rate and must lie in `(0, 0.5)`.
     ///
-    /// * `sigma` - std. deviation for log-normal shadowing
-    /// * `fd` - Doppler frequency, `fd` in (0, 0.5)
+    /// # Errors
+    ///
+    /// Returns an error when shadowing is already enabled, `sigma` is not
+    /// positive, or `fd` is outside `(0, 0.5)`.
     pub fn add_shadowing(&mut self, sigma: f32, fd: f32) -> Result<()> {
         if self.enabled_shadowing {
             return Err(Error::Mode("channel_add_shadowing(), shadowing already enabled".into()));
@@ -225,15 +241,10 @@ impl Channel {
         Ok(())
     }
 
-    /// apply channel impairments on a single input sample
+    /// Apply enabled impairments to one complex baseband sample.
     ///
-    /// # Arguments
-    ///
-    /// * `input` - input sample
-    ///
-    /// # Returns
-    ///
-    /// The impaired output sample
+    /// This advances the state of the enabled multipath, shadowing, and
+    /// carrier-offset stages.
     pub fn execute(&mut self, input: Complex32) -> Complex32 {
         // apply filter
         let mut r = if self.enabled_multipath {
@@ -268,12 +279,16 @@ impl Channel {
         r
     }
 
-    /// apply channel impairments on a block of samples
+    /// Apply enabled impairments to every input sample.
     ///
-    /// # Arguments
+    /// The first `input.len()` elements of `output` receive the results.
+    /// Remaining output elements are unchanged. The returned count is always
+    /// `input.len()` on success.
     ///
-    /// * `input` - input array
-    /// * `output` - output array, same length as `input`
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. No samples are
+    /// processed in that case.
     pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config(
@@ -287,7 +302,10 @@ impl Channel {
         Ok(input.len())
     }
 
-    /// get the multipath channel coefficients currently in use
+    /// Return the configured multipath impulse response.
+    ///
+    /// The first coefficient applies to the current sample. This returns the
+    /// configured response even while multipath is disabled.
     pub fn multipath_coefficients(&self) -> &[Complex32] {
         &self.h
     }
