@@ -1,7 +1,8 @@
-// Dotprod module
-// Current state:
-// - Dotprod ready to use (+autotests)
-// - sumsq ready to use (+autotests)
+//! Dot products and sum-of-squares operations for real and complex samples.
+//!
+//! [`DotProd`] computes `sum(x[i] * h[i])` over equal-length inputs. Complex
+//! products are bilinear. Neither operand is conjugated. [`DotProduct`] stores
+//! a fixed coefficient sequence for repeated singular or sliding operations.
 
 mod complex_complex;
 mod complex_real;
@@ -23,33 +24,50 @@ mod reduce;
 pub use dot_product::DotProduct;
 pub(crate) use dot_product::DotProductPlan;
 
-/// A dot product kernel resolved ahead of time by [`DotProd::plan`].
+/// A dot-product kernel resolved by [`DotProd::plan`].
+///
+/// Most callers should use [`DotProd::dotprod`] or [`DotProduct`] instead.
+///
+/// # Safety
+///
+/// Call this only with inputs and coefficients whose lengths exactly equal the
+/// length passed to [`DotProd::plan`]. A planned kernel can use unchecked
+/// indexing or instructions selected for the current CPU.
 pub type DotProdKernel<Inputs, Rhs, Out> = unsafe fn(&Inputs, &[Rhs]) -> Out;
 
+/// Compute a dot product between two sample sequences.
+///
+/// The result is `sum(self[i] * other[i])`. Implementations cover `f32` and
+/// `Complex32` slices, with real and complex coefficient combinations. Complex
+/// multiplication does not conjugate either input.
 pub trait DotProd<Rhs> {
     type Output;
 
-    /// Computes the dot product of two equal-length slices.
+    /// Compute the dot product of two equal-length sequences.
     ///
     /// # Panics
     ///
     /// Panics if the slices have different lengths.
     fn dotprod(&self, other: &[Rhs]) -> Self::Output;
 
-    /// Resolve the kernel for a dot product of `len` elements so that a
-    /// caller holding fixed-length coefficients can calculate dispatch only
-    /// once instead of on every execution.
+    /// Resolve a kernel for dot products with `len` elements.
     ///
-    /// The returned pointer is valid for the life of the process but is tied
-    /// to this machine's detected features.
+    /// This avoids repeated runtime dispatch when the coefficient length is
+    /// fixed. The returned function is valid for the life of the process and
+    /// is tied to CPU features detected on this machine.
+    ///
+    /// # Safety
+    ///
+    /// The returned kernel must receive two slices of exactly `len` elements.
     fn plan(len: usize) -> DotProdKernel<Self, Rhs, Self::Output> {
         // default impl
         let _ = len;
         |x, h| x.dotprod(h)
     }
 
-    /// Optionally resolve the kernel and coefficient layout for a block of
-    /// dot products with `len` coefficients.
+    /// Resolve a packed sliding-dot-product strategy when one is available.
+    ///
+    /// This is an internal extension point used by [`DotProduct`].
     #[doc(hidden)]
     fn plan_block(len: usize) -> Option<DotProdBlockPlan<Self, Rhs, Self::Output>> {
         let _ = len;
@@ -57,12 +75,18 @@ pub trait DotProd<Rhs> {
     }
 }
 
-/// A sliding dot product kernel resolved ahead of time by
-/// [`DotProd::plan_block`]. Returns number of outputs written. Some
-/// block kernels may not execute over the full input. Use singular
-/// kernel for remaining inputs.
+/// A planned kernel for a sliding sequence of dot products.
 ///
-/// `Inputs` is a slice of inputs, while `Rhs` and `Out` are singular.
+/// It returns the number of outputs written. A block kernel can leave a tail
+/// for a singular kernel to process.
+///
+/// `Inputs` is a sample slice. `Rhs` and `Out` are individual coefficients and
+/// results.
+///
+/// # Safety
+///
+/// The input, packed coefficients, and output must satisfy the layout and
+/// length requirements of the [`DotProdBlockPlan`] that supplied this kernel.
 pub type DotProdBlockKernel<Inputs, Rhs, Out> = unsafe fn(&Inputs, &[Rhs], &mut [Out]) -> usize;
 
 type DotProdRepack<Rhs> = fn(&[Rhs], usize, &mut [Rhs]);

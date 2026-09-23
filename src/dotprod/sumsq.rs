@@ -3,14 +3,22 @@
 use super::DotProd;
 use num_complex::Complex32;
 
-/// Computes the sum of squares of a real vector: `sum{ x[i]^2 }`
+/// Return the sum of squares of real samples.
+///
+/// This computes `sum(v[i] * v[i])` and returns zero for an empty slice.
+/// Accumulation uses `f32`, so a large dynamic range can lose precision or
+/// overflow.
 pub fn sumsqf(v: &[f32]) -> f32 {
     // the dotprod is carefully optimized, so just reuse it
     // this does leave out some performance, but this reduces code burden
     v.dotprod(v)
 }
 
-/// Computes the sum of squares of a complex vector: `sum{ |x[i]|^2 }`
+/// Return the sum of squared magnitudes of complex samples.
+///
+/// This computes `sum(v[i].norm_sqr())` and returns zero for an empty slice.
+/// Accumulation uses `f32`, so a large dynamic range can lose precision or
+/// overflow.
 pub fn sumsqcf(v: &[Complex32]) -> f32 {
     // `|a + bi|^2 = a^2 + b^2`
     // reinterpret the &[Complex32] as a &[f32] that's twice as long

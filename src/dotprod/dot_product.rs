@@ -13,8 +13,12 @@ pub(crate) struct DotProductPlan<T, Coeff> {
     block: Option<DotProdBlockPlan<[T], Coeff, T>>,
 }
 
-/// Structured dot product object. Holds a fixed coefficient array so a dot
-/// product can be executed repeatedly against different inputs.
+/// A reusable dot product with a fixed, nonempty coefficient sequence.
+///
+/// [`Self::execute`] applies each coefficient at the matching input index.
+/// [`Self::execute_block`] applies the same operation across overlapping input
+/// windows. Use [`Self::new_rev`] or [`Self::set_coefficients_rev`] when the
+/// supplied coefficients are in reverse application order.
 #[derive(Clone, Debug)]
 pub struct DotProduct<T, Coeff> {
     h: Vec<Coeff>, // coefficients array
@@ -94,21 +98,25 @@ where
     Coeff: Copy,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create dot product object from an array of coefficients.
+    /// Create a dot product from coefficients in application order.
     ///
-    /// # Arguments
+    /// `coefficients[i]` multiplies `input[i]` in [`Self::execute`].
     ///
-    /// * `coefficients` - coefficients array
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients` is empty.
     pub fn new(coefficients: &[Coeff]) -> Result<Self> {
         let coefficients = Self::checked(coefficients)?;
         Ok(Self::from_coefficients(coefficients.to_vec()))
     }
 
-    /// Create dot product object with time-reversed coefficients.
+    /// Create a dot product from coefficients in reverse application order.
     ///
-    /// # Arguments
+    /// The last element of `coefficients` multiplies the first input sample.
     ///
-    /// * `coefficients` - time-reversed coefficients array
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients` is empty.
     pub fn new_rev(coefficients: &[Coeff]) -> Result<Self> {
         let coefficients = Self::checked(coefficients)?;
         let coefficients: Vec<_> = coefficients.iter().rev().copied().collect();
@@ -122,12 +130,14 @@ where
         Self { h, block_h, plan, _input: PhantomData }
     }
 
-    /// Set the coefficients, reusing the existing allocation when the length is
-    /// unchanged.
+    /// Replace coefficients in application order.
     ///
-    /// # Arguments
+    /// `coefficients[i]` multiplies `input[i]` in [`Self::execute`].
     ///
-    /// * `h` - coefficients array
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients` is empty. Existing coefficients are
+    /// unchanged on error.
     pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
         let coefficients = Self::checked(coefficients)?;
         if coefficients.len() != self.h.len() {
@@ -141,12 +151,14 @@ where
         Ok(())
     }
 
-    /// Set the coefficients in time-reversed order, reusing the existing
-    /// allocation when the length is unchanged.
+    /// Replace coefficients in reverse application order.
     ///
-    /// # Arguments
+    /// The last element of `coefficients` multiplies the first input sample.
     ///
-    /// * `h` - time-reversed coefficients array
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients` is empty. Existing coefficients are
+    /// unchanged on error.
     pub fn set_coefficients_rev(&mut self, coefficients: &[Coeff]) -> Result<()> {
         let coefficients = Self::checked(coefficients)?;
         if coefficients.len() != self.h.len() {
@@ -160,43 +172,45 @@ where
         Ok(())
     }
 
-    /// Returns the coefficients, in the order they are applied.
+    /// Return coefficients in application order.
     pub fn coefficients(&self) -> &[Coeff] {
         &self.h
     }
 
-    /// Returns the length of the dot product.
+    /// Return the number of coefficients.
     pub fn len(&self) -> usize {
         self.h.len()
     }
 
-    /// Returns `true` if the dot product has no coefficients.
+    /// Return `false`.
+    ///
+    /// Construction and coefficient replacement reject empty sequences.
     pub fn is_empty(&self) -> bool {
         self.h.is_empty()
     }
 
-    /// Execute the dot product against an input array.
+    /// Compute the dot product for one input window.
     ///
-    /// # Arguments
-    ///
-    /// * `input` - input array
+    /// The result is `sum(input[i] * coefficients()[i])`. Complex products do
+    /// not conjugate either operand.
     ///
     /// # Panics
     ///
-    /// Panics if `input` is not the same length as the coefficients.
+    /// Panics when `input.len() != self.len()`.
     #[inline]
     pub fn execute(&self, input: &[T]) -> T {
         assert_eq!(input.len(), self.h.len(), "Slices must have equal length");
         unsafe { self.plan.execute_unchecked(input, &self.h) }
     }
 
-    /// Execute overlapping dot products over a contiguous input span.
+    /// Compute dot products across overlapping input windows.
     ///
-    /// Produces `output[i] = self.execute(&input[i..i + self.len()])` for as many
-    /// sliding positions as `input` supports. At most `input.len() - self.len() + 1`
-    /// outputs are written, but fewer will be written if `output` is shorter.
+    /// Writes `output[i] = self.execute(&input[i..i + self.len()])` for each
+    /// complete window, limited by `output.len()`. It leaves the unwritten tail
+    /// of `output` unchanged.
     ///
-    /// Returns the number of outputs written.
+    /// Returns the number of output elements written. It returns zero when
+    /// `input` is shorter than the coefficient sequence or `output` is empty.
     pub fn execute_block(&self, input: &[T], output: &mut [T]) -> usize {
         self.plan.execute_block(input, &self.h, &self.block_h, output)
     }
