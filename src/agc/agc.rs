@@ -4,6 +4,11 @@ use num_complex::ComplexFloat;
 // Default AGC loop bandwidth
 const AGC_DEFAULT_BW: f32 = 1e-2;
 
+/// A sample-by-sample automatic gain controller.
+///
+/// The controller tracks the input magnitude toward one. [`Self::scale`] then
+/// applies a fixed linear output scale. Use [`Self::lock`] to hold the current
+/// gain after acquisition.
 #[derive(Clone, Debug)]
 pub struct Agc<T> {
     g: f32,
@@ -19,14 +24,26 @@ pub struct Agc<T> {
     _p: std::marker::PhantomData<T>,
 }
 
+/// State of the optional AGC squelch.
+///
+/// The squelch state advances while automatic gain tracking is active. Enable
+/// it with [`Agc::squelch_enable`] and inspect it with
+/// [`Agc::squelch_status`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AgcSquelchMode {
+    /// Squelch tracking is disabled.
     Disabled,
+    /// Squelch is waiting for RSSI to cross the threshold.
     Enabled,
+    /// RSSI crossed above the threshold on the most recent sample.
     Rise,
+    /// RSSI remains above the threshold.
     SignalHi,
+    /// RSSI crossed below the threshold on the most recent sample.
     Fall,
+    /// RSSI remains below the threshold while the timeout counts down.
     SignalLo,
+    /// The below-threshold timeout expired.
     Timeout,
 }
 
@@ -34,6 +51,9 @@ impl<T> Agc<T>
 where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + From<f32> + std::ops::Mul<f32, Output = T>,
 {
+    /// Create an AGC with the default tracking bandwidth.
+    ///
+    /// The initial gain and output scale are both `1`. Squelch is disabled.
     pub fn new() -> Self {
         let mut agc = Self {
             g: 0.0,
@@ -57,6 +77,11 @@ where
         agc
     }
 
+    /// Restore the gain tracker to its initial state.
+    ///
+    /// This sets the gain and estimated power to `1` and unlocks tracking. It
+    /// preserves the bandwidth, scale, and squelch configuration. An enabled
+    /// squelch returns to [`AgcSquelchMode::Enabled`].
     pub fn reset(&mut self) {
         self.g = 1.0;
         self.y2_prime = 1.0;
@@ -68,6 +93,12 @@ where
         };
     }
 
+    /// Process one sample and update the gain tracker.
+    ///
+    /// While unlocked, the AGC tracks the magnitude toward one and returns the
+    /// gain-adjusted sample multiplied by [`Self::scale`]. While locked, it
+    /// holds the gain but returns the gain-adjusted sample without applying
+    /// the scale. Squelch state also does not advance while locked.
     pub fn execute(&mut self, input: T) -> Result<T> {
         let y = input * self.g;
         let y2 = (y * y.conj()).re();
@@ -88,6 +119,15 @@ where
         Ok(y * self.scale)
     }
 
+    /// Process `input` and write one result per sample to `output`.
+    ///
+    /// `output` may be longer than `input`. Elements beyond the written prefix
+    /// are unchanged. The return value is `input.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. Output is then
+    /// unchanged.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output block length must be at least the input length".into()));
@@ -98,6 +138,7 @@ where
         Ok(input.len())
     }
 
+    /// Advance the gain tracker over `input` without retaining output samples.
     pub fn execute_input_block(&mut self, input: &[T]) -> Result<()> {
         for x_i in input.iter() {
             self.execute(*x_i)?;
@@ -105,22 +146,35 @@ where
         Ok(())
     }
 
+    /// Stop gain adaptation at the current gain.
+    ///
+    /// See [`Self::execute`] for the locked output behavior.
     pub fn lock(&mut self) {
         self.is_locked = true;
     }
 
+    /// Resume gain adaptation.
     pub fn unlock(&mut self) {
         self.is_locked = false;
     }
 
+    /// Return whether gain adaptation is locked.
     pub fn is_locked(&self) -> bool {
         self.is_locked
     }
 
+    /// Return the gain-tracking bandwidth.
     pub fn bandwidth(&self) -> f32 {
         self.bandwidth
     }
 
+    /// Set the gain-tracking bandwidth.
+    ///
+    /// Larger values adapt more quickly and smooth the measured power less.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bandwidth` is outside `[0, 1]` or is non-finite.
     pub fn set_bandwidth(&mut self, bandwidth: f32) -> Result<()> {
         if !(0.0..=1.0).contains(&bandwidth) {
             return Err(Error::Config("bandwidth must be in [0, 1]".into()));
@@ -130,10 +184,21 @@ where
         Ok(())
     }
 
+    /// Return the estimated input magnitude.
+    ///
+    /// This is the reciprocal of the current linear gain.
     pub fn signal_level(&self) -> f32 {
         1.0 / self.g
     }
 
+    /// Set the estimated input magnitude.
+    ///
+    /// This sets the gain to the reciprocal of `signal_level` and resets the
+    /// tracked power estimate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `signal_level <= 0`.
     pub fn set_signal_level(&mut self, signal_level: f32) -> Result<()> {
         if signal_level <= 0.0 {
             return Err(Error::Config("signal level must be greater than zero".into()));
@@ -143,10 +208,16 @@ where
         Ok(())
     }
 
+    /// Return the received signal strength in decibels.
+    ///
+    /// This is `-20 * log10(gain)` relative to a unit input magnitude.
     pub fn rssi(&self) -> f32 {
         -20.0 * self.g.log10()
     }
 
+    /// Set the received signal strength in decibels.
+    ///
+    /// This updates the linear gain and resets the tracked power estimate.
     pub fn set_rssi(&mut self, rssi: f32) -> Result<()> {
         self.g = 10.0f32.powf(-rssi / 20.0);
         self.g = self.g.max(1e-16);
@@ -154,10 +225,16 @@ where
         Ok(())
     }
 
+    /// Return the current linear gain.
     pub fn gain(&self) -> f32 {
         self.g
     }
 
+    /// Set the current linear gain.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `gain <= 0`.
     pub fn set_gain(&mut self, gain: f32) -> Result<()> {
         if gain <= 0.0 {
             return Err(Error::Config("gain must be greater than zero".into()));
@@ -166,10 +243,16 @@ where
         Ok(())
     }
 
+    /// Return the fixed linear output scale.
     pub fn scale(&self) -> f32 {
         self.scale
     }
 
+    /// Set the fixed linear output scale.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `scale <= 0`.
     pub fn set_scale(&mut self, scale: f32) -> Result<()> {
         if scale <= 0.0 {
             return Err(Error::Config("scale must be greater than zero".into()));
@@ -178,6 +261,14 @@ where
         Ok(())
     }
 
+    /// Estimate an initial gain from the RMS magnitude of `x`.
+    ///
+    /// This updates the gain and tracked power estimate. It does not reset the
+    /// bandwidth, scale, lock state, or squelch configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `x` is empty.
     pub fn init(&mut self, x: &[T]) -> Result<()> {
         if x.is_empty() {
             return Err(Error::Config("number of samples must be greater than zero".into()));
@@ -187,34 +278,47 @@ where
         self.set_signal_level(x2)
     }
 
+    /// Enable RSSI-based squelch tracking.
     pub fn squelch_enable(&mut self) {
         self.squelch_mode = AgcSquelchMode::Enabled;
     }
 
+    /// Disable RSSI-based squelch tracking.
     pub fn squelch_disable(&mut self) {
         self.squelch_mode = AgcSquelchMode::Disabled;
     }
 
+    /// Return whether RSSI-based squelch tracking is enabled.
     pub fn squelch_is_enabled(&self) -> bool {
         self.squelch_mode != AgcSquelchMode::Disabled
     }
 
+    /// Set the squelch threshold in RSSI decibels.
     pub fn squelch_set_threshold(&mut self, threshold: f32) {
         self.squelch_threshold = threshold;
     }
 
+    /// Return the squelch threshold in RSSI decibels.
     pub fn squelch_threshold(&self) -> f32 {
         self.squelch_threshold
     }
 
+    /// Set the number of below-threshold samples before squelch timeout.
+    ///
+    /// # Panics
+    ///
+    /// A timeout of zero causes the state machine to underflow when it reaches
+    /// [`AgcSquelchMode::SignalLo`]. Use a nonzero timeout.
     pub fn squelch_set_timeout(&mut self, timeout: usize) {
         self.squelch_timeout = timeout;
     }
 
+    /// Return the below-threshold squelch timeout in samples.
     pub fn squelch_timeout(&self) -> usize {
         self.squelch_timeout
     }
 
+    /// Return the current squelch state.
     pub fn squelch_status(&self) -> AgcSquelchMode {
         self.squelch_mode
     }
