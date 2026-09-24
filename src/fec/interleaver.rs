@@ -4,7 +4,10 @@
 // Create and initialize interleaver objects
 //
 
-/// structured interleaver object
+/// Deterministic byte interleaver.
+///
+/// The same instance reverses its own permutation through [`Self::decode`].
+/// It does not add redundancy or change the message length.
 #[derive(Clone, Debug)]
 pub struct Interleaver {
     n: usize,     // number of bytes
@@ -14,7 +17,7 @@ pub struct Interleaver {
 }
 
 impl Interleaver {
-    /// Create an interleaver for the given message length in bytes.
+    /// Creates an interleaver for `message_length` bytes.
     pub fn new(message_length: usize) -> Self {
         // set internal properties
         let depth = 4; // default depth to maximum
@@ -30,25 +33,31 @@ impl Interleaver {
         Self { n: message_length, rows, cols, depth }
     }
 
-    /// set depth (number of internal iterations)
+    /// Sets the interleaving depth.
+    ///
+    /// A depth of zero disables permutation. Values greater than four have the
+    /// same effect as four.
     pub fn set_depth(&mut self, depth: usize) {
         self.depth = depth;
     }
 
-    /// get the interleaver length in bytes
+    /// Returns the interleaved message length in bytes.
     pub fn len(&self) -> usize {
         self.n
     }
 
-    /// check if interleaver is empty
+    /// Returns whether this interleaver has zero length.
     pub fn is_empty(&self) -> bool {
         self.n == 0
     }
 
-    /// execute forward interleaver (encoder)
+    /// Interleaves one hard-decision message.
     ///
-    ///  msg_dec    :   decoded (un-interleaved) message
-    ///  msg_enc    :   encoded (interleaved) message
+    /// Writes `len()` bytes to `msg_enc`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either slice is shorter than `len()`.
     pub fn encode(&self, msg_dec: &[u8], msg_enc: &mut [u8]) {
         // copy data to output
         msg_enc[..self.n].copy_from_slice(&msg_dec[..self.n]);
@@ -67,10 +76,14 @@ impl Interleaver {
         }
     }
 
-    /// execute forward interleaver (encoder) on soft bits
+    /// Interleaves soft-bit decisions.
     ///
-    ///  msg_dec    :   decoded (un-interleaved) message
-    ///  msg_enc    :   encoded (interleaved) message
+    /// Each hard byte occupies eight consecutive values. Writes `8 * len()`
+    /// values to `msg_enc`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either slice is shorter than `8 * len()`.
     pub fn encode_soft(&self, msg_dec: &[u8], msg_enc: &mut [u8]) {
         // copy data to output
         msg_enc[..8 * self.n].copy_from_slice(&msg_dec[..8 * self.n]);
@@ -89,10 +102,13 @@ impl Interleaver {
         }
     }
 
-    /// execute reverse interleaver (decoder)
+    /// Deinterleaves one hard-decision message.
     ///
-    ///  msg_enc    :   encoded (interleaved) message
-    ///  msg_dec    :   decoded (un-interleaved) message
+    /// Writes `len()` bytes to `msg_dec`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either slice is shorter than `len()`.
     pub fn decode(&self, msg_enc: &[u8], msg_dec: &mut [u8]) {
         // copy data to output
         msg_dec[..self.n].copy_from_slice(&msg_enc[..self.n]);
@@ -111,10 +127,14 @@ impl Interleaver {
         }
     }
 
-    /// execute reverse interleaver (decoder) on soft bits
+    /// Deinterleaves soft-bit decisions.
     ///
-    ///  msg_enc    :   encoded (interleaved) message
-    ///  msg_dec    :   decoded (un-interleaved) message
+    /// Each hard byte occupies eight consecutive values. Writes `8 * len()`
+    /// values to `msg_dec`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either slice is shorter than `8 * len()`.
     pub fn decode_soft(&self, msg_enc: &[u8], msg_dec: &mut [u8]) {
         // copy data to output
         msg_dec[..8 * self.n].copy_from_slice(&msg_enc[..8 * self.n]);

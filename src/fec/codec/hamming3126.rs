@@ -38,6 +38,13 @@ const S4: u32 = 0x0f0f0f0f; //  .000 1111 0000 1111 0000 1111 0000 1111
 const S8: u32 = 0x00ff00ff; //  .000 0000 1111 1111 0000 0000 1111 1111
 const S16: u32 = 0x0000ffff; //  .000 0000 0000 0000 1111 1111 1111 1111
 
+/// Encodes a 26-bit symbol with the Hamming (31,26) code.
+///
+/// The returned codeword occupies the low 31 bits.
+///
+/// # Panics
+///
+/// Panics when `sym_dec` does not fit in 26 bits.
 pub fn hamming3126_encode_symbol(sym_dec: u32) -> u32 {
     assert!(sym_dec < (1 << 26), "input symbol too large");
     let sym = sym_dec;
@@ -62,6 +69,13 @@ pub fn hamming3126_encode_symbol(sym_dec: u32) -> u32 {
         | (p16 << 15) // 15 = 31 - 16 (position of P16)
 }
 
+/// Decodes a 31-bit Hamming (31,26) codeword.
+///
+/// The returned symbol occupies the low 26 bits.
+///
+/// # Panics
+///
+/// Panics when `sym_enc` does not fit in 31 bits.
 pub fn hamming3126_decode_symbol(sym_enc: u32) -> u32 {
     assert!(sym_enc < (1u32 << 31), "input symbol too large");
     let mut sym = sym_enc;

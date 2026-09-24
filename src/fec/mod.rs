@@ -1,4 +1,9 @@
-// FEC (Forward Error Correction) module
+//! Forward error correction, error detection, and packet coding.
+//!
+//! [`Fec`] encodes and decodes one block with a selected [`FecScheme`].
+//! [`Packetizer`] adds a CRC, whitening, two FEC stages, and interleaving for
+//! fixed-size packets. Soft-decision input contains one `u8` reliability value
+//! per bit: zero favors a zero bit and 255 favors a one bit.
 
 mod codec;
 mod crc;

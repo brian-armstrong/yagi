@@ -25,6 +25,13 @@ const S2: u32 = 0x3333; // .011 0011 0011 0011
 const S4: u32 = 0x0f0f; // .000 1111 0000 1111
 const S8: u32 = 0x00ff; // .000 0000 1111 1111
 
+/// Encodes an 11-bit symbol with the Hamming (15,11) code.
+///
+/// The returned codeword occupies the low 15 bits.
+///
+/// # Panics
+///
+/// Panics when `sym_dec` does not fit in 11 bits.
 pub fn hamming1511_encode_symbol(sym_dec: u16) -> u16 {
     assert!(sym_dec < (1 << 11), "input symbol too large");
     let sym = sym_dec as u32;
@@ -48,6 +55,13 @@ pub fn hamming1511_encode_symbol(sym_dec: u16) -> u16 {
     sym_enc as u16
 }
 
+/// Decodes a 15-bit Hamming (15,11) codeword.
+///
+/// The returned symbol occupies the low 11 bits.
+///
+/// # Panics
+///
+/// Panics when `sym_enc` does not fit in 15 bits.
 pub fn hamming1511_decode_symbol(sym_enc: u16) -> u16 {
     assert!(sym_enc < (1 << 15), "input symbol too large");
     let mut sym = sym_enc as u32;

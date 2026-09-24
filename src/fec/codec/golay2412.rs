@@ -32,6 +32,13 @@ fn matrix_mul(v: u32, a: &[u32]) -> u32 {
     x
 }
 
+/// Encodes a 12-bit symbol with the Golay (24,12) code.
+///
+/// The returned value occupies the low 24 bits.
+///
+/// # Panics
+///
+/// Panics when `sym_dec` does not fit in 12 bits.
 pub fn golay2412_encode_symbol(sym_dec: u32) -> u32 {
     assert!(sym_dec < (1 << 12), "input symbol too large");
 
@@ -44,6 +51,13 @@ fn parity_search(v: u32) -> Option<usize> {
     P.iter().position(|&p| (v ^ p).count_ones() <= 2)
 }
 
+/// Decodes a 24-bit Golay (24,12) codeword.
+///
+/// The returned recovered symbol occupies the low 12 bits.
+///
+/// # Panics
+///
+/// Panics when `sym_enc` does not fit in 24 bits.
 pub fn golay2412_decode_symbol(sym_enc: u32) -> u32 {
     assert!(sym_enc < (1 << 24), "input symbol too large");
 

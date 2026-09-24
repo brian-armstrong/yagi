@@ -6,11 +6,14 @@
 //      Coding," Prentice Hall, New Jersey, 2nd edition, 2004.
 //
 
-/// zero/one/multiple errors detected, respectively
+/// Result of decoding a single-error-correcting, double-error-detecting symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecdedResult {
+    /// The symbol's syndrome indicates no errors.
     NoErrors,
+    /// A single-bit error was located and corrected.
     SingleErrorCorrected,
+    /// The syndrome does not match a correctable single-bit error.
     MultipleErrors,
 }
 
@@ -281,10 +284,28 @@ const SECDED7264: SecdedCode = SecdedCode {
     ],
 };
 
+/// Encodes one SEC-DED (22,16) symbol.
+///
+/// Reads the first two bytes of `sym_dec`. Writes a parity byte followed by
+/// those two encoded data bytes to the first three bytes of `sym_enc`.
+///
+/// # Panics
+///
+/// Panics when `sym_dec` has fewer than two bytes or `sym_enc` has fewer than
+/// three bytes.
 pub fn secded2216_encode_symbol(sym_dec: &[u8], sym_enc: &mut [u8]) {
     SECDED2216.encode_symbol(sym_dec, sym_enc)
 }
 
+/// Decodes one SEC-DED (22,16) symbol.
+///
+/// Reads the first three bytes of `sym_enc` and writes two recovered bytes to
+/// `sym_dec`. The return value reports the error condition.
+///
+/// # Panics
+///
+/// Panics when `sym_enc` has fewer than three bytes or `sym_dec` has fewer
+/// than two bytes.
 pub fn secded2216_decode_symbol(sym_enc: &[u8], sym_dec: &mut [u8]) -> SecdedResult {
     SECDED2216.decode_symbol(sym_enc, sym_dec)
 }
@@ -301,10 +322,28 @@ pub fn secded2216_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8])
 
 // SEC-DED (39,32)
 
+/// Encodes one SEC-DED (39,32) symbol.
+///
+/// Reads the first four bytes of `sym_dec`. Writes a parity byte followed by
+/// four encoded data bytes to the first five bytes of `sym_enc`.
+///
+/// # Panics
+///
+/// Panics when `sym_dec` has fewer than four bytes or `sym_enc` has fewer than
+/// five bytes.
 pub fn secded3932_encode_symbol(sym_dec: &[u8], sym_enc: &mut [u8]) {
     SECDED3932.encode_symbol(sym_dec, sym_enc)
 }
 
+/// Decodes one SEC-DED (39,32) symbol.
+///
+/// Reads the first five bytes of `sym_enc` and writes four recovered bytes to
+/// `sym_dec`. The return value reports the error condition.
+///
+/// # Panics
+///
+/// Panics when `sym_enc` has fewer than five bytes or `sym_dec` has fewer than
+/// four bytes.
 pub fn secded3932_decode_symbol(sym_enc: &[u8], sym_dec: &mut [u8]) -> SecdedResult {
     SECDED3932.decode_symbol(sym_enc, sym_dec)
 }
@@ -321,10 +360,28 @@ pub fn secded3932_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8])
 
 // SEC-DED (72,64)
 
+/// Encodes one SEC-DED (72,64) symbol.
+///
+/// Reads the first eight bytes of `sym_dec`. Writes a parity byte followed by
+/// eight encoded data bytes to the first nine bytes of `sym_enc`.
+///
+/// # Panics
+///
+/// Panics when `sym_dec` has fewer than eight bytes or `sym_enc` has fewer
+/// than nine bytes.
 pub fn secded7264_encode_symbol(sym_dec: &[u8], sym_enc: &mut [u8]) {
     SECDED7264.encode_symbol(sym_dec, sym_enc)
 }
 
+/// Decodes one SEC-DED (72,64) symbol.
+///
+/// Reads the first nine bytes of `sym_enc` and writes eight recovered bytes to
+/// `sym_dec`. The return value reports the error condition.
+///
+/// # Panics
+///
+/// Panics when `sym_enc` has fewer than nine bytes or `sym_dec` has fewer than
+/// eight bytes.
 pub fn secded7264_decode_symbol(sym_enc: &[u8], sym_dec: &mut [u8]) -> SecdedResult {
     SECDED7264.decode_symbol(sym_enc, sym_dec)
 }

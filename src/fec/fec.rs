@@ -19,7 +19,13 @@ enum FecData {
     ReedSolomon(Box<ReedSolomon>),
 }
 
-/// forward error-correction encoder/decoder
+/// Forward error-correction encoder and decoder.
+///
+/// An instance holds the state required by its selected [`FecScheme`]. Use
+/// [`Self::enc_msg_len`] to size output buffers before encoding or decoding.
+/// Decoding is best effort and does not report whether corruption was
+/// correctable. Pair it with a CRC or use [`crate::fec::Packetizer`] when data
+/// integrity must be checked.
 #[derive(Debug, Clone)]
 pub struct Fec {
     scheme: FecScheme,
@@ -28,7 +34,11 @@ pub struct Fec {
 }
 
 impl Fec {
-    /// create fec object
+    /// Creates an encoder and decoder for `scheme`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `scheme` is [`FecScheme::Unknown`].
     pub fn new(scheme: FecScheme) -> Result<Self> {
         let data = match scheme {
             FecScheme::Unknown => return Err(Error::Config("cannot create FEC with unknown scheme".into())),
@@ -54,25 +64,28 @@ impl Fec {
         Ok(Self { scheme, rate: scheme.rate(), data })
     }
 
-    /// get scheme
+    /// Returns the selected FEC scheme.
     pub fn scheme(&self) -> FecScheme {
         self.scheme
     }
 
-    /// get rate
+    /// Returns the nominal code rate.
     pub fn rate(&self) -> f32 {
         self.rate
     }
 
-    /// get encoded message length
+    /// Returns the encoded length for a decoded message length in bytes.
     pub fn enc_msg_len(&self, dec_msg_len: usize) -> usize {
         self.scheme.enc_msg_len(dec_msg_len)
     }
 
-    /// encode a block of data using a fec scheme
+    /// Encodes one block of bytes.
     ///
-    ///  msg_dec        :   decoded message
-    ///  msg_enc        :   encoded message, at least enc_msg_len() bytes
+    /// Writes `enc_msg_len(msg_dec.len())` bytes at the start of `msg_enc`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `msg_enc` is too short or the scheme is unknown.
     pub fn encode(&mut self, msg_dec: &[u8], msg_enc: &mut [u8]) -> Result<()> {
         let dec_len = msg_dec.len();
         let enc_len = self.enc_msg_len(dec_len);
@@ -106,11 +119,15 @@ impl Fec {
         Ok(())
     }
 
-    /// decode a block of data using a fec scheme
+    /// Decodes one hard-decision block of bytes.
     ///
-    ///  dec_msg_len    :   decoded message length (number of bytes)
-    ///  msg_enc        :   encoded message
-    ///  msg_dec        :   decoded message, at least dec_msg_len bytes
+    /// `msg_enc` must contain at least `enc_msg_len(dec_msg_len)` bytes. The
+    /// first `dec_msg_len` bytes of `msg_dec` receive the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either buffer is too short or the scheme is
+    /// unknown.
     pub fn decode(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         let enc_len = self.enc_msg_len(dec_msg_len);
 
@@ -164,11 +181,19 @@ impl Fec {
         Ok(())
     }
 
-    /// decode a block of data using a fec scheme (soft decision)
+    /// Decodes one block from soft bit decisions.
     ///
-    ///  dec_msg_len    :   decoded message length (number of bytes)
-    ///  msg_enc        :   encoded soft bits, 8 bytes per hard bit
-    ///  msg_dec        :   decoded message, at least dec_msg_len bytes
+    /// `msg_enc` contains eight values per encoded byte, ordered from the most
+    /// significant bit to the least. Zero favors a zero bit and 255 favors a
+    /// one bit. The required length is `8 * enc_msg_len(dec_msg_len)`.
+    ///
+    /// Some schemes use a native soft decoder. Others threshold the input at
+    /// 128 and use their hard decoder.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either buffer is too short or the scheme is
+    /// unknown.
     pub fn decode_soft(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         let enc_len = self.enc_msg_len(dec_msg_len);
         let soft_len = enc_len * 8;

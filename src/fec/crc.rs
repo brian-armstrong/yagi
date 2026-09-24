@@ -4,6 +4,7 @@
 use crate::error::{Error, Result};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Error-detection scheme for a byte message.
 pub enum CrcScheme {
     /// unknown/unavailable CRC scheme
     Unknown,
@@ -21,11 +22,11 @@ pub enum CrcScheme {
     Crc32,
 }
 
-/// Number of CRC schemes, `Unknown` included
+/// Number of CRC-scheme variants, including [`CrcScheme::Unknown`].
 pub const NUM_CRC_SCHEMES: usize = CrcScheme::Crc32 as usize + 1;
 
 impl CrcScheme {
-    /// Every CRC scheme, in declaration order
+    /// Every usable CRC scheme, in declaration order.
     ///
     /// Excludes `Unknown`, which is not a scheme.
     pub const ALL: [CrcScheme; NUM_CRC_SCHEMES - 1] = [
@@ -37,7 +38,7 @@ impl CrcScheme {
         CrcScheme::Crc32,
     ];
 
-    /// short name
+    /// Returns the stable short name for this scheme.
     pub fn short_name(&self) -> &'static str {
         match self {
             CrcScheme::Unknown => "unknown",
@@ -62,7 +63,7 @@ impl CrcScheme {
         })
     }
 
-    /// long name
+    /// Returns a human-readable name for this scheme.
     pub fn long_name(&self) -> &'static str {
         match self {
             CrcScheme::Unknown => "unknown",
@@ -75,7 +76,7 @@ impl CrcScheme {
         }
     }
 
-    /// get length of CRC (bytes)
+    /// Returns the appended key length in bytes.
     pub fn key_len(&self) -> usize {
         match self {
             CrcScheme::Unknown => 0,
@@ -172,10 +173,10 @@ const CRC32_TABLE: [u32; 256] = {
     table
 };
 
-/// generate error-detection key
+/// Generates the error-detection key for a message.
 ///
-///  scheme     :   error-detection scheme
-///  msg        :   input data message
+/// The returned value uses the low `scheme.key_len() * 8` bits. [`CrcScheme::None`]
+/// produces zero.
 pub fn generate_key(scheme: CrcScheme, msg: &[u8]) -> u32 {
     match scheme {
         CrcScheme::Unknown => 0,
@@ -188,11 +189,14 @@ pub fn generate_key(scheme: CrcScheme, msg: &[u8]) -> u32 {
     }
 }
 
-/// generate error-detection key and append to end of message
+/// Generates and appends a key to a message buffer.
 ///
-///  scheme     :   error-detection scheme (resulting in 'p' bytes)
-///  msg        :   input data message, [size: msg_len+p x 1]
-///  msg_len    :   input data message size (excluding key at end)
+/// The first `msg_len` bytes are the message. The key is written immediately
+/// after them in big-endian byte order.
+///
+/// # Panics
+///
+/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
 pub fn append_key(scheme: CrcScheme, msg: &mut [u8], msg_len: usize) {
     let key_len = scheme.key_len();
     let key = generate_key(scheme, &msg[..msg_len]);
@@ -202,11 +206,7 @@ pub fn append_key(scheme: CrcScheme, msg: &mut [u8], msg_len: usize) {
     }
 }
 
-/// validate message using error-detection key
-///
-///  scheme     :   error-detection scheme
-///  msg        :   input data message
-///  key        :   error-detection key
+/// Validates a message against an error-detection key.
 pub fn validate_message(scheme: CrcScheme, msg: &[u8], key: u32) -> bool {
     match scheme {
         CrcScheme::Unknown => false,
@@ -215,11 +215,14 @@ pub fn validate_message(scheme: CrcScheme, msg: &[u8], key: u32) -> bool {
     }
 }
 
-/// check message with key appended to end of array
+/// Validates a message with an appended key.
 ///
-///  scheme     :   error-detection scheme (resulting in 'p' bytes)
-///  msg        :   input data message, [size: msg_len+p x 1]
-///  msg_len    :   input data message size (excluding key at end)
+/// The first `msg_len` bytes are the message. The following
+/// `scheme.key_len()` bytes are the big-endian key.
+///
+/// # Panics
+///
+/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
 pub fn check_key(scheme: CrcScheme, msg: &[u8], msg_len: usize) -> bool {
     let key_len = scheme.key_len();
 
@@ -236,9 +239,7 @@ pub fn check_key(scheme: CrcScheme, msg: &[u8], msg_len: usize) -> bool {
 // Checksum
 //
 
-/// generate 8-bit checksum key
-///
-///  msg        :   input data message
+/// Generates the 8-bit additive checksum for `data`.
 pub fn checksum_generate_key(data: &[u8]) -> u8 {
     let sum: u32 = data.iter().map(|&b| b as u32).sum();
     // mask and convert to 2's complement
@@ -249,9 +250,7 @@ pub fn checksum_generate_key(data: &[u8]) -> u8 {
 // CRC-8
 //
 
-/// generate 8-bit cyclic redundancy check key.
-///
-///  msg        :   input data message
+/// Generates the 8-bit CRC for `msg`.
 pub fn crc8_generate_key(msg: &[u8]) -> u8 {
     let mut crc = 0xffu8;
     for &b in msg {
@@ -264,9 +263,7 @@ pub fn crc8_generate_key(msg: &[u8]) -> u8 {
 // CRC-16
 //
 
-/// generate 16-bit cyclic redundancy check key.
-///
-///  msg        :   input data message
+/// Generates the 16-bit CRC for `msg`.
 pub fn crc16_generate_key(msg: &[u8]) -> u16 {
     let mut crc = 0xffffu16;
     for &b in msg {
@@ -279,9 +276,7 @@ pub fn crc16_generate_key(msg: &[u8]) -> u16 {
 // CRC-24
 //
 
-/// generate 24-bit cyclic redundancy check key.
-///
-///  msg        :   input data message
+/// Generates the 24-bit CRC for `msg` in the low 24 bits.
 pub fn crc24_generate_key(msg: &[u8]) -> u32 {
     let mut crc = 0xffffffu32;
     for &b in msg {
@@ -294,9 +289,7 @@ pub fn crc24_generate_key(msg: &[u8]) -> u32 {
 // CRC-32
 //
 
-/// generate 32-bit cyclic redundancy check key.
-///
-///  msg        :   input data message
+/// Generates the 32-bit CRC for `msg`.
 pub fn crc32_generate_key(msg: &[u8]) -> u32 {
     let mut crc = 0xffffffffu32;
     for &b in msg {

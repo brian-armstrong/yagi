@@ -2,6 +2,10 @@
 // forward error-correction scheme
 //
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Forward error-correction code family.
+///
+/// Each variant defines its encoded length and nominal rate. Construct a
+/// [`crate::fec::Fec`] to encode and decode with the scheme.
 pub enum FecScheme {
     /// unknown/unsupported scheme
     Unknown,
@@ -64,11 +68,11 @@ pub enum FecScheme {
     RsM8,
 }
 
-/// Number of FEC schemes, `Unknown` included
+/// Number of FEC-scheme variants, including [`FecScheme::Unknown`].
 pub const NUM_FEC_SCHEMES: usize = FecScheme::RsM8 as usize + 1;
 
 impl FecScheme {
-    /// Every FEC scheme, in declaration order
+    /// Every usable FEC scheme, in declaration order.
     ///
     /// Excludes `Unknown`, which is not a scheme
     pub const ALL: [FecScheme; NUM_FEC_SCHEMES - 1] = [
@@ -101,7 +105,7 @@ impl FecScheme {
         FecScheme::RsM8,
     ];
 
-    /// short name
+    /// Returns the stable short name for this scheme.
     pub fn short_name(&self) -> &'static str {
         match self {
             FecScheme::Unknown => "unknown",
@@ -168,7 +172,7 @@ impl FecScheme {
         })
     }
 
-    /// long name
+    /// Returns a human-readable name for this scheme.
     pub fn long_name(&self) -> &'static str {
         match self {
             FecScheme::Unknown => "unknown",
@@ -202,7 +206,7 @@ impl FecScheme {
         }
     }
 
-    /// is scheme convolutional?
+    /// Returns whether this is a convolutional code.
     pub fn is_convolutional(&self) -> bool {
         matches!(
             self,
@@ -225,7 +229,7 @@ impl FecScheme {
         )
     }
 
-    /// is scheme punctured?
+    /// Returns whether this is a punctured convolutional code.
     pub fn is_punctured(&self) -> bool {
         matches!(
             self,
@@ -244,22 +248,25 @@ impl FecScheme {
         )
     }
 
-    /// is scheme Reed-Solomon?
+    /// Returns whether this is a Reed-Solomon code.
     pub fn is_reedsolomon(&self) -> bool {
         matches!(self, FecScheme::RsM8)
     }
 
-    /// is scheme Hamming?
+    /// Returns whether this is a Hamming code.
     pub fn is_hamming(&self) -> bool {
         matches!(self, FecScheme::Hamming74 | FecScheme::Hamming84 | FecScheme::Hamming128)
     }
 
-    /// is scheme repeat?
+    /// Returns whether this is a repetition code.
     pub fn is_repeat(&self) -> bool {
         matches!(self, FecScheme::Rep3 | FecScheme::Rep5)
     }
 
-    /// symbol width in bits
+    /// Returns the encoded symbol width in bits.
+    ///
+    /// Reed-Solomon operates on bytes. All other current schemes operate on
+    /// individual bits.
     pub fn symbol_bits(&self) -> usize {
         if self.is_reedsolomon() {
             8
@@ -268,8 +275,10 @@ impl FecScheme {
         }
     }
 
-    /// get the theoretical rate of a particular forward error-
-    /// correction scheme (object-independent method)
+    /// Returns the nominal encoded-to-decoded rate.
+    ///
+    /// Some byte-oriented block implementations round their final symbol. The
+    /// actual rate for a particular message length can therefore differ.
     pub fn rate(&self) -> f32 {
         match self {
             FecScheme::Unknown => 0.0,
@@ -301,10 +310,7 @@ impl FecScheme {
         }
     }
 
-    /// return the encoded message length using a particular error-
-    /// correction scheme (object-independent method)
-    ///
-    ///  dec_msg_len    :   raw, uncoded message length
+    /// Returns the encoded length for a decoded message length in bytes.
     pub fn enc_msg_len(&self, dec_msg_len: usize) -> usize {
         match self {
             FecScheme::Unknown => 0,

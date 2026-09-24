@@ -26,12 +26,10 @@ struct PacketizerPlan {
     interleaver: Interleaver,
 }
 
-/// computes the number of encoded bytes after packetizing
+/// Returns the packet length for an uncoded message length.
 ///
-///  message_length :   number of uncoded input bytes
-///  crc_scheme     :   error-detecting scheme
-///  outer_fec      :   outer forward error-correction code, applied first
-///  inner_fec      :   inner forward error-correction code, applied second
+/// The outer FEC is applied first. The inner FEC is applied second and faces
+/// the channel.
 pub fn packetizer_compute_enc_msg_len(
     message_length: usize,
     crc_scheme: CrcScheme,
@@ -43,15 +41,14 @@ pub fn packetizer_compute_enc_msg_len(
     inner_fec.enc_msg_len(outer_encoded_length)
 }
 
-/// computes the number of decoded bytes before packetizing
+/// Returns the message length that produces `encoded_length` packet bytes.
 ///
-/// Errors if `encoded_length` is not a packet length these schemes can produce. Block codes
-/// round up to whole symbols, so most lengths are unreachable
+/// The inner FEC is decoded first. Block-code padding makes some packet
+/// lengths unreachable.
 ///
-///  encoded_length :   number of encoded bytes
-///  crc_scheme     :   error-detecting scheme
-///  outer_fec      :   outer forward error-correction code, decoded second
-///  inner_fec      :   inner forward error-correction code, decoded first
+/// # Errors
+///
+/// Returns an error when no message length produces `encoded_length`.
 pub fn packetizer_compute_dec_msg_len(
     encoded_length: usize,
     crc_scheme: CrcScheme,
@@ -110,7 +107,11 @@ fn interleaver_depth(fs: FecScheme) -> Result<usize> {
     }
 }
 
-/// packetizer object
+/// Fixed-length packet encoder and decoder.
+///
+/// A packetizer appends a CRC, whitens the result, applies the outer FEC and
+/// interleaver, then applies the inner FEC and interleaver. Decoding reverses
+/// that order and returns CRC validity.
 #[derive(Debug, Clone)]
 pub struct Packetizer {
     msg_len: usize,
@@ -126,12 +127,15 @@ pub struct Packetizer {
 }
 
 impl Packetizer {
-    /// create packetizer object
+    /// Creates a packetizer for a fixed message length.
     ///
-    ///  message_length :   number of uncoded input bytes
-    ///  crc_scheme     :   error-detecting scheme
-    ///  outer_fec      :   outer forward error-correction code, applied first
-    ///  inner_fec      :   inner forward error-correction code, applied second
+    /// `outer_fec` is applied before `inner_fec`. The inner code is the
+    /// channel-facing code and is decoded first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either FEC scheme cannot be constructed or its
+    /// interleaver cannot preserve that scheme's symbol width.
     pub fn new(
         message_length: usize,
         crc_scheme: CrcScheme,
@@ -182,35 +186,39 @@ impl Packetizer {
         })
     }
 
-    /// get decoded message length
+    /// Returns the uncoded message length in bytes.
     pub fn dec_msg_len(&self) -> usize {
         self.msg_len
     }
 
-    /// get encoded message length
+    /// Returns the encoded packet length in bytes.
     pub fn enc_msg_len(&self) -> usize {
         self.packet_len
     }
 
-    /// get error-detecting scheme
+    /// Returns the CRC scheme.
     pub fn crc_scheme(&self) -> CrcScheme {
         self.crc_scheme
     }
 
-    /// get the outer forward error-correction code
+    /// Returns the FEC scheme applied first during encoding.
     pub fn outer_fec(&self) -> FecScheme {
         self.plan[0].fec_scheme
     }
 
-    /// get the inner forward error-correction code
+    /// Returns the channel-facing FEC scheme applied second during encoding.
     pub fn inner_fec(&self) -> FecScheme {
         self.plan[1].fec_scheme
     }
 
-    /// execute the packetizer on an input message
+    /// Encodes one message into a packet.
     ///
-    ///  msg    :   input message (uncoded bytes)
-    ///  pkt    :   encoded output message
+    /// `msg.len()` must equal `dec_msg_len()`. The method writes
+    /// `enc_msg_len()` bytes at the start of `pkt`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `msg` has the wrong length or `pkt` is too short.
     pub fn encode(&mut self, msg: &[u8], pkt: &mut [u8]) -> Result<()> {
         if msg.len() != self.msg_len {
             return Err(Error::Config(format!("input message has wrong length: {} != {}", msg.len(), self.msg_len)));
@@ -222,9 +230,13 @@ impl Packetizer {
         self.encode_buffered(pkt)
     }
 
-    /// execute the packetizer on an all-zero message
+    /// Encodes an all-zero message into a packet.
     ///
-    /// pkt    :   encoded output message
+    /// Writes `enc_msg_len()` bytes at the start of `pkt`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `pkt` is too short.
     pub fn encode_zero(&mut self, pkt: &mut [u8]) -> Result<()> {
         // initialize with zeros
         self.buffer_0[..self.msg_len].fill(0);
@@ -267,11 +279,15 @@ impl Packetizer {
         Ok(())
     }
 
-    /// execute the packetizer to decode an input message, returning whether the
-    /// data integrity check passed
+    /// Decodes a hard-decision packet.
     ///
-    ///  pkt    :   encoded input message
-    ///  msg    :   decoded output message
+    /// Writes the recovered message even if the CRC fails. The return value is
+    /// `true` only when the CRC validates.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `pkt.len()` is not `enc_msg_len()` or `msg` is too
+    /// short.
     pub fn decode(&mut self, pkt: &[u8], msg: &mut [u8]) -> Result<bool> {
         if pkt.len() != self.packet_len {
             return Err(Error::Config(format!("input packet has wrong length: {} != {}", pkt.len(), self.packet_len)));
@@ -296,10 +312,17 @@ impl Packetizer {
         Ok(self.finish_decode(msg))
     }
 
-    /// execute the packetizer to decode an input message using soft bits
+    /// Decodes a packet from soft bit decisions.
     ///
-    ///  pkt    :   encoded input message, 8 bytes per hard bit
-    ///  msg    :   decoded output message
+    /// `pkt` contains eight values per encoded byte, ordered from the most
+    /// significant bit to the least. Zero favors a zero bit and 255 favors a
+    /// one bit. As with [`Self::decode`], the recovered message is written even
+    /// when the CRC fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `pkt.len()` is not `8 * enc_msg_len()` or `msg`
+    /// is too short.
     pub fn decode_soft(&mut self, pkt: &[u8], msg: &mut [u8]) -> Result<bool> {
         if pkt.len() != 8 * self.packet_len {
             return Err(Error::Config(format!(
