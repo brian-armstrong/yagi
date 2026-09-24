@@ -9,8 +9,17 @@ use num_traits::Zero;
 use std::cmp::max;
 use std::ops::Mul;
 
+/// Smallest linear PSD value returned by [`SpectralPeriodogram`].
+///
+/// This prevents `log10(0)` in [`SpectralPeriodogram::psd`].
 pub const SPGRAM_PSD_MIN: f32 = 1e-12;
 
+/// A windowed, FFT-based power spectral density estimator.
+///
+/// Samples are retained in a sliding analysis window. The estimator performs a
+/// transform every hop, then either averages all transforms or applies an
+/// exponential average. PSD reads are FFT-shifted, so bin zero represents the
+/// negative-frequency edge rather than DC.
 #[derive(Debug, Clone)]
 #[doc(alias = "Spgram")]
 pub struct SpectralPeriodogram<T> {
@@ -46,12 +55,17 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T>> SpectralPeriodogram
 where
     Complex32: From<T>,
 {
-    /// Create a spectral periodogram.
+    /// Create a periodogram with an explicit analysis window and hop.
     ///
-    /// * `fft_size` - FFT size
-    /// * `window_type` - Window type
-    /// * `window_length` - Window length
-    /// * `hop_size` - Number of samples between transforms
+    /// `window_length` samples are windowed and zero-padded to `fft_size`.
+    /// `hop_size` is the number of samples between successive transforms.
+    /// The window is normalized for unit energy.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `fft_size < 2`, `window_length` is zero or exceeds
+    /// `fft_size`, `hop_size` is zero, or the window configuration is invalid.
+    /// The current Kaiser and KBD window paths require an even window length.
     pub fn new(fft_size: usize, window_type: WindowType, window_length: usize, hop_size: usize) -> Result<Self> {
         // validate input
         if fft_size < 2 {
@@ -128,7 +142,14 @@ where
         Ok(spgram)
     }
 
-    /// create default spgram object (Kaiser-Bessel window)
+    /// Create a periodogram with the default Kaiser window configuration.
+    ///
+    /// The analysis window is `fft_size / 2` samples and the hop is
+    /// `fft_size / 4` samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `fft_size < 4`. Smaller sizes produce a zero hop.
     pub fn from_nfft(fft_size: usize) -> Result<Self> {
         if fft_size < 2 {
             return Err(Error::Config("fft size must be at least 2".into()));
@@ -137,8 +158,10 @@ where
         Self::new(fft_size, WindowType::Kaiser, fft_size / 2, fft_size / 4)
     }
 
-    /// clears the internal state of the spgram object, but not
-    /// the internal buffer
+    /// Clear accumulated spectra and interval counters.
+    ///
+    /// This retains the sample history. The next transform can therefore
+    /// include samples received before this call.
     pub fn clear(&mut self) {
         for v in &mut self.buf_time {
             *v = Complex32::new(0.0, 0.0);
@@ -151,7 +174,7 @@ where
         self.psd.fill(0.0);
     }
 
-    /// reset the spgram object to its original state completely
+    /// Reset accumulated spectra, counters, and sample history.
     pub fn reset(&mut self) {
         self.clear();
         self.buffer.reset();
@@ -159,7 +182,20 @@ where
         self.num_transforms_total = 0;
     }
 
-    /// set forgetting factor
+    /// Set the PSD averaging mode.
+    ///
+    /// Pass `-1.0` to average all transforms equally. Pass a value in `[0, 1]`
+    /// for exponential averaging, where the value weights the newest
+    /// transform. A value of zero freezes the estimate after its first
+    /// transform.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `alpha` is outside `{-1} union [0, 1]`.
+    ///
+    /// # Warning
+    ///
+    /// `NaN` is accepted and makes subsequent PSD values nonfinite.
     pub fn set_alpha(&mut self, _alpha: f32) -> Result<()> {
         if _alpha != -1.0 && (_alpha < 0.0 || _alpha > 1.0) {
             return Err(Error::Config("alpha must be in {-1,[0,1]}".into()));
@@ -178,12 +214,20 @@ where
         Ok(())
     }
 
-    /// set center frequency
+    /// Set center-frequency metadata in cycles per sample.
+    ///
+    /// This metadata does not affect the transform or returned PSD values.
     pub fn set_freq(&mut self, _freq: f32) {
         self.frequency = _freq;
     }
 
-    /// set sample rate
+    /// Set sample-rate metadata.
+    ///
+    /// This metadata does not affect the transform or returned PSD values.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `rate <= 0`.
     pub fn set_rate(&mut self, _rate: f32) -> Result<()> {
         if _rate <= 0.0 {
             return Err(Error::Config("sample rate must be greater than zero".into()));
@@ -192,52 +236,57 @@ where
         Ok(())
     }
 
-    /// get FFT size
+    /// Return the FFT size.
     pub fn fft_size(&self) -> usize {
         self.nfft
     }
 
-    /// get window length
+    /// Return the number of samples in each analysis window.
     pub fn window_length(&self) -> usize {
         self.window_len
     }
 
-    /// Get the number of samples between transforms.
+    /// Return the number of samples between transforms.
     pub fn hop_size(&self) -> usize {
         self.delay
     }
 
-    /// get window type used for spectral estimation
+    /// Return the analysis-window type.
     pub fn window_type(&self) -> WindowType {
         self.wtype
     }
 
-    /// get number of samples processed since reset
+    /// Return samples processed since [`Self::reset`] or [`Self::clear`].
     pub fn num_samples(&self) -> u64 {
         self.num_samples
     }
 
-    /// get number of samples processed since start
+    /// Return samples processed since construction or [`Self::reset`].
     pub fn num_samples_total(&self) -> u64 {
         self.num_samples_total
     }
 
-    /// get number of transforms processed since reset
+    /// Return transforms processed since [`Self::reset`] or [`Self::clear`].
     pub fn num_transforms(&self) -> u64 {
         self.num_transforms
     }
 
-    /// get number of transforms processed since start
+    /// Return transforms processed since construction or [`Self::reset`].
     pub fn num_transforms_total(&self) -> u64 {
         self.num_transforms_total
     }
 
-    /// get forgetting factor (filter bandwidth)
+    /// Return the exponential averaging factor.
+    ///
+    /// This returns `1.0` while accumulate-all mode is active.
     pub fn alpha(&self) -> f32 {
         self.alpha
     }
 
-    /// push a single sample into the spgram object
+    /// Add one sample to the analysis stream.
+    ///
+    /// A transform runs whenever the configured hop completes. The first
+    /// transform uses default-valued history until a full window has arrived.
     pub fn push(&mut self, _x: T) {
         // update counters
         self.num_samples += 1;
@@ -258,7 +307,7 @@ where
         }
     }
 
-    /// write a block of samples to the spgram object
+    /// Add every sample in `x` to the analysis stream.
     pub fn write(&mut self, _x: &[T]) {
         for x in _x {
             self.push(*x);
@@ -298,14 +347,24 @@ where
         self.num_transforms_total += 1;
     }
 
-    /// compute spectral periodogram output (fft-shifted values, linear)
-    /// from current buffer contents
+    /// Return the current FFT-shifted linear power spectral density.
+    ///
+    /// Values are floored at [`SPGRAM_PSD_MIN`]. Before the first transform,
+    /// every bin is this floor.
     pub fn psd_mag(&self) -> Vec<f32> {
         let mut psd_mag = vec![0.0; self.nfft];
         self.read_psd_mag(&mut psd_mag).unwrap();
         psd_mag
     }
 
+    /// Write the current FFT-shifted linear power spectral density.
+    ///
+    /// Values are floored at [`SPGRAM_PSD_MIN`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `psd_mag.len() != self.fft_size()`. The output is
+    /// unchanged on error.
     pub fn read_psd_mag(&self, psd_mag: &mut [f32]) -> Result<()> {
         if psd_mag.len() != self.nfft {
             return Err(Error::Value("psd_mag must be the same length as the fft size".into()));
@@ -327,14 +386,23 @@ where
         Ok(())
     }
 
-    /// compute spectral periodogram output (fft-shifted values
-    /// in dB) from current buffer contents
+    /// Return the current FFT-shifted power spectral density in dB.
+    ///
+    /// Values are floored at [`SPGRAM_PSD_MIN`] before conversion.
     pub fn psd(&self) -> Vec<f32> {
         let mut psd = vec![0.0; self.nfft];
         self.read_psd(&mut psd).unwrap();
         psd
     }
 
+    /// Write the current FFT-shifted power spectral density in dB.
+    ///
+    /// Values are floored at [`SPGRAM_PSD_MIN`] before conversion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `psd.len() != self.fft_size()`. The output is
+    /// unchanged on error.
     pub fn read_psd(&self, psd: &mut [f32]) -> Result<()> {
         self.read_psd_mag(psd)?;
         for p in &mut psd[..self.nfft] {
@@ -343,7 +411,15 @@ where
         Ok(())
     }
 
-    /// estimate spectrum on input signal
+    /// Estimate an FFT-shifted PSD from one input slice.
+    ///
+    /// This uses the default configuration from [`Self::from_nfft`]. If `x`
+    /// does not complete one hop, it estimates from the available samples and
+    /// default-valued history.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `nfft < 4`.
     pub fn estimate_psd(nfft: usize, x: &[T]) -> Result<Vec<f32>> {
         let mut q = Self::from_nfft(nfft)?;
 

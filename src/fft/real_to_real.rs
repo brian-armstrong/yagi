@@ -1,37 +1,38 @@
-// Real-to-real FFT transforms (DCT/DST)
-//
-// This module provides DCT (Discrete Cosine Transform) and DST (Discrete Sine Transform)
-// implementations using rustdct. The transform types follow FFTW naming conventions:
-//
-// DCT Types:
-//   REDFT00 = DCT-I
-//   REDFT10 = DCT-II  (the "DCT", used in JPEG)
-//   REDFT01 = DCT-III (the "IDCT", inverse of DCT-II)
-//   REDFT11 = DCT-IV
-//
-// DST Types:
-//   RODFT00 = DST-I
-//   RODFT10 = DST-II
-//   RODFT01 = DST-III
-//   RODFT11 = DST-IV
+// Real-to-real FFT transforms (DCT/DST).
 
 use std::sync::Arc;
 
 use rustdct::DctPlanner;
 
+/// A real-to-real transform convention.
+///
+/// Variant names follow FFTW's real-transform naming. [`RealToRealFft::run`]
+/// doubles the underlying DCT or DST result to match this module's convention.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[doc(alias = "FftR2rKind")]
 pub enum RealToRealFftKind {
-    Redft00, // DCT-I
-    Redft10, // DCT-II
-    Redft01, // DCT-III
-    Redft11, // DCT-IV
-    Rodft00, // DST-I
-    Rodft10, // DST-II
-    Rodft01, // DST-III
-    Rodft11, // DST-IV
+    /// DCT-I.
+    Redft00,
+    /// DCT-II.
+    Redft10,
+    /// DCT-III, the inverse partner of [`Self::Redft10`] before scaling.
+    Redft01,
+    /// DCT-IV.
+    Redft11,
+    /// DST-I.
+    Rodft00,
+    /// DST-II.
+    Rodft10,
+    /// DST-III, the inverse partner of [`Self::Rodft10`] before scaling.
+    Rodft01,
+    /// DST-IV.
+    Rodft11,
 }
 
+/// A reusable real-to-real DCT or DST plan.
+///
+/// The transform has a fixed length and [`RealToRealFftKind`]. It is
+/// unnormalized and doubles every result to match the module convention.
 #[derive(Clone)]
 enum DctDst {
     Dct1(Arc<dyn rustdct::Dct1<f32>>),
@@ -53,6 +54,7 @@ pub struct RealToRealFft {
 }
 
 impl RealToRealFft {
+    /// Create a real-to-real transform plan.
     pub fn new(size: usize, kind: RealToRealFftKind) -> Self {
         let mut planner = DctPlanner::new();
 
@@ -70,6 +72,13 @@ impl RealToRealFft {
         Self { n: size, kind, transform }
     }
 
+    /// Transform `input` and write the result to `output`.
+    ///
+    /// The output is unnormalized and is scaled by two.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless both slices have this plan's length.
     pub fn run(&self, input: &[f32], output: &mut [f32]) {
         assert_eq!(input.len(), self.n);
         assert_eq!(output.len(), self.n);
@@ -93,14 +102,17 @@ impl RealToRealFft {
         }
     }
 
+    /// Return the transform length.
     pub fn len(&self) -> usize {
         self.n
     }
 
+    /// Return whether the transform length is zero.
     pub fn is_empty(&self) -> bool {
         self.n == 0
     }
 
+    /// Return this plan's transform convention.
     pub fn kind(&self) -> RealToRealFftKind {
         self.kind
     }
@@ -112,6 +124,14 @@ impl std::fmt::Debug for RealToRealFft {
     }
 }
 
+/// Transform one real input slice without retaining a plan.
+///
+/// The output is unnormalized and scaled by two. Reuse [`RealToRealFft`] when
+/// transforming several slices with the same length and kind.
+///
+/// # Panics
+///
+/// Panics when `y.len() != x.len()`.
 pub fn fft_r2r_run(x: &[f32], y: &mut [f32], kind: RealToRealFftKind) {
     let fft = RealToRealFft::new(x.len(), kind);
     fft.run(x, y);

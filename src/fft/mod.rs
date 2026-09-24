@@ -1,7 +1,9 @@
-// Fft module
-// Current state:
-// - Primary Fft struct ready to use (some autotests still missing)
-// - asgram/spwaterfall still missing
+//! Complex and real discrete transforms, plus windowed spectral estimates.
+//!
+//! [`Fft`] performs unnormalized complex transforms. A forward transform
+//! followed by a backward transform produces the input scaled by its length.
+//! [`RealToRealFft`] provides DCT and DST variants. [`SpectralPeriodogram`]
+//! accumulates FFT-shifted power spectral density estimates.
 
 extern crate rustfft;
 
@@ -14,9 +16,12 @@ pub use spectral_periodogram::{SpectralPeriodogram, SPGRAM_PSD_MIN};
 use num_complex::Complex;
 use std::sync::Arc;
 
+/// Direction of a complex Fourier transform.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Direction {
+    /// Compute the forward transform.
     Forward,
+    /// Compute the inverse transform without normalization.
     Backward,
 }
 
@@ -29,28 +34,53 @@ impl From<Direction> for rustfft::FftDirection {
     }
 }
 
-// TODO probably fold this into a larger trait
+/// Scalar types supported by [`Fft`].
+///
+/// This is implemented for scalar types supported by the underlying FFT
+/// implementation, including `f32` and `f64`.
 pub trait FftNum: rustfft::FftNum + std::default::Default {}
 
 impl<T: rustfft::FftNum + std::default::Default> FftNum for T {}
 
+/// A reusable complex FFT plan with a fixed length and direction.
+///
+/// [`Self::run`] copies its input to the output before transforming it. Neither
+/// direction applies `1 / N` normalization.
 #[derive(Clone)]
 pub struct Fft<T> {
     fft: Arc<dyn rustfft::Fft<T>>,
 }
 
 impl<T: FftNum> Fft<T> {
+    /// Create a complex FFT plan for `size` samples.
+    ///
+    /// The plan can be reused with any same-length input and output slices.
     pub fn new(size: usize, direction: Direction) -> Self {
         let mut planner = rustfft::FftPlanner::new();
         let fft = planner.plan_fft(size, direction.into());
         Self { fft }
     }
 
+    /// Transform `input` and write the result to `output`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless both slices have the length used to create this plan.
     pub fn run(&self, input: &[Complex<T>], output: &mut [Complex<T>]) {
         output.copy_from_slice(input);
         self.fft.process(output);
     }
 
+    /// Exchange the two halves of the first `n` elements of `input`.
+    ///
+    /// This moves a zero-frequency FFT bin to the center for even lengths.
+    /// For odd `n`, it exchanges the first two `floor(n / 2)`-element halves
+    /// and leaves the final element in place. This method does not require
+    /// `n` to equal the plan length.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `n > input.len()`.
     pub fn shift(&self, input: &mut [Complex<T>], n: usize) {
         let n2 = if n.is_multiple_of(2) { n / 2 } else { (n - 1) / 2 };
         for i in 0..n2 {
@@ -65,6 +95,14 @@ impl<T: FftNum> std::fmt::Debug for Fft<T> {
     }
 }
 
+/// Transform one complex input slice without retaining a plan.
+///
+/// The transform is unnormalized. Reuse [`Fft`] when transforming several
+/// slices with the same length and direction.
+///
+/// # Panics
+///
+/// Panics when `output.len() != input.len()`.
 pub fn fft_run<T: FftNum>(input: &[Complex<T>], output: &mut [Complex<T>], direction: Direction) {
     let fft = Fft::new(input.len(), direction);
     fft.run(input, output);
