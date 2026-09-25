@@ -89,7 +89,8 @@ pub fn hamming74_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) 
         *md = (s0 << 4) | s1;
     }
 
-    debug_assert_eq!(k, enc_msg_len * 8);
+    debug_assert_eq!(k, 14 * dec_msg_len);
+    debug_assert!(k <= enc_msg_len * 8);
 }
 
 // soft decoding of one symbol
@@ -141,7 +142,8 @@ pub fn hamming74_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [
         *md = (s0 << 4) | s1;
     }
 
-    debug_assert_eq!(k, 8 * enc_msg_len);
+    debug_assert_eq!(k, 14 * dec_msg_len);
+    debug_assert!(k <= 8 * enc_msg_len);
 }
 
 #[cfg(test)]

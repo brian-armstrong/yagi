@@ -79,13 +79,25 @@ impl Fec {
         self.scheme.enc_msg_len(dec_msg_len)
     }
 
+    pub(crate) fn validate_dec_msg_len(&self, dec_msg_len: usize) -> Result<()> {
+        match &self.data {
+            Some(FecData::Convolutional(codec)) => codec.check_len(dec_msg_len),
+            Some(FecData::ReedSolomon(_)) if dec_msg_len == 0 => {
+                Err(Error::Config("Reed-Solomon messages must not be empty".into()))
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Encodes one block of bytes.
     ///
     /// Writes `enc_msg_len(msg_dec.len())` bytes at the start of `msg_enc`.
     ///
     /// # Errors
     ///
-    /// Returns an error when `msg_enc` is too short or the scheme is unknown.
+    /// Returns an error when `msg_enc` is too short, a convolutional message is
+    /// shorter than its constraint-length-dependent minimum, or a Reed-Solomon
+    /// message is empty.
     pub fn encode(&mut self, msg_dec: &[u8], msg_enc: &mut [u8]) -> Result<()> {
         let dec_len = msg_dec.len();
         let enc_len = self.enc_msg_len(dec_len);
@@ -93,6 +105,8 @@ impl Fec {
         if msg_enc.len() < enc_len {
             return Err(Error::Config(format!("encoded buffer too small: {} < {}", msg_enc.len(), enc_len)));
         }
+
+        self.validate_dec_msg_len(dec_len)?;
 
         match self.scheme {
             FecScheme::Unknown => return Err(Error::Config("cannot encode with unknown scheme".into())),
@@ -126,8 +140,9 @@ impl Fec {
     ///
     /// # Errors
     ///
-    /// Returns an error when either buffer is too short or the scheme is
-    /// unknown.
+    /// Returns an error when either buffer is too short, a convolutional message
+    /// length is below its constraint-length-dependent minimum, or a
+    /// Reed-Solomon message length is zero.
     pub fn decode(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         let enc_len = self.enc_msg_len(dec_msg_len);
 
@@ -138,6 +153,8 @@ impl Fec {
         if msg_dec.len() < dec_msg_len {
             return Err(Error::Config(format!("decoded buffer too small: {} < {}", msg_dec.len(), dec_msg_len)));
         }
+
+        self.validate_dec_msg_len(dec_msg_len)?;
 
         match self.scheme {
             FecScheme::Unknown => return Err(Error::Config("cannot decode with unknown scheme".into())),
@@ -192,8 +209,9 @@ impl Fec {
     ///
     /// # Errors
     ///
-    /// Returns an error when either buffer is too short or the scheme is
-    /// unknown.
+    /// Returns an error when either buffer is too short, a convolutional message
+    /// length is below its constraint-length-dependent minimum, or a
+    /// Reed-Solomon message length is zero.
     pub fn decode_soft(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         let enc_len = self.enc_msg_len(dec_msg_len);
         let soft_len = enc_len * 8;
@@ -205,6 +223,8 @@ impl Fec {
         if msg_dec.len() < dec_msg_len {
             return Err(Error::Config(format!("decoded buffer too small: {} < {}", msg_dec.len(), dec_msg_len)));
         }
+
+        self.validate_dec_msg_len(dec_msg_len)?;
 
         match self.scheme {
             FecScheme::Unknown => return Err(Error::Config("cannot decode with unknown scheme".into())),
@@ -273,6 +293,29 @@ mod tests {
         fec.decode(4, &msg_enc, &mut msg_dec).unwrap();
 
         assert_eq!(msg, msg_dec);
+    }
+
+    #[test]
+    fn test_fec_hamming74_partial_bytes() {
+        for n in 1..=5usize {
+            let msg: Vec<u8> = (0..n).map(|i| (0x31 + 37 * i) as u8).collect();
+            let mut fec = Fec::new(FecScheme::Hamming74).unwrap();
+            let mut encoded = vec![0u8; fec.enc_msg_len(n)];
+            fec.encode(&msg, &mut encoded).unwrap();
+
+            let mut decoded = vec![0u8; n];
+            fec.decode(n, &encoded, &mut decoded).unwrap();
+            assert_eq!(decoded, msg, "hard decode n={}", n);
+
+            let mut soft = vec![0u8; 8 * encoded.len()];
+            for (i, &byte) in encoded.iter().enumerate() {
+                for bit in 0..8 {
+                    soft[8 * i + bit] = if byte & (0x80 >> bit) != 0 { 255 } else { 0 };
+                }
+            }
+            fec.decode_soft(n, &soft, &mut decoded).unwrap();
+            assert_eq!(decoded, msg, "soft decode n={}", n);
+        }
     }
 
     // the pass-through has no soft decoder either, so this is the generic

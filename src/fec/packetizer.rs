@@ -55,19 +55,27 @@ pub fn packetizer_compute_dec_msg_len(
     outer_fec: FecScheme,
     inner_fec: FecScheme,
 ) -> Result<usize> {
-    let mut n_hat = 0usize;
-    let mut k_hat = 0usize;
+    if crc_scheme == CrcScheme::Unknown || outer_fec == FecScheme::Unknown || inner_fec == FecScheme::Unknown {
+        return Err(Error::Config("packetizer length calculation requires known CRC and FEC schemes".into()));
+    }
 
-    // check for zero-length packet
+    let mut n_hat = 0usize;
+
     // TODO : implement faster method
-    while k_hat < encoded_length {
+    loop {
         // compute encoded packet length
-        k_hat = packetizer_compute_enc_msg_len(n_hat, crc_scheme, outer_fec, inner_fec);
+        let k_hat = packetizer_compute_enc_msg_len(n_hat, crc_scheme, outer_fec, inner_fec);
 
         if k_hat == encoded_length {
             return Ok(n_hat);
-        } else if k_hat > encoded_length {
-            let lo = packetizer_compute_enc_msg_len(n_hat.saturating_sub(1), crc_scheme, outer_fec, inner_fec);
+        }
+
+        if k_hat > encoded_length || n_hat >= encoded_length {
+            let lo = if n_hat == 0 {
+                0
+            } else {
+                packetizer_compute_enc_msg_len(n_hat - 1, crc_scheme, outer_fec, inner_fec)
+            };
             return Err(Error::Config(format!(
                 "packetizer_compute_dec_msg_len(), no message length encodes to {} bytes \
                  (nearest are {} and {})",
@@ -77,9 +85,6 @@ pub fn packetizer_compute_dec_msg_len(
             n_hat += 1;
         }
     }
-
-    // encoded_length == 0, which only a zero-length payload with no CRC could produce
-    Ok(0)
 }
 
 fn interleaver_depth(fs: FecScheme) -> Result<usize> {
@@ -142,6 +147,13 @@ impl Packetizer {
         outer_fec: FecScheme,
         inner_fec: FecScheme,
     ) -> Result<Self> {
+        if crc_scheme == CrcScheme::Unknown {
+            return Err(Error::Config("cannot create packetizer with unknown CRC scheme".into()));
+        }
+        if outer_fec == FecScheme::Unknown || inner_fec == FecScheme::Unknown {
+            return Err(Error::Config("cannot create packetizer with unknown FEC scheme".into()));
+        }
+
         let msg_len = message_length;
         let packet_len = packetizer_compute_enc_msg_len(message_length, crc_scheme, outer_fec, inner_fec);
         let crc_length = crc_scheme.key_len();
@@ -160,6 +172,7 @@ impl Packetizer {
 
             // create objects
             let f = Fec::new(fs)?;
+            f.validate_dec_msg_len(dec_msg_len)?;
             let mut q = Interleaver::new(enc_msg_len);
 
             // interleave no finer than this scheme's symbol
@@ -590,6 +603,21 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_packetizer_length_helpers_reject_invalid_schemes_and_lengths() {
+        assert_eq!(packetizer_compute_dec_msg_len(0, CrcScheme::None, FecScheme::None, FecScheme::None).unwrap(), 0);
+        assert!(packetizer_compute_dec_msg_len(0, CrcScheme::Crc32, FecScheme::None, FecScheme::None).is_err());
+        assert!(packetizer_compute_dec_msg_len(4, CrcScheme::None, FecScheme::Unknown, FecScheme::None).is_err());
+        assert!(packetizer_compute_dec_msg_len(4, CrcScheme::Unknown, FecScheme::None, FecScheme::None).is_err());
+    }
+
+    #[test]
+    fn test_packetizer_rejects_invalid_configuration_at_construction() {
+        assert!(Packetizer::new(16, CrcScheme::Unknown, FecScheme::None, FecScheme::None).is_err());
+        assert!(Packetizer::new(1, CrcScheme::None, FecScheme::None, FecScheme::ConvV29).is_err());
+        assert!(Packetizer::new(0, CrcScheme::None, FecScheme::None, FecScheme::RsM8).is_err());
     }
 
     #[test]

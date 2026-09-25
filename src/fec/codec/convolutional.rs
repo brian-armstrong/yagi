@@ -251,7 +251,7 @@ impl Convolutional {
         (2 * self.params.order as usize - 1).div_ceil(8)
     }
 
-    fn check_len(&self, dec_msg_len: usize) -> Result<()> {
+    pub(crate) fn check_len(&self, dec_msg_len: usize) -> Result<()> {
         let min = self.min_dec_msg_len();
         if dec_msg_len < min {
             return Err(Error::Config(format!(
@@ -384,6 +384,7 @@ impl Convolutional {
             }
             None => {
                 self.full[..kept_bits].copy_from_slice(&msg_enc[..kept_bits]);
+                self.full[kept_bits..full_bits].fill(0);
                 self.decoder.decode_soft(&self.full[..full_bits], msg_dec)
             }
         }
@@ -710,6 +711,30 @@ mod tests {
                 c.decode_soft(n, &soft, &mut dec_soft).unwrap();
                 assert_eq!(dec_soft, msg, "{:?} n={}: soft decode after shrink", scheme, n);
             }
+        }
+    }
+
+    #[test]
+    fn test_conv_soft_scratch_tail_is_cleared() {
+        for (name, params, _) in base_codes() {
+            let mut c = Convolutional::new(params, None);
+            let long_len = c.min_dec_msg_len() + 16;
+            let long_full_bits = c.encoder.encode_len(long_len);
+            let long_kept_bits = long_full_bits - tail_excess_bits(params.rate);
+            let mut long_decoded = vec![0u8; long_len];
+            c.decode_soft(long_len, &vec![255; long_kept_bits], &mut long_decoded).unwrap();
+
+            let short_len = c.min_dec_msg_len();
+            let short_full_bits = c.encoder.encode_len(short_len);
+            let short_kept_bits = short_full_bits - tail_excess_bits(params.rate);
+            let mut short_decoded = vec![0u8; short_len];
+            c.decode_soft(short_len, &vec![0; short_kept_bits], &mut short_decoded).unwrap();
+
+            assert!(
+                c.full[short_kept_bits..short_full_bits].iter().all(|&sample| sample == 0),
+                "{}: restored tail retained soft values from an earlier decode",
+                name
+            );
         }
     }
 }
