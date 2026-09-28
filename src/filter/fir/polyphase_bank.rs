@@ -3,8 +3,16 @@ use crate::error::{Error, Result};
 use crate::filter::{self, Sample};
 use std::marker::PhantomData;
 
-/// Coefficients and executors for an FIR polyphase filter bank (PFB)
-/// Unlike FirPolyphaseFilter, this stores no sample history
+/// Bank of finite impulse response filters split from one prototype.
+///
+/// The prototype coefficients are divided among `num_filters` phases. Phase
+/// `i` takes taps `i`, `i + num_filters`, `i + 2 * num_filters`, and so on.
+/// Every phase has the same length, and the shorter ones are padded with
+/// zeros at the end.
+///
+/// The bank holds no sample history. Each call takes the history from the
+/// caller, ordered oldest to newest. Use [`crate::filter::FirPolyphaseFilter`]
+/// when the filter should keep its own history.
 #[derive(Clone, Debug)]
 #[doc(alias = "FirPfbBank")]
 pub struct FirPolyphaseFilterBank<T, Coeff = T> {
@@ -23,17 +31,19 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a new FIR PFB coefficient bank
+    /// Creates a polyphase bank from existing prototype coefficients.
     ///
-    /// # Arguments
+    /// The coefficients are in time order, with `coefficients[0]` applied to
+    /// the newest sample. The output scale starts at one.
     ///
-    /// * `num_filters` - number of filters in the bank
-    /// * `coefficients` - filter coefficients. incomplete polyphase branches
-    ///   are padded with zeros.
+    /// # Errors
     ///
-    /// # Returns
+    /// Returns an error when `num_filters` is zero or `coefficients` is empty.
     ///
-    /// A new FIR PFB filter bank
+    /// # Panics
+    ///
+    /// Panics when the coefficient storage size overflows `usize`. This
+    /// requires an extremely large `num_filters`.
     pub fn new(num_filters: usize, coefficients: &[Coeff]) -> Result<Self> {
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than zero".into()));
@@ -78,34 +88,45 @@ where
         })
     }
 
-    /// Create a new FIR PFB filter bank using Kaiser-Bessel design with default parameters
+    /// Creates a Kaiser-windowed polyphase bank with typical settings.
     ///
-    /// This is equivalent to FirPolyphaseFilterBank::new_kaiser(num_filters, m, 0.5, 60.0)
+    /// This is [`Self::new_kaiser`] with a cutoff of 0.5 cycles per input
+    /// sample and 60 dB of stopband attenuation.
     ///
-    /// # Arguments
+    /// # Errors
     ///
-    /// * `num_filters` - number of filters in the bank
-    /// * `filter_delay` - filter delay
-    ///
-    /// # Returns
-    ///
-    /// A new FIR PFB filter bank
+    /// Returns an error when `num_filters` or `filter_delay` is zero.
     pub fn new_kaiser_simple(num_filters: usize, filter_delay: usize) -> Result<Self> {
         Self::new_kaiser(num_filters, filter_delay, 0.5, 60.0)
     }
 
-    /// Create a new FIR PFB filter bank using Kaiser-Bessel windowed sinc filter design
+    /// Creates a Kaiser-windowed polyphase bank.
     ///
     /// # Arguments
     ///
-    /// * `num_filters` - number of filters in the bank
-    /// * `filter_delay` - filter delay
-    /// * `cutoff_frequency` - filter normalized cut-off frequency
-    /// * `stopband_attenuation` - filter stop-band suppression \[dB\]
+    /// - `num_filters`: number of phases. The prototype runs at this multiple
+    ///   of the input rate. Must be nonzero.
+    /// - `filter_delay`: prototype span on each side of the center tap, in
+    ///   input samples. Must be nonzero.
+    /// - `cutoff_frequency`: in cycles per input sample, in `(0, 0.5]`.
+    /// - `stopband_attenuation`: in dB. Must be positive.
     ///
-    /// # Returns
+    /// The prototype has `2 * num_filters * filter_delay + 1` taps.
     ///
-    /// A new FIR PFB filter bank
+    /// Each phase has a gain of about `1 / (2 * cutoff_frequency)`, which is
+    /// about one at the maximum cutoff.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_filters` or `filter_delay` is zero,
+    /// `cutoff_frequency` is outside its range, or `stopband_attenuation` is
+    /// zero or negative.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the tap count overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the count wraps and the design is
+    /// invalid.
     pub fn new_kaiser(
         num_filters: usize,
         filter_delay: usize,
@@ -137,19 +158,31 @@ where
         Self::new(num_filters, &hc)
     }
 
-    /// Create a new FIR PFB filter bank using square-root Nyquist prototype filter design
+    /// Creates a polyphase bank from a pulse-shaping prototype.
+    ///
+    /// This is usually a root-Nyquist matched filter.
     ///
     /// # Arguments
     ///
-    /// * `filter_shape` - filter shape
-    /// * `num_filters` - number of filters in the bank
-    /// * `samples_per_symbol` - samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - excess bandwidth factor
+    /// - `num_filters`: number of phases. The prototype runs at this multiple
+    ///   of the input rate. Must be nonzero.
+    /// - `samples_per_symbol`: samples per symbol at the input. Must be at
+    ///   least two.
+    /// - `filter_delay`: prototype span on each side of the center tap, in
+    ///   symbols. Must be nonzero.
+    /// - `excess_bandwidth`: rolloff factor, in `[0, 1]`.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// A new FIR PFB filter bank
+    /// Returns an error when `num_filters` or `filter_delay` is zero,
+    /// `samples_per_symbol` is less than two, `excess_bandwidth` is outside its
+    /// range, or the selected prototype rejects the configuration.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `num_filters * samples_per_symbol` or the tap count
+    /// overflows `usize` and overflow checks are enabled. Without overflow
+    /// checks, the count wraps and the design is invalid.
     pub fn new_rnyquist(
         filter_shape: filter::FirFilterShape,
         num_filters: usize,
@@ -182,19 +215,27 @@ where
         Self::new(num_filters, &hc)
     }
 
-    /// Create a new FIR PFB filter bank using square-root derivative Nyquist prototype filter design
+    /// Creates a polyphase bank from the derivative of a pulse-shaping prototype.
     ///
-    /// # Arguments
+    /// The prototype is designed as in [`Self::new_rnyquist`]. Its derivative
+    /// is estimated with centered differences `dh[i] = h[i + 1] - h[i - 1]`,
+    /// where the indices wrap around at both ends. The result is scaled by
+    /// `0.06 / max(abs(h[i] * dh[i]))`.
     ///
-    /// * `filter_shape` - filter shape
-    /// * `num_filters` - number of filters in the bank
-    /// * `samples_per_symbol` - samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - excess bandwidth factor
+    /// If that maximum is zero, the coefficients are not finite. No error is
+    /// reported in that case.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// A new FIR PFB filter bank
+    /// Returns an error when `num_filters` or `filter_delay` is zero,
+    /// `samples_per_symbol` is less than two, `excess_bandwidth` is outside
+    /// `[0, 1]`, or the selected prototype rejects the configuration.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `num_filters * samples_per_symbol` or the tap count
+    /// overflows `usize` and overflow checks are enabled. Without overflow
+    /// checks, the count wraps and the design is invalid.
     pub fn new_drnyquist(
         filter_shape: filter::FirFilterShape,
         num_filters: usize,
@@ -242,24 +283,29 @@ where
         Self::new(num_filters, &hc)
     }
 
-    /// Returns the number of coefficient phases in the bank
+    /// Returns the number of phases.
     pub fn num_filters(&self) -> usize {
         self.num_filters
     }
 
-    /// Returns the number of input samples consumed by each phase
+    /// Returns the number of taps in each phase.
+    ///
+    /// Every history passed to [`Self::execute`] must have this many samples.
     pub fn filter_len(&self) -> usize {
         self.filter_len
     }
 
-    /// Replace the coefficients without changing the number or length of the
-    /// polyphase filters.
+    /// Replaces the prototype coefficients.
     ///
-    /// # Arguments
+    /// The new coefficients are split and padded the same way as in
+    /// [`Self::new`]. They must produce the same phase length, so
+    /// `coefficients.len()` must round up to [`Self::filter_len`] when divided
+    /// by [`Self::num_filters`]. The scale is unchanged.
     ///
-    /// * `coefficients` - filter coefficients. incomplete polyphase branches
-    ///   are padded with zeros, and the resulting per-phase length must match
-    ///   the existing filter bank
+    /// # Errors
+    ///
+    /// Returns an error when the coefficients produce a different phase length.
+    /// The bank is unchanged on error.
     pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
         let filter_len = coefficients.len().div_ceil(self.num_filters);
         if filter_len != self.filter_len {
@@ -288,30 +334,28 @@ where
         Ok(())
     }
 
-    /// Set the output scaling for the filter bank
-    ///
-    /// # Arguments
-    ///
-    /// * `scale` - scaling factor to apply to each output sample
+    /// Sets the factor applied to every output sample of every phase.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
-    /// Get the output scaling for the filter bank
-    ///
-    /// # Returns
-    ///
-    /// The scaling factor applied to each output sample
+    /// Returns the factor applied to every output sample.
     pub fn scale(&self) -> Coeff {
         self.scale
     }
 
-    /// Execute one phase against externally managed history
+    /// Evaluates phase `i` over one history and returns one output sample.
     ///
-    /// # Arguments
+    /// `history` is ordered oldest to newest.
     ///
-    /// * `i` - index of filter to use
-    /// * `history` - input history, with length [`filter_len`](Self::filter_len)
+    /// # Errors
+    ///
+    /// Returns an error when `i` is not less than [`Self::num_filters`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when `history` does not have exactly [`Self::filter_len`]
+    /// samples.
     pub fn execute(&self, i: usize, history: &[T]) -> Result<T> {
         if i >= self.num_filters {
             return Err(Error::Config(format!("filterbank index ({}) exceeds maximum ({})", i, self.num_filters)));
@@ -353,14 +397,21 @@ where
         y * self.scale
     }
 
-    /// Execute one phase over contiguous sliding histories
+    /// Evaluates phase `i` over every window of a longer history.
     ///
-    /// Produces `output[j] = self.execute(i, &history[j..j + self.filter_len()])`
-    /// for as many sliding positions as `history` supports. At most `history.len()
-    /// - self.filter_len() + 1` outputs are written, but fewer will be written if
-    /// `output` is shorter.
+    /// `output[j]` is the result for `history[j..j + filter_len()]`. The number
+    /// of outputs is `history.len() - filter_len() + 1`, limited by the length
+    /// of `output`, or zero when `history` is shorter than one window. Returns
+    /// that number. Extra output is left unchanged.
     ///
-    /// Returns `n`, the number of output samples written.
+    /// The result is the same as calling [`Self::execute`] on each window, up
+    /// to rounding. Block processing can sum the products in a different
+    /// order, so the last bits can differ.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `i` is not less than [`Self::num_filters`].
+    /// `output` is unchanged on error.
     pub fn execute_block(&self, i: usize, history: &[T], output: &mut [T]) -> Result<usize> {
         let (h, block_h) = self.phase_coefficients(i)?;
         Ok(self.execute_block_with_coefficients(history, output, h, block_h))

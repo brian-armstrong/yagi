@@ -9,6 +9,16 @@ use crate::filter::fir::design::estimate_req_filter_len;
 use crate::filter::HalfBandResampler;
 use crate::nco::{Nco, NcoBackend};
 
+/// Complex frequency converter that changes the sample rate by a power of two.
+///
+/// The converter pairs an oscillator with a chain of half-band filters. Each
+/// stage doubles or halves the sample rate, so the rate changes by a factor of
+/// `2^num_stages` between the low-rate and high-rate sides.
+///
+/// [`Self::interp_execute`] shifts a low-rate signal up to the center
+/// frequency and raises its sample rate. [`Self::decim_execute`] does the
+/// reverse. Both directions share the oscillator phase and filter history, so
+/// use one direction per synthesizer.
 #[derive(Clone, Debug)]
 #[doc(alias = "Dds")]
 pub struct DirectDigitalSynthesizer {
@@ -36,14 +46,27 @@ pub struct DirectDigitalSynthesizer {
 }
 
 impl DirectDigitalSynthesizer {
-    /// Create a direct digital synthesizer
+    /// Creates a direct digital synthesizer.
     ///
     /// # Arguments
     ///
-    /// * `num_stages` - number of half-band stages
-    /// * `center_frequency` - normalized input carrier frequency in `[-0.5, 0.5]`
-    /// * `bandwidth` - normalized input signal bandwidth in `(0, 1)`
-    /// * `stopband_attenuation` - non-negative stop-band attenuation in dB
+    /// - `num_stages`: number of half-band stages, at most 20. The rate
+    ///   changes by `2^num_stages`.
+    /// - `center_frequency`: in cycles per high-rate sample, in `[-0.5, 0.5]`.
+    /// - `bandwidth`: relative to the low sample rate, in `(0, 1)`. It sets the
+    ///   transition width of each half-band stage rather than a passband edge
+    ///   of the final output.
+    /// - `stopband_attenuation`: in dB.
+    ///
+    /// Zero stages are accepted, but [`Self::decim_execute`] then ignores its
+    /// input. Use at least one stage for down-conversion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_stages` is greater than 20,
+    /// `center_frequency` or `bandwidth` is outside its range,
+    /// `stopband_attenuation` is negative, or a half-band stage cannot be
+    /// designed.
     pub fn new(num_stages: usize, center_frequency: f32, bandwidth: f32, stopband_attenuation: f32) -> Result<Self> {
         // error checking
         if num_stages > 20 {
@@ -117,6 +140,9 @@ impl DirectDigitalSynthesizer {
         Ok(Self { num_stages, rate, halfband_resamp, m: m_vec, buffer0, buffer1, ncox, zeta, scale })
     }
 
+    /// Clears the filter history and returns the oscillator phase to zero.
+    ///
+    /// The scale is unchanged.
     pub fn reset(&mut self) {
         // reset internal filter state variables
         for resamp in &mut self.halfband_resamp {
@@ -125,22 +151,29 @@ impl DirectDigitalSynthesizer {
         self.ncox.set_phase(0.0);
     }
 
+    /// Sets the complex factor applied to the signal in both directions.
     pub fn set_scale(&mut self, scale: Complex32) {
         self.scale = scale;
     }
 
+    /// Returns the complex factor applied to the signal in both directions.
     pub fn scale(&self) -> Complex32 {
         self.scale
     }
 
+    /// Returns the number of half-band stages.
     pub fn num_stages(&self) -> usize {
         self.num_stages
     }
 
+    /// Returns the ratio of the high sample rate to the low sample rate.
+    ///
+    /// This is `2^num_stages()`.
     pub fn rate(&self) -> usize {
         self.rate
     }
 
+    /// Returns the delay through the up-converter, in high-rate samples.
     pub fn delay_interp(&self) -> usize {
         let mut delay = 0usize;
         for i in 0..self.num_stages {
@@ -150,6 +183,7 @@ impl DirectDigitalSynthesizer {
         delay
     }
 
+    /// Returns the delay through the down-converter, in low-rate samples.
     pub fn delay_decim(&self) -> f32 {
         let mut delay = 0.0f32;
         for i in 0..self.num_stages {
@@ -159,6 +193,21 @@ impl DirectDigitalSynthesizer {
         delay
     }
 
+    /// Down-converts [`Self::rate`] high-rate samples to one low-rate sample.
+    ///
+    /// The output is divided by [`Self::rate`] and then multiplied by the
+    /// scale. Samples beyond the first [`Self::rate`] are ignored.
+    ///
+    /// # Warning
+    ///
+    /// With zero stages, this ignores `input` and returns a value from
+    /// internal scratch storage instead. Create the synthesizer with at least
+    /// one stage for down-conversion.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `input` is shorter than [`Self::rate`] and there is at least
+    /// one stage. The filter history may already have changed.
     pub fn decim_execute(&mut self, input: &[Complex32]) -> Result<Complex32> {
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
@@ -189,6 +238,15 @@ impl DirectDigitalSynthesizer {
         Ok(y * self.zeta * self.scale)
     }
 
+    /// Up-converts one low-rate sample to [`Self::rate`] high-rate samples.
+    ///
+    /// The input is multiplied by the scale before mixing. `output` must hold
+    /// at least [`Self::rate`] samples, and extra output is left unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `output` is shorter than [`Self::rate`]. The oscillator
+    /// phase and filter history have already changed by then.
     pub fn interp_execute(&mut self, input: Complex32, output: &mut [Complex32]) -> Result<()> {
         // increment NCO
         let input = input * self.scale;

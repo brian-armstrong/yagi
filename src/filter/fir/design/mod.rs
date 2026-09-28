@@ -1,3 +1,19 @@
+//! Design and analyze finite impulse response filters.
+//!
+//! Design functions return taps in time order, so `h[0]` is the first sample
+//! of the impulse response. Frequencies are in cycles per sample unless stated
+//! otherwise, which puts the Nyquist frequency at 0.5.
+//!
+//! The pulse-shaping designers describe a pulse by its samples per symbol `k`
+//! and its delay `m` in symbols on each side of the center tap. Their results
+//! have `2 * k * m + 1` taps. A fractional delay `dt` is in samples, and a
+//! positive value moves the pulse earlier.
+//!
+//! The designers differ in gain. The windowed-sinc and Kaiser low-pass
+//! designers have a DC gain of about `1 / (2 * fc)`. The Parks-McClellan
+//! low-pass and half-band designers target a passband gain of one. Pulse
+//! designs have a DC gain of about `k`, except for the GMSK pulses.
+
 mod flipped_nyquist;
 mod gmsk;
 mod harris_moerder_3;
@@ -35,41 +51,53 @@ use num_complex::{Complex32, Complex64, ComplexFloat};
 //  [Vaidyanathan:1993] Vaidyanathan, P. P., "Multirate Systems and
 //      Filter Banks," 1993, Prentice Hall, Section 3.2.1
 
-/// FIR filter design shape
+/// Pulse shape for [`fir_design_prototype`].
+///
+/// A Nyquist pulse has zero inter-symbol interference on its own. Use one when
+/// a single filter shapes the symbols. `Kaiser`, `Pm`, `Rcos`, `Fexp`,
+/// `Fsech`, and `Farcsech` are Nyquist pulses.
+///
+/// A root-Nyquist pulse is meant for both the transmitter and the receiver.
+/// The two filters in cascade form a Nyquist pulse. `Arkaiser`, `Rkaiser`,
+/// `Rrcos`, `Hm3`, `Rfexp`, `Rfsech`, and `Rfarcsech` are root-Nyquist pulses.
+/// `Gmsktx` and `Gmskrx` are a GMSK transmit and receive pair.
+///
+/// A shape can be parsed from its lowercase variant name, such as `"rrcos"`,
+/// with [`str::parse`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FirFilterShape {
     // Nyquist filter prototypes
-    /// Nyquist Kaiser filter
+    /// Kaiser-windowed sinc.
     Kaiser,
-    /// Parks-McClellan filter
+    /// Parks-McClellan equiripple design.
     Pm,
-    /// Raised-cosine filter
+    /// Raised cosine.
     Rcos,
-    /// Flipped exponential filter
+    /// Flipped exponential.
     Fexp,
-    /// Flipped hyperbolic secant filter
+    /// Flipped hyperbolic secant.
     Fsech,
-    /// Flipped arc-hyperbolic secant filter
+    /// Flipped inverse hyperbolic secant.
     Farcsech,
 
     // Root Nyquist filter prototypes
-    /// Root-Nyquist Kaiser (approximate optimum)
+    /// Root-Nyquist Kaiser with a fitted bandwidth adjustment.
     Arkaiser,
-    /// Root-Nyquist Kaiser (true optimum)
+    /// Root-Nyquist Kaiser with a searched bandwidth adjustment.
     Rkaiser,
-    /// Root raised-cosine filter
+    /// Root raised cosine.
     Rrcos,
-    /// Harris-Moerder-3 filter
+    /// Harris-Moerder root-Nyquist design.
     Hm3,
-    /// GMSK transmit filter
+    /// GMSK transmit pulse.
     Gmsktx,
-    /// GMSK receive filter
+    /// GMSK receive pulse, designed for use with `Gmsktx`.
     Gmskrx,
-    /// Flipped exponential filter
+    /// Root flipped exponential.
     Rfexp,
-    /// Flipped hyperbolic secant filter
+    /// Root flipped hyperbolic secant.
     Rfsech,
-    /// Flipped arc-hyperbolic secant filter
+    /// Root flipped inverse hyperbolic secant.
     Rfarcsech,
 }
 
@@ -100,14 +128,6 @@ const FILTER_INFO: [FilterInfo; 15] = [
     FilterInfo { short_name: "rfarcsech", long_name: "root flipped arc-hyperbolic secant" },
 ];
 
-/// Convert filter name to filter type
-///
-/// # Arguments
-/// * `s`      : filter name
-///
-/// # Returns
-///
-/// A `FirFilterType` matching the filter name
 impl std::str::FromStr for FirFilterShape {
     type Err = Error;
 
@@ -123,16 +143,17 @@ impl std::str::FromStr for FirFilterShape {
 
 const USE_KAISER_REQ_FILTER_LEN_ESTIMATE: bool = true;
 
-/// estimate required filter length given transition bandwidth and
-/// stop-band attenuation
+/// Estimates the FIR length needed for a transition width and attenuation.
 ///
-/// # Arguments
-/// * `df`     : transition bandwidth (0 < df < 0.5)
-/// * `as_`    : stopband suppression level \[dB\] (as_ > 0)
+/// `df` is the transition width in cycles per sample and `as_` is the
+/// stopband attenuation in dB. The result is an estimate, not a guaranteed
+/// minimum. It is [`estimate_req_filter_len_kaiser`] truncated toward zero, so
+/// a small request can return zero.
 ///
-/// # Returns
+/// # Errors
 ///
-/// Filter length
+/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is zero
+/// or negative.
 pub fn estimate_req_filter_len(df: f32, as_: f32) -> Result<usize> {
     if df <= 0.0 || df > 0.5 {
         return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", df)));
@@ -149,13 +170,16 @@ pub fn estimate_req_filter_len(df: f32, as_: f32) -> Result<usize> {
     Ok(n as usize)
 }
 
-/// estimate filter stop-band attenuation given
-/// * `df`     : transition bandwidth (0 < df < 0.5)
-/// * `n`      : filter length
+/// Estimates the stopband attenuation in dB that `n` taps can reach.
 ///
-/// # Returns
+/// `df` is the transition width in cycles per sample. The function inverts
+/// [`estimate_req_filter_len_kaiser`] with a bisection search between 0.01
+/// and 200 dB. A length outside that range returns a value near the closer
+/// bound. The result is an estimate, not a measured attenuation.
 ///
-/// Stop-band attenuation \[dB\]
+/// # Errors
+///
+/// Returns an error when `df` is not in `0.0 < df <= 0.5`.
 pub fn estimate_req_filter_stopband_attenuation(df: f32, n: usize) -> Result<f32> {
     // run search for stop-band attenuation which gives these results
     let mut as0 = 0.01; // lower bound
@@ -181,13 +205,16 @@ pub fn estimate_req_filter_stopband_attenuation(df: f32, n: usize) -> Result<f32
     Ok(as_hat)
 }
 
-/// estimate filter transition bandwidth given
-/// * `as_`    : stop-band attenuation \[dB\], as_ > 0
-/// * `n`      : filter length
+/// Estimates the transition width that `n` taps can reach at an attenuation.
 ///
-/// # Returns
+/// `as_` is the stopband attenuation in dB and the result is in cycles per
+/// sample. The function inverts [`estimate_req_filter_len_kaiser`] with a
+/// bisection search between 0.001 and 0.499 cycles per sample. A length
+/// outside that range returns a value near the closer bound.
 ///
-/// Transition bandwidth
+/// # Errors
+///
+/// Returns an error when `as_` is zero or negative.
 pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f32> {
     // run search for transition bandwidth which gives these results
     let mut df0 = 1e-3; // lower bound
@@ -213,16 +240,17 @@ pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f3
     Ok(df_hat)
 }
 
-/// estimate required filter length given transition bandwidth and
-/// stop-band attenuation
+/// Estimates the FIR length with Kaiser's formula.
 ///
-/// # Arguments
-/// * `df`     : transition bandwidth (0 < df < 0.5)
-/// * `as_`    : stop-band attenuation \[dB\] (as_ > 0)
+/// `df` is the transition width in cycles per sample and `as_` is the
+/// stopband attenuation in dB. The estimate is `(as_ - 7.95) / (14.26 * df)`.
+/// It is fractional, so the caller chooses how to round it, and it is
+/// negative below 7.95 dB.
 ///
-/// # Returns
+/// # Errors
 ///
-/// Filter length
+/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is zero
+/// or negative.
 pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
     // [Vaidyanathan:1993]
     if df > 0.5 || df <= 0.0 {
@@ -235,16 +263,17 @@ pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
     Ok(h_len)
 }
 
-/// estimate required filter length given transition bandwidth and
-/// stop-band attenuation
+/// Estimates the FIR length with the Herrmann approximation.
 ///
-/// # Arguments
-/// * `df`     : transition bandwidth (0 < df < 0.5)
-/// * `as_`    : stop-band attenuation \[dB\] (as_ > 0)
+/// `df` is the transition width in cycles per sample and `as_` is the
+/// stopband attenuation in dB. The estimate is fractional, so the caller
+/// chooses how to round it, and it can be negative. Above 105 dB this falls
+/// back to [`estimate_req_filter_len_kaiser`].
 ///
-/// # Returns
+/// # Errors
 ///
-/// Filter length
+/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is zero
+/// or negative.
 pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
     // [Herrmann:1973]
     if df > 0.5 || df <= 0.0 {
@@ -280,17 +309,19 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
     Ok(h_len)
 }
 
-/// Design FIR filter using generic window/taper method
+/// Designs a low-pass FIR filter as a windowed sinc.
 ///
-/// # Arguments
-/// * `window_type` : window type, e.g. [`WindowType::Hamming`]
-/// * `n`           : filter length, n > 0
-/// * `fc`          : cutoff frequency, 0 < fc < 0.5
-/// * `arg`         : window-specific argument, if required
+/// The filter has `n` taps and a cutoff of `fc` cycles per sample. `arg` is
+/// the window parameter for window types that take one, such as the Kaiser
+/// beta. Other window types ignore it.
 ///
-/// # Returns
+/// The sinc peaks at one rather than `2 * fc`, so a long filter has a DC gain
+/// of about `1 / (2 * fc)`. The exact gain depends on the length and window.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `n` is zero, `fc` is not in `0.0 < fc <= 0.5`, or
+/// the window rejects `arg`.
 pub fn fir_design_windowf(window_type: WindowType, n: usize, fc: f32, arg: f32) -> Result<Vec<f32>> {
     // validate input
     if fc <= 0.0 || fc > 0.5 {
@@ -319,16 +350,18 @@ pub fn fir_design_windowf(window_type: WindowType, n: usize, fc: f32, arg: f32) 
     Ok(h)
 }
 
-/// Design finite impulse response notch filter
+/// Designs a notch filter that removes one frequency.
 ///
-/// # Arguments
-/// * `m`      : filter semi-length, m in \[1,1000\]
-/// * `f0`     : filter notch frequency (normalized), -0.5 <= f0 <= 0.5
-/// * `as_`    : stop-band attenuation \[dB\], as_ > 0
+/// The filter has `2 * m + 1` taps and a notch at `f0` cycles per sample. It
+/// is an impulse minus a Kaiser-windowed tone at `f0`, scaled so the response
+/// at `f0` is zero. Away from the notch the gain approaches one as `m` grows.
+/// A short filter has a wide notch that also attenuates nearby frequencies.
+/// `as_` is the stopband attenuation in dB used to choose the Kaiser window.
 ///
-/// # Returns
+/// # Errors
 ///
-/// Vec of filter coefficients
+/// Returns an error when `m` is outside `1..=1000`, `f0` is outside
+/// `-0.5..=0.5`, or `as_` is zero or negative.
 pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
     // validate inputs
     if !(1..=1000).contains(&m) {
@@ -372,18 +405,36 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
     Ok(h)
 }
 
-/// Design (root-)Nyquist filter from prototype
+/// Designs a pulse-shaping filter from a named prototype.
 ///
 /// # Arguments
-/// * `filter_shape` - Filter shape (e.g. [`FirFilterShape::Rrcos`])
-/// * `samples_per_symbol` - Number of samples per symbol
-/// * `filter_delay` - Filter delay in symbols
-/// * `excess_bandwidth` - Excess bandwidth factor in \[0,1\]
-/// * `fractional_delay` - Fractional sample delay
 ///
-/// # Returns
+/// - `filter_shape`: the prototype. Each shape is designed by its own
+///   function, such as [`fir_design_rrcos`].
+/// - `filter_delay`: span on each side of the center tap, in symbols.
+/// - `excess_bandwidth`: the rolloff factor, or the bandwidth-time product for
+///   the GMSK shapes.
+/// - `fractional_delay`: shift in samples. A positive value moves the pulse
+///   earlier. The `Pm` and `Hm3` shapes ignore it.
 ///
-/// Vec of filter coefficients
+/// The pulse has `2 * samples_per_symbol * filter_delay + 1` taps. Each shape
+/// checks its own parameter ranges, which differ slightly. See the designer
+/// for each shape for its limits.
+///
+/// Most shapes have a DC gain of about `samples_per_symbol`. The GMSK
+/// transmit pulse sums to `pi * samples_per_symbol / 2`, and the GMSK receive
+/// pulse has its own gain.
+///
+/// # Errors
+///
+/// Returns an error when the designer for the selected shape rejects the
+/// parameters.
+///
+/// # Panics
+///
+/// Panics when the tap count overflows `usize` and overflow checks are
+/// enabled. The count is computed before any parameter is validated. Without
+/// overflow checks it wraps, and the result is unreliable.
 pub fn fir_design_prototype(
     filter_shape: FirFilterShape,
     samples_per_symbol: usize,
@@ -455,17 +506,17 @@ pub fn fir_design_prototype(
     }
 }
 
-/// Design doppler filter
+/// Designs a Doppler-spectrum shaping filter for fading-channel models.
 ///
-/// # Arguments
-/// * `n`      : filter length
-/// * `fd`     : normalized doppler frequency (0 < fd < 0.5)
-/// * `k`      : Rice fading factor (k >= 0)
-/// * `theta`  : LoS component angle of arrival
+/// The filter has `n` taps. Its impulse response is a Bessel `J0` term for the
+/// scattered paths plus a cosine for the line-of-sight path, shaped by a
+/// Kaiser window. `fd` is the maximum Doppler frequency in cycles per sample.
+/// `k` is the Rice factor as a linear power ratio. `theta` is the angle
+/// between the line-of-sight path and the direction of motion, in radians.
 ///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// This designer does not validate its parameters. Supply a nonzero `n`, an
+/// `fd` in `0.0..0.5`, and a nonnegative `k`.
+/// This never returns an error.
 pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f32>> {
     let beta = 4.0;
     let mut h = vec![0.0; n];
@@ -488,15 +539,10 @@ pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f
     Ok(h)
 }
 
-/// Compute auto-correlation of filter at a specific lag
+/// Computes the autocorrelation of `h` at `lag` samples.
 ///
-/// # Arguments
-/// * `h`      : filter coefficients
-/// * `lag`    : auto-correlation lag (samples)
-///
-/// # Returns
-///
-/// Auto-correlation value
+/// The result is symmetric in `lag`, and lags beyond the filter length return
+/// zero.
 pub fn filter_autocorr(h: &[f32], lag: isize) -> f32 {
     // auto-correlation is even symmetric
     let lag = lag.unsigned_abs();
@@ -514,16 +560,17 @@ pub fn filter_autocorr(h: &[f32], lag: isize) -> f32 {
     rxx
 }
 
-/// Compute cross-correlation of two filters at a specific lag
+/// Computes the cross-correlation of two real coefficient sequences.
 ///
-/// # Arguments
-/// * `h`      : filter coefficients
-/// * `g`      : filter coefficients
-/// * `lag`    : cross-correlation lag (samples)
+/// At a positive `lag`, `h[i + lag]` is paired with `g[i]`. A negative lag
+/// shifts `g` instead. Lags with no overlap return zero.
 ///
-/// # Returns
+/// # Panics
 ///
-/// Cross-correlation value
+/// Panics when `lag` is `isize::MIN`, `h` is shorter than `g`, and overflow
+/// checks are enabled. The function negates the lag when it swaps the
+/// sequences. Without overflow checks the negation wraps and the result is
+/// wrong.
 pub fn filter_crosscorr(h: &[f32], g: &[f32], lag: isize) -> f32 {
     // cross-correlation is odd symmetric
     if h.len() < g.len() {
@@ -561,17 +608,20 @@ pub fn filter_crosscorr(h: &[f32], g: &[f32], lag: isize) -> f32 {
     rxy
 }
 
-/// Compute inter-symbol interference (ISI)--both RMS and
-/// maximum--for the filter h.
+/// Measures the inter-symbol interference of a pulse-shaping filter.
 ///
-/// # Arguments
-/// * `h`      : filter coefficients [size: 2*k*m+1 x 1]
-/// * `k`      : filter over-sampling rate (samples/symbol)
-/// * `m`      : filter delay (symbols)
+/// The measurement uses the autocorrelation of `h`, which is the pulse after
+/// its matched filter. It samples the autocorrelation at lags `k` through
+/// `(2 * m - 1) * k`, relative to the zero-lag value, and returns
+/// `(rms, max)`. `h` should have `2 * k * m + 1` taps.
 ///
-/// # Returns
+/// `k` should be nonzero. Zero energy in `h` or `m == 0` produces nonfinite
+/// results. None of these conditions is checked.
 ///
-/// A tuple of ISI RMS and maximum
+/// # Panics
+///
+/// Panics when the lag arithmetic overflows and overflow checks are enabled.
+/// Without overflow checks the lags wrap, and the result is unreliable.
 pub fn filter_isi(h: &[f32], k: usize, m: usize) -> (f32, f32) {
     let rxx0 = filter_autocorr(h, 0);
     let mut isi_rms = 0.0;
@@ -587,16 +637,16 @@ pub fn filter_isi(h: &[f32], k: usize, m: usize) -> (f32, f32) {
     ((isi_rms / (2 * m) as f32).sqrt(), isi_max)
 }
 
-/// Compute relative out-of-band energy
+/// Estimates the fraction of a filter's energy at or above `fc`.
 ///
-/// # Arguments
-/// * `h`      : filter coefficients
-/// * `fc`     : analysis cut-off frequency
-/// * `nfft`   : fft size
+/// The response is sampled at `nfft` frequencies evenly spaced over
+/// `[0, 0.5)` cycles per sample. The result is the sampled energy at `fc` and
+/// above divided by the total. A zero-energy filter returns `NaN`.
 ///
-/// # Returns
+/// # Errors
 ///
-/// Relative out-of-band energy
+/// Returns an error when `h` is empty, `nfft` is zero, or `fc` is outside
+/// `0.0..=0.5`.
 pub fn filter_energy(h: &[f32], fc: f32, nfft: usize) -> Result<f32> {
     if fc < 0.0 || fc > 0.5 {
         return Err(Error::Config(format!("cutoff frequency ({}) out of range [0, 0.5]", fc)));
@@ -629,44 +679,27 @@ pub fn filter_energy(h: &[f32], fc: f32, nfft: usize) -> Result<f32> {
     Ok(e_stopband / e_total)
 }
 
-/// Get static frequency response from filter coefficients at particular
-/// frequency with real-valued coefficients
+/// Evaluates the response of a real-coefficient filter at `fc` cycles per
+/// sample.
 ///
-/// # Arguments
-/// * `h`      : coefficients
-/// * `fc`     : center frequency for analysis, -0.5 <= fc <= 0.5
-///
-/// # Returns
-///
-/// A frequency response value
+/// This is [`freqresponse`] for `f32` taps.
 pub fn freqrespf(h: &[f32], fc: f32) -> Result<Complex32> {
     freqresponse(h, fc)
 }
 
-/// Get static frequency response from filter coefficients at particular
-/// frequency with complex coefficients
+/// Evaluates the response of a complex-coefficient filter at `fc` cycles per
+/// sample.
 ///
-/// # Arguments
-/// * `h`      : coefficients
-/// * `fc`     : center frequency for analysis, -0.5 <= fc <= 0.5
-///
-/// # Returns
-///
-/// A frequency response value
+/// This is [`freqresponse`] for `Complex32` taps.
 pub fn freqrespcf(h: &[Complex32], fc: f32) -> Result<Complex32> {
     freqresponse(h, fc)
 }
 
-/// Get static frequency response from filter coefficients at particular
-/// frequency with real or complex coefficients
+/// Evaluates the response of the filter `h` at `fc` cycles per sample.
 ///
-/// # Arguments
-/// * `h`      : coefficients
-/// * `fc`     : center frequency for analysis, -0.5 <= fc <= 0.5
-///
-/// # Returns
-///
-/// A frequency response value
+/// The response is `sum(h[i] * exp(-j * 2*pi*fc*i))`, and an empty `h`
+/// returns zero. `fc` is not range-checked, and the response repeats with a
+/// period of one. This never returns an error.
 pub fn freqresponse<T: ComplexFloat>(h: &[T], fc: f32) -> Result<Complex32>
 where
     Complex32: From<T>,
@@ -681,16 +714,13 @@ where
     Ok(h_res)
 }
 
-/// Compute group delay for a FIR filter
+/// Computes the group delay of `h` in samples at `fc` cycles per sample.
 ///
-/// # Arguments
-/// * `h`      : filter coefficients
-/// * `n`      : filter length
-/// * `fc`     : frequency at which delay is evaluated (-0.5 < fc < 0.5)
+/// The result is nonfinite where the response is zero.
 ///
-/// # Returns
+/// # Errors
 ///
-/// Group delay value
+/// Returns an error when `h` is empty or `fc` is outside `-0.5..=0.5`.
 pub fn fir_group_delay(h: &[f32], fc: f32) -> Result<f32> {
     // validate input
     if h.is_empty() {

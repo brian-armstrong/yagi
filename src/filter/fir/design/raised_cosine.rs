@@ -2,17 +2,24 @@ use crate::error::{Error, Result};
 use crate::math::sincd;
 use std::f64::consts::PI;
 
-/// Design Nyquist raised-cosine filter
+/// Designs a raised-cosine Nyquist pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
+/// The pulse has `k` samples per symbol and spans `m` symbols on each side of
+/// its center tap, for `2 * k * m + 1` taps. `beta` is the rolloff factor.
+/// `dt` shifts the pulse in samples, and a positive value moves it earlier.
+/// The DC gain is about `k`, and the center tap is one when `dt` is zero.
 ///
-/// # Returns
+/// `dt` is not range-checked.
 ///
-/// A vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `k` or `m` is zero, or `beta` is outside
+/// `0.0..=1.0`.
+///
+/// # Panics
+///
+/// Panics when `2 * k * m + 1` overflows `usize` and overflow checks are
+/// enabled. Without overflow checks the count wraps.
 pub fn fir_design_rcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     if k < 1 {
         return Err(Error::Config("k must be greater than 0".into()));

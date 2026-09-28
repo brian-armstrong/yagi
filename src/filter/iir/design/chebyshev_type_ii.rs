@@ -4,17 +4,23 @@ use std::f64::consts::PI;
 
 use libm::{pow, sqrt};
 
-/// Compute analog zeros, poles, gain of low-pass Chebyshev Type II filter, grouping
-/// complex conjugates together. If the filter order is odd, the single real pole
-/// is at the end of the array.
+/// Designs an analog low-pass Chebyshev type II prototype.
 ///
-/// # Arguments
+/// `es` is the stopband ripple factor, a linear value rather than decibels.
+/// An attenuation of `as_` dB corresponds to `es = 10^(-as_ / 20)`. Unit
+/// analog frequency is the stopband edge, where the response reaches
+/// that attenuation. It is not the passband edge.
 ///
-/// * `n` - filter order
-/// * `es` - epsilon, related to stop-band ripple
-/// * `za` - output analog zeros [length: 2*floor(_n/2)]
-/// * `pa` - output analog poles [length: _n]
-/// * `ka` - output analog gain
+/// `pa` receives `n` poles in conjugate pairs, and an odd order puts its one
+/// real pole last. `za` receives `n - n % 2` zeros in conjugate pairs. `ka`
+/// receives the prototype gain.
+///
+/// `es` is not validated and must be positive. Zero or negative values
+/// produce nonfinite poles, zeros, or gain without an error.
+///
+/// # Errors
+///
+/// Returns an error when `n` is zero.
 pub fn iir_design_cheby2_analog(
     n: usize,
     es: f32,

@@ -4,7 +4,15 @@ use crate::error::{Error, Result};
 use crate::filter::{self, Sample};
 use std::f32::consts::PI;
 
-/// Finite impulse response (FIR) interpolator
+/// Finite impulse response filter that interpolates by a fixed factor.
+///
+/// The filter produces a group of `interpolation_factor` output samples for
+/// each input sample. The coefficients are split into that many polyphase
+/// branches, and output `p` of each group comes from branch `p`. A new filter
+/// starts with zero-valued history.
+///
+/// Use [`Self::execute`] to process one input sample at a time, or
+/// [`Self::execute_block`] to process many.
 #[derive(Clone, Debug)]
 pub struct FirInterpolationFilter<T, Coeff = T> {
     h_sub_len: usize,
@@ -20,20 +28,17 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a new interpolator from external coefficients
+    /// Creates an interpolation filter from existing coefficients.
     ///
-    /// If the input filter length is not a multiple of the interpolation
-    /// factor, the object internally pads the coefficients with zeros
-    /// to compensate.
+    /// The coefficients are in time order at the output rate, with
+    /// `coefficients[0]` applied to the newest sample. When their length is
+    /// not a multiple of `interpolation_factor`, they are padded with zeros at
+    /// the end. The output scale starts at one.
     ///
-    /// # Arguments
+    /// # Errors
     ///
-    /// * `interpolation_factor` - interpolation factor
-    /// * `coefficients` - filter coefficients
-    ///
-    /// # Returns
-    ///
-    /// A new interpolator
+    /// Returns an error when `interpolation_factor` is less than two or
+    /// `coefficients` has fewer than `interpolation_factor` entries.
     pub fn new(interpolation_factor: usize, coefficients: &[Coeff]) -> Result<Self> {
         if interpolation_factor < 2 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
@@ -57,17 +62,27 @@ where
         Ok(Self { h_sub_len, interpolation_factor, w, bank, block_scratch: Vec::new() })
     }
 
-    /// Create a new interpolator from a Kaiser prototype
+    /// Creates a Kaiser-windowed interpolation filter.
     ///
-    /// # Arguments
+    /// The filter spans `filter_delay` input symbols on each side of its
+    /// center tap, for `2 * interpolation_factor * filter_delay + 1` taps in
+    /// total before padding. The cutoff is `0.5 / interpolation_factor` cycles
+    /// per output sample, which is the Nyquist frequency of the input.
+    /// Stopband attenuation is given in dB.
     ///
-    /// * `interpolation_factor` - interpolation factor
-    /// * `filter_delay` - filter delay
-    /// * `stopband_attenuation` - stop-band attenuation \[dB\]
+    /// A constant input produces outputs of about the same level, so no scale
+    /// correction is needed for unity gain.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// A new interpolator
+    /// Returns an error when `interpolation_factor` is less than two,
+    /// `filter_delay` is zero, or `stopband_attenuation` is zero or negative.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the tap count overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the count wraps and the design is
+    /// invalid.
     pub fn new_kaiser(interpolation_factor: usize, filter_delay: usize, stopband_attenuation: f32) -> Result<Self> {
         if interpolation_factor < 2 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
@@ -87,19 +102,28 @@ where
         Self::new(interpolation_factor, &hc)
     }
 
-    /// Create a new interpolator from a filter prototype
+    /// Creates an interpolation filter from a pulse-shaping prototype.
     ///
     /// # Arguments
     ///
-    /// * `filter_shape` - filter shape
-    /// * `interpolation_factor` - interpolation factor
-    /// * `filter_delay` - filter delay (symbols)
-    /// * `excess_bandwidth` - excess bandwidth factor
-    /// * `fractional_delay` - fractional sample delay
+    /// - `interpolation_factor`: at least two.
+    /// - `filter_delay`: filter span on each side of the center tap, in input
+    ///   symbols. Must be nonzero.
+    /// - `excess_bandwidth`: rolloff factor, in `[0, 1]`.
+    /// - `fractional_delay`: shift of the impulse response, in output samples,
+    ///   in `[-1, 1]`. A positive value moves it earlier. Some prototypes
+    ///   ignore it.
     ///
-    /// # Returns
+    /// For most prototypes, a constant input produces outputs of about the
+    /// same level. The GMSK prototypes are an exception, so check their level
+    /// before relying on it.
     ///
-    /// A new interpolator
+    /// # Errors
+    ///
+    /// Returns an error when `interpolation_factor` is less than two,
+    /// `filter_delay` is zero, either `excess_bandwidth` or `fractional_delay`
+    /// is outside its range, or the selected prototype rejects the
+    /// configuration.
     pub fn new_prototype(
         filter_shape: filter::FirFilterShape,
         interpolation_factor: usize,
@@ -132,15 +156,15 @@ where
         Self::new(interpolation_factor, &hc)
     }
 
-    /// Create a new linear interpolator
+    /// Creates a linear interpolation filter.
     ///
-    /// # Arguments
+    /// The outputs trace straight lines between consecutive input samples,
+    /// one input sample late. With `L = interpolation_factor`, output `p` of
+    /// the group for input `x[n]` is `(1 - p / L) * x[n - 1] + (p / L) * x[n]`.
     ///
-    /// * `interpolation_factor` - interpolation factor
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new linear interpolator
+    /// Returns an error when `interpolation_factor` is less than two.
     pub fn new_linear(interpolation_factor: usize) -> Result<Self> {
         if interpolation_factor < 1 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
@@ -155,16 +179,24 @@ where
         Self::new(interpolation_factor, &hc)
     }
 
-    /// Create a new window interpolator
+    /// Creates an interpolation filter with a sine-squared impulse response.
     ///
-    /// # Arguments
+    /// The response spans `filter_semi_length` input samples on each side of
+    /// its peak, for `2 * filter_semi_length * interpolation_factor` taps in
+    /// total. A constant input produces outputs of `filter_semi_length` times
+    /// its level. Set the scale to `1 / filter_semi_length` with
+    /// [`Self::set_scale`] for unity gain.
     ///
-    /// * `interpolation_factor` - interpolation factor
-    /// * `filter_semi_length` - filter semi-length
+    /// # Errors
     ///
-    /// # Returns
+    /// Returns an error when `interpolation_factor` is less than two or
+    /// `filter_semi_length` is zero.
     ///
-    /// A new window interpolator
+    /// # Panics
+    ///
+    /// Panics when the tap count overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the count wraps and the design is
+    /// invalid.
     pub fn new_window(interpolation_factor: usize, filter_semi_length: usize) -> Result<Self> {
         if interpolation_factor < 1 {
             return Err(Error::Config("interp factor must be greater than 1".into()));
@@ -182,54 +214,45 @@ where
         Self::new(interpolation_factor, &hc)
     }
 
-    /// Reset the interpolator
+    /// Clears the sample history to zeros.
+    ///
+    /// The scale is unchanged.
     pub fn reset(&mut self) {
         self.w.reset()
     }
 
-    /// Get the interpolation rate
-    ///
-    /// # Returns
-    ///
-    /// The interpolation rate
+    /// Returns the interpolation factor.
     pub fn interp_rate(&self) -> usize {
         self.interpolation_factor
     }
 
-    /// Get the sub-filter length (length of each poly-phase filter)
+    /// Returns the number of taps in each polyphase branch.
     ///
-    /// # Returns
-    ///
-    /// The sub-filter length
+    /// This is also the number of input samples each output depends on.
     pub fn sub_len(&self) -> usize {
         self.h_sub_len
     }
 
-    /// Set the output scaling for interpolator
-    ///
-    /// # Arguments
-    ///
-    /// * `scale` - scaling factor to apply to each output sample
+    /// Sets the factor applied to every output sample.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.bank.set_scale(scale)
     }
 
-    /// Get the output scaling for interpolator
-    ///
-    /// # Returns
-    ///
-    /// The output scaling factor
+    /// Returns the factor applied to every output sample.
     pub fn scale(&self) -> Coeff {
         self.bank.scale()
     }
 
-    /// Execute the interpolator on a single input sample and write the
-    /// corresponding output samples
+    /// Consumes one input sample and writes one group of output samples.
     ///
-    /// # Arguments
+    /// A group is [`Self::interp_rate`] samples, and `output` must hold
+    /// exactly that many.
     ///
-    /// * `input` - input sample
-    /// * `output` - output samples (size: `interp` x 1)
+    /// # Errors
+    ///
+    /// Returns an error when `output` does not have exactly
+    /// [`Self::interp_rate`] entries. The filter and `output` are unchanged on
+    /// error.
     pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
         if output.len() != self.interpolation_factor {
             return Err(Error::Config("output length must equal the interpolation factor".into()));
@@ -239,18 +262,20 @@ where
         Ok(())
     }
 
-    /// Execute the interpolator on a block of input samples
+    /// Consumes every sample of `input` and writes one group of outputs for each.
     ///
-    /// This function will generally be more efficient than running [`execute`](Self::execute)
-    /// on each sample in a slice. Dot product kernels called here may run in a different
-    /// order, so results can differ by floating-point rounding.
+    /// `output` must hold at least `input.len() * interp_rate()` samples.
+    /// Extra output is left unchanged. Returns the number of outputs written.
     ///
-    /// # Arguments
+    /// The result is the same as calling [`Self::execute`] for each input
+    /// sample, up to rounding. Block processing can sum the products in a
+    /// different order, so the last bits can differ.
     ///
-    /// * `input` - input samples (size: `n` x 1)
-    /// * `output` - output samples (size: `n * interp` x 1)
+    /// # Errors
     ///
-    /// Returns the number of output samples written, `n * interp`.
+    /// Returns an error when `input.len() * interp_rate()` overflows `usize`
+    /// or `output` is too short. The filter and `output` are unchanged on
+    /// error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let num_output = input
             .len()
@@ -278,11 +303,16 @@ where
         Ok(num_output)
     }
 
-    /// Execute the interpolator with zero-valued input (e.g. flush internal state)
+    /// Consumes one zero-valued input sample and writes one group of outputs.
     ///
-    /// # Arguments
+    /// Call this after the last input to drain the samples still held in the
+    /// filter history.
     ///
-    /// * `output` - output samples (size: `interp` x 1)
+    /// # Errors
+    ///
+    /// Returns an error when `output` does not have exactly
+    /// [`Self::interp_rate`] entries. The filter and `output` are unchanged on
+    /// error.
     pub fn flush(&mut self, output: &mut [T]) -> Result<()> {
         self.execute(T::zero(), output)
     }

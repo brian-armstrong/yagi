@@ -3,6 +3,17 @@ use crate::error::{Error, Result};
 use crate::filter::IirSecondOrderSection;
 use crate::filter::{self, FirFilterShape, FirPolyphaseFilter, Sample};
 
+/// Symbol timing recovery for a stream with a known nominal symbol rate.
+///
+/// The synchronizer runs the input through a polyphase matched filter and
+/// picks the filter phase closest to the ideal sampling instant. A second
+/// filter bank holds the derivative of the matched filter. Its output drives
+/// a timing-error estimate, which a loop filter smooths once per symbol to
+/// steer the sampling phase and rate.
+///
+/// [`Self::execute`] consumes input samples and produces output at the rate
+/// set with [`Self::set_output_rate`], one sample per symbol by default. Each
+/// output is the matched-filter output divided by `samples_per_symbol`.
 #[derive(Clone, Debug)]
 #[doc(alias = "Symsync")]
 pub struct SymbolSynchronizer<T> {
@@ -33,6 +44,30 @@ where
     T: Sample + std::ops::Mul<f32, Output = T>,
     [T]: DotProd<f32, Output = T>,
 {
+    /// Creates a symbol synchronizer from matched-filter coefficients.
+    ///
+    /// `samples_per_symbol` is the nominal number of input samples per symbol.
+    /// `coefficients` is the prototype for all `num_filters` phases, in time
+    /// order, and its length must be `m * num_filters + 1` for some `m >= 1`.
+    ///
+    /// The derivative filter is computed from the coefficients by central
+    /// differences. When every coefficient times its derivative is zero, as
+    /// with constant coefficients, the derivative filter becomes nonfinite
+    /// and no error is returned.
+    ///
+    /// The synchronizer starts unlocked, with one output sample per symbol and
+    /// a loop bandwidth of 0.01.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two,
+    /// `num_filters` is zero, `coefficients` is empty, or its length does not
+    /// have the required form.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `coefficients` has exactly one element. That length passes
+    /// the form check, but the derivative needs at least two taps.
     pub fn new(samples_per_symbol: usize, num_filters: usize, coefficients: &[f32]) -> Result<Self> {
         if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
@@ -109,6 +144,31 @@ where
         Ok(q)
     }
 
+    /// Creates a symbol synchronizer from a pulse-shaping prototype.
+    ///
+    /// The matched filter is designed from `filter_shape`, usually a
+    /// root-Nyquist shape that matches the transmitter.
+    ///
+    /// # Arguments
+    ///
+    /// - `samples_per_symbol`: nominal input samples per symbol, at least two.
+    /// - `filter_delay`: filter span on each side of its center, in symbols.
+    ///   Must be nonzero.
+    /// - `excess_bandwidth`: rolloff factor, in `[0, 1]`.
+    /// - `num_filters`: number of filter phases. The timing resolution is
+    ///   `1 / num_filters` of an input sample. Must be nonzero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two,
+    /// `filter_delay` or `num_filters` is zero, `excess_bandwidth` is outside
+    /// its range, or the selected prototype rejects the configuration.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `samples_per_symbol * num_filters` or the filter length
+    /// overflows `usize` and overflow checks are enabled. Without overflow
+    /// checks, the length wraps and the design is invalid.
     pub fn new_rnyquist(
         filter_shape: FirFilterShape,
         samples_per_symbol: usize,
@@ -140,6 +200,32 @@ where
         Self::new(samples_per_symbol, num_filters, &h)
     }
 
+    /// Creates a symbol synchronizer with a Kaiser-windowed matched filter.
+    ///
+    /// # Arguments
+    ///
+    /// - `samples_per_symbol`: nominal input samples per symbol, at least two.
+    /// - `filter_delay`: filter span on each side of its center, in symbols.
+    ///   Must be nonzero.
+    /// - `excess_bandwidth`: must lie in `(0, 1]`, but does not change the
+    ///   filter.
+    /// - `num_filters`: number of filter phases. The timing resolution is
+    ///   `1 / num_filters` of an input sample. Must be nonzero.
+    ///
+    /// The cutoff is fixed at `0.75 / samples_per_symbol` cycles per input
+    /// sample and the stopband attenuation at 40 dB.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two,
+    /// `filter_delay` or `num_filters` is zero, or `excess_bandwidth` is
+    /// outside its range.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the filter length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and the design is
+    /// invalid.
     pub fn new_kaiser(
         samples_per_symbol: usize,
         filter_delay: usize,
@@ -177,6 +263,12 @@ where
         Self::new(samples_per_symbol, num_filters, &h)
     }
 
+    /// Clears the timing and loop state and the history of both matched
+    /// filters.
+    ///
+    /// The timing increment returns to its nominal value for the current output
+    /// rate, which discards any [`Self::set_fractional_rate`] setting. The lock
+    /// setting, loop bandwidth, and output rate are kept.
     pub fn reset(&mut self) {
         self.mf.reset();
         self.rate = self.k as f32 / self.k_out as f32;
@@ -191,18 +283,33 @@ where
         self.pll.reset();
     }
 
+    /// Freezes the timing loop at its current rate and phase.
+    ///
+    /// The synchronizer keeps producing output but stops updating its timing
+    /// estimate.
     pub fn lock(&mut self) {
         self.is_locked = true;
     }
 
+    /// Resumes timing-loop updates after [`Self::lock`].
     pub fn unlock(&mut self) {
         self.is_locked = false;
     }
 
+    /// Returns `true` when the timing loop is frozen by [`Self::lock`].
     pub fn is_locked(&self) -> bool {
         self.is_locked
     }
 
+    /// Sets the number of output samples per symbol.
+    ///
+    /// The timing increment returns to its nominal value for the new rate,
+    /// which discards any loop correction. The filter history and timing phase
+    /// are kept.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output_rate` is zero.
     pub fn set_output_rate(&mut self, output_rate: usize) -> Result<()> {
         if output_rate == 0 {
             return Err(Error::Config("output rate must be greater than 0".into()));
@@ -213,6 +320,15 @@ where
         Ok(())
     }
 
+    /// Sets the number of input samples consumed per output sample.
+    ///
+    /// Use this for an output rate that is not a whole number of samples per
+    /// symbol. It replaces the increment set by [`Self::set_output_rate`], and
+    /// [`Self::reset`] restores that increment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `rate` is zero or negative.
     pub fn set_fractional_rate(&mut self, rate: f32) -> Result<()> {
         if rate <= 0.0 {
             return Err(Error::Config("rate must be greater than 0".into()));
@@ -222,13 +338,21 @@ where
         Ok(())
     }
 
-    pub fn set_lf_bw(&mut self, _bandwidth: f32) -> Result<()> {
-        if _bandwidth < 0.0 || _bandwidth > 1.0 {
+    /// Sets the normalized timing-loop bandwidth.
+    ///
+    /// `bandwidth` must lie in `[0, 1]`. The default is 0.01.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bandwidth` is outside `[0, 1]`. The loop is
+    /// unchanged on error.
+    pub fn set_lf_bw(&mut self, bandwidth: f32) -> Result<()> {
+        if bandwidth < 0.0 || bandwidth > 1.0 {
             return Err(Error::Config("bandwidth must be in [0,1]".into()));
         }
 
-        let alpha = 1.0 - _bandwidth;
-        let beta = 0.22 * _bandwidth;
+        let alpha = 1.0 - bandwidth;
+        let beta = 0.22 * bandwidth;
         let a = 0.5;
         let b = 0.495;
 
@@ -237,31 +361,53 @@ where
 
         self.pll.set_coefficients(&b_coeff, &a_coeff)?;
 
-        self.rate_adjustment = 0.5 * _bandwidth;
+        self.rate_adjustment = 0.5 * bandwidth;
         Ok(())
     }
 
+    /// Returns the fractional timing offset, in input samples, at the most
+    /// recent loop update.
     #[allow(clippy::misnamed_getters)]
     pub fn tau(&self) -> f32 {
         self.tau_decim
     }
 
+    /// Returns the number of input samples consumed per output sample.
+    ///
+    /// This is the nominal rate plus the slow correction the loop has
+    /// accumulated.
     pub fn rate(&self) -> f32 {
         self.rate
     }
 
+    /// Returns the timing increment used for the next output sample.
+    ///
+    /// This is [`Self::rate`] plus the current filtered timing error.
     pub fn del(&self) -> f32 {
         self.del
     }
 
+    /// Returns the most recent timing-error estimate, clamped to `[-1, 1]`.
     pub fn q(&self) -> f32 {
         self.q
     }
 
+    /// Returns the timing-error estimate after the loop filter.
     pub fn q_hat(&self) -> f32 {
         self.q_hat
     }
 
+    /// Synchronizes a block of input samples and returns the number of outputs.
+    ///
+    /// The count depends on the timing state and is roughly
+    /// `input.len() / rate()`, so leave some room in `output` beyond that.
+    /// Only the returned number of samples is written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` fills before all input is consumed. By
+    /// then the synchronizer has consumed part of the input and written part of
+    /// `output`, and the number of samples written is lost.
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let mut ny = 0;
 

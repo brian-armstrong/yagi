@@ -1,17 +1,20 @@
 use crate::error::{Error, Result};
 use crate::math::{kaiser, sincf};
 
-/// Design FIR using kaiser window
+/// Designs a low-pass FIR filter as a Kaiser-windowed sinc.
 ///
-/// # Arguments
-/// * `n`      : filter length, n > 0
-/// * `fc`     : cutoff frequency, 0 < fc < 0.5
-/// * `as_`    : stop-band attenuation \[dB\], as_ > 0
-/// * `mu`     : fractional sample offset, -1 <= mu <= 1
+/// The filter has `n` taps and a cutoff of `fc` cycles per sample. `as_` is
+/// the stopband attenuation in dB, which sets the window shape. `mu` shifts
+/// the impulse response by up to one sample, and a positive value moves it
+/// earlier.
 ///
-/// # Returns
+/// The sinc peaks at one rather than `2 * fc`, so a long filter has a DC gain
+/// of about `1 / (2 * fc)`. The exact gain depends on the length and window.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `n` is zero, `fc` is not in `0.0 < fc <= 0.5`,
+/// `as_` is zero or negative, or `mu` is outside `-1.0..=1.0`.
 pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32>> {
     // validate input
     if !(-1.0..=1.0).contains(&mu) {
@@ -49,14 +52,10 @@ pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32
     Ok(h)
 }
 
-/// Compute Kaiser window beta factor from stop-band attenuation
+/// Returns the Kaiser window beta for a stopband attenuation in dB.
 ///
-/// # Arguments
-/// * `as_`    : target filter's stop-band attenuation \[dB\], as_ > 0
-///
-/// # Returns
-///
-/// Kaiser window beta factor
+/// Attenuation of 21 dB or less gives zero, which is a rectangular window.
+/// Negative attenuation is treated as its magnitude.
 pub fn kaiser_beta_stopband_attenuation(as_: f32) -> f32 {
     // [Vaidyanathan:1993]
     let as_abs = as_.abs();

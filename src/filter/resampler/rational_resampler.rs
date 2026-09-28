@@ -3,6 +3,17 @@ use crate::error::{Error, Result};
 use crate::filter::{self, FirFilterShape, FirPolyphaseFilter, Sample};
 use crate::math::gcd;
 
+/// Resampler that changes the sample rate by an exact rational ratio.
+///
+/// The output rate is `p / q` times the input rate. The resampler works in
+/// execution blocks. Each block consumes [`Self::q`] input samples and writes
+/// [`Self::p`] output samples. A new resampler starts with zero-valued
+/// history.
+///
+/// The designed-filter constructors reduce the ratio to lowest terms before
+/// building the filter. The common factor they remove becomes
+/// [`Self::block_len`], so one block still covers the ratio as it was given.
+/// [`Self::interp`] and [`Self::decim`] report the reduced factors.
 #[derive(Clone, Debug)]
 #[doc(alias = "Rresamp")]
 pub struct RationalResampler<T, Coeff = T> {
@@ -19,12 +30,21 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a rational resampler from external filter coefficients.
+    /// Creates a rational resampler from existing filter coefficients.
     ///
-    /// The coefficients are interpreted as a prototype filter operating at
-    /// the interpolated rate. For a linear-phase filter, its nominal midpoint
-    /// determines [`input_delay`](Self::input_delay) and
-    /// [`output_delay`](Self::output_delay).
+    /// The coefficients describe a prototype filter running at the
+    /// interpolated rate, which is `interpolation_factor` times the input
+    /// rate. The rate factors are used as given, even when they share a common
+    /// divisor, so [`Self::block_len`] is one. The output scale starts at one.
+    ///
+    /// The midpoint of the coefficients sets [`Self::input_delay`] and
+    /// [`Self::output_delay`]. That is the true delay only for a linear-phase
+    /// filter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either rate factor is zero or `coefficients` is
+    /// empty.
     pub fn new(interpolation_factor: usize, decimation_factor: usize, coefficients: &[Coeff]) -> Result<Self> {
         if interpolation_factor == 0 {
             return Err(Error::Config("interpolation rate must be greater than zero".into()));
@@ -47,6 +67,39 @@ where
         Ok(q)
     }
 
+    /// Creates a rational resampler with a Kaiser-windowed filter.
+    ///
+    /// # Arguments
+    ///
+    /// - `filter_semi_length`: filter span on each side of the center tap, in
+    ///   input samples.
+    /// - `bandwidth`: cutoff in cycles per input sample, in `(0, 0.5]`. A
+    ///   negative value selects the Nyquist frequency of the slower of the
+    ///   input and output rates.
+    /// - `stopband_attenuation`: in dB. Must be positive.
+    ///
+    /// When decimating, a cutoff above the output Nyquist frequency lets
+    /// aliasing through. The constructor accepts such a cutoff, so pass a
+    /// negative `bandwidth` or choose a lower one to prevent it.
+    ///
+    /// The output scale is set so that a constant input settles to a gain of
+    /// about `sqrt(decimation_factor / interpolation_factor)`. Use
+    /// [`Self::set_scale`] to change the level.
+    ///
+    /// The rate factors are reduced to lowest terms before the filter is
+    /// designed. The reduction casts them to `u32`, so factors above
+    /// `u32::MAX` are truncated and can produce the wrong ratio.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either rate factor is zero, `bandwidth` is zero or
+    /// above 0.5, or `stopband_attenuation` is zero or negative.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the filter length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and the design is
+    /// invalid.
     pub fn new_kaiser(
         interpolation_factor: usize,
         decimation_factor: usize,
@@ -87,6 +140,33 @@ where
         Ok(q)
     }
 
+    /// Creates a rational resampler from a pulse-shaping prototype.
+    ///
+    /// A symbol here is one sample at the slower of the input and output
+    /// rates. The filter spans `filter_semi_length` symbols on each side of its
+    /// center tap, and its cutoff sits at the Nyquist frequency of the slower
+    /// rate. `excess_bandwidth` is the rolloff factor of the selected
+    /// prototype.
+    ///
+    /// For most prototypes, the output scale is set so that a constant input
+    /// settles to a gain of about `sqrt(decimation_factor /
+    /// interpolation_factor)`. The GMSK prototypes are an exception. Use
+    /// [`Self::set_scale`] to change the level.
+    ///
+    /// The rate factors are reduced to lowest terms before the filter is
+    /// designed. The reduction casts them to `u32`, so factors above
+    /// `u32::MAX` are truncated and can produce the wrong ratio.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either rate factor is zero or the selected
+    /// prototype rejects `filter_semi_length` or `excess_bandwidth`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the filter length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and the design is
+    /// invalid.
     pub fn new_prototype(
         filter_shape: FirFilterShape,
         interpolation_factor: usize,
@@ -119,63 +199,107 @@ where
         Ok(q)
     }
 
+    /// Creates a rational resampler with a default Kaiser-windowed filter.
+    ///
+    /// The filter spans 12 input samples on each side of its center tap, with
+    /// a cutoff of 0.5 cycles per input sample and 60 dB of stopband
+    /// attenuation. A constant input settles to a gain of about
+    /// `sqrt(decimation_factor / interpolation_factor)`.
+    ///
+    /// The cutoff does not depend on the ratio. When decimating, it passes
+    /// frequencies above the output Nyquist frequency, which then alias. Use
+    /// [`Self::new_kaiser`] with a lower or negative `bandwidth` to prevent
+    /// that.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either rate factor is zero.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the filter length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and the design is
+    /// invalid.
     pub fn new_kaiser_simple(interpolation_factor: usize, decimation_factor: usize) -> Result<Self> {
         Self::new_kaiser(interpolation_factor, decimation_factor, 12, 0.5, 60.0)
     }
 
+    /// Clears the sample history to zeros.
+    ///
+    /// The scale is unchanged.
     pub fn reset(&mut self) {
         self.pfb.reset()
     }
 
+    /// Sets the factor applied to every output sample.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.pfb.set_scale(scale)
     }
 
+    /// Returns the factor applied to every output sample.
     pub fn scale(&self) -> Coeff {
         self.pfb.scale()
     }
 
-    /// Return the nominal filter delay measured in input samples.
+    /// Returns the filter delay in input samples.
     ///
-    /// This is the prototype filter's midpoint expressed at the input sample
-    /// rate. Arbitrary non-linear-phase coefficients need not have a constant
-    /// group delay equal to this value.
+    /// The delay is the midpoint of the prototype filter, measured at the input
+    /// rate. It matches the group delay only for a linear-phase filter.
     pub fn input_delay(&self) -> f32 {
         (self.coefficient_count - 1) as f32 / (2.0 * self.p as f32)
     }
 
-    /// Return the nominal filter delay measured in output samples.
+    /// Returns the filter delay in output samples.
     ///
-    /// This is the same physical delay as [`input_delay`](Self::input_delay),
-    /// expressed at the output sample rate.
+    /// This is the same delay as [`Self::input_delay`], measured at the output
+    /// rate.
     pub fn output_delay(&self) -> f32 {
         (self.coefficient_count - 1) as f32 / (2.0 * self.q as f32)
     }
 
+    /// Returns the number of reduced-ratio steps in one execution block.
+    ///
+    /// The value is one for [`Self::new`]. For the designed-filter
+    /// constructors, it is the common factor removed from the given ratio.
     pub fn block_len(&self) -> usize {
         self.block_len
     }
 
+    /// Returns the output rate divided by the input rate.
     pub fn rate(&self) -> f32 {
         self.p as f32 / self.q as f32
     }
 
+    /// Returns the number of output samples in one execution block.
     pub fn p(&self) -> usize {
         self.p * self.block_len
     }
 
+    /// Returns the interpolation factor in lowest terms.
     pub fn interp(&self) -> usize {
         self.p
     }
 
+    /// Returns the number of input samples in one execution block.
     pub fn q(&self) -> usize {
         self.q * self.block_len
     }
 
+    /// Returns the decimation factor in lowest terms.
     pub fn decim(&self) -> usize {
         self.q
     }
 
+    /// Returns the number of output samples that `num_input` input samples
+    /// produce.
+    ///
+    /// Only complete execution blocks count. Input left over after the last
+    /// complete block produces no output.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the count overflows `usize` and overflow checks are enabled.
+    /// Without overflow checks, the count wraps.
     pub fn num_output(&self, num_input: usize) -> usize {
         let input_block_size = self.q * self.block_len;
         let output_block_size = self.p * self.block_len;
@@ -183,6 +307,15 @@ where
         num_blocks * output_block_size
     }
 
+    /// Returns the largest number of input samples whose output fits in
+    /// `max_output` samples.
+    ///
+    /// The count is always a whole number of execution blocks.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the count overflows `usize` and overflow checks are enabled.
+    /// Without overflow checks, the count wraps.
     pub fn max_input(&self, max_output: usize) -> usize {
         let input_block_size = self.q * self.block_len;
         let output_block_size = self.p * self.block_len;
@@ -190,10 +323,21 @@ where
         max_blocks * input_block_size
     }
 
+    /// Adds samples to the history without producing output.
     pub fn write(&mut self, buf: &[T]) {
         self.pfb.write(buf)
     }
 
+    /// Consumes one execution block and writes its output.
+    ///
+    /// `input` must hold at least [`Self::q`] samples and `output` at least
+    /// [`Self::p`]. Extra input is ignored and extra output is left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the block size overflows `usize`, `input` is too
+    /// short, or `output` is too short. The resampler and `output` are
+    /// unchanged on error.
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         let q = self.q;
         let p = self.p;
@@ -217,6 +361,17 @@ where
         Ok(())
     }
 
+    /// Consumes `n` execution blocks and writes their output.
+    ///
+    /// `input` must hold at least `n * q()` samples and `output` at least
+    /// `n * p()`. Extra input is ignored and extra output is left unchanged.
+    /// Returns the number of samples written, `n * p()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a required length overflows `usize`, `input` is
+    /// too short, or `output` is too short. The resampler and `output` are
+    /// unchanged on error.
     pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<usize> {
         let input_block_size = self
             .block_len

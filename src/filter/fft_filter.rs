@@ -4,6 +4,16 @@ use crate::filter::Sample;
 use num_complex::Complex32;
 use num_traits::Zero;
 
+/// FIR filter that processes fixed-size blocks in the frequency domain.
+///
+/// The filter uses overlap-add with a transform of twice the block length.
+/// Each [`Self::execute`] call filters one block and keeps the tail of the
+/// result for the next block. Up to roundoff, the output stream matches direct
+/// convolution with the same coefficients, with no added delay. A new filter
+/// starts with zero-valued history.
+///
+/// Filtering is computed with complex arithmetic. With real samples and
+/// complex coefficients, the imaginary part of each output is discarded.
 #[derive(Debug, Clone)]
 #[doc(alias = "FftFilt")]
 pub struct FftFilter<T, Coeff = T> {
@@ -29,6 +39,20 @@ where
     T: Sample,
     Complex32: From<Coeff> + From<T>,
 {
+    /// Creates a filter from existing coefficients.
+    ///
+    /// The coefficients are in time order, with `coefficients[0]` applied to
+    /// the newest sample. Every input and output block holds `block_length`
+    /// samples, which must be at least `coefficients.len() - 1`. The output
+    /// scale starts at one.
+    ///
+    /// Choose a positive `block_length`. A one-tap filter also accepts zero,
+    /// but its blocks are empty and the internal scale divides by zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients` is empty or `block_length` is less
+    /// than `coefficients.len() - 1`.
     pub fn new(coefficients: &[Coeff], block_length: usize) -> Result<Self> {
         let h_len = coefficients.len();
         if h_len == 0 {
@@ -65,6 +89,9 @@ where
         Ok(q)
     }
 
+    /// Clears the history carried between blocks to zero.
+    ///
+    /// The scale is unchanged.
     pub fn reset(&mut self) {
         self.w.fill(Complex32::zero());
     }
@@ -74,14 +101,31 @@ where
     //              std::any::type_name::<TC>(), self.h_len, self.n, self.scale);
     // }
 
+    /// Sets the factor applied to every output sample.
+    ///
+    /// The new scale applies from the next block, including the history
+    /// carried over from the previous one.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale / (2.0 * self.n as f32).into();
     }
 
+    /// Returns the factor applied to every output sample.
+    ///
+    /// The value is stored in a normalized form, so it can differ from the one
+    /// passed to [`Self::set_scale`] by roundoff.
     pub fn scale(&self) -> Coeff {
         self.scale * (2.0 * self.n as f32).into()
     }
 
+    /// Filters one block of input samples.
+    ///
+    /// Both `input` and `output` must hold exactly the block length chosen at
+    /// construction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either slice has a different length. The filter
+    /// and `output` are unchanged on error.
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if input.len() != self.n || output.len() != self.n {
             return Err(Error::Config("input and output lengths must match filter block size".into()));
@@ -119,6 +163,7 @@ where
         Ok(())
     }
 
+    /// Returns the number of filter coefficients.
     pub fn length(&self) -> usize {
         self.h_len
     }

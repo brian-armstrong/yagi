@@ -2,7 +2,16 @@ use crate::error::Result;
 use crate::filter::iir::design::iir_group_delay;
 use crate::filter::Sample;
 
-/// Struct definition
+/// One second-order IIR filter section.
+///
+/// A section holds three numerator and three denominator coefficients in
+/// ascending powers of `z^-1`. [`Self::execute`] runs direct form II, and
+/// [`Self::execute_df1`] runs direct form I.
+///
+/// The two forms keep separate histories. Switching between them midstream
+/// without calling [`Self::reset`] produces wrong output. To build a
+/// higher-order filter from a chain of sections, use
+/// [`IirFilter::new_sos`](crate::filter::IirFilter::new_sos).
 #[derive(Debug, Clone)]
 #[doc(alias = "IirFilterSos")]
 pub struct IirSecondOrderSection<T, Coeff = T> {
@@ -20,7 +29,11 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     Coeff: Sample + std::ops::Mul<T, Output = T>,
 {
-    /// create iirfiltsos object
+    /// Creates a section from numerator and denominator coefficients.
+    ///
+    /// Both are normalized by the first denominator coefficient. A zero there
+    /// is not rejected and makes every coefficient nonfinite. A new section
+    /// starts with zero-valued history.
     pub fn new(numerator_coefficients: &[Coeff; 3], denominator_coefficients: &[Coeff; 3]) -> Result<Self> {
         let mut filter = IirSecondOrderSection {
             b: [Coeff::default(); 3],
@@ -38,7 +51,10 @@ where
         Ok(filter)
     }
 
-    /// set internal filter coefficients
+    /// Replaces the coefficients without clearing the section history.
+    ///
+    /// Both are normalized by the first denominator coefficient. A zero there
+    /// is not rejected and makes every coefficient nonfinite.
     pub fn set_coefficients(
         &mut self,
         numerator_coefficients: &[Coeff; 3],
@@ -63,7 +79,7 @@ where
         Ok(())
     }
 
-    /// clear/reset iirfiltsos object internals
+    /// Clears the direct-form-I and direct-form-II histories to zeros.
     pub fn reset(&mut self) {
         self.v[0] = T::default();
         self.v[1] = T::default();
@@ -78,13 +94,15 @@ where
         self.y[2] = T::default();
     }
 
-    /// compute filter output
+    /// Filters one sample with direct form II.
     #[inline]
     pub fn execute(&mut self, input: T) -> T {
         self.execute_df2(input)
     }
 
-    /// compute filter output, direct form I method
+    /// Filters one sample with direct form I.
+    ///
+    /// Only the direct-form-I history advances.
     pub fn execute_df1(&mut self, input: T) -> T {
         // advance buffer input
         self.x[2] = self.x[1];
@@ -107,7 +125,9 @@ where
         self.y[0]
     }
 
-    /// compute filter output, direct form II method
+    /// Filters one sample with direct form II.
+    ///
+    /// Only the direct-form-II history advances.
     #[inline]
     pub fn execute_df2(&mut self, input: T) -> T {
         // advance buffer
@@ -121,7 +141,18 @@ where
         self.b[0] * self.v[0] + self.b[1] * self.v[1] + self.b[2] * self.v[2]
     }
 
-    /// compute group delay in samples
+    /// Estimates the group delay at `fc` cycles per sample, plus a fixed
+    /// offset of two samples.
+    ///
+    /// The offset is always added, even for a section that passes its input
+    /// straight through, so the result is not the section's true group delay.
+    /// For the estimate without the offset, pass the section's real
+    /// coefficients to [`iir_group_delay`]. Only the real parts of the
+    /// coefficients are used.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         // copy coefficients
         let b: [f32; 3] = [self.b[0].re(), self.b[1].re(), self.b[2].re()];

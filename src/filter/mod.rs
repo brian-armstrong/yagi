@@ -1,4 +1,51 @@
-// Filter module
+//! Stateful filters, filter design, and sample-rate conversion.
+//!
+//! FIR filters such as [`FirFilter`] convolve the input with a fixed set of
+//! coefficients. IIR filters such as [`IirFilter`] also feed back past
+//! outputs, which gives a sharper response for the same amount of work but
+//! a nonlinear phase. The interpolation and decimation filters and the
+//! resamplers change the sample rate as they filter. Most objects design
+//! their own coefficients through a `new_*` constructor, such as
+//! [`FirFilter::new_kaiser`], or accept coefficients from the functions in
+//! [`fir::design`] and [`iir::design`].
+//!
+//! An object keeps its recent input, and any feedback state, between calls,
+//! so a long stream can be processed in pieces of any size. Its `reset`
+//! method clears that history so the next input starts a new stream. Check
+//! an object's `reset` docs for any settings it also restores.
+//!
+//! The processing methods follow a few patterns, although not every object
+//! offers all of them:
+//!
+//! - Filters that read a sample history, such as [`FirFilter`] and
+//!   [`FractionalDelay`], separate input from output. `push` adds one sample
+//!   to the history and `write` adds a slice of them. `execute` then returns
+//!   the output for the current history. Some also offer `execute_one`,
+//!   which pushes a sample and returns the new output.
+//! - Filters with feedback, such as [`IirFilter`], take the input directly.
+//!   `execute` consumes one sample and returns one output.
+//! - Rate changers take one unit of input per `execute` call. An
+//!   interpolator takes one sample and writes a fixed number of outputs, a
+//!   decimator takes one group of samples and returns one output, and
+//!   [`ArbitraryResampler`] writes as many outputs as the sample produces.
+//! - `execute_block` processes a whole slice and writes the outputs to
+//!   another slice. It returns the number of outputs written. Size the
+//!   output from the object's rate or the count the method documents.
+//! - Objects that work in two directions name their methods by direction.
+//!   [`HalfBandResampler`] has `interp_execute` and `decim_execute`, and the
+//!   Hilbert transforms add `r2c_execute` and `c2r_execute`. Most of these
+//!   also have a `_block` form.
+//!
+//! A few objects differ. [`FftFilter`] processes one fixed-size block per
+//! call, and the `execute` of [`SymbolSynchronizer`] takes a whole slice.
+//! Each object's docs give its exact calls.
+//!
+//! Frequencies are normalized to the relevant sample rate and given in cycles
+//! per sample, unless an item states another unit. FIR coefficients are in
+//! time order, with the first coefficient applied to the newest sample.
+//!
+//! Generic filters work on `f32` or `Complex32` samples and coefficients. See
+//! [`Sample`].
 
 mod autocorrelator;
 mod direct_digital_synthesizer;
@@ -18,10 +65,15 @@ mod symbol_synchronizer;
 // For the sake of keeping exports clean, create these sort of faux pub mods below
 // When adding anything new to filter, remember to update these as well.
 
-/// FIR coefficient-design and response-analysis operations.
+/// Finite impulse response filter design.
 pub mod fir {
-    /// FIR coefficient-design and response-analysis operations.
     pub mod design {
+        //! FIR coefficient design and response analysis.
+        //!
+        //! Frequencies are normalized to the sample rate and given in cycles per
+        //! sample. Most low-pass designs accept cutoffs from zero to 0.5.
+        //! Pulse-shaping designs take `k` samples per symbol and a delay of `m`
+        //! symbols, and return `2 * k * m + 1` taps.
         pub use super::super::fir_impl::design::{
             estimate_req_filter_len, estimate_req_filter_len_herrmann, estimate_req_filter_len_kaiser,
             estimate_req_filter_stopband_attenuation, estimate_req_filter_transition_bandwidth, filter_autocorr,
@@ -42,10 +94,19 @@ pub mod fir {
     }
 }
 
-/// IIR coefficient-design and response-analysis operations.
+/// Infinite impulse response filter design.
 pub mod iir {
-    /// IIR coefficient-design and response-analysis operations.
     pub mod design {
+        //! IIR coefficient design and response analysis.
+        //!
+        //! Frequencies are normalized to the sample rate and given in cycles per
+        //! sample. Transfer-function coefficients are in ascending powers of
+        //! `z^-1`. Each second-order section has three numerator and three
+        //! denominator coefficients.
+        //!
+        //! The analog prototype designers return low-pass poles and zeros.
+        //! [`iir_design`] and [`iir_filter_design_prototype`] turn a prototype
+        //! into digital transfer-function or second-order-section coefficients.
         pub use super::super::iir_impl::design::{
             iir_design, iir_design_bessel_analog, iir_design_bilinear_a2d, iir_design_bilinear_z,
             iir_design_butter_analog, iir_design_cheby1_analog, iir_design_cheby2_analog, iir_design_d2sos,
@@ -61,8 +122,8 @@ pub mod iir {
     }
 }
 
-/// Linear-predictive coding design operations.
 pub mod lpc {
+    //! Linear prediction coefficient design.
     pub use super::lpc_impl::design_lpc as design;
 }
 

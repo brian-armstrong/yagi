@@ -13,17 +13,37 @@ mod private {
     impl Sealed for Complex32 {}
 }
 
-/// Numeric sample or coefficient type supported by generic filter APIs.
+/// Sample or coefficient type accepted by the generic filters.
 ///
-/// This trait is sealed. Yagi currently supports `f32` and `Complex32`.
+/// The trait is sealed. It is implemented for `f32` and `Complex32` only.
 pub trait Sample: Default + ComplexFloat<Real = f32> + From<f32> + private::Sealed {
-    /// Convert an FFT-domain processing result to an output sample.
+    /// Converts a complex intermediate result to this sample type.
+    ///
+    /// Conversion to `f32` discards the imaginary part.
     fn from_complex32(value: Complex32) -> Self;
 
-    /// Modulate a real half-band prototype coefficient for a center frequency.
+    /// Shifts a real half-band prototype coefficient to `center_frequency`.
+    ///
+    /// The coefficient is scaled by two and modulated by a carrier at
+    /// `center_frequency` cycles per sample, evaluated `time_offset` samples
+    /// from the center tap. A real result uses a cosine carrier, so its
+    /// passband appears at both `center_frequency` and `-center_frequency`. A
+    /// complex result uses `exp(j*phase)` and shifts the passband only to
+    /// `center_frequency`.
     fn halfband_coefficient(prototype_coefficient: f32, time_offset: f32, center_frequency: f32) -> Self;
 
-    /// Design coefficients for a notch filter.
+    /// Designs a notch filter with `2 * filter_delay + 1` taps.
+    ///
+    /// The notch is at `center_frequency` cycles per sample, and
+    /// `stopband_attenuation` is in dB. Real coefficients notch both
+    /// `center_frequency` and `-center_frequency`. Complex coefficients notch
+    /// only `center_frequency`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `filter_delay` is outside `1..=1000` or
+    /// `stopband_attenuation` is zero or negative. Real coefficients also require
+    /// `center_frequency` in `[-0.5, 0.5]`.
     fn notch_coefficients(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Vec<Self>>;
 }
 

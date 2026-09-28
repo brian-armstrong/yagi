@@ -3,6 +3,19 @@ use crate::error::{Error, Result};
 use crate::filter::{ArbitraryResampler, MultiStageHalfBandResampler, ResampType, Sample};
 use std::f32;
 
+/// Resampler that handles large arbitrary rate changes in stages.
+///
+/// The rate is the output rate divided by the input rate. The resampler
+/// splits it into a power of two, handled by a [`MultiStageHalfBandResampler`],
+/// and a remaining factor between 0.5 and 2, handled by an
+/// [`ArbitraryResampler`]. When interpolating, the arbitrary stage runs first.
+/// When decimating, the half-band stages run first. A new resampler starts
+/// with zero-valued history.
+///
+/// The arbitrary stage rounds its phase step, so the actual rate can differ
+/// slightly from [`Self::rate`], and the number of outputs depends on the
+/// current state. Use [`Self::num_output`] to size an output buffer before
+/// each call. A constant input settles to a gain of about one.
 #[derive(Clone, Debug)]
 #[doc(alias = "MsResamp")]
 pub struct MultiStageResampler<T, Coeff = T> {
@@ -24,6 +37,20 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
+    /// Creates a multi-stage resampler.
+    ///
+    /// `rate` is the output rate divided by the input rate. Stopband
+    /// attenuation is given in dB and applies to every stage.
+    ///
+    /// `rate` must be finite. An infinite `rate` makes this constructor loop
+    /// forever. A NaN `rate` is not rejected, and later calls that count or
+    /// produce output panic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `rate` is zero or negative, the rate needs more than
+    /// 16 half-band stages, or a stage design rejects
+    /// `stopband_attenuation`.
     pub fn new(rate: f32, stopband_attenuation: f32) -> Result<Self> {
         if rate <= 0.0 {
             return Err(Error::Config("resampling rate must be greater than zero".into()));
@@ -78,12 +105,17 @@ where
         })
     }
 
+    /// Clears the history of every stage to zeros.
+    ///
+    /// When decimating, this also discards input held back for an incomplete
+    /// half-band step.
     pub fn reset(&mut self) {
         self.halfband_resamp.reset();
         self.arbitrary_resamp.reset();
         self.buffer_index = 0;
     }
 
+    /// Returns the delay through all stages in input samples.
     pub fn delay(&self) -> f32 {
         let delay_halfband = self.halfband_resamp.delay();
         let delay_arbitrary = self.arbitrary_resamp.delay() as f32;
@@ -102,10 +134,27 @@ where
         }
     }
 
+    /// Returns the requested output rate divided by the input rate.
+    ///
+    /// The actual rate can differ slightly because the arbitrary stage rounds
+    /// its phase step.
     pub fn rate(&self) -> f32 {
         self.rate
     }
 
+    /// Returns the number of output samples that `num_input` more input
+    /// samples produce.
+    ///
+    /// The count depends on the current phase and on any input held back for
+    /// an incomplete half-band step, so compute it immediately before each
+    /// call. It is the output length that [`Self::execute`] and
+    /// [`Self::execute_block`] require for that input.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the arbitrary stage has a zero phase step, which follows
+    /// from a NaN rate. Also panics when the count overflows `usize` and
+    /// overflow checks are enabled. Without overflow checks, the count wraps.
     pub fn num_output(&self, num_input: usize) -> usize {
         match self.type_ {
             ResampType::Interp => {
@@ -119,6 +168,16 @@ where
         }
     }
 
+    /// Returns the largest number of input samples whose output fits in
+    /// `max_output` samples.
+    ///
+    /// The count depends on the current phase and on any input held back for
+    /// an incomplete half-band step.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the count overflows `usize` and overflow checks are enabled.
+    /// Without overflow checks, the count wraps.
     pub fn max_input(&self, max_output: usize) -> usize {
         match self.type_ {
             ResampType::Interp => {
@@ -139,6 +198,21 @@ where
         }
     }
 
+    /// Consumes a block of input samples and writes the outputs they produce.
+    ///
+    /// This runs the stages one sample at a time. `output` must hold at least
+    /// `num_output(input.len())` samples. Returns the number of samples
+    /// written. The rest of `output` is left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is too short, which leaves the resampler
+    /// and `output` unchanged. A stage can also report an error part way
+    /// through, which leaves both partly updated.
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same conditions as [`Self::num_output`].
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let required_output = self.num_output(input.len());
         if output.len() < required_output {
@@ -191,9 +265,16 @@ where
         Ok(ny)
     }
 
-    /// Pre-size the block scratch for blocks of up to `n` input samples so that the first
-    /// [`execute_block`](Self::execute_block) call does not allocate. Larger
-    /// blocks still grow on demand.
+    /// Grows the workspace used by [`Self::execute_block`].
+    ///
+    /// A following call with up to `n` input samples then runs without
+    /// allocating. The size depends on the current state, so reserve again
+    /// after other calls.
+    ///
+    /// # Panics
+    ///
+    /// When interpolating, panics when the arbitrary stage has a zero phase
+    /// step.
     pub fn reserve_block(&mut self, n: usize) {
         match self.type_ {
             ResampType::Interp => {
@@ -215,18 +296,26 @@ where
         }
     }
 
-    /// Execute the cascade over a block of input samples.
+    /// Consumes a block of input samples and writes the outputs they produce.
     ///
-    /// This function will generally be more efficient than running [`execute`](Self::execute)
-    /// on each sample in a slice. Dot product kernels called here may run in a different
-    /// order, so results can differ by floating-point rounding.
+    /// This runs each stage over the whole block before the next one.
+    /// `output` must hold at least `num_output(input.len())` samples. Returns
+    /// the number of samples written. The rest of `output` is left unchanged.
     ///
-    /// # Arguments
+    /// The results can differ slightly from [`Self::execute`], because the
+    /// block dot products may sum in a different order. The call grows an
+    /// internal workspace when needed. Use [`Self::reserve_block`] to allocate
+    /// it in advance.
     ///
-    /// * `input` - input samples
-    /// * `output` - output samples
+    /// # Errors
     ///
-    /// Returns the number of output samples written.
+    /// Returns an error when `output` is too short, which leaves the resampler
+    /// and `output` unchanged. A stage can also report an error part way
+    /// through, which leaves both partly updated.
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same conditions as [`Self::num_output`].
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let required_output = self.num_output(input.len());
         if output.len() < required_output {

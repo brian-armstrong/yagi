@@ -3,6 +3,20 @@ use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat};
 
 use num_complex::Complex32;
 
+/// Infinite impulse response Hilbert transform.
+///
+/// The transform converts between real signals and complex analytic signals,
+/// which keep only the positive-frequency half of the spectrum. Internally it
+/// shifts the signal by a quarter of the sample rate, applies a low-pass
+/// prototype with a cutoff of 0.25 cycles per sample, and shifts it back.
+///
+/// [`Self::r2c_execute`] and [`Self::c2r_execute`] keep the sample rate.
+/// [`Self::decim_execute`] converts two real samples into one complex sample,
+/// and [`Self::interp_execute`] converts one complex sample into two real
+/// samples.
+///
+/// All four modes share the filter history and a phase counter. Call
+/// [`Self::reset`] before starting an independent stream in a different mode.
 #[derive(Clone, Debug)]
 pub struct IirHilbertFilter {
     filt_0: IirFilter<f32, f32>,
@@ -11,6 +25,17 @@ pub struct IirHilbertFilter {
 }
 
 impl IirHilbertFilter {
+    /// Creates a Hilbert transform from a low-pass prototype.
+    ///
+    /// Both branches use the same `filter_shape` prototype with a cutoff of
+    /// 0.25 cycles per sample. `passband_ripple` and `stopband_attenuation`
+    /// are in dB. The transition bands sit near zero frequency and near half
+    /// the sample rate, and a higher `order` makes them narrower.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `order` is zero, `passband_ripple` or
+    /// `stopband_attenuation` is zero or negative, or the prototype design fails.
     pub fn new(
         filter_shape: IirFilterShape,
         order: usize,
@@ -53,6 +78,14 @@ impl IirHilbertFilter {
         Ok(q)
     }
 
+    /// Creates a Butterworth Hilbert transform of the given order.
+    ///
+    /// Butterworth designs have no ripple or attenuation parameters, so this
+    /// calls [`Self::new`] with nominal values for both.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `order` is zero or the prototype design fails.
     pub fn from_order(order: usize) -> Result<Self> {
         if order == 0 {
             return Err(Error::Config("filter order must be greater than zero".into()));
@@ -64,12 +97,14 @@ impl IirHilbertFilter {
         Self::new(ftype, order, ap, as_)
     }
 
+    /// Clears the filter history to zeros and resets the phase counter.
     pub fn reset(&mut self) {
         self.filt_0.reset();
         self.filt_1.reset();
         self.state = 0;
     }
 
+    /// Converts one real sample to one complex analytic sample.
     pub fn r2c_execute(&mut self, input: f32) -> Complex32 {
         let y = match self.state {
             0 => {
@@ -99,6 +134,16 @@ impl IirHilbertFilter {
         y
     }
 
+    /// Converts a block of real samples to complex analytic samples.
+    ///
+    /// `output` must hold at least `input.len()` samples. Extra output is left
+    /// unchanged. The results match calling [`Self::r2c_execute`] on each
+    /// sample. Returns the number of outputs written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The transform
+    /// and `output` are unchanged on error.
     pub fn r2c_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output length must be at least the input length".into()));
@@ -109,6 +154,7 @@ impl IirHilbertFilter {
         Ok(input.len())
     }
 
+    /// Converts one complex sample to one real sample.
     pub fn c2r_execute(&mut self, input: Complex32) -> f32 {
         let y = match self.state {
             0 => {
@@ -134,6 +180,16 @@ impl IirHilbertFilter {
         y
     }
 
+    /// Converts a block of complex samples to real samples.
+    ///
+    /// `output` must hold at least `input.len()` samples. Extra output is left
+    /// unchanged. The results match calling [`Self::c2r_execute`] on each
+    /// sample. Returns the number of outputs written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The transform
+    /// and `output` are unchanged on error.
     pub fn c2r_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output length must be at least the input length".into()));
@@ -144,6 +200,13 @@ impl IirHilbertFilter {
         Ok(input.len())
     }
 
+    /// Converts two real samples to one complex sample.
+    ///
+    /// Samples beyond the first two are ignored.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `input` holds fewer than two samples.
     pub fn decim_execute(&mut self, input: &[f32]) -> Complex32 {
         let xi = if self.state != 0 { -input[0] } else { input[0] };
         let xq = if self.state != 0 { input[1] } else { -input[1] };
@@ -160,6 +223,17 @@ impl IirHilbertFilter {
         y
     }
 
+    /// Converts pairs of real samples to complex samples.
+    ///
+    /// `input.len()` must be even, and `output` must hold at least
+    /// `input.len() / 2` samples. Extra output is left unchanged. The results
+    /// match calling [`Self::decim_execute`] on each pair. Returns the number
+    /// of outputs written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input` has an odd length or `output` is too
+    /// short. The transform and `output` are unchanged on error.
     pub fn decim_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
         if !input.len().is_multiple_of(2) {
             return Err(Error::Config("input length must be a multiple of 2".into()));
@@ -174,6 +248,13 @@ impl IirHilbertFilter {
         Ok(n)
     }
 
+    /// Converts one complex sample to two real samples.
+    ///
+    /// Output beyond the first two samples is left unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `output` holds fewer than two samples.
     pub fn interp_execute(&mut self, input: Complex32, output: &mut [f32]) {
         let yi0 = self.filt_0.execute(input.re);
         let _yi1 = self.filt_0.execute(0.0);
@@ -187,6 +268,16 @@ impl IirHilbertFilter {
         self.state = 1 - self.state;
     }
 
+    /// Converts complex samples to pairs of real samples.
+    ///
+    /// `output` must hold at least `2 * input.len()` samples. Extra output is
+    /// left unchanged. The results match calling [`Self::interp_execute`] on
+    /// each sample. Returns the number of outputs written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is too short. The transform and `output`
+    /// are unchanged on error.
     pub fn interp_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
         let n_out = input
             .len()

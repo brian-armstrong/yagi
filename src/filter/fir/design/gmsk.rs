@@ -26,17 +26,21 @@ fn validate_gmsk_config(k: usize, m: usize, beta: f32, dt: f32) -> Result<usize>
         .ok_or_else(|| Error::Config("filter length overflow".into()))
 }
 
-/// Design GMSK transmit filter
+/// Designs a Gaussian minimum-shift keying (GMSK) transmit pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol (k >= 2)
-/// * `m`      : symbol delay
-/// * `beta`   : bandwidth-time product (0 < beta <= 1)
-/// * `dt`     : fractional sample delay (-1 <= dt <= 1)
+/// The pulse has `k` samples per symbol and spans `m` symbols on each side of
+/// its center tap, for `2 * k * m + 1` taps. `beta` is the bandwidth-time
+/// product. `dt` shifts the pulse in samples, and a positive value moves it
+/// earlier.
 ///
-/// # Returns
+/// The taps are scaled to sum to `pi * k / 2`. Integrating this pulse gives a
+/// phase change of `pi / 2` per symbol, as minimum-shift keying requires.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `k` is less than two, `m` is zero, `beta` is not in
+/// `0.0 < beta <= 1.0`, `dt` is outside `-1.0..=1.0`, the tap count overflows
+/// `usize`, or the taps cannot be normalized.
 pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     let h_len = validate_gmsk_config(k, m, beta, dt)?;
 
@@ -62,17 +66,22 @@ pub fn fir_design_gmsktx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
     Ok(h)
 }
 
-/// Design GMSK receive filter
+/// Designs a GMSK receive pulse for use with [`fir_design_gmsktx`].
 ///
-/// # Arguments
-/// * `k`      : samples/symbol (k >= 2)
-/// * `m`      : symbol delay
-/// * `beta`   : bandwidth-time product (0 < beta <= 1)
-/// * `dt`     : fractional sample delay (-1 <= dt <= 1)
+/// The pulse has `k` samples per symbol and spans `m` symbols on each side of
+/// its center tap, for `2 * k * m + 1` taps. `beta` is the bandwidth-time
+/// product and should match the transmit pulse. `dt` shifts the pulse in
+/// samples, and a positive value moves it earlier.
 ///
-/// # Returns
+/// The receive response is chosen so that the transmit and receive pulses in
+/// cascade approximate a Nyquist pulse. An extra low-pass term improves
+/// stopband rejection.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `k` is less than two, `m` is zero, `beta` is not in
+/// `0.0 < beta <= 1.0`, `dt` is outside `-1.0..=1.0`, the tap count overflows
+/// `usize`, or one of the intermediate designs fails.
 pub fn fir_design_gmskrx(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     let h_len = validate_gmsk_config(k, m, beta, dt)?;
 

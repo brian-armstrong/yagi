@@ -21,16 +21,40 @@ enum IirFilterType {
     Sos,
 }
 
-/// Design coefficients for a prototype IIR filter.
+/// Designs coefficients for a prototype IIR filter.
 ///
-/// * `filter_shape` - Filter shape (e.g. Butterworth)
-/// * `band_type` - Band type (e.g. band-pass)
-/// * `format` - Coefficient format
-/// * `order` - Filter order
-/// * `cutoff_frequency` - Low-pass prototype cutoff frequency
-/// * `center_frequency` - Center frequency (band-pass, band-stop)
-/// * `passband_ripple` - Passband ripple in dB
-/// * `stopband_attenuation` - Stopband attenuation in dB
+/// # Arguments
+///
+/// - `order`: filter order. Must be nonzero.
+/// - `cutoff_frequency`: in cycles per sample, in `(0, 0.5)`. It marks an
+///   approximately -3 dB point for Butterworth and Bessel, the passband edge
+///   for Chebyshev I and elliptic, and the stopband edge for Chebyshev II.
+/// - `center_frequency`: in cycles per sample, in `[0, 0.5]`. Only band-pass
+///   and band-stop designs use it, but it is range-checked for every design.
+/// - `passband_ripple`: in dB. Must be positive. Used by Chebyshev I and
+///   elliptic, but checked for every shape.
+/// - `stopband_attenuation`: in dB. Must be positive. Used by Chebyshev II and
+///   elliptic, but checked for every shape.
+///
+/// For band-pass and band-stop designs, `cutoff_frequency` is one band edge and
+/// `center_frequency` sets the other, as described by
+/// [`iir_design`](crate::filter::iir::design::iir_design).
+///
+/// The result holds the numerator coefficients, the denominator coefficients,
+/// and the number of second-order sections. The section count is zero when
+/// `format` selects a transfer function. Coefficients are in ascending powers of
+/// `z^-1`, with three per section in the cascade form.
+///
+/// # Errors
+///
+/// Returns an error when `order` is zero, a frequency or ripple parameter is out
+/// of range, or a design step fails.
+///
+/// # Panics
+///
+/// Panics when a very large `order` overflows the coefficient-length arithmetic
+/// and overflow checks are enabled. Without overflow checks, the wrapped length
+/// gives a failed or invalid design.
 pub fn iir_filter_design_prototype<Coeff>(
     filter_shape: design::IirFilterShape,
     band_type: design::IirBandType,
@@ -80,9 +104,16 @@ where
     Ok((b, a, nsos))
 }
 
-/// create coefficients for a simplified low-pass Butterworth IIR filter
-///  order  : filter order
-///  fc     : low-pass prototype cut-off frequency
+/// Designs a low-pass Butterworth filter as second-order sections.
+///
+/// `fc` is the approximately -3 dB point in cycles per sample and must lie in
+/// `(0, 0.5)`. The result has the layout described by
+/// [`iir_filter_design_prototype`].
+///
+/// # Errors
+///
+/// Returns an error when `order` is zero, `fc` is outside `(0, 0.5)`, or a
+/// design step fails.
 pub fn iir_filter_design_lowpass<Coeff>(order: usize, fc: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -100,7 +131,14 @@ where
     )
 }
 
-/// create coefficients for an 8th-order integrating filter
+/// Designs a fixed eighth-order integrating filter.
+///
+/// The result is four second-order sections, taken from the digital integrator
+/// of Pintelon and Schoukens (1990). One pole sits at `z = 1`, so a sustained DC
+/// component in the input makes the output grow without bound.
+///
+/// The built-in poles and zeros always group into sections, so this never
+/// returns an error.
 pub fn iir_filter_design_integrator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -146,7 +184,14 @@ where
     Ok((b, a, 4))
 }
 
-/// create coefficients for an 8th-order differentiating filter
+/// Designs a fixed eighth-order differentiating filter.
+///
+/// The result is four second-order sections, taken from the digital
+/// differentiator of Pintelon and Schoukens (1990). One zero sits at `z = 1`, so
+/// the filter rejects DC.
+///
+/// The built-in poles and zeros always group into sections, so this never
+/// returns an error.
 pub fn iir_filter_design_differentiator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -191,14 +236,26 @@ where
     Ok((b, a, 4))
 }
 
-/// create coefficients for a DC-blocking filter
-///  alpha  : DC-blocking filter bandwidth
+/// Designs a first-order DC-blocking filter.
+///
+/// The result is a transfer function with numerator `[1, -1]` and denominator
+/// `[1, alpha - 1]`, so the section count is zero.
 ///
 /// ```text
 ///          1 -          z^-1
 ///  H(z) = ------------------
 ///          1 - (1-alpha)z^-1
 /// ```
+///
+/// The pole sits at `1 - alpha`. A small `alpha` gives a narrow notch around DC.
+/// The filter is stable only for `0 < alpha < 2`. At `alpha == 2` the pole is on
+/// the unit circle, and larger values are unstable. Only zero and negative
+/// values are rejected. Use [`iir_filter_design_dc_blocker_scale`] for the
+/// matching output scale.
+///
+/// # Errors
+///
+/// Returns an error when `alpha` is zero or negative.
 pub fn iir_filter_design_dc_blocker<Coeff>(alpha: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -217,14 +274,15 @@ where
     Ok((b, a, 0))
 }
 
-/// create scaling factor for a DC-blocking filter
-///  alpha  : DC-blocking filter bandwidth
+/// Computes the output scale for [`iir_filter_design_dc_blocker`].
 ///
-/// ```text
-///          1 -          z^-1
-///  H(z) = ------------------
-///          1 - (1-alpha)z^-1
-/// ```
+/// The scale is `sqrt(1 - alpha)`. It is zero at `alpha == 1`, and any larger
+/// `alpha` gives a `NaN` scale. Neither case is rejected, so only
+/// `0 < alpha < 1` gives a usable scale.
+///
+/// # Errors
+///
+/// Returns an error when `alpha` is zero or negative.
 pub fn iir_filter_design_dc_blocker_scale<Coeff>(alpha: f32) -> Result<Coeff>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -236,12 +294,16 @@ where
     Ok(Coeff::from((1.0 - alpha).sqrt()).unwrap())
 }
 
-/// create coefficients for a phase-locked loop iirfilt object
-///  `natural_frequency` : analog-prototype natural angular frequency, normalized
-///                        to the sample interval (approximately radians per sample
-///                        for small values)
-///  `damping_factor`    : damping factor (1/sqrt(2) suggested)
-///  `loop_gain`         : loop gain (1000 suggested)
+/// Designs a second-order active-lag loop filter for a phase-locked loop.
+///
+/// `natural_frequency` is in radians per sample, and `damping_factor` is
+/// dimensionless. A damping factor of `1/sqrt(2)` is a common choice. The result
+/// is one second-order section.
+///
+/// # Errors
+///
+/// Returns an error when `natural_frequency`, `damping_factor`, or `loop_gain`
+/// is zero or negative.
 pub fn iir_filter_design_pll<Coeff>(
     natural_frequency: f32,
     damping_factor: f32,
@@ -271,18 +333,20 @@ where
     Ok((b, a, 1))
 }
 
-/// compute complex frequency response of filter coefficients
+/// Evaluates a transfer function at `fc` cycles per sample, including `scale`.
 ///
-/// # Arguments
+/// Coefficients are in ascending order. The result is `scale * B / A`, where
+/// `B = sum(b[i] * exp(j*2*pi*fc*i))` and `A` is the same sum over `a`.
 ///
-/// * `b` - numerator coefficients
-/// * `a` - denominator coefficients
-/// * `scale` - output scaling
-/// * `fc` - frequency
+/// Neither `fc` nor the coefficient lengths are checked. A zero denominator sum
+/// gives a nonfinite response.
 ///
-/// # Returns
+/// # Warning
 ///
-/// The frequency response
+/// The exponent has a positive sign. The usual convention is
+/// `exp(-j*2*pi*fc*i)`, so this function returns the usual response at `-fc`.
+/// For real coefficients, that is the complex conjugate of the usual response:
+/// the same magnitude with the opposite phase.
 pub fn iir_filter_freqresponse<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> Complex32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -304,19 +368,22 @@ where
     h * scale.into()
 }
 
-/// compute complex frequency response of filter coefficients in second-order sections form
+/// Evaluates a cascade of second-order sections at `fc` cycles per sample,
+/// including `scale`.
 ///
-/// # Arguments
+/// `b` and `a` hold three coefficients per section in ascending powers of
+/// `z^-1`, and `nsos` is the number of sections. The result is the product of
+/// the section responses. With `nsos == 0` the result is `scale`. A zero
+/// section denominator gives a nonfinite response.
 ///
-/// * `b` - numerator coefficients
-/// * `a` - denominator coefficients
-/// * `scale` - output scaling
-/// * `nsos` - number of second-order sections
-/// * `fc` - frequency
+/// # Warning
 ///
-/// # Returns
+/// This uses the positive exponent sign of [`iir_filter_freqresponse`], so the
+/// result is the usual response at `-fc`.
 ///
-/// The frequency response
+/// # Panics
+///
+/// Panics when `b` or `a` is shorter than `3 * nsos`.
 pub fn iir_filter_freqresponse_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> Complex32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -340,7 +407,11 @@ where
     h * scale.into()
 }
 
-/// compute power spectral density response of filter coefficients in dB
+/// Evaluates the power response of a transfer function in dB, including `scale`.
+///
+/// `fc` is in cycles per sample. The result is `10 * log10(|H|^2)`, where `H` is
+/// the response from [`iir_filter_freqresponse`]. A response null gives negative
+/// infinity, and a zero denominator gives a nonfinite result.
 pub fn iir_filter_get_psd<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> f32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -349,7 +420,16 @@ where
     10.0 * (h * h.conj()).re.log10()
 }
 
-/// compute power spectral density response of filter coefficients in dB
+/// Evaluates the power response of a second-order-section cascade in dB,
+/// including `scale`.
+///
+/// `fc` is in cycles per sample. The result is `10 * log10(|H|^2)`, where `H` is
+/// the response from [`iir_filter_freqresponse_sos`]. A response null gives
+/// negative infinity.
+///
+/// # Panics
+///
+/// Panics when `b` or `a` is shorter than `3 * nsos`.
 pub fn iir_filter_get_psd_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> f32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -358,7 +438,17 @@ where
     10.0 * (h * h.conj()).re.log10()
 }
 
-/// compute group delay in samples
+/// Estimates the group delay of a transfer function in samples.
+///
+/// `fc` is in cycles per sample. Only the real parts of the coefficients are
+/// used, so the estimate does not apply to a filter with complex coefficients.
+/// Near a response null the estimate falls back to zero, as described by
+/// [`iir_group_delay`](crate::filter::iir::design::iir_group_delay).
+///
+/// # Errors
+///
+/// Returns an error when `b` or `a` is empty, or when `fc` is outside
+/// `[-0.5, 0.5]`.
 pub fn iir_filter_groupdelay<Coeff>(b: &[Coeff], a: &[Coeff], fc: f32) -> Result<f32>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -376,7 +466,20 @@ where
     Ok(groupdelay)
 }
 
-/// compute group delay in samples
+/// Estimates the group delay of a second-order-section cascade in samples.
+///
+/// `fc` is in cycles per sample. `b` and `a` hold three coefficients per
+/// section, and the estimate is the sum of the section delays. Only the real
+/// parts of the coefficients are used. With `nsos == 0` the result is zero, and
+/// `fc` is not checked.
+///
+/// # Errors
+///
+/// Returns an error when `fc` is outside `[-0.5, 0.5]`.
+///
+/// # Panics
+///
+/// Panics when `b` or `a` is shorter than `3 * nsos`.
 pub fn iir_filter_groupdelay_sos<Coeff>(b: &[Coeff], a: &[Coeff], nsos: usize, fc: f32) -> Result<f32>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -393,7 +496,16 @@ where
     Ok(groupdelay)
 }
 
-/// Infinite impulse response (IIR) filter
+/// Infinite impulse response filter.
+///
+/// The filter runs in one of two forms. A transfer-function filter, built with
+/// [`Self::new`], applies one numerator and one denominator directly. A cascade,
+/// built with [`Self::new_sos`], runs a chain of [`IirSecondOrderSection`]s. The
+/// design constructors pick the form for you.
+///
+/// Every output is multiplied by [`Self::scale`], which starts at one. A new
+/// filter starts with zero-valued history. Use [`Self::execute`] to process one
+/// sample at a time, or [`Self::execute_block`] to process many.
 #[derive(Debug, Clone)]
 pub struct IirFilter<T, Coeff = T> {
     b: Vec<Coeff>,             // numerator (feed-forward coefficients)
@@ -418,24 +530,19 @@ where
     Coeff: Sample + std::ops::Mul<T, Output = T> + Into<Complex32>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a new IIR filter from a numerator and denominator
+    /// Creates a transfer-function filter.
     ///
-    /// # Notes
+    /// Coefficients are in ascending powers of `z^-1`, and the numerator and
+    /// denominator may have different lengths. Both are normalized by the first
+    /// denominator coefficient. A zero there is not rejected and makes every
+    /// coefficient nonfinite.
     ///
-    /// The number of feed-forward and feed-back coefficients do not need to be equal, but they do need to be non-zero.
-    /// Furthermore, the first feed-back coefficient \(a_0\) cannot be equal to zero, otherwise the filter will
-    /// be invalid as this value is factored out from all coefficients.
-    /// For stability reasons the number of coefficients should reasonably not exceed about 8 for single-precision
-    /// floating-point.
+    /// High-order transfer functions can be numerically fragile in `f32`. Use
+    /// [`Self::new_sos`] when second-order sections are available.
     ///
-    /// # Arguments
+    /// # Errors
     ///
-    /// * `numerator_coefficients` - The numerator coefficients
-    /// * `denominator_coefficients` - The denominator coefficients
-    ///
-    /// # Returns
-    ///
-    /// A new IIR filter
+    /// Returns an error when either coefficient slice is empty.
     pub fn new(numerator_coefficients: &[Coeff], denominator_coefficients: &[Coeff]) -> Result<Self> {
         let b = numerator_coefficients;
         let a = denominator_coefficients;
@@ -480,10 +587,18 @@ where
         Ok(filter)
     }
 
-    /// Create an IIR filter from second-order sections.
+    /// Creates a cascade of second-order sections.
     ///
-    /// Each coefficient slice contains three coefficients per section. The
-    /// number of sections is derived from their lengths.
+    /// Each slice holds three coefficients per section, in ascending powers of
+    /// `z^-1`. Section `i` uses elements `3 * i` through `3 * i + 2` of each slice,
+    /// and the sections run in that order. Each section is normalized by its own
+    /// first denominator coefficient. A zero there is not rejected and makes that
+    /// section's coefficients nonfinite.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the slices are empty, differ in length, or have a
+    /// length that is not a multiple of three.
     pub fn new_sos(numerator_coefficients: &[Coeff], denominator_coefficients: &[Coeff]) -> Result<Self> {
         if numerator_coefficients.is_empty() {
             return Err(Error::Config("filter must have at least one second-order section".into()));
@@ -530,16 +645,19 @@ where
         Ok(filter)
     }
 
-    /// create iirfilt (infinite impulse response filter) object based
-    /// on prototype
-    ///  `filter_shape`         : filter shape (e.g. Butterworth)
-    ///  `band_type`            : band type (e.g. band-pass)
-    ///  `format`               : coefficient format
-    ///  `order`                : filter order
-    ///  `cutoff_frequency`     : low-pass prototype cut-off frequency
-    ///  `center_frequency`     : center frequency (band-pass, band-stop)
-    ///  `passband_ripple`      : pass-band ripple in dB
-    ///  `stopband_attenuation` : stop-band attenuation in dB
+    /// Creates a filter from a prototype design.
+    ///
+    /// The parameters mean the same as in [`iir_filter_design_prototype`]. `format`
+    /// chooses between a transfer function and a cascade of second-order sections.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same errors as [`iir_filter_design_prototype`].
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same overflow conditions as
+    /// [`iir_filter_design_prototype`].
     pub fn new_prototype(
         filter_shape: design::IirFilterShape,
         band_type: design::IirBandType,
@@ -570,33 +688,59 @@ where
         Ok(filter)
     }
 
-    /// create simplified low-pass Butterworth IIR filter
-    ///  _n      : filter order
-    ///  `cutoff_frequency` : low-pass prototype cut-off frequency
+    /// Creates a low-pass Butterworth filter as a cascade of second-order sections.
+    ///
+    /// `cutoff_frequency` is the approximately -3 dB point in cycles per sample and
+    /// must lie in `(0, 0.5)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `order` is zero, `cutoff_frequency` is outside
+    /// `(0, 0.5)`, or a design step fails.
     pub fn new_lowpass(order: usize, cutoff_frequency: f32) -> Result<Self> {
         let (b, a, _num_sections) = iir_filter_design_lowpass(order, cutoff_frequency)?;
         Self::new_sos(&b, &a)
     }
 
-    /// create 8th-order integrating filter
+    /// Creates a fixed eighth-order integrator as four second-order sections.
+    ///
+    /// One pole sits at `z = 1`, so a sustained DC component in the input makes the
+    /// output grow without bound. See [`iir_filter_design_integrator`] for the
+    /// design.
+    ///
+    /// The built-in design always succeeds, so this never returns an error.
     pub fn new_integrator() -> Result<Self> {
         let (b, a, _num_sections) = iir_filter_design_integrator()?;
         Self::new_sos(&b, &a)
     }
 
-    /// create 8th-order differentiating filter
+    /// Creates a fixed eighth-order differentiator as four second-order sections.
+    ///
+    /// One zero sits at `z = 1`, so the filter rejects DC. See
+    /// [`iir_filter_design_differentiator`] for the design.
+    ///
+    /// The built-in design always succeeds, so this never returns an error.
     pub fn new_differentiator() -> Result<Self> {
         let (b, a, _num_sections) = iir_filter_design_differentiator()?;
         Self::new_sos(&b, &a)
     }
 
-    /// Create DC-blocking filter
+    /// Creates a first-order DC-blocking filter with its output scale set.
     ///
     /// ```text
     ///          1 -          z^-1
     ///  H(z) = ------------------
     ///          1 - (1-alpha)z^-1
     /// ```
+    ///
+    /// The pole sits at `1 - alpha`, and a small `alpha` gives a narrow notch around
+    /// DC. The output scale is `sqrt(1 - alpha)`. That scale is zero at
+    /// `alpha == 1` and `NaN` above it, and neither case is rejected. Only
+    /// `0 < alpha < 1` gives a usable filter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `alpha` is zero or negative.
     pub fn new_dc_blocker(alpha: f32) -> Result<Self> {
         let (b, a, _nsos) = iir_filter_design_dc_blocker(alpha)?;
         let scale = iir_filter_design_dc_blocker_scale(alpha)?;
@@ -605,18 +749,24 @@ where
         Ok(filter)
     }
 
-    /// create phase-locked loop iirfilt object
-    ///  `natural_frequency` : analog-prototype natural angular frequency, normalized
-    ///                        to the sample interval (approximately radians per sample
-    ///                        for small values)
-    ///  `damping_factor`    : damping factor (1/sqrt(2) suggested)
-    ///  `loop_gain`         : loop gain (1000 suggested)
+    /// Creates a second-order active-lag loop filter for a phase-locked loop.
+    ///
+    /// `natural_frequency` is in radians per sample, and `damping_factor` is
+    /// dimensionless. The filter is a single second-order section, so
+    /// [`Self::set_coefficients`] can update it later.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `natural_frequency`, `damping_factor`, or `loop_gain`
+    /// is zero or negative.
     pub fn new_pll(natural_frequency: f32, damping_factor: f32, loop_gain: f32) -> Result<Self> {
         let (b, a, _num_sections) = iir_filter_design_pll(natural_frequency, damping_factor, loop_gain)?;
         Self::new_sos(&b, &a)
     }
 
-    /// reset internal state of iirfilt object
+    /// Clears the filter history to zeros.
+    ///
+    /// The coefficients and output scale are unchanged.
     pub fn reset(&mut self) {
         if self.filter_type == IirFilterType::Sos {
             for sos in &mut self.qsos {
@@ -627,17 +777,43 @@ where
         }
     }
 
-    /// set output scaling for filter
+    /// Sets the factor applied to every output sample.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
-    /// get output scaling for filter
+    /// Returns the factor applied to every output sample.
     pub fn scale(&self) -> Coeff {
         self.scale
     }
 
-    /// set coefficients for filter
+    /// Replaces the coefficients without clearing the filter history.
+    ///
+    /// For a transfer-function filter, both slices must have the same lengths as the
+    /// current coefficients. The new coefficients are normalized by the first
+    /// denominator coefficient. A zero there is not rejected and makes every
+    /// coefficient nonfinite.
+    ///
+    /// A cascade with one section also accepts new coefficients. It uses the first
+    /// three elements of each slice and ignores the rest. A cascade with more than
+    /// one section cannot be updated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a transfer-function filter receives slices of the wrong
+    /// length, or when a cascade with more than one section receives a nonempty
+    /// slice. The filter is unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a single-section cascade receives a slice shorter than three, or
+    /// when a cascade with more than one section receives two empty slices.
+    ///
+    /// # Warning
+    ///
+    /// On a single-section cascade, the filter runs the new coefficients but
+    /// [`Self::coeffs`], [`Self::freqresponse`], [`Self::psd`], and
+    /// [`Self::groupdelay`] still describe the old section.
     pub fn set_coefficients(
         &mut self,
         numerator_coefficients: &[Coeff],
@@ -669,7 +845,13 @@ where
         Ok(())
     }
 
-    /// get coefficients for filter
+    /// Returns copies of the stored numerator and denominator coefficients.
+    ///
+    /// For a transfer-function filter, they are normalized by the first denominator
+    /// coefficient. For a cascade, they are the section coefficients as passed to
+    /// [`Self::new_sos`], three per section and not normalized. After
+    /// [`Self::set_coefficients`] on a single-section cascade, they still hold the
+    /// original section.
     pub fn coeffs(&self) -> (Vec<Coeff>, Vec<Coeff>) {
         (self.b.clone(), self.a.clone())
     }
@@ -728,9 +910,7 @@ where
         y * self.scale
     }
 
-    /// execute iir filter, switching to type-specific function
-    ///  _x      :   input sample
-    ///  _y      :   output sample
+    /// Filters one sample and returns one output sample.
     pub fn execute(&mut self, input: T) -> T {
         match self.filter_type {
             IirFilterType::Norm => self.execute_norm(input),
@@ -755,7 +935,16 @@ where
         }
     }
 
-    /// execute filter block
+    /// Filters a block of samples and returns `input.len()`.
+    ///
+    /// `output` must be at least as long as `input`, and extra output is left
+    /// unchanged. The results match calling [`Self::execute`] on each sample in
+    /// turn.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The filter and
+    /// `output` are unchanged on error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output block length must be at least the input length".into()));
@@ -783,14 +972,25 @@ where
         Ok(input.len())
     }
 
-    /// get filter length (order + 1)
+    /// Returns the filter length.
+    ///
+    /// The meaning differs by form. For a transfer-function filter, it is the longer
+    /// of the two coefficient counts, which is the order plus one. For a cascade, it
+    /// is twice the number of sections.
     pub fn length(&self) -> usize {
         self.n
     }
 
-    /// compute complex frequency response
-    ///  _fc     :   frequency
-    ///  _H      :   output frequency response
+    /// Evaluates the frequency response at `fc` cycles per sample, including the
+    /// output scale.
+    ///
+    /// After [`Self::set_coefficients`] on a single-section cascade, it still
+    /// describes the old section.
+    ///
+    /// # Warning
+    ///
+    /// This uses the positive exponent sign of [`iir_filter_freqresponse`], so the
+    /// result is the usual response at `-fc`.
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_freqresponse(&self.b, &self.a, self.scale, fc)
@@ -799,7 +999,11 @@ where
         }
     }
 
-    /// compute power spectral density response of filter object in dB
+    /// Evaluates the power response in dB at `fc` cycles per sample, including the
+    /// output scale.
+    ///
+    /// A response null gives negative infinity. After [`Self::set_coefficients`] on
+    /// a single-section cascade, it still describes the old section.
     pub fn psd(&self, fc: f32) -> f32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_get_psd(&self.b, &self.a, self.scale, fc)
@@ -808,7 +1012,15 @@ where
         }
     }
 
-    /// compute group delay in samples
+    /// Estimates the group delay in samples at `fc` cycles per sample.
+    ///
+    /// The output scale and the imaginary parts of the coefficients are ignored.
+    /// After [`Self::set_coefficients`] on a single-section cascade, the estimate
+    /// still describes the old section.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_groupdelay(&self.b, &self.a, fc)

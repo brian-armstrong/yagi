@@ -95,16 +95,27 @@ fn firdespm_halfband_utility(gamma: f32, userdata: &mut ParksMcClellanWorkspace)
     }
 }
 
-/// Design halfband filter using Parks-McClellan algorithm given the
-/// filter length and desired transition band
+/// Designs a half-band low-pass filter with a given transition width.
 ///
-/// # Arguments
-/// * `m` : filter semi-length
-/// * `ft` : desired transition band
+/// A half-band filter has its cutoff at 0.25 cycles per sample, and every
+/// other tap is zero except the center tap. That makes it a cheap filter for
+/// decimating or interpolating by two. The filter has `4 * m + 1` taps and a
+/// passband gain of one. `ft` is the transition width in cycles per sample,
+/// centered on 0.25.
 ///
-/// # Returns
+/// The design runs a Parks-McClellan filter inside a search that minimizes
+/// stopband energy. `m` should be positive and `ft` in `(0, 0.5)`. These
+/// are not checked, and other values can give an unusable design or an
+/// error.
 ///
-/// A vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when the search or a Parks-McClellan design fails.
+///
+/// # Panics
+///
+/// Panics when `4 * m + 1` or a workspace size overflows `usize` and overflow
+/// checks are enabled. Without overflow checks the sizes wrap.
 pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
     // create and initialize object
     let mut q = ParksMcClellanWorkspace::new(m, 4 * m + 1, 1200, ft)?;
@@ -129,16 +140,22 @@ pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
     Ok(q.h)
 }
 
-/// Design halfband filter using Parks-McClellan algorithm given the
-/// filter length and desired stop-band suppression
+/// Designs a half-band low-pass filter for a stopband attenuation.
 ///
-/// # Arguments
-/// * `m` : filter semi-length
-/// * `as_` : desired stop-band suppression
+/// The filter has `4 * m + 1` taps. `as_` is the stopband attenuation in dB.
+/// The transition width is estimated from `as_` and the length, then passed
+/// to [`fir_design_pm_halfband_ft`]. Because the width is an estimate, the
+/// filter is not guaranteed to reach `as_`. `m` should be positive and is not
+/// checked.
 ///
-/// # Returns
+/// # Errors
 ///
-/// A vec of filter coefficients
+/// Returns an error when `as_` is zero or negative or the design fails.
+///
+/// # Panics
+///
+/// Panics when `4 * m + 1` or a workspace size overflows `usize` and overflow
+/// checks are enabled. Without overflow checks the sizes wrap.
 pub fn fir_design_pm_halfband_stopband_attenuation(m: usize, as_: f32) -> Result<Vec<f32>> {
     // estimate transition band given other parameters
     let ft = estimate_req_filter_transition_bandwidth(as_, 4 * m + 1)?;

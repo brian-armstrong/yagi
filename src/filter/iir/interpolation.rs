@@ -3,6 +3,20 @@ use crate::error::{Error, Result};
 use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat, Sample};
 use num_complex::Complex32;
 
+/// Infinite impulse response filter that interpolates by a fixed factor.
+///
+/// Each input sample produces `interpolation_factor` output samples. The
+/// filter runs at the output rate and sees each input sample followed by
+/// `interpolation_factor - 1` zeros. A new filter starts with zero-valued
+/// history.
+///
+/// Inserting zeros lowers the output level. With a unit-gain filter, a
+/// constant input produces an output of about `1 / interpolation_factor`
+/// times its level. [`Self::new_prototype`] compensates by scaling the
+/// output, and [`Self::new`] leaves the scaling to the caller.
+///
+/// Use [`Self::execute`] to process one input sample at a time, or
+/// [`Self::execute_block`] to process many.
 #[derive(Debug, Clone)]
 pub struct IirInterpolationFilter<T, Coeff = T> {
     m: usize,                     // interpolation factor
@@ -15,7 +29,17 @@ where
     Coeff: Sample + std::ops::Mul<T, Output = T> + Into<Complex32>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// create interpolator from external coefficients
+    /// Creates an interpolation filter from transfer-function coefficients.
+    ///
+    /// The coefficients follow the conventions of [`IirFilter::new`] and run at
+    /// the output rate. The output is not scaled, so unit-gain coefficients
+    /// produce about `1 / interpolation_factor` of the input level. Multiply
+    /// the numerator coefficients by `interpolation_factor` to restore it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `interpolation_factor` is less than two or either
+    /// coefficient slice is empty.
     pub fn new(
         interpolation_factor: usize,
         numerator_coefficients: &[Coeff],
@@ -32,7 +56,20 @@ where
         Ok(IirInterpolationFilter { m: interpolation_factor, iirfilt })
     }
 
-    /// Create an interpolator with a Chebyshev Type II prototype.
+    /// Creates a low-pass Chebyshev type II interpolation filter.
+    ///
+    /// The stopband begins at `0.5 / interpolation_factor` cycles per output
+    /// sample, which is the Nyquist frequency of the input. Attenuation there
+    /// is 60 dB. The passband ends below that edge by an amount that depends
+    /// on `order`, so the top of the input band can be attenuated.
+    ///
+    /// The output is scaled by `interpolation_factor` to offset the level lost
+    /// to zero insertion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `interpolation_factor` is less than two or
+    /// `order` is zero.
     pub fn new_chebyshev2(interpolation_factor: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
             interpolation_factor,
@@ -47,7 +84,17 @@ where
         )
     }
 
-    /// create interpolator from prototype
+    /// Creates an interpolation filter from a prototype design.
+    ///
+    /// Frequencies are in cycles per output sample. The design parameters are
+    /// passed to [`IirFilter::new_prototype`], which describes their meaning.
+    /// The output is scaled by `interpolation_factor` to offset the level lost
+    /// to zero insertion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `interpolation_factor` is less than two or the
+    /// prototype design rejects the parameters.
     pub fn new_prototype(
         interpolation_factor: usize,
         filter_shape: IirFilterShape,
@@ -95,12 +142,19 @@ where
     //     println!("<liquid.iirinterp, interp={}>", self.m);
     // }
 
-    /// clear internal state
+    /// Clears the filter history to zeros.
     pub fn reset(&mut self) {
         self.iirfilt.reset();
     }
 
-    /// execute interpolator
+    /// Consumes one input sample and writes `interpolation_factor` outputs.
+    ///
+    /// `output` must hold exactly `interpolation_factor` samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` has any other length. The filter and
+    /// `output` are unchanged on error.
     pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
         if output.len() != self.m {
             return Err(Error::Config("output length must equal the interpolation factor".into()));
@@ -113,7 +167,19 @@ where
         Ok(())
     }
 
-    /// execute interpolation on block of input samples
+    /// Consumes a block of input samples and writes `interpolation_factor`
+    /// outputs for each.
+    ///
+    /// `output` must hold at least `input.len() * interpolation_factor`
+    /// samples. Extra output is left unchanged. The results match calling
+    /// [`Self::execute`] on each input sample. Returns the number of outputs
+    /// written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input.len() * interpolation_factor` overflows
+    /// `usize` or `output` is too short. The filter and `output` are unchanged
+    /// on error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let required_output = input
             .len()
@@ -131,7 +197,16 @@ where
         Ok(required_output)
     }
 
-    /// get system group delay at frequency fc
+    /// Estimates the group delay at `fc` cycles per output sample.
+    ///
+    /// The delay is measured in input samples. The filter runs at the output
+    /// rate, so its delay in output samples is divided by
+    /// `interpolation_factor`. [`IirFilter::groupdelay`] describes the limits
+    /// of the estimate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         Ok(self.iirfilt.groupdelay(fc)? / (self.m as f32))
     }

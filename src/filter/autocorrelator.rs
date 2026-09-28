@@ -7,7 +7,16 @@ use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
 use crate::filter::Sample;
 
-/// Computes auto-correlation with a fixed lag on input signals
+/// Stateful auto-correlator with a fixed window and lag.
+///
+/// The correlator keeps a history of recent input. [`Self::execute`] returns
+/// `sum(x[n - i] * conj(x[n - i - delay]))` over the most recent `window_size`
+/// samples, where `x[n]` is the newest sample. The result is not normalized.
+/// [`Self::energy`] returns the matching window energy for normalization.
+///
+/// Push samples with [`Self::push`] or [`Self::write`] and read the result with
+/// [`Self::execute`], or use [`Self::execute_block`] to do both for each sample
+/// in a block.
 #[derive(Clone, Debug)]
 #[doc(alias = "AutoCorr")]
 pub struct Autocorrelator<T> {
@@ -27,10 +36,21 @@ where
     T: Sample,
     [T]: DotProd<T, Output = T>,
 {
-    /// create auto-correlator object with a particular window length and delay
+    /// Creates an auto-correlator with a fixed window and lag.
     ///
-    ///  window_size    : size of the correlator window
-    ///  delay          : correlator delay [samples]
+    /// Both `window_size` and `delay` are measured in input samples. The
+    /// history starts at zero, so results include zero-valued samples until
+    /// `window_size + delay` samples have been pushed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `window_size` is zero.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `window_size + delay` overflows `usize` and overflow checks
+    /// are enabled. Without overflow checks, the sum wraps and the delayed
+    /// history is too short.
     pub fn new(window_size: usize, delay: usize) -> Result<Self> {
         if window_size == 0 {
             return Err(Error::Config("autocorr window size must be greater than zero".into()));
@@ -56,7 +76,7 @@ where
         Ok(q)
     }
 
-    /// reset auto-correlator object's internals
+    /// Clears the input history and the window energy to zero.
     pub fn reset(&mut self) {
         // clear/reset internal window buffers
         self.w.reset();
@@ -68,17 +88,17 @@ where
         self.ie2 = 0; // reset read index to zero
     }
 
-    /// size of the correlator window
+    /// Returns the number of samples summed in each correlation.
     pub fn window_size(&self) -> usize {
         self.window_size
     }
 
-    /// correlator delay [samples]
+    /// Returns the lag between the two correlated sequences, in samples.
     pub fn delay(&self) -> usize {
         self.delay
     }
 
-    /// push sample into auto-correlator object
+    /// Adds one sample to the history without computing a correlation.
     pub fn push(&mut self, input: T) {
         // push input sample into buffers
         self.w.push(input); // non-delayed buffer
@@ -92,16 +112,17 @@ where
         self.ie2 = (self.ie2 + 1) % self.window_size;
     }
 
-    /// write block of samples to auto-correlator object
-    ///
-    ///  input      :   input array
+    /// Adds a block of samples to the history without computing a
+    /// correlation.
     pub fn write(&mut self, input: &[T]) {
         for &xi in input {
             self.push(xi);
         }
     }
 
-    /// compute single auto-correlation output
+    /// Returns the unnormalized correlation of the current history.
+    ///
+    /// The history is not changed, so repeated calls return the same value.
     pub fn execute(&self) -> T {
         // read buffers
         let rw = self.w.read();
@@ -111,10 +132,15 @@ where
         rw.dotprod(&rwdelay[..self.window_size])
     }
 
-    /// compute auto-correlation on block of samples
+    /// Pushes each sample of a block and writes the correlation after each one.
     ///
-    ///  input      :   input array
-    ///  rxx    :   output array
+    /// `rxx` must hold at least `input.len()` values. Extra entries are left
+    /// unchanged. Returns `input.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `rxx` is shorter than `input`. The history and
+    /// `rxx` are unchanged on error.
     pub fn execute_block(&mut self, input: &[T], rxx: &mut [T]) -> Result<usize> {
         if rxx.len() < input.len() {
             return Err(Error::Range("autocorr output array too small".into()));
@@ -130,7 +156,17 @@ where
         Ok(input.len())
     }
 
-    /// return sum of squares of buffered samples
+    /// Returns the energy of the most recent `window_size` samples.
+    ///
+    /// The energy is `sum(|x[n - i]|^2)` over the same samples as the
+    /// undelayed side of the correlation.
+    ///
+    /// The value is a running sum that adds each new sample and subtracts the
+    /// one leaving the window. Roundoff accumulates over long runs, especially
+    /// after a large drop in input level. The result can then differ
+    /// substantially from a fresh sum, or even become zero or negative. No
+    /// error is reported. Call [`Self::reset`] after a level change when an
+    /// accurate normalization is required.
     pub fn energy(&self) -> f32 {
         // value is already computed; simply return value
         self.e2_sum

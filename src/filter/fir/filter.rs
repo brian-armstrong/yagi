@@ -4,18 +4,25 @@ use crate::error::{Error, Result};
 use crate::filter::{self, Sample};
 use num_complex::{Complex32, ComplexFloat};
 
-/// create coefficients for a Kaiser-Bessel windowed sinc filter
+/// Designs a Kaiser-windowed low-pass filter with `Coeff` taps.
+///
+/// The taps are those of [`crate::filter::fir::design::fir_design_kaiser`],
+/// converted to `Coeff`.
 ///
 /// # Arguments
 ///
-/// * `n` - filter length
-/// * `fc` - cutoff frequency
-/// * `as_` - stop-band attenuation
-/// * `mu` - fractional sample offset
+/// - `n`: number of taps. Must be nonzero.
+/// - `fc`: cutoff frequency, in cycles per sample, in `(0, 0.5]`.
+/// - `as_`: stopband attenuation, in dB. Must be positive.
+/// - `mu`: fractional delay, in samples, in `[-1, 1]`. A positive value moves
+///   the impulse response earlier.
 ///
-/// # Returns
+/// The DC gain is about `1 / (2 * fc)` for a long enough filter, not one.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `n` is zero, `fc` is outside `(0, 0.5]`, `as_` is
+/// zero or negative, or `mu` is outside `[-1, 1]`.
 pub fn fir_filter_design_kaiser<Coeff>(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<Coeff>>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -26,19 +33,25 @@ where
     Ok(h_c)
 }
 
-/// create coefficients for a square-root Nyquist prototype
+/// Designs a pulse-shaping prototype with `Coeff` taps.
+///
+/// The taps are those of [`crate::filter::fir::design::fir_design_prototype`],
+/// converted to `Coeff`.
 ///
 /// # Arguments
 ///
-/// * `ftype` - filter type
-/// * `k` - nominal samples/symbol
-/// * `m` - filter delay
-/// * `beta` - rolloff factor
-/// * `mu` - fractional sample offset
+/// - `k`: samples per symbol.
+/// - `m`: filter span on each side of the center tap, in symbols.
+/// - `beta`: rolloff factor, normally in `[0, 1]`. The exact range
+///   depends on the prototype.
+/// - `mu`: fractional delay, in samples. A positive value moves the impulse
+///   response earlier. Some prototypes ignore it.
 ///
-/// # Returns
+/// The filter has `2 * k * m + 1` taps.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when the selected prototype rejects the configuration.
 pub fn fir_filter_design_rnyquist<Coeff>(
     ftype: filter::FirFilterShape,
     k: usize,
@@ -55,17 +68,21 @@ where
     Ok(h_c)
 }
 
-/// create coefficients for a Parks-McClellan algorithm
+/// Designs an equiripple low-pass filter with `Coeff` taps.
 ///
-/// # Arguments
+/// The filter has `h_len` taps and a cutoff of `fc` cycles per sample. The
+/// stopband attenuation `as_` is in dB.
 ///
-/// * `h_len` - filter length
-/// * `fc` - cutoff frequency
-/// * `as_` - stop-band attenuation
+/// The design from [`crate::filter::fir::design::fir_design_pm_lowpass`] has
+/// a passband gain of about one. This function multiplies its taps by
+/// `0.5 / fc` to match the other low-pass designs, so the DC gain is about
+/// `1 / (2 * fc)`. The factor is fixed, not measured from the result.
 ///
-/// # Returns
+/// # Errors
 ///
-/// Vec of filter coefficients
+/// Returns an error when `h_len` is zero, `fc` is outside `[0, 0.5]`, `as_`
+/// is zero or negative, or the equiripple design rejects the band edges derived
+/// from `fc` or fails to converge.
 pub fn fir_filter_design_firdespm<Coeff>(h_len: usize, fc: f32, as_: f32) -> Result<Vec<Coeff>>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -80,15 +97,11 @@ where
     Ok(h_c)
 }
 
-/// create coefficients for a rectangular filter prototype
+/// Designs a rectangular filter of `n` taps, each equal to one.
 ///
-/// # Arguments
+/// # Errors
 ///
-/// * `n` - filter length
-///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// Returns an error when `n` is zero or greater than 1024.
 pub fn fir_filter_design_rect<Coeff>(n: usize) -> Result<Vec<Coeff>>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -101,16 +114,15 @@ where
     Ok(h)
 }
 
-/// create coefficients for a DC blocking filter
+/// Designs a DC-blocking filter with `Coeff` taps.
 ///
-/// # Arguments
+/// The taps are those of [`crate::filter::fir::design::fir_design_notch`] at
+/// zero frequency, converted to `Coeff`. The filter has `2 * m + 1` taps and
+/// a delay of `m` samples. The stopband attenuation `as_` is in dB.
 ///
-/// * `m` - filter delay
-/// * `as_` - stop-band attenuation
+/// # Errors
 ///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// Returns an error when `m` is outside `1..=1000` or `as_` is zero or negative.
 pub fn fir_filter_design_dc_blocker<Coeff>(m: usize, as_: f32) -> Result<Vec<Coeff>>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -121,17 +133,24 @@ where
     Ok(h_c)
 }
 
-/// create coefficients for a notch filter
+/// Designs a notch filter with `Coeff` taps.
 ///
-/// # Arguments
+/// The filter has `2 * m + 1` taps and a delay of `m` samples. It removes the
+/// frequency `f0`, in cycles per sample, with a stopband attenuation of `as_`
+/// dB.
 ///
-/// * `m` - filter delay
-/// * `as_` - stop-band attenuation
-/// * `f0` - center frequency
+/// Real coefficients come from the real notch design, which also removes
+/// `-f0`. Complex coefficients are a DC blocker shifted to `f0`, so only `f0`
+/// is removed.
 ///
-/// # Returns
+/// This function takes `as_` before `f0`. The lower-level
+/// [`crate::filter::fir::design::fir_design_notch`] takes them in the
+/// opposite order.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `m` is outside `1..=1000` or `as_` is zero or negative.
+/// Real coefficients also require `f0` to lie in `[-0.5, 0.5]`.
 pub fn fir_filter_design_notch<Coeff>(m: usize, as_: f32, f0: f32) -> Result<Vec<Coeff>>
 where
     Coeff: Sample,
@@ -139,17 +158,10 @@ where
     Coeff::notch_coefficients(m, as_, f0)
 }
 
-/// compute complex frequency response of filter coefficients
+/// Evaluates the frequency response of taps `h` at `fc` cycles per sample.
 ///
-/// # Arguments
-///
-/// * `h` - filter coefficients
-/// * `scale` - output scaling
-/// * `fc` - normalized frequency for evaluation
-///
-/// # Returns
-///
-/// The frequency response
+/// The response is multiplied by `scale`. `fc` is not range-checked, and an
+/// empty `h` has zero response.
 pub fn fir_filter_freqresponse<Coeff>(h: &[Coeff], scale: Coeff, fc: f32) -> Complex32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -159,17 +171,10 @@ where
     h_fc * Complex32::from(scale)
 }
 
-/// compute power spectral density response of filter coefficients in dB
+/// Evaluates the power response of taps `h` in dB at `fc` cycles per sample.
 ///
-/// # Arguments
-///
-/// * `h` - filter coefficients
-/// * `scale` - output scaling
-/// * `fc` - normalized frequency for evaluation
-///
-/// # Returns
-///
-/// The power spectral density
+/// The response is multiplied by `scale` before squaring. A zero response
+/// gives negative infinity.
 pub fn fir_filter_get_psd<Coeff>(h: &[Coeff], scale: Coeff, fc: f32) -> f32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -179,16 +184,14 @@ where
     10.0 * (h * h.conj()).re.log10()
 }
 
-/// compute and return group delay of filter coefficients
+/// Estimates the group delay of taps `h` in samples at `fc` cycles per sample.
 ///
-/// # Arguments
+/// Only the real part of each tap is used, so the result is not the group
+/// delay of a filter with complex taps.
 ///
-/// * `h` - filter coefficients
-/// * `fc` - normalized frequency for evaluation
+/// # Errors
 ///
-/// # Returns
-///
-/// The group delay
+/// Returns an error when `h` is empty or `fc` is outside `[-0.5, 0.5]`.
 pub fn fir_filter_groupdelay<Coeff>(h: &[Coeff], fc: f32) -> Result<f32>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -197,7 +200,15 @@ where
     filter::fir::design::fir_group_delay(&h, fc)
 }
 
-/// Finite impulse response (FIR) filter
+/// Finite impulse response filter with its own sample history.
+///
+/// Coefficient `h[i]` multiplies the input from `i` samples ago, so `h[0]`
+/// applies to the newest sample. Every output is multiplied by the output
+/// scale, which starts at one. A new filter starts with zero-valued history.
+///
+/// Use [`Self::execute_one`] or [`Self::execute_block`] to filter a stream.
+/// To add samples without computing outputs, use [`Self::push`] or
+/// [`Self::write`] and read the output later with [`Self::execute`].
 #[derive(Debug, Clone)]
 pub struct FirFilter<T, Coeff = T>
 where
@@ -217,15 +228,14 @@ where
     [T]: DotProd<Coeff, Output = T>,
     Complex32: From<Coeff>,
 {
-    /// create filter using coefficients directly specified in an array
+    /// Creates a filter from existing coefficients.
     ///
-    /// # Arguments
+    /// The coefficients are in time order, with `coefficients[0]` applied to
+    /// the newest sample.
     ///
-    /// * `coefficients` - filter coefficients
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new `Firfilt` object.
+    /// Returns an error when `coefficients` is empty.
     pub fn new(coefficients: &[Coeff]) -> Result<Self> {
         let h_len = coefficients.len();
         if h_len == 0 {
@@ -245,18 +255,25 @@ where
         Ok(q)
     }
 
-    /// create filter using Kaiser-Bessel windowed sinc method
+    /// Creates a Kaiser-windowed low-pass filter.
     ///
     /// # Arguments
     ///
-    /// * `filter_length` - filter length
-    /// * `cutoff_frequency` - cutoff frequency
-    /// * `stopband_attenuation` - stop-band attenuation
-    /// * `fractional_delay` - fractional sample offset
+    /// - `filter_length`: number of taps. Must be nonzero.
+    /// - `cutoff_frequency`: in cycles per sample, in `(0, 0.5]`.
+    /// - `stopband_attenuation`: in dB. Must be positive.
+    /// - `fractional_delay`: in samples, in `[-1, 1]`. A positive value moves
+    ///   the impulse response earlier.
     ///
-    /// # Returns
+    /// The DC gain is about `1 / (2 * cutoff_frequency)` for a long enough
+    /// filter. Set the scale to `2 * cutoff_frequency` with
+    /// [`Self::set_scale`] for unity gain.
     ///
-    /// A new `Firfilt` object.
+    /// # Errors
+    ///
+    /// Returns an error when `filter_length` is zero, `cutoff_frequency` is
+    /// outside `(0, 0.5]`, `stopband_attenuation` is zero or negative, or
+    /// `fractional_delay` is outside `[-1, 1]`.
     pub fn new_kaiser(
         filter_length: usize,
         cutoff_frequency: f32,
@@ -267,19 +284,23 @@ where
         Self::new(&h)
     }
 
-    /// create filter using square-root Nyquist prototype
+    /// Creates a pulse-shaping filter from a prototype.
     ///
     /// # Arguments
     ///
-    /// * `filter_shape` - filter shape
-    /// * `samples_per_symbol` - nominal samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - rolloff factor
-    /// * `fractional_delay` - fractional sample offset
+    /// - `filter_delay`: filter span on each side of the center tap, in
+    ///   symbols.
+    /// - `excess_bandwidth`: rolloff factor, normally in `[0, 1]`. The exact
+    ///   range depends on the prototype.
+    /// - `fractional_delay`: in samples. A positive value moves the impulse
+    ///   response earlier. Some prototypes ignore it.
     ///
-    /// # Returns
+    /// The filter has `2 * samples_per_symbol * filter_delay + 1` taps.
     ///
-    /// A new `Firfilt` object.
+    /// # Errors
+    ///
+    /// Returns an error when the selected prototype rejects the
+    /// configuration.
     pub fn new_rnyquist(
         filter_shape: filter::FirFilterShape,
         samples_per_symbol: usize,
@@ -297,72 +318,77 @@ where
         Self::new(&h)
     }
 
-    /// create filter using Parks-McClellan algorithm
+    /// Creates an equiripple low-pass filter.
     ///
-    /// # Arguments
+    /// The filter has `filter_length` taps and a cutoff of `cutoff_frequency`
+    /// cycles per sample. Stopband attenuation is given in dB.
     ///
-    /// * `filter_length` - filter length
-    /// * `cutoff_frequency` - cutoff frequency
-    /// * `stopband_attenuation` - stop-band attenuation
+    /// The DC gain is about `1 / (2 * cutoff_frequency)`, to match
+    /// [`Self::new_kaiser`]. Set the scale to `2 * cutoff_frequency` with
+    /// [`Self::set_scale`] for unity gain.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// A new `Firfilt` object.
+    /// Returns an error when `filter_length` is zero, `cutoff_frequency` is
+    /// outside `[0, 0.5]`, `stopband_attenuation` is zero or negative, or the
+    /// equiripple design rejects the band edges derived from
+    /// `cutoff_frequency` or fails to converge.
     pub fn new_firdespm(filter_length: usize, cutoff_frequency: f32, stopband_attenuation: f32) -> Result<Self> {
         let h = fir_filter_design_firdespm(filter_length, cutoff_frequency, stopband_attenuation)?;
         Self::new(&h)
     }
 
-    /// create rectangular filter prototype
+    /// Creates a moving-sum filter of `filter_length` taps, each equal to one.
     ///
-    /// # Arguments
+    /// # Errors
     ///
-    /// * `filter_length` - filter length
-    ///
-    /// # Returns
-    ///
-    /// A new `Firfilt` object.
+    /// Returns an error when `filter_length` is zero or greater than 1024.
     pub fn new_rect(filter_length: usize) -> Result<Self> {
         let h = fir_filter_design_rect(filter_length)?;
         Self::new(&h)
     }
 
-    /// create DC blocking filter
+    /// Creates a filter that removes the DC component.
     ///
-    /// # Arguments
+    /// The filter has `2 * filter_delay + 1` taps and a delay of
+    /// `filter_delay` samples. Stopband attenuation is given in dB.
     ///
-    /// * `filter_delay` - filter delay
-    /// * `stopband_attenuation` - stop-band attenuation
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new `Firfilt` object.
+    /// Returns an error when `filter_delay` is outside `1..=1000` or
+    /// `stopband_attenuation` is zero or negative.
     pub fn new_dc_blocker(filter_delay: usize, stopband_attenuation: f32) -> Result<Self> {
         let h = fir_filter_design_dc_blocker(filter_delay, stopband_attenuation)?;
         Self::new(&h)
     }
 
-    /// create notch filter
+    /// Creates a filter that removes one frequency.
     ///
-    /// # Arguments
+    /// The filter has `2 * filter_delay + 1` taps and a delay of
+    /// `filter_delay` samples. It removes `center_frequency`, in cycles per
+    /// sample, with the given stopband attenuation in dB. Filters with real
+    /// coefficients also remove `-center_frequency`. See
+    /// [`fir_filter_design_notch`] for how the taps are designed.
     ///
-    /// * `filter_delay` - filter delay
-    /// * `stopband_attenuation` - stop-band attenuation
-    /// * `center_frequency` - center frequency
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new `Firfilt` object.
+    /// Returns an error when `filter_delay` is outside `1..=1000` or
+    /// `stopband_attenuation` is zero or negative. Real coefficients also require
+    /// `center_frequency` to lie in `[-0.5, 0.5]`.
     pub fn new_notch(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Self> {
         let h = fir_filter_design_notch(filter_delay, stopband_attenuation, center_frequency)?;
         Self::new(&h)
     }
 
-    /// set filter coefficients
+    /// Replaces the coefficients and keeps the sample history.
     ///
-    /// # Arguments
+    /// The filter length cannot change, so `coefficients` must have
+    /// [`Self::length`] entries.
     ///
-    /// * `coefficients` - filter coefficients
+    /// # Errors
+    ///
+    /// Returns an error when `coefficients` has the wrong length. The filter
+    /// is unchanged on error.
     pub fn set_coefficients(&mut self, coefficients: &[Coeff]) -> Result<()> {
         if coefficients.len() != self.h_len {
             return Err(Error::Config(format!(
@@ -377,66 +403,52 @@ where
         Ok(())
     }
 
-    /// reset internal state of filter object
+    /// Clears the sample history to zeros.
+    ///
+    /// The coefficients and scale are unchanged.
     pub fn reset(&mut self) {
         self.w.reset();
     }
 
-    /// push sample into filter object's internal buffer
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - single input sample
+    /// Adds one sample to the history without computing an output.
     pub fn push(&mut self, input: T) {
         self.w.push(input);
     }
 
-    /// write block of samples into filter object's internal buffer
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - buffer of input samples
+    /// Adds a block of samples to the history without computing outputs.
     pub fn write(&mut self, input: &[T]) {
         for x_i in input.iter() {
             self.push(*x_i);
         }
     }
 
-    /// execute filter on internal buffer and coefficients
+    /// Returns the output for the current sample history.
     ///
-    /// # Returns
-    ///
-    /// The output sample
+    /// The history is not changed, so repeated calls return the same value.
     pub fn execute(&self) -> T {
         let x = self.w.read();
         let y = self.dp.execute(x);
         y * self.scale
     }
 
-    /// execute filter on one sample, equivalent to push() and execute()
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - single input sample
-    ///
-    /// # Returns
-    ///
-    /// The output sample
+    /// Adds one sample to the history and returns the new output.
     pub fn execute_one(&mut self, input: T) -> T {
         self.push(input);
         self.execute()
     }
 
-    /// execute filter on block of samples
+    /// Filters a block of samples and writes one output per input.
     ///
-    /// This function will generally be more efficient than running [`execute_one`](Self::execute_one)
-    /// on each sample in a slice. Dot product kernels called here may run in a different
-    /// order, so results can differ by floating-point rounding.
+    /// Extra output is left unchanged. Returns the number of outputs written,
+    /// which is `input.len()`.
     ///
-    /// # Arguments
+    /// The block path can sum the taps in a different order than repeated
+    /// calls to [`Self::execute_one`], so `f32` results can differ slightly.
     ///
-    /// * `input` - buffer of input samples
-    /// * `output` - buffer of output samples
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The filter and
+    /// `output` are unchanged on error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output block length must be at least the input length".into()));
@@ -458,77 +470,49 @@ where
         Ok(input.len())
     }
 
-    /// set output scaling for filter
-    ///
-    /// # Arguments
-    ///
-    /// * `scale` - output scaling
+    /// Sets the factor applied to every output sample.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
-    /// get output scaling for filter
-    ///
-    /// # Returns
-    ///
-    /// The output scaling
+    /// Returns the factor applied to every output sample.
     pub fn scale(&self) -> Coeff {
         self.scale
     }
 
-    /// get length of filter object (number of internal coefficients)
-    ///
-    /// # Returns
-    ///
-    /// The length of the filter
+    /// Returns the number of taps.
     pub fn length(&self) -> usize {
         self.h_len
     }
 
-    /// get pointer to coefficients array
-    ///
-    /// # Returns
-    ///
-    /// The coefficients array
+    /// Returns the coefficients in time order, newest-sample tap first.
     pub fn coefficients(&self) -> &[Coeff] {
         &self.h
     }
 
-    /// compute complex frequency response of filter object
+    /// Evaluates the frequency response at `fc` cycles per sample.
     ///
-    /// # Arguments
-    ///
-    /// * `fc` - normalized frequency for evaluation
-    ///
-    /// # Returns
-    ///
-    /// The frequency response
+    /// The response includes the output scale. `fc` is not range-checked.
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         fir_filter_freqresponse(&self.h, self.scale, fc)
     }
 
-    /// compute power spectral density response of filter object in dB
+    /// Evaluates the power response in dB at `fc` cycles per sample.
     ///
-    /// # Arguments
-    ///
-    /// * `fc` - normalized frequency for evaluation
-    ///
-    /// # Returns
-    ///
-    /// The power spectral density
+    /// The response includes the output scale. A zero response gives
+    /// negative infinity.
     pub fn psd(&self, fc: f32) -> f32 {
         fir_filter_get_psd(&self.h, self.scale, fc)
     }
 
-    /// compute and return group delay of filter object
+    /// Estimates the group delay in samples at `fc` cycles per sample.
     ///
-    /// # Arguments
+    /// Only the real part of each tap is used, so the result is not the group
+    /// delay of a filter with complex taps.
     ///
-    /// * `fc` - frequency to evaluate
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// The group delay
+    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         fir_filter_groupdelay(&self.h, fc)
     }

@@ -3,7 +3,15 @@ use crate::error::{Error, Result};
 use crate::filter::{IirBandType, IirFilter, IirFilterShape, IirFormat, Sample};
 use num_complex::Complex32;
 
-/// Infinite impulse response (IIR) decimation filter
+/// Infinite impulse response filter that decimates by a fixed factor.
+///
+/// The filter consumes input in groups of `decimation_factor` samples and
+/// produces one output per group. Each output depends on the first sample of
+/// its group and on earlier input. The remaining samples in the group only
+/// affect later outputs. A new filter starts with zero-valued history.
+///
+/// Use [`Self::execute`] to process one group at a time, or
+/// [`Self::execute_block`] to process many.
 #[derive(Clone, Debug)]
 pub struct IirDecimationFilter<T, Coeff = T> {
     decimation_factor: usize,
@@ -16,26 +24,15 @@ where
     Coeff: Sample + std::ops::Mul<T, Output = T> + Into<Complex32>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a new IIR decimation filter from external coefficients
+    /// Creates a decimation filter from transfer-function coefficients.
     ///
-    /// # Notes
+    /// The coefficients follow the conventions of [`IirFilter::new`] and run at
+    /// the input rate.
     ///
-    /// The number of feed-forward and feed-back coefficients do not need to be equal, but they do
-    ///  need to be non-zero. Furthermore, the first feed-back coefficient \(a_0\) cannot be equal to
-    ///  zero, otherwise the filter will be invalid as this value is factored out from all
-    ///  coefficients.
-    /// For stability reasons the number of coefficients should reasonably not exceed about 8 for
-    ///  single-precision floating-point.
+    /// # Errors
     ///
-    /// # Arguments
-    ///
-    /// * `decimation_factor` - The decimation factor
-    /// * `numerator_coefficients` - The feed-forward coefficients
-    /// * `denominator_coefficients` - The feed-back coefficients
-    ///
-    /// # Returns
-    ///
-    /// A new IIR decimation filter
+    /// Returns an error when `decimation_factor` is less than two or either
+    /// coefficient slice is empty.
     pub fn new(
         decimation_factor: usize,
         numerator_coefficients: &[Coeff],
@@ -50,16 +47,18 @@ where
         Ok(Self { decimation_factor, iirfilt })
     }
 
-    /// Create a new IIR decimation filter with a default Butterworth prototype
+    /// Creates a low-pass Butterworth decimation filter.
     ///
-    /// # Arguments
+    /// The -3 dB point is `0.5 / decimation_factor` cycles per input sample,
+    /// which is the Nyquist frequency of the output. Attenuation rises only
+    /// gradually above that edge, at a rate set by `order`, so input near the
+    /// edge can alias. When alias rejection matters, use
+    /// [`Self::new_prototype`] with a lower cutoff or a sharper shape.
     ///
-    /// * `decimation_factor` - The decimation factor
-    /// * `order` - The filter order
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new IIR decimation filter
+    /// Returns an error when `decimation_factor` is less than two or `order`
+    /// is zero.
     pub fn new_butterworth(decimation_factor: usize, order: usize) -> Result<Self> {
         Self::new_prototype(
             decimation_factor,
@@ -74,23 +73,15 @@ where
         )
     }
 
-    /// Create a new IIR decimation filter from a prototype
+    /// Creates a decimation filter from a prototype design.
     ///
-    /// # Arguments
+    /// Frequencies are in cycles per input sample. The design parameters are
+    /// passed to [`IirFilter::new_prototype`], which describes their meaning.
     ///
-    /// * `decimation_factor` - The decimation factor
-    /// * `filter_shape` - The filter shape
-    /// * `band_type` - The band type
-    /// * `format` - The coefficients format
-    /// * `order` - The filter order
-    /// * `cutoff_frequency` - The low-pass prototype cut-off frequency
-    /// * `center_frequency` - The center frequency
-    /// * `passband_ripple` - The pass-band ripple
-    /// * `stopband_attenuation` - The stop-band attenuation
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new IIR decimation filter
+    /// Returns an error when `decimation_factor` is less than two or the
+    /// prototype design rejects the parameters.
     pub fn new_prototype(
         decimation_factor: usize,
         filter_shape: IirFilterShape,
@@ -120,20 +111,18 @@ where
         Ok(Self { decimation_factor, iirfilt })
     }
 
-    /// Reset the filter state
+    /// Clears the filter history to zeros.
     pub fn reset(&mut self) {
         self.iirfilt.reset();
     }
 
-    /// Execute the filter on `decimation_factor` input samples
+    /// Consumes one group of input samples and returns one output sample.
     ///
-    /// # Arguments
-    ///
-    /// * `input` - The input samples
-    ///
-    /// # Returns
-    ///
-    /// The output sample
+    /// A group should hold `decimation_factor` samples, but the length is not
+    /// checked. Every sample in `input` passes through the filter, and the
+    /// result is the response to the first one. Empty input returns zero and
+    /// leaves the filter unchanged. Use [`Self::execute_block`] when groups
+    /// must be complete.
     pub fn execute(&mut self, input: &[T]) -> T {
         let mut y = T::default();
         for (i, &xi) in input.iter().enumerate() {
@@ -145,14 +134,18 @@ where
         y
     }
 
-    /// Execute the filter on a block of input samples
+    /// Consumes complete groups of input samples and writes one output per
+    /// group.
     ///
-    /// # Arguments
+    /// `input.len()` must be a multiple of `decimation_factor`, and `output`
+    /// must hold at least `input.len() / decimation_factor` samples. Extra
+    /// output is left unchanged. The results match calling [`Self::execute`]
+    /// on each group. Returns the number of outputs written.
     ///
-    /// * `input` - The input samples (size: `n * decimation_factor`)
-    /// * `output` - The output samples (size: `n`)
+    /// # Errors
     ///
-    /// Returns the number of output samples written, `n`.
+    /// Returns an error when `input` does not hold a whole number of groups or
+    /// `output` is too short. The filter and `output` are unchanged on error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if !input.len().is_multiple_of(self.decimation_factor) {
             return Err(Error::Config("input length must be a multiple of the decimation factor".into()));
@@ -167,15 +160,14 @@ where
         Ok(n)
     }
 
-    /// Get the group delay at a given frequency
+    /// Estimates the group delay at `fc` cycles per input sample.
     ///
-    /// # Arguments
+    /// The delay is measured in input samples. [`IirFilter::groupdelay`]
+    /// describes the limits of the estimate.
     ///
-    /// * `fc` - The frequency
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// The group delay
+    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         self.iirfilt.groupdelay(fc)
     }

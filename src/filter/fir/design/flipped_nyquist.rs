@@ -11,19 +11,27 @@ use super::FirFilterShape;
 //   [Beaulieu:2001]
 //   [Assalini:2004]
 
-/// Design flipped Nyquist/root-Nyquist filter
+/// Designs a flipped Nyquist or root-Nyquist pulse.
 ///
-/// # Arguments
-/// * `ftype`  : filter type (e.g. FirdesFilterType::Fexp)
-/// * `root`   : square-root Nyquist filter?
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
+/// Flipped pulses are designed in the frequency domain. `ftype` selects the
+/// transition-band shape and must be [`FirFilterShape::Fexp`],
+/// [`FirFilterShape::Fsech`], or [`FirFilterShape::Farcsech`]. Set `root` to
+/// take the square root of the response, for use at both transmitter and
+/// receiver.
 ///
-/// # Returns
+/// The pulse has `k` samples per symbol and spans `m` symbols on each side of
+/// its center tap, for `2 * k * m + 1` taps. `beta` is the excess bandwidth.
+/// `dt` shifts the pulse in samples, and a positive value moves it earlier.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `ftype` is not a flipped shape, `k` or `m` is zero,
+/// `beta` is outside `0.0..=1.0`, or `dt` is outside `-1.0..=1.0`.
+///
+/// # Panics
+///
+/// Panics when `2 * k * m + 1` overflows `usize` and overflow checks are
+/// enabled. Without overflow checks the count wraps.
 pub fn fir_design_fnyquist(
     ftype: FirFilterShape,
     root: bool,
@@ -82,45 +90,31 @@ pub fn fir_design_fnyquist(
     Ok(h_out)
 }
 
-/// Design fexp Nyquist filter
+/// Designs a flipped-exponential Nyquist pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
-///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// See [`fir_design_fnyquist`] for the parameters and their limits.
 pub fn fir_design_fexp(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
     fir_design_fnyquist(FirFilterShape::Fexp, false, k, m, beta, dt)
 }
 
-/// Design fexp square-root Nyquist filter
+/// Designs a root flipped-exponential pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
-///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// See [`fir_design_fnyquist`] for the parameters and their limits.
 pub fn fir_design_rfexp(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
     fir_design_fnyquist(FirFilterShape::Fexp, true, k, m, beta, dt)
 }
 
-/// Flipped exponential frequency response
+/// Writes the sampled frequency response of a flipped-exponential Nyquist
+/// pulse to `h`.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `H`      : output frequency response (length: 2*k*m+1)
+/// The samples are in FFT order. Index `i` is at `i / h.len()` cycles per
+/// sample, and indices past the midpoint wrap to negative frequencies. The
+/// response is real and even, with one in the passband and zero in the
+/// stopband. The length of `h` sets the number of samples, and `_m` is
+/// ignored. This helper does not validate `k` or `beta` and never returns an
+/// error.
 pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32]) -> Result<()> {
     let h_len = h.len();
 
@@ -160,45 +154,27 @@ pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32
     Ok(())
 }
 
-/// Design fsech Nyquist filter
+/// Designs a flipped hyperbolic-secant Nyquist pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
-///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// See [`fir_design_fnyquist`] for the parameters and their limits.
 pub fn fir_design_fsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
     fir_design_fnyquist(FirFilterShape::Fsech, false, k, m, beta, dt)
 }
 
-/// Design fsech square-root Nyquist filter
+/// Designs a root flipped hyperbolic-secant pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
-///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// See [`fir_design_fnyquist`] for the parameters and their limits.
 pub fn fir_design_rfsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
     fir_design_fnyquist(FirFilterShape::Fsech, true, k, m, beta, dt)
 }
 
-/// Flipped sech frequency response
+/// Writes the sampled frequency response of a flipped hyperbolic-secant
+/// Nyquist pulse to `h`.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `H`      : output frequency response (length: 2*k*m+1)
+/// The sample order and unchecked parameters are the same as in
+/// [`fir_design_fexp_freqresponse`]. Every element of `h` is overwritten.
 pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32]) -> Result<()> {
     let h_len = h.len();
 
@@ -238,46 +214,25 @@ pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f3
     Ok(())
 }
 
-/// Design farcsech Nyquist filter
+/// Designs a flipped inverse hyperbolic-secant Nyquist pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
-///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// See [`fir_design_fnyquist`] for the parameters and their limits.
 pub fn fir_design_farcsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
     fir_design_fnyquist(FirFilterShape::Farcsech, false, k, m, beta, dt)
 }
 
-/// Design farcsech square-root Nyquist filter
+/// Designs a root flipped inverse hyperbolic-secant pulse.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `dt`     : fractional sample delay
-///
-/// # Returns
-///
-/// Vec of filter coefficients
+/// See [`fir_design_fnyquist`] for the parameters and their limits.
 pub fn fir_design_rfarcsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // compute response using generic function
     fir_design_fnyquist(FirFilterShape::Farcsech, true, k, m, beta, dt)
 }
 
-/// hyperbolic arc-secant
+/// Computes the inverse hyperbolic secant of `z`.
 ///
-/// # Arguments
-/// * `z`      : input value
-///
-/// # Returns
-///
-/// hyperbolic arc-secant
+/// The function is defined for `z` in `(0, 1]`. Other inputs return zero.
 fn asechf(z: f32) -> f32 {
     if z <= 0.0 || z > 1.0 {
         return 0.0;
@@ -288,13 +243,11 @@ fn asechf(z: f32) -> f32 {
     ((z_inv - 1.0).sqrt() * (z_inv + 1.0).sqrt() + z_inv).ln()
 }
 
-/// Flipped arccosh frequency response
+/// Writes the sampled frequency response of a flipped inverse
+/// hyperbolic-secant Nyquist pulse to `h`.
 ///
-/// # Arguments
-/// * `k`      : samples/symbol
-/// * `m`      : symbol delay
-/// * `beta`   : rolloff factor (0 < beta <= 1)
-/// * `H`      : output frequency response (length: 2*k*m+1)
+/// The sample order and unchecked parameters are the same as in
+/// [`fir_design_fexp_freqresponse`]. Every element of `h` is overwritten.
 pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32]) -> Result<()> {
     let h_len = h.len();
 

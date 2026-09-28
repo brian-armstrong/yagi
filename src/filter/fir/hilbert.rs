@@ -7,11 +7,17 @@ use std::f32::consts::PI;
 
 use num_complex::Complex32;
 
-/// Finite impulse response (FIR) Hilbert transform
+/// FIR Hilbert transformer between real and complex signals.
 ///
-/// 2:1 real-to-complex decimator
+/// The transformer works in four modes. [`Self::r2c_execute`] turns each
+/// real sample into a complex sample at the same rate, and
+/// [`Self::c2r_execute`] does the reverse. [`Self::decim_execute`] turns two
+/// real samples into one complex sample, and [`Self::interp_execute`] turns
+/// one complex sample into two real samples.
 ///
-/// 1:2 complex-to-real interpolator
+/// All modes share the same internal history and alternate between two
+/// phases on each call. Use one mode per stream, and call [`Self::reset`]
+/// before switching modes or starting an unrelated stream.
 #[derive(Clone, Debug)]
 pub struct FirHilbertFilter {
     m: usize,                  // filter semi-length, h_len = 4*m+1
@@ -24,17 +30,16 @@ pub struct FirHilbertFilter {
 }
 
 impl FirHilbertFilter {
-    /// Create a new FIR Hilbert transform object with a particular filter
-    /// semi-length and desired stop-band attenuation.
+    /// Creates a Hilbert transformer.
     ///
-    /// # Arguments
+    /// The transformer is built from a Kaiser-windowed half-band prototype
+    /// with `4 * filter_semi_length + 1` taps. Stopband attenuation is given
+    /// in dB, and only its magnitude is used.
     ///
-    /// * `filter_semi_length` - filter semi-length, delay is `2 * filter_semi_length + 1`
-    /// * `stopband_attenuation` - filter stop-band attenuation \[dB\]
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new FIR Hilbert transform object
+    /// Returns an error when `filter_semi_length` is less than two or
+    /// `stopband_attenuation` is zero.
     pub fn new(filter_semi_length: usize, stopband_attenuation: f32) -> Result<Self> {
         if filter_semi_length < 2 {
             return Err(Error::Config("filter semi-length must be at least 2".into()));
@@ -73,7 +78,7 @@ impl FirHilbertFilter {
         Ok(q)
     }
 
-    /// Reset the internal state of the filter
+    /// Clears the sample history to zeros and returns to the first phase.
     pub fn reset(&mut self) {
         self.w0.reset();
         self.w1.reset();
@@ -82,15 +87,7 @@ impl FirHilbertFilter {
         self.toggle = false;
     }
 
-    /// Execute the Hilbert transform (real-to-complex)
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - real-valued input sample
-    ///
-    /// # Returns
-    ///
-    /// A complex-valued output sample
+    /// Converts one real sample into one complex sample.
     pub fn r2c_execute(&mut self, input: f32) -> Result<Complex32> {
         let yi; // in-phase component
 
@@ -126,16 +123,10 @@ impl FirHilbertFilter {
         Ok(Complex32::new(yi, yq))
     }
 
-    /// Execute the Hilbert transform (complex-to-real)
+    /// Converts one complex sample into two real samples, one per sideband.
     ///
-    /// # Arguments
-    ///
-    /// * `input` - complex-valued input sample
-    ///
-    /// # Returns
-    ///
-    /// A tuple of two real-valued output samples
-    ///    (lower side-band retained, upper side-band retained)
+    /// The first value keeps the lower sideband and the second keeps the
+    /// upper sideband.
     pub fn c2r_execute(&mut self, input: Complex32) -> Result<(f32, f32)> {
         let yi; // in-phase component
 
@@ -168,15 +159,13 @@ impl FirHilbertFilter {
         Ok((yi + yq, yi - yq))
     }
 
-    /// Execute the Hilbert transform decimator (real-to-complex)
+    /// Converts two real samples into one complex sample.
     ///
-    /// # Arguments
+    /// Samples beyond the first two are ignored.
     ///
-    /// * `input` - real-valued input array, [size: 2 x 1]
+    /// # Panics
     ///
-    /// # Returns
-    ///
-    /// A complex-valued output sample
+    /// Panics when `input` has fewer than two samples.
     pub fn decim_execute(&mut self, input: &[f32]) -> Result<Complex32> {
         // compute quadrature component (filter branch)
         self.w1.push(input[0]);
@@ -196,12 +185,16 @@ impl FirHilbertFilter {
         Ok(y)
     }
 
-    /// Execute the Hilbert transform decimator (real-to-complex) on a block of samples
+    /// Converts each pair of real samples in `input` into one complex sample.
     ///
-    /// # Arguments
+    /// `output` must hold at least `input.len() / 2` samples. Extra output is
+    /// left unchanged. Returns the number of outputs written, which is
+    /// `input.len() / 2`.
     ///
-    /// * `input` - real-valued input array, [size: 2*n x 1]
-    /// * `output` - complex-valued output array, [size: n x 1]
+    /// # Errors
+    ///
+    /// Returns an error when `input` has odd length or `output` is too short.
+    /// The transformer and `output` are unchanged on error.
     pub fn decim_execute_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
         if !input.len().is_multiple_of(2) {
             return Err(Error::Config("decimation input length must be a multiple of 2".into()));
@@ -216,12 +209,14 @@ impl FirHilbertFilter {
         Ok(n)
     }
 
-    /// Execute the Hilbert transform interpolator (complex-to-real)
+    /// Converts one complex sample into two real samples.
     ///
-    /// # Arguments
+    /// The samples are written to the first two entries of `output`. Later
+    /// entries are left unchanged.
     ///
-    /// * `input` - complex-valued input sample
-    /// * `output` - real-valued output array, [size: 2 x 1]
+    /// # Panics
+    ///
+    /// Panics when `output` has fewer than two entries.
     pub fn interp_execute(&mut self, input: Complex32, output: &mut [f32]) -> Result<()> {
         let vi = if self.toggle { -input.re } else { input.re };
         let vq = if self.toggle { -input.im } else { input.im };
@@ -239,12 +234,16 @@ impl FirHilbertFilter {
         Ok(())
     }
 
-    /// Execute the Hilbert transform interpolator (complex-to-real) on a block of samples
+    /// Converts each complex sample in `input` into two real samples.
     ///
-    /// # Arguments
+    /// `output` must hold at least `2 * input.len()` samples. Extra output is
+    /// left unchanged. Returns the number of outputs written, which is
+    /// `2 * input.len()`.
     ///
-    /// * `input` - complex-valued input array, [size: n x 1]
-    /// * `output` - real-valued output array, [size: 2*n x 1]
+    /// # Errors
+    ///
+    /// Returns an error when `output` is too short. The transformer and
+    /// `output` are unchanged on error.
     pub fn interp_execute_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
         let n = input.len();
         let required_output =

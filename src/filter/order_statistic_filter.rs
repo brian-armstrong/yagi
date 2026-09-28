@@ -2,6 +2,20 @@ use crate::buffer::Window;
 use crate::error::{Error, Result};
 use std::cmp::Ordering;
 
+/// Filter that returns the value of a fixed rank from a sliding window.
+///
+/// The filter sorts the most recent `filter_length` samples in ascending order
+/// and returns the one at the chosen rank. Rank zero selects the minimum, and
+/// rank `filter_length - 1` selects the maximum. [`Self::new_medfilt`] creates
+/// a median filter. The window starts filled with `T::default()`.
+///
+/// Push samples with [`Self::push`] or [`Self::write`] and read the result with
+/// [`Self::execute`], or use [`Self::execute_one`] or [`Self::execute_block`]
+/// to do both.
+///
+/// Values without a total order, such as floating-point NaN, compare as equal
+/// to everything. The selected value is then unspecified, and the sort can
+/// panic.
 #[derive(Clone, Debug)]
 #[doc(alias = "OrdFilt")]
 pub struct OrderStatisticFilter<T> {
@@ -14,6 +28,15 @@ impl<T> OrderStatisticFilter<T>
 where
     T: Clone + Copy + PartialOrd + Default,
 {
+    /// Creates a filter that selects `rank` from a window of `filter_length`
+    /// samples.
+    ///
+    /// Ranks count from zero in ascending order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `filter_length` is zero or `rank` is not less than
+    /// `filter_length`.
     pub fn new(filter_length: usize, rank: usize) -> Result<Self> {
         if filter_length == 0 {
             return Err(Error::Config("filter length must be greater than zero".into()));
@@ -30,22 +53,40 @@ where
         Ok(q)
     }
 
+    /// Creates a median filter with a window of `2 * filter_semi_length + 1`
+    /// samples.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the window length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps.
     pub fn new_medfilt(filter_semi_length: usize) -> Result<Self> {
         Self::new(2 * filter_semi_length + 1, filter_semi_length)
     }
 
+    /// Refills the window with `T::default()`.
     pub fn reset(&mut self) {
         self.buf.reset();
     }
 
+    /// Adds one sample to the window without selecting a value.
     pub fn push(&mut self, input: T) {
         self.buf.push(input);
     }
 
+    /// Adds a block of samples to the window without selecting a value.
     pub fn write(&mut self, input: &[T]) {
         self.buf.write(input);
     }
 
+    /// Returns the value at the chosen rank in the current window.
+    ///
+    /// The window is not changed.
+    ///
+    /// # Panics
+    ///
+    /// Can panic when the window holds values without a total order, such as
+    /// NaN.
     pub fn execute(&mut self) -> Result<T> {
         let r = self.buf.read();
         self.buf_sorted.copy_from_slice(r);
@@ -53,11 +94,21 @@ where
         Ok(self.buf_sorted[self.k])
     }
 
+    /// Adds one sample and returns the value at the chosen rank.
     pub fn execute_one(&mut self, input: T) -> Result<T> {
         self.push(input);
         self.execute()
     }
 
+    /// Adds each sample of a block and writes the selected value after each one.
+    ///
+    /// `output` must hold at least `input.len()` values. Extra entries are left
+    /// unchanged. Returns `input.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The filter and
+    /// `output` are unchanged on error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output block length must be at least the input length".into()));

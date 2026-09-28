@@ -17,7 +17,18 @@ use crate::math::kaiser;
 use crate::math::sincd;
 use crate::math::{poly_val, vandermonde_workspace};
 
-/// Finite impulse response (FIR) Farrow filter for timing delay
+/// FIR filter with an adjustable fractional delay.
+///
+/// Each tap is a polynomial in the fractional delay, so
+/// [`Self::set_delay`] can retune the filter without redesigning it. The total
+/// delay is about `(filter_length - 1) / 2` samples plus the fractional
+/// delay. A positive fractional delay makes the output later, which is the
+/// opposite sign from the `mu` offset used by
+/// [`crate::filter::fir::design::fir_design_kaiser`].
+///
+/// The taps are always real, even for complex `Coeff`. A new filter starts
+/// with zero-valued history and zero fractional delay. Changing the delay
+/// keeps the history.
 #[derive(Clone, Debug)]
 pub struct FirFarrowFilter<T, Coeff = T> {
     /// filter coefficients for the current delay
@@ -48,14 +59,28 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// create a Farrow filter object
+    /// Creates a fractional-delay filter.
     ///
     /// # Arguments
     ///
-    /// * `filter_length` - filter length, `filter_length >= 2`
-    /// * `polynomial_order` - polynomial order, `polynomial_order >= 1`
-    /// * `cutoff_frequency` - filter cutoff frequency, `0 <= cutoff_frequency <= 0.5`
-    /// * `stopband_attenuation` - non-negative stop-band attenuation [dB]
+    /// - `filter_length`: number of taps. Must be at least two.
+    /// - `polynomial_order`: degree of the polynomial in the fractional delay
+    ///   that generates each tap. Must be nonzero.
+    /// - `cutoff_frequency`: low-pass cutoff, in cycles per sample, in
+    ///   `[0, 0.5]`.
+    /// - `stopband_attenuation`: in dB. Must not be negative.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `filter_length` is less than two,
+    /// `polynomial_order` is zero, `cutoff_frequency` is outside `[0, 0.5]`,
+    /// `stopband_attenuation` is negative, or the polynomial fit fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `filter_length * (polynomial_order + 1)` overflows `usize`
+    /// and overflow checks are enabled. Without overflow checks, the size
+    /// wraps and the coefficient storage is too short.
     pub fn new(
         filter_length: usize,
         polynomial_order: usize,
@@ -95,31 +120,42 @@ where
         Ok(q)
     }
 
-    /// reset the filter's internal state
+    /// Clears the sample history to zeros.
+    ///
+    /// The fractional delay is unchanged.
     pub fn reset(&mut self) {
         self.w.reset();
     }
 
-    /// get the filter length (number of taps)
+    /// Returns the number of taps.
     pub fn length(&self) -> usize {
         self.h_len
     }
 
-    /// get the polynomial order
+    /// Returns the degree of the polynomial behind each tap.
     pub fn order(&self) -> usize {
         self.q
     }
 
-    /// get the coefficients for the current delay
+    /// Returns the coefficients for the current delay.
+    ///
+    /// They are in time order, with the first applied to the newest sample.
     pub fn coefficients(&self) -> &[Coeff] {
         &self.h
     }
 
-    /// set the fractional delay of the filter
+    /// Sets the fractional delay in samples.
     ///
-    /// # Arguments
+    /// Positive values make the output later. The sample history is kept.
     ///
-    /// * `fractional_delay` - fractional sample delay, `-1 <= fractional_delay <= 1`
+    /// The new taps are scaled to unity DC gain. If they sum to nearly zero,
+    /// a fixed scale chosen at construction is used instead, and the DC gain
+    /// is not unity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `fractional_delay` is outside `[-1, 1]`. The
+    /// filter is unchanged on error.
     pub fn set_delay(&mut self, fractional_delay: f32) -> Result<()> {
         if fractional_delay < -1.0 || fractional_delay > 1.0 {
             return Err(Error::Config("delay must be in [-1,1]".into()));
@@ -151,22 +187,33 @@ where
         Ok(())
     }
 
-    /// push a sample into the filter's internal buffer
+    /// Adds one sample to the history without computing an output.
     pub fn push(&mut self, input: T) {
         self.w.push(input);
     }
 
-    /// write a block of samples into the filter's internal buffer
+    /// Adds a block of samples to the history without computing outputs.
     pub fn write(&mut self, input: &[T]) {
         self.w.write(input);
     }
 
-    /// execute the dot product on the filter's internal buffer
+    /// Returns the output for the current sample history.
+    ///
+    /// The history is not changed, so repeated calls return the same value.
     pub fn execute(&self) -> T {
         self.w.read().dotprod(&self.h_rev)
     }
 
-    /// execute the filter on a block of samples
+    /// Filters a block of samples at the current delay.
+    ///
+    /// Each input sample is added to the history and followed by one output.
+    /// Extra output is left unchanged. Returns the number of outputs written,
+    /// which is `input.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The filter and
+    /// `output` are unchanged on error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output block length must be at least the input length".into()));
@@ -178,21 +225,22 @@ where
         Ok(input.len())
     }
 
-    /// compute the complex frequency response at a given frequency
+    /// Evaluates the frequency response at `fc` cycles per sample.
     ///
-    /// # Arguments
-    ///
-    /// * `fc` - normalized frequency for evaluation
+    /// The response is for the current delay. `fc` is not range-checked.
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         let h: Vec<f32> = self.h.iter().map(|&h_i| h_i.re()).collect();
         freqresponse(&h, fc).unwrap()
     }
 
-    /// compute the group delay [samples] at a given frequency
+    /// Estimates the group delay in samples at `fc` cycles per sample.
     ///
-    /// # Arguments
+    /// The estimate is for the current delay, and includes both the
+    /// `(filter_length - 1) / 2` center delay and the fractional delay.
     ///
-    /// * `fc` - normalized frequency for evaluation
+    /// # Errors
+    ///
+    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         let h: Vec<f32> = self.h.iter().map(|&h_i| h_i.re()).collect();
         fir_group_delay(&h, fc)

@@ -13,17 +13,20 @@ use std::f32::consts::LN_2;
 //      Polynomials." IEEE Transactions on Circuit Theory, September, 1965.
 //
 
-/// Compute analog zeros, poles, gain of low-pass Bessel filter, grouping complex
-/// conjugates together. If the filter order is odd, the single real pole is at
-/// the end of the array. There are no zeros for the analog Bessel filter. The
-/// gain is unity.
+/// Designs an analog low-pass Bessel prototype.
 ///
-/// # Arguments
+/// A Bessel prototype has no zeros, so `za` is cleared. `pa` receives `n`
+/// poles in conjugate pairs, and an odd order puts its one real pole last.
+/// `ka` receives the product of the poles.
 ///
-/// * `n` - filter order
-/// * `za` - output analog zeros [length: 0]
-/// * `pa` - output analog poles [length: _n]
-/// * `ka` - output analog gain
+/// The poles are scaled so the 3 dB frequency lands near one. The scaling uses
+/// an approximation of the 3 dB frequency, so the cutoff is not exact.
+///
+/// # Panics
+///
+/// `n` is not validated. Panics when `n` is zero, or large enough to overflow
+/// the order arithmetic, and overflow checks are enabled. Without overflow
+/// checks, the arithmetic wraps and the design is invalid.
 pub fn iir_design_bessel_analog(
     n: usize,
     za: &mut Vec<Complex32>,

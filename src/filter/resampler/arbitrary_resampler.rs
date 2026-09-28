@@ -6,6 +6,20 @@ use crate::math::nextpow2;
 
 const PHASE_SCALE: u128 = 1 << 24;
 
+/// Resampler that changes the sample rate by an arbitrary positive ratio.
+///
+/// The rate is the output rate divided by the input rate, from 0.004 to 250.
+/// A polyphase filter bank computes each output with the filter phase at or
+/// just before its fractional position between input samples. A new resampler
+/// starts with zero-valued history and zero phase.
+///
+/// The phase advances by a step rounded to 24-bit fixed point, so the actual
+/// rate can differ slightly from [`Self::rate`]. The number of outputs for a
+/// given input length therefore depends on the current phase. Use
+/// [`Self::num_output`] to size an output buffer before each call.
+///
+/// The filter is normalized so that a constant input settles to a gain of
+/// about one.
 #[derive(Clone, Debug)]
 #[doc(alias = "Resamp")]
 pub struct ArbitraryResampler<T, Coeff = T> {
@@ -24,6 +38,40 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
+    /// Creates an arbitrary-rate resampler with a Kaiser-windowed filter.
+    ///
+    /// # Arguments
+    ///
+    /// - `rate`: output rate divided by input rate, in `[0.004, 250]`.
+    /// - `filter_semi_length`: filter span on each side of the center tap, in
+    ///   input samples. Must be nonzero.
+    /// - `cutoff_frequency`: in cycles per input sample, in `(0, 0.5)`.
+    /// - `stopband_attenuation`: in dB. Must be positive.
+    /// - `num_filters`: number of filter phases, rounded up to a power of two
+    ///   and then required to lie in `[2, 65536]`. More phases place outputs
+    ///   closer to their exact positions.
+    ///
+    /// When `rate` is below one, keep `cutoff_frequency` below `rate / 2`,
+    /// with room for the transition band. A higher cutoff lets frequencies
+    /// above the output Nyquist frequency alias. The constructor does not
+    /// enforce this.
+    ///
+    /// A NaN `rate` is not rejected. It leaves a zero phase step, and later
+    /// calls that count or produce output panic. `num_filters` is cast to
+    /// `u32` before rounding, so values above `u32::MAX` are truncated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `rate` is outside `[0.004, 250]`,
+    /// `filter_semi_length` is zero, `cutoff_frequency` is outside its range,
+    /// `stopband_attenuation` is zero or negative, or `num_filters` is outside
+    /// its range.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the filter length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and the design is
+    /// invalid.
     pub fn new(
         rate: f32,
         filter_semi_length: usize,
@@ -78,6 +126,21 @@ where
         Ok(q)
     }
 
+    /// Creates an arbitrary-rate resampler with a default filter.
+    ///
+    /// The filter spans 7 input samples on each side of its center tap, with
+    /// a cutoff of 0.25 cycles per input sample, 60 dB of stopband attenuation,
+    /// and 256 phases.
+    ///
+    /// The cutoff does not depend on the rate. Below a rate of 0.5, it passes
+    /// frequencies above the output Nyquist frequency, which then alias. Above
+    /// a rate of one, it removes input content between 0.25 and 0.5 cycles per
+    /// sample. Use [`Self::new`] to choose a cutoff for the band you need.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `rate` is outside `[0.004, 250]`. A NaN rate is
+    /// not rejected and makes later calls panic, as with [`Self::new`].
     pub fn from_rate(rate: f32) -> Result<Self> {
         if rate <= 0.0 {
             return Err(Error::Config("resampling rate must be greater than zero".into()));
@@ -91,15 +154,29 @@ where
         Self::new(rate, m, fc, as_, npfb)
     }
 
+    /// Clears the sample history to zeros and sets the phase to zero.
+    ///
+    /// The rate is unchanged.
     pub fn reset(&mut self) {
         self.phase = 0;
         self.w.reset();
     }
 
+    /// Returns the filter delay in input samples.
     pub fn delay(&self) -> usize {
         self.m
     }
 
+    /// Changes the rate while keeping the history and phase.
+    ///
+    /// [`Self::rate`] then reports `rate` exactly, while the phase step is
+    /// rounded. A NaN `rate` is not rejected. It leaves a zero phase step,
+    /// and later calls that count or produce output panic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `rate` is outside `[0.004, 250]`. The rate is
+    /// unchanged on error.
     pub fn set_rate(&mut self, rate: f32) -> Result<()> {
         if rate <= 0.0 {
             return Err(Error::Config("resampling rate must be greater than zero".into()));
@@ -113,10 +190,22 @@ where
         Ok(())
     }
 
+    /// Returns the requested output rate divided by the input rate.
+    ///
+    /// The actual rate can differ slightly because the phase step is rounded.
     pub fn rate(&self) -> f32 {
         self.r
     }
 
+    /// Multiplies the rate by `gamma` while keeping the history and phase.
+    ///
+    /// A NaN `gamma` is not rejected and makes later calls panic, as with
+    /// [`Self::set_rate`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `gamma` is zero or negative or the new rate is
+    /// outside `[0.004, 250]`. The rate is unchanged on error.
     pub fn adjust_rate(&mut self, gamma: f32) -> Result<()> {
         if gamma <= 0.0 {
             return Err(Error::Config(format!("resampling adjustment ({}) must be greater than zero", gamma)));
@@ -133,6 +222,17 @@ where
     //     unimplemented!()
     // }
 
+    /// Returns the number of output samples that `num_input` more input
+    /// samples produce.
+    ///
+    /// The count depends on the current phase, so compute it immediately
+    /// before each call. It is the output length that [`Self::execute_block`]
+    /// requires for that input. A count too large for `usize` saturates at
+    /// `usize::MAX`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the phase step is zero, which follows from a NaN rate.
     pub fn num_output(&self, num_input: usize) -> usize {
         // after consuming n inputs and producing k outputs, the accumulator is
         // phase + k*step - n*PHASE_SCALE
@@ -142,6 +242,11 @@ where
         count.min(usize::MAX as u128) as usize
     }
 
+    /// Returns the largest number of input samples whose output fits in
+    /// `max_output` samples.
+    ///
+    /// The count depends on the current phase. A count too large for `usize`
+    /// saturates at `usize::MAX`.
     pub fn max_input(&self, max_output: usize) -> usize {
         // k <= max_output when
         // n*PHASE_SCALE <= max_output*step + phase.
@@ -149,6 +254,20 @@ where
         count.min(usize::MAX as u128) as usize
     }
 
+    /// Consumes one input sample and writes the outputs it produces.
+    ///
+    /// Depending on the rate and phase, one input produces zero or more
+    /// outputs. `output` must hold at least `num_output(1)` samples. Returns
+    /// the number of samples written. The rest of `output` is left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is too short. The resampler and `output`
+    /// are unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the phase step is zero, which follows from a NaN rate.
     pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<usize> {
         if output.len() < self.num_output(1) {
             return Err(Error::Config("output length too small for resampler output".into()));
@@ -167,6 +286,19 @@ where
         Ok(n)
     }
 
+    /// Consumes a block of input samples and writes the outputs they produce.
+    ///
+    /// `output` must hold at least `num_output(input.len())` samples. Returns
+    /// the number of samples written. The rest of `output` is left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is too short. The resampler and `output`
+    /// are unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the phase step is zero, which follows from a NaN rate.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < self.num_output(input.len()) {
             return Err(Error::Config("output length too small for resampler output".into()));

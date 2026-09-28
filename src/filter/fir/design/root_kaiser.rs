@@ -5,17 +5,28 @@ use super::kaiser::fir_design_kaiser;
 use crate::error::{Error, Result};
 use crate::filter::fir::design::{estimate_req_filter_stopband_attenuation, filter_isi};
 
-/// Design frequency-shifted root-Nyquist filter based on the Kaiser-windowed sinc.
+/// Designs a root-Nyquist pulse from a Kaiser-windowed sinc.
 ///
-/// # Arguments
-/// * `k`      : filter over-sampling rate (samples/symbol)
-/// * `m`      : filter delay (symbols)
-/// * `beta`   : filter excess bandwidth factor (0,1)
-/// * `dt`     : filter fractional sample delay
+/// The pulse has `k` samples per symbol and spans `m` symbols on each side of
+/// its center tap, for `2 * k * m + 1` taps. `beta` is the excess bandwidth.
+/// `dt` shifts the pulse in samples, and a positive value moves it earlier.
 ///
-/// # Returns
+/// A Kaiser low-pass filter is not root-Nyquist on its own. This designer
+/// adjusts the filter's transition band and searches for the adjustment with
+/// the lowest RMS inter-symbol interference, as measured by [`filter_isi`].
+/// [`fir_design_arkaiser`] is a faster approximation. The taps are scaled to a
+/// total energy of `k`.
 ///
-/// A vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `k` is less than two, `m` is zero, `beta` is not in
+/// `0.0 < beta < 1.0`, `dt` is outside `-1.0..=1.0`, or an intermediate
+/// design fails.
+///
+/// # Panics
+///
+/// Panics when `2 * k * m + 1` overflows `usize` and overflow checks are
+/// enabled. Without overflow checks the count wraps.
 pub fn fir_design_rkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // validate input
     if k < 2 {
@@ -37,18 +48,27 @@ pub fn fir_design_rkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<
     Ok(h)
 }
 
-/// Design frequency-shifted root-Nyquist filter based on
-/// the Kaiser-windowed sinc using approximation for rho.
+/// Designs an approximate root-Nyquist pulse from a Kaiser-windowed sinc.
 ///
-/// # Arguments
-/// * `k`      : filter over-sampling rate (samples/symbol)
-/// * `m`      : filter delay (symbols)
-/// * `beta`   : filter excess bandwidth factor (0,1)
-/// * `dt`     : filter fractional sample delay
+/// The pulse has `k` samples per symbol and spans `m` symbols on each side of
+/// its center tap, for `2 * k * m + 1` taps. `beta` is the excess bandwidth.
+/// `dt` shifts the pulse in samples, and a positive value moves it earlier.
 ///
-/// # Returns
+/// This designer takes the transition-band adjustment from a fitted formula
+/// instead of the search in [`fir_design_rkaiser`]. It is faster, but its
+/// inter-symbol interference can be noticeably higher, especially at a large
+/// `beta`. The taps are scaled to a total energy of `k`.
 ///
-/// A vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `k` is less than two, `m` is zero, `beta` is not in
+/// `0.0 < beta < 1.0`, `dt` is outside `-1.0..=1.0`, or an intermediate
+/// design fails.
+///
+/// # Panics
+///
+/// Panics when `2 * k * m + 1` overflows `usize` and overflow checks are
+/// enabled. Without overflow checks the count wraps.
 pub fn fir_design_arkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32>> {
     // validate input
     if k < 2 {
@@ -95,16 +115,11 @@ pub fn fir_design_arkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec
     Ok(h)
 }
 
-/// Find approximate bandwidth adjustment factor rho based on
-/// filter delay and desired excess bandwidth factor.
+/// Returns the fitted bandwidth adjustment `rho` for a delay of `m` symbols
+/// and excess bandwidth `beta`.
 ///
-/// # Arguments
-/// * `m`      : filter delay (symbols)
-/// * `beta`   : filter excess bandwidth factor (0,1)
-///
-/// # Returns
-///
-/// Bandwidth adjustment factor
+/// The result is clamped to `[0, 1]`. Panics when `m` is zero or `beta` is
+/// outside `[0, 1]`.
 fn rkaiser_approximate_rho(m: usize, beta: f32) -> f32 {
     if m < 1 {
         panic!("rkaiser_approximate_rho(): m must be greater than 0");
@@ -214,19 +229,13 @@ fn fir_design_rkaiser_bounded(k: usize, m: usize, beta: f32, dt: f32, rho_hat: f
     Ok(rho_opt)
 }
 
-/// Design frequency-shifted root-Nyquist filter based on
-/// the Kaiser-windowed sinc using the quadratic search method.
+/// Designs a root-Nyquist Kaiser pulse into `h` by a quadratic search over
+/// the bandwidth adjustment `rho`.
 ///
-/// # Arguments
-/// * `k`      : filter over-sampling rate (samples/symbol)
-/// * `m`      : filter delay (symbols)
-/// * `beta`   : filter excess bandwidth factor (0,1)
-/// * `dt`     : filter fractional sample delay
-/// * `h`      : resulting filter [size: 2*k*m+1]
-///
-/// # Returns
-///
-/// Bandwidth adjustment factor
+/// `h` must hold `2 * k * m + 1` taps. The search fits a parabola to the ISI
+/// at three values of `rho` and moves toward its minimum. If the first fit
+/// falls outside its bounds, the bounded search runs instead. Returns the
+/// chosen `rho`.
 fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut [f32]) -> Result<f32> {
     // algorithm:
     //  1. choose initial bounding points [x0,x2] where x0 < x2
@@ -316,19 +325,11 @@ fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut 
     Ok(rho_opt)
 }
 
-/// Compute filter coefficients and determine resulting ISI
+/// Designs a Kaiser pulse into `h` for one bandwidth adjustment `rho` and
+/// returns its RMS inter-symbol interference.
 ///
-/// # Arguments
-/// * `k`      : filter over-sampling rate (samples/symbol)
-/// * `m`      : filter delay (symbols)
-/// * `beta`   : filter excess bandwidth factor (0,1)
-/// * `dt`     : filter fractional sample delay
-/// * `rho`    : transition bandwidth adjustment, 0 < rho < 1
-/// * `h`      : filter buffer [size: 2*k*m+1]
-///
-/// # Returns
-///
-/// RMS of ISI
+/// `h` must hold `2 * k * m + 1` taps. `rho` scales the transition width and
+/// must be in `[0, 1]`.
 fn fir_design_rkaiser_internal_isi(k: usize, m: usize, beta: f32, dt: f32, rho: f32, h: &mut [f32]) -> Result<f32> {
     // validate input
     if rho < 0.0 || rho > 1.0 {

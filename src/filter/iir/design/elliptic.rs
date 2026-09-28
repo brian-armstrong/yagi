@@ -10,16 +10,11 @@ use std::f32::consts::PI;
 //  [Orfanidis:2005] Sophocles J. Orfanidis, source code available
 //      on www.ece.rutgers.edu/~orfanidi/hpeq
 
-/// Compute the Landen transformation of _k over _n iterations,
-///  k[n] = (k[n-1] / (1+k'[n-1]))^2
-/// where
-///  k'[n-1] = sqrt(1-k[n-1]^2)
+/// Applies `n` Landen transformations to the elliptic modulus `k`.
 ///
-/// # Arguments
-///
-/// * `k` - elliptic modulus
-/// * `n` - number of iterations
-/// * `v` - sequence of decreasing moduli [size: n]
+/// Each step computes `k[i] = (1 - k'[i-1]) / (1 + k'[i-1])`, where
+/// `k'[i-1] = sqrt(1 - k[i-1]^2)`. The resulting sequence of decreasing moduli
+/// is written to `v[..n]`.
 fn landenf(k: f32, n: usize, v: &mut [f32]) -> Result<()> {
     let mut k = k;
     for vi in &mut v[..n] {
@@ -30,14 +25,12 @@ fn landenf(k: f32, n: usize, v: &mut [f32]) -> Result<()> {
     Ok(())
 }
 
-/// Compute elliptic integral K(k) for _n recursions
+/// Computes the complete elliptic integrals `K(k)` and `K(k')`.
 ///
-/// # Arguments
-///
-/// * `k` - elliptic modulus
-/// * `n` - number of iterations
-/// * `k_out` - complete elliptic integral (modulus k)
-/// * `kp_out` - complete elliptic integral (modulus k')
+/// `k_out` receives `K(k)` and `kp_out` receives `K(k')`, where
+/// `k' = sqrt(1 - k^2)` is the complementary modulus. Each integral uses `n`
+/// Landen transformations. A modulus too close to zero or one for `f32` to
+/// resolve uses an asymptotic approximation instead.
 fn ellipkf(k: f32, n: usize, k_out: &mut f32, kp_out: &mut f32) -> Result<()> {
     let kmin = 4e-4f32;
     let kmax = (1.0 - kmin * kmin).sqrt();
@@ -73,17 +66,10 @@ fn ellipkf(k: f32, n: usize, k_out: &mut f32, kp_out: &mut f32) -> Result<()> {
     Ok(())
 }
 
-/// Compute elliptic degree using _n iterations
+/// Solves the degree equation for the elliptic modulus of an order-`n` filter.
 ///
-/// # Arguments
-///
-/// * `n` - analog filter order
-/// * `k1` - elliptic modulus for stop-band, ep/ep1
-/// * `n_iter` - number of Landen iterations
-///
-/// # Returns
-///
-/// Elliptic degree
+/// `k1_in` is the ratio of the passband to stopband ripple factors,
+/// `ep / es`. The integrals and series use `n_iter` terms.
 fn ellipdegf(n: f32, k1_in: f32, n_iter: usize) -> Result<f32> {
     let mut k1 = k1_in;
     let mut k1p = k1_in;
@@ -107,17 +93,10 @@ fn ellipdegf(n: f32, k1_in: f32, n_iter: usize) -> Result<f32> {
     Ok(k)
 }
 
-/// Complex elliptic cd() function (Jacobian elliptic cosine)
+/// Evaluates the Jacobian elliptic function `cd(u * K, k)`.
 ///
-/// # Arguments
-///
-/// * `u` - vector in the complex u-plane
-/// * `k` - elliptic modulus (0 <= _k < 1)
-/// * `n` - number of Landen iterations (typically 5-6)
-///
-/// # Returns
-///
-/// Complex elliptic cd() function
+/// `u` is a complex argument in units of the quarter period `K = K(k)`. The
+/// modulus `k` lies in `[0, 1)`. The result uses `n` Landen transformations.
 fn ellip_cdf(u: Complex32, k: f32, n: usize) -> Complex32 {
     let mut wn = (u * PI * 0.5).cos();
     let mut v = vec![0.0; n];
@@ -128,17 +107,9 @@ fn ellip_cdf(u: Complex32, k: f32, n: usize) -> Complex32 {
     wn
 }
 
-/// Complex elliptic sn() function (Jacobian elliptic sine)
+/// Evaluates the Jacobian elliptic function `sn(u * K, k)`.
 ///
-/// # Arguments
-///
-/// * `u` - vector in the complex u-plane
-/// * `k` - elliptic modulus (0 <= _k < 1)
-/// * `n` - number of Landen iterations (typically 5-6)
-///
-/// # Returns
-///
-/// Complex elliptic sn() function
+/// The argument, modulus, and iteration count follow [`ellip_cdf`].
 fn ellip_snf(u: Complex32, k: f32, n: usize) -> Complex32 {
     let mut wn = (u * PI * 0.5).sin();
     let mut v = vec![0.0; n];
@@ -149,17 +120,11 @@ fn ellip_snf(u: Complex32, k: f32, n: usize) -> Complex32 {
     wn
 }
 
-/// Complex elliptic acdf() function (Jacobian elliptic arc cosine)
+/// Inverts [`ellip_cdf`].
 ///
-/// # Arguments
-///
-/// * `w` - vector in the complex u-plane
-/// * `k` - elliptic modulus (0 <= _k < 1)
-/// * `n` - number of Landen iterations (typically 5-6)
-///
-/// # Returns
-///
-/// Complex elliptic acdf() function
+/// Returns `u`, in units of the quarter period `K(k)`, such that
+/// `cd(u * K, k) = w`. The modulus `k` lies in `[0, 1)`. The result uses `n`
+/// Landen transformations.
 fn ellip_acdf(w: Complex32, k: f32, n: usize) -> Complex32 {
     let mut v = vec![0.0; n];
     landenf(k, n, &mut v).unwrap();
@@ -173,33 +138,30 @@ fn ellip_acdf(w: Complex32, k: f32, n: usize) -> Complex32 {
     w.acos() * 2.0 / PI
 }
 
-/// Complex elliptic asnf() function (Jacobian elliptic arc sine)
+/// Inverts [`ellip_snf`].
 ///
-/// # Arguments
-///
-/// * `w` - vector in the complex u-plane
-/// * `k` - elliptic modulus (0 <= _k < 1)
-/// * `n` - number of Landen iterations (typically 5-6)
-///
-/// # Returns
-///
-/// Complex elliptic asnf() function
+/// Returns `u`, in units of the quarter period `K(k)`, such that
+/// `sn(u * K, k) = w`. The arguments follow [`ellip_acdf`].
 fn ellip_asnf(w: Complex32, k: f32, n: usize) -> Complex32 {
     Complex32::new(1.0, 0.0) - ellip_acdf(w, k, n)
 }
 
-/// Compute analog zeros, poles, gain of low-pass elliptic filter, grouping
-/// complex conjugates together. If the filter order is odd, the single real pole
-/// is at the end of the array.
+/// Designs an analog low-pass elliptic prototype.
 ///
-/// # Arguments
+/// `ep` and `es` are the passband and stopband ripple factors, linear values
+/// rather than decibels. For a gain of `g` dB below unity, the factor is
+/// `sqrt(10^(g / 10) - 1)`. Unit analog frequency is the passband edge.
 ///
-/// * `n` - filter order
-/// * `ep` - epsilon_p, related to pass-band ripple
-/// * `es` - epsilon_s, related to stop-band ripple
-/// * `za` - output analog zeros [length: floor(_n/2)]
-/// * `pa` - output analog poles [length: _n]
-/// * `ka` - output analog gain
+/// `pa` receives `n` poles in conjugate pairs, and an odd order puts its one
+/// real pole last. `za` receives `n - n % 2` zeros in conjugate pairs. `ka`
+/// receives the prototype gain.
+///
+/// The inputs are not validated. `n` should be positive, and the ripple
+/// factors should be positive with `ep < es`. Other values can
+/// produce nonfinite poles, zeros, or gain without an error.
+///
+/// The elliptic functions use a fixed number of iterations, so a successful
+/// return does not guarantee that the design meets its ripple specification.
 pub fn iir_design_ellip_analog(
     n: usize,
     ep: f32,

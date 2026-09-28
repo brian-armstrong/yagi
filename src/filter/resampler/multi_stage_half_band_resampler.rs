@@ -3,6 +3,17 @@ use crate::error::{Error, Result};
 use crate::filter;
 use crate::filter::{HalfBandResampler, Sample};
 
+/// Cascade of half-band resamplers that changes the rate by a power of two.
+///
+/// The cascade interpolates or decimates by `2^num_stages`, one factor of two
+/// per stage. A new cascade starts with zero-valued history. The cascade
+/// compensates for the gain of the decimating stages, so a constant input
+/// settles to a gain of about one in either direction.
+///
+/// Use [`Self::execute_block`] for streaming. It checks buffer lengths before
+/// changing any state. [`Self::execute`] runs a single step with the same
+/// checks. The direction-specific methods skip some of them. With zero
+/// stages, the checked methods copy input to output unchanged.
 #[derive(Clone, Debug)]
 #[doc(alias = "MsResamp2")]
 pub struct MultiStageHalfBandResampler<T, Coeff = T> {
@@ -25,9 +36,12 @@ pub struct MultiStageHalfBandResampler<T, Coeff = T> {
     block1: Vec<T>,
 }
 
+/// Direction of a resampler's sample-rate change.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ResampType {
+    /// Lower the sample rate.
     Decim,
+    /// Raise the sample rate.
     Interp,
 }
 
@@ -37,6 +51,24 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
+    /// Creates a half-band cascade with `num_stages` stages.
+    ///
+    /// # Arguments
+    ///
+    /// - `num_stages`: in `[0, 16]`. The rate changes by `2^num_stages`.
+    /// - `cutoff_frequency`: in cycles per sample at the lower rate, which is
+    ///   the output when decimating and the input when interpolating. Must lie
+    ///   in `(0, 0.5)`. It sets the transition width of each stage rather than
+    ///   an exact passband edge.
+    /// - `center_frequency`: must be zero. Other center frequencies are not
+    ///   supported yet.
+    /// - `stopband_attenuation`: in dB.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_stages` is above 16, `cutoff_frequency` is
+    /// outside its range, `center_frequency` is nonzero, or a stage design
+    /// rejects `stopband_attenuation`.
     pub fn new(
         resampler_type: ResampType,
         num_stages: usize,
@@ -100,6 +132,7 @@ where
         Ok(q)
     }
 
+    /// Clears the history of every stage to zeros.
     pub fn reset(&mut self) {
         for resamp in &mut self.resamp2 {
             resamp.reset();
@@ -108,6 +141,7 @@ where
         self.buffer1.iter_mut().for_each(|x| *x = T::default());
     }
 
+    /// Returns the output rate divided by the input rate.
     pub fn rate(&self) -> f32 {
         match self.type_ {
             ResampType::Interp => self.rate as f32,
@@ -115,14 +149,17 @@ where
         }
     }
 
+    /// Returns the number of half-band stages.
     pub fn num_stages(&self) -> usize {
         self.num_stages
     }
 
+    /// Returns whether the cascade interpolates or decimates.
     pub fn resampler_type(&self) -> ResampType {
         self.type_
     }
 
+    /// Returns the delay through the cascade in input samples.
     pub fn delay(&self) -> f32 {
         let mut delay = 0.0;
         match self.type_ {
@@ -144,6 +181,18 @@ where
         delay
     }
 
+    /// Runs one step of the cascade.
+    ///
+    /// When interpolating, a step consumes one input sample and writes
+    /// `2^num_stages` output samples. When decimating, it consumes
+    /// `2^num_stages` input samples and writes one output sample. Extra input
+    /// is ignored and extra output is left unchanged. With zero stages, a step
+    /// copies one sample.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input` or `output` is too short for one step. The
+    /// cascade and `output` are unchanged on error.
     pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         let (required_input, required_output) = match self.type_ {
             ResampType::Interp => (1, 1usize << self.num_stages),
@@ -170,6 +219,16 @@ where
         }
     }
 
+    /// Consumes one input sample and writes `2^num_stages` output samples.
+    ///
+    /// Extra output is left unchanged. With zero stages, this copies `input`
+    /// to `output[0]`. Prefer [`Self::execute`], which checks the output length
+    /// first.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `output` holds fewer than `2^num_stages` samples. The
+    /// history has already changed when that happens.
     pub fn interp_execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
         let mut b0 = self.buffer0.as_mut_slice();
         let mut b1 = self.buffer1.as_mut_slice();
@@ -192,6 +251,18 @@ where
         Ok(())
     }
 
+    /// Consumes `2^num_stages` input samples and returns one output sample.
+    ///
+    /// Extra input is ignored. With zero stages, this ignores `input` and
+    /// returns a value from internal scratch storage rather than copying it.
+    /// Prefer [`Self::execute`], which checks the input length and passes
+    /// input through when there are no stages.
+    ///
+    /// # Panics
+    ///
+    /// Panics when there is at least one stage and `input` holds fewer than
+    /// `2^num_stages` samples. Some stages may already have changed when that
+    /// happens.
     pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
@@ -243,17 +314,19 @@ where
         }
     }
 
-    /// Pre-size the block scratch for interpolating blocks of up to `n` input
-    /// samples so that the first [`interp_execute_block`](Self::interp_execute_block) call does not
-    /// allocate. Larger blocks still grow the scratch on demand.
+    /// Grows the workspace used by [`Self::interp_execute_block`].
+    ///
+    /// Later calls with up to `n` input samples then run without allocating.
+    /// `n * 2^num_stages` must fit in `usize`, or the workspace is sized
+    /// wrongly.
     pub fn reserve_interp_block(&mut self, n: usize) {
         let (cap0, cap1) = self.interp_block_caps(n);
         self.grow_block_scratch(cap0, cap1);
     }
 
-    /// Pre-size the block scratch for decimating blocks of up to `n` input
-    /// samples so that the first [`decim_execute_block`](Self::decim_execute_block) call does not
-    /// allocate. Larger blocks still grow the scratch on demand.
+    /// Grows the workspace used by [`Self::decim_execute_block`].
+    ///
+    /// Later calls with up to `n` input samples then run without allocating.
     pub fn reserve_decim_block(&mut self, n: usize) {
         let (cap0, cap1) = self.decim_block_caps(n);
         self.grow_block_scratch(cap0, cap1);
@@ -266,9 +339,10 @@ where
         }
     }
 
-    /// Pre-size the block scratch for executing blocks of up to `n` input
-    /// samples so that the first [`execute_block`](Self::execute_block) call does not
-    /// allocate. Larger blocks still grow the scratch on demand.
+    /// Grows the workspace used by [`Self::execute_block`].
+    ///
+    /// Later calls with up to `n` input samples then run without allocating.
+    /// When interpolating, `n * 2^num_stages` must fit in `usize`.
     pub fn reserve_block(&mut self, n: usize) {
         match self.type_ {
             ResampType::Interp => self.reserve_interp_block(n),
@@ -276,18 +350,25 @@ where
         }
     }
 
-    /// Execute the cascade over a block of input samples.
+    /// Consumes a block of input samples and writes the resampled output.
     ///
-    /// This function will generally be more efficient than running [`execute`](Self::execute)
-    /// on each sample in a slice. Dot product kernels called here may run in a different
-    /// order, so results can differ by floating-point rounding.
+    /// When interpolating, `output` must hold at least
+    /// `input.len() * 2^num_stages` samples. When decimating, `input.len()`
+    /// must be a multiple of `2^num_stages`, and `output` must hold at least
+    /// `input.len() / 2^num_stages` samples. Extra output is left unchanged.
+    /// Returns the number of samples written. With zero stages, the input is
+    /// copied to the output.
     ///
-    /// # Arguments
+    /// The results can differ slightly from repeated [`Self::execute`] calls,
+    /// because the block dot products may sum in a different order. The call
+    /// grows an internal workspace when needed. Use [`Self::reserve_block`] to
+    /// allocate it in advance.
     ///
-    /// * `input` - input samples: `n` for interp, `rate * n` for decim
-    /// * `output` - output samples: `rate * n` for interp, `n` for decim
+    /// # Errors
     ///
-    /// Returns the number of output samples written.
+    /// Returns an error when a decimating `input` is not a whole number of
+    /// steps, the interpolated length overflows `usize`, or `output` is too
+    /// short. The cascade and `output` are unchanged on error.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if self.type_ == ResampType::Decim && !input.len().is_multiple_of(self.rate) {
             return Err(Error::Config(format!(
@@ -324,6 +405,19 @@ where
         }
     }
 
+    /// Interpolates a block of input samples through every stage.
+    ///
+    /// Returns the number of samples written, `input.len() * 2^num_stages`.
+    /// With zero stages, this returns `input.len()` without writing `output`.
+    /// Prefer [`Self::execute_block`], which checks the output length and
+    /// handles zero stages.
+    ///
+    /// # Panics
+    ///
+    /// Panics when there is at least one stage and `output` is shorter than
+    /// `input.len() * 2^num_stages`. Earlier stages may already have changed
+    /// when that happens. The length calculation can also overflow, which
+    /// panics when overflow checks are enabled and wraps otherwise.
     pub fn interp_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n = input.len();
         let n_out = n << self.num_stages;
@@ -354,6 +448,23 @@ where
         Ok(n_out)
     }
 
+    /// Decimates a block of input samples through every stage.
+    ///
+    /// Returns the number of samples written, `input.len() / 2^num_stages`.
+    /// With zero stages, this returns `input.len()` and leaves `output` as it
+    /// was. Prefer [`Self::execute_block`], which checks both lengths and
+    /// handles zero stages.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input.len()` is not a multiple of
+    /// `2^num_stages`. The cascade and `output` may already have changed.
+    ///
+    /// # Panics
+    ///
+    /// Panics when there is at least one stage and `output` is shorter than
+    /// `input.len() / 2^num_stages`. Earlier stages may already have changed
+    /// when that happens.
     pub fn decim_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n_in = input.len();
         let n_out = n_in >> self.num_stages;

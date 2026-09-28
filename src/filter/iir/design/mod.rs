@@ -26,52 +26,72 @@ use std::f32::consts::PI;
 //      Letters, vol. 3, no. 11, pp 487-489, 1967.
 //
 
-/// IIR filter design shape
+/// Analog low-pass prototype used for IIR design.
+///
+/// The shape decides what the design frequency `fc` means. Butterworth and
+/// Bessel are near -3 dB at `fc`. Chebyshev type I and elliptic filters reach
+/// the edge of their `ap` passband ripple there. Chebyshev type II reaches its
+/// `as_` stopband attenuation at `fc`, so its passband ends below `fc`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IirFilterShape {
+    /// Maximally flat passband.
     Butter,
+    /// Chebyshev type I with passband ripple.
     Cheby1,
+    /// Chebyshev type II with stopband ripple.
     Cheby2,
+    /// Elliptic response with passband and stopband ripple.
     Ellip,
+    /// Bessel response with approximately flat group delay near zero frequency.
     Bessel,
 }
 
-/// IIR filter band type
+/// Frequency transformation applied to an IIR prototype.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IirBandType {
+    /// Retain the low-pass prototype.
     Lowpass,
+    /// Transform the prototype to high-pass.
     Highpass,
+    /// Transform the prototype to band-pass.
     Bandpass,
+    /// Transform the prototype to band-stop.
     Bandstop,
 }
 
-/// IIR filter format
+/// Coefficient representation produced by IIR design.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IirFormat {
+    /// One numerator and denominator polynomial.
     TransferFunction,
+    /// A cascade of three-coefficient sections in `[b0, b1, b2]` order.
     SecondOrderSections,
 }
 
-/// Sorts array _z of complex numbers into complex conjugate pairs to
-/// within a tolerance. Conjugate pairs are ordered by increasing real
-/// component with the negative imaginary element first. All pure-real
-/// elements are placed at the end of the array.
+/// Groups `z[..n]` into complex conjugate pairs and writes them to `p`.
 ///
-/// Example:
-///      v:              liquid_cplxpair(v):
-///      10 + j*3        -3 - j*4
-///       5 + j*0         3 + j*4
-///      -3 + j*4        10 - j*3
-///      10 - j*3        10 + j*3
-///       3 + j*0         3 + j*0
-///      -3 + j*4         5 + j*0
+/// Two values pair when their real parts and their negated imaginary parts
+/// agree within `tol`. A value whose imaginary part is below `tol` in
+/// magnitude counts as real. Pairs come first, ordered by increasing real
+/// part with the negative imaginary member first. Real values follow in
+/// increasing order.
 ///
-/// # Arguments
+/// ```text
+/// z                p
+/// 10 + 3j          -3 - 4j
+///  5 + 0j          -3 + 4j
+/// -3 + 4j          10 - 3j
+/// 10 - 3j          10 + 3j
+///  3 + 0j           3 + 0j
+/// -3 - 4j           5 + 0j
+/// ```
 ///
-/// * `z` - complex array (size _n)
-/// * `n` - number of elements in _z
-/// * `tol` - tolerance for finding complex pairs
-/// * `p` - resulting pairs, pure real values of _z at end
+/// A complex value with no partner is dropped, and the tail of `p` it would
+/// have filled is left unchanged.
+///
+/// # Errors
+///
+/// Returns an error when `tol` is negative.
 fn find_conjugate_pairs(z: &[Complex32], n: usize, tol: f32, p: &mut [Complex32]) -> Result<()> {
     // validate input
     if tol < 0.0 {
@@ -138,20 +158,12 @@ fn find_conjugate_pairs(z: &[Complex32], n: usize, tol: f32, p: &mut [Complex32]
     find_conjugate_pairs_cleanup(p, n, num_pairs)
 }
 
-/// post-process cleanup used with liquid_cplxpair
+/// Tidies the output of [`find_conjugate_pairs`].
 ///
-/// once pairs have been identified and ordered, this method
-/// will clean up the result by ensuring the following:
-///  * pairs are perfect conjugates
-///  * pairs have negative imaginary component first
-///  * pairs are ordered by increasing real component
-///  * pure-real elements are ordered by increasing value
-///
-/// # Arguments
-///
-/// * `p` - pre-processed complex array [size: _n x 1]
-/// * `n` - array length
-/// * `num_pairs` - number of complex conjugate pairs
+/// `p[..2 * num_pairs]` holds the pairs and the rest of `p[..n]` holds the
+/// real values. Each pair is made an exact conjugate pair with the negative
+/// imaginary member first. The pairs are then sorted by increasing real part,
+/// and the real values by increasing value.
 fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize) -> Result<()> {
     // force pairs to be perfect conjugates with
     // negative imaginary component first
@@ -184,17 +196,12 @@ fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize)
     Ok(())
 }
 
-/// Compute frequency pre-warping factor.
+/// Computes the bilinear-transform prewarp factor.
 ///
-/// # Arguments
-///
-/// * `btype` - band type (e.g. `IirBandType::Lowpass`)
-/// * `fc` - low-pass cutoff frequency
-/// * `f0` - center frequency (band-pass|stop cases only)
-///
-/// # Returns
-///
-/// Frequency pre-warping factor
+/// `fc` is the cutoff in cycles per sample. `f0` is the center frequency in
+/// cycles per sample, and only band-pass and band-stop transformations use
+/// it. Neither frequency is validated. Values that make the formula singular,
+/// such as `fc = 0` for a high-pass transformation, return infinity or `NaN`.
 pub fn iir_design_freqprewarp(btype: IirBandType, fc: f32, f0: f32) -> f32 {
     // See [Constantinides:1967]
     match btype {
@@ -205,21 +212,20 @@ pub fn iir_design_freqprewarp(btype: IirBandType, fc: f32, f0: f32) -> f32 {
     }
 }
 
-/// convert analog zeros, poles, gain to digital zeros, poles gain
+/// Applies a bilinear transform to analog zeros, poles, and gain.
 ///
-/// The filter order is characterized by the number of analog
-/// poles.  The analog filter may have up to pa.len() zeros.
-/// The number of digital zeros and poles is equal to pa.len().
+/// `m` is the prewarp factor from [`iir_design_freqprewarp`]. `zd` and `pd`
+/// receive one entry for every analog pole, and `kd` receives the digital
+/// gain. A filter with fewer zeros than poles gets its missing zeros at -1.
+/// Analog zeros beyond the pole count are ignored.
 ///
-/// # Arguments
+/// An analog root at `1 / m`, or an analog zero at zero, produces nonfinite
+/// roots or gain without an error.
 ///
-/// * `za` - analog zeros
-/// * `pa` - analog poles
-/// * `ka` - nominal gain (NOTE: this does not necessarily carry over from analog gain)
-/// * `m` - frequency pre-warping factor
-/// * `zd` - digital zeros (output)
-/// * `pd` - digital poles (output)
-/// * `kd` - digital gain (output)
+/// # Errors
+///
+/// Returns an error when `zd` or `pd` is shorter than `pa`. The outputs are
+/// unchanged on error.
 pub fn iir_design_bilinear_a2d(
     za: &[Complex32],
     pa: &[Complex32],
@@ -257,29 +263,31 @@ pub fn iir_design_bilinear_a2d(
     Ok(())
 }
 
-/// compute bilinear z-transform using polynomial expansion in numerator and
-/// denominator
-/// <pre>
-///          b[0] + b[1]*s + ... + b[nb]*s^(nb-1)
-/// H(s) =   ------------------------------------
-///          a[0] + a[1]*s + ... + a[na]*s^(na-1)
-/// </pre>
-/// computes H(z) = H( s -> _m*(z-1)/(z+1) ) and expands as
-/// <pre>
-///          bd[0] + bd[1]*z^-1 + ... + bd[nb]*z^-n
-/// H(z) =   --------------------------------------
-///          ad[0] + ad[1]*z^-1 + ... + ad[nb]*z^-m
-/// </pre>
+/// Attempts to apply a bilinear transform to analog transfer-function
+/// polynomials.
 ///
-/// # Arguments
+/// `b` and `a` hold ascending powers of `s`, and `bd` and `ad` would receive
+/// ascending powers of `z^-1`. `m` is the prewarp factor.
 ///
-/// * `b` - numerator array, [size: _b_order+1]
-/// * `b_order` - polynomial order of _b
-/// * `a` - denominator array, [size: _a_order+1]
-/// * `a_order` - polynomial order of _a
-/// * `m` - bilateral warping factor
-/// * `bd` - output digital filter numerator, [size: _b_order+1]
-/// * `ad` - output digital filter numerator, [size: _a_order+1]
+/// # Warning
+///
+/// This function never produces a valid transform. For a positive
+/// `a_order`, it clears `bd` and `ad` and then returns an error from its
+/// first polynomial expansion. For a zero `a_order`, it divides by zero and
+/// returns nonfinite coefficients without an error. Use
+/// [`iir_design_bilinear_a2d`] instead.
+///
+/// # Errors
+///
+/// Returns an error when `b_order` exceeds `a_order`, or whenever `a_order`
+/// is positive.
+///
+/// # Panics
+///
+/// Panics when `bd` or `ad` is shorter than `a_order + 1`, or when `a_order`
+/// is zero and `a` or `b` is empty. With overflow checks enabled, also panics
+/// when `a_order + 1` overflows. Without overflow checks, that count wraps to
+/// zero.
 pub fn iir_design_bilinear_z(
     b: &[Complex32],
     b_order: usize,
@@ -346,16 +354,17 @@ pub fn iir_design_bilinear_z(
     Ok(())
 }
 
-/// convert discrete z/p/k form to transfer function form
+/// Converts digital zeros, poles, and gain to a transfer function.
 ///
-/// # Arguments
+/// `zd` and `pd` supply `n` zeros and poles. `b` and `a` receive `n + 1`
+/// coefficients each, in ascending powers of `z^-1`. Only the real part of
+/// each expanded coefficient is kept, so the zeros and poles should be real
+/// or come in conjugate pairs. With `n` zero, both outputs are set to zero.
 ///
-/// * `zd` - digital zeros (length: _n)
-/// * `pd` - digital poles (length: _n)
-/// * `n` - filter order
-/// * `k` - digital gain
-/// * `b` - output numerator (length: _n+1)
-/// * `a` - output denominator (length: _n+1)
+/// # Errors
+///
+/// Returns an error when `n + 1` overflows, `zd` or `pd` is shorter than `n`,
+/// or `b` or `a` is shorter than `n + 1`. The outputs are unchanged on error.
 pub fn iir_design_d2tf(
     zd: &[Complex32],
     pd: &[Complex32],
@@ -390,20 +399,25 @@ pub fn iir_design_d2tf(
     Ok(())
 }
 
-/// convert discrete z/p/k form to second-order sections form
+/// Converts digital zeros, poles, and gain to second-order sections.
 ///
-/// L is the number of sections in the cascade:
-///      r = n % 2
-///      L = (n - r) / 2;
+/// `zd` and `pd` supply `n` zeros and poles. The result has `(n + 1) / 2`
+/// sections, and `b` and `a` receive three coefficients per section in
+/// ascending powers of `z^-1`. An odd order ends with a first-order section,
+/// whose last numerator and denominator coefficients are zero.
 ///
-/// # Arguments
+/// The zeros and poles should be real or come in conjugate pairs, matched
+/// within `1e-6`. A complex root without a partner is not reported. It
+/// yields sections that do not represent the inputs.
 ///
-/// * `zd` - digital zeros (length: n)
-/// * `pd` - digital poles (length: n)
-/// * `n` - number of poles, zeros
-/// * `kd` - gain
-/// * `b` - output numerator matrix (size (L+r) x 3)
-/// * `a` - output denominator matrix (size (L+r) x 3)
+/// Every numerator section is scaled by the same factor, chosen so the
+/// factors multiply to the magnitude of the real part of `k`. The sign of `k`
+/// goes to the first section. The imaginary part of `k` is ignored.
+///
+/// # Panics
+///
+/// Panics when `zd` or `pd` is shorter than `n`, when `b` or `a` is shorter
+/// than `3 * ((n + 1) / 2)`, or when `b` has fewer than three entries.
 pub fn iir_design_d2sos(
     zd: &[Complex32],
     pd: &[Complex32],
@@ -484,15 +498,14 @@ pub fn iir_design_d2sos(
     Ok(())
 }
 
-/// digital z/p/k low-pass to high-pass transformation
+/// Transforms digital low-pass zeros and poles to high-pass.
 ///
-/// # Arguments
+/// The transform negates each root. `zdt` and `pdt` each receive `n`
+/// transformed roots.
 ///
-/// * `zd` - digital zeros (low-pass prototype)
-/// * `pd` - digital poles (low-pass prototype)
-/// * `n` - low-pass filter order
-/// * `zdt` - output digital zeros transformed [length: n]
-/// * `pdt` - output digital poles transformed [length: n]
+/// # Panics
+///
+/// Panics when any input or output slice is shorter than `n`.
 pub fn iir_design_lp2hp(
     zd: &[Complex32],
     pd: &[Complex32],
@@ -508,16 +521,16 @@ pub fn iir_design_lp2hp(
     Ok(())
 }
 
-/// digital z/p/k low-pass to band-pass transformation
+/// Transforms digital low-pass zeros and poles to band-pass.
 ///
-/// # Arguments
+/// `f0` is the center frequency in cycles per sample and is not validated.
+/// Each input root becomes two output roots, so `zdt` and `pdt` each receive
+/// `2 * n` roots.
 ///
-/// * `zd` - digital zeros (low-pass prototype)
-/// * `pd` - digital poles (low-pass prototype)
-/// * `n` - low-pass filter order
-/// * `f0` - center frequency
-/// * `zdt` - output digital zeros transformed [length: 2*n]
-/// * `pdt` - output digital poles transformed [length: 2*n]
+/// # Panics
+///
+/// Panics when `zd` or `pd` is shorter than `n`, or `zdt` or `pdt` is
+/// shorter than `2 * n`.
 pub fn iir_design_lp2bp(
     zd: &[Complex32],
     pd: &[Complex32],
@@ -546,20 +559,55 @@ pub fn iir_design_lp2bp(
     Ok(())
 }
 
-/// IIR filter design template
+/// Designs a digital IIR filter from an analog prototype.
 ///
 /// # Arguments
 ///
-/// * `ftype` - filter type (e.g. IirFilterShape::Butter)
-/// * `btype` - band type (e.g. IirBandType::Bandpass)
-/// * `format` - coefficients format (e.g. IirFormat::Sos)
-/// * `n` - filter order
-/// * `fc` - low-pass prototype cut-off frequency
-/// * `f0` - center frequency (band-pass, band-stop)
-/// * `ap` - pass-band ripple in dB
-/// * `as` - stop-band ripple in dB
-/// * `b` - output numerator
-/// * `a` - output denominator
+/// - `ftype`: the analog prototype.
+/// - `btype`: the frequency transformation.
+/// - `format`: the coefficient layout, a transfer function or second-order
+///   sections.
+/// - `n`: the prototype order. Must be nonzero.
+/// - `fc`: a band edge in cycles per sample, in `(0, 0.5)`. For low-pass and
+///   high-pass designs it is the edge that [`IirFilterShape`] describes:
+///   about -3 dB for Butterworth and Bessel, the passband edge for Chebyshev
+///   type I and elliptic, and the stopband edge for Chebyshev type II.
+/// - `f0`: the center frequency for band-pass and band-stop designs, in
+///   cycles per sample. Must lie in `[0, 0.5]` for every band type, including
+///   those that ignore it.
+/// - `ap`: passband ripple in dB. Must be positive. Used by Chebyshev type I
+///   and elliptic.
+/// - `as_`: stopband attenuation in dB. Must be positive. Used by Chebyshev
+///   type II and elliptic.
+/// - `b`, `a`: output coefficients in ascending powers of `z^-1`, sized as
+///   described below.
+///
+/// For band-pass and band-stop designs, `fc` is one band edge rather than a
+/// bandwidth or half-width, and `f0` places the other edge. For desired edges
+/// `f1` and `f2`, use either one as `fc` and set
+/// `f0 = acos(cos(pi * (f1 + f2)) / cos(pi * (f2 - f1))) / (2 * pi)`. Both
+/// edges must lie in `(0, 0.5)`, and the `acos` argument must lie in
+/// `[-1, 1]`. The edges need not be symmetric about `f0`.
+///
+/// Band-pass and band-stop transformations double the order. A transfer
+/// function needs `n + 1` coefficients in each of `b` and `a` for low-pass
+/// and high-pass, or `2 * n + 1` for band-pass and band-stop. Second-order
+/// sections need three coefficients per section, which is
+/// `3 * ((n + 1) / 2)` for low-pass and high-pass, or `3 * n` for band-pass
+/// and band-stop.
+///
+/// A successful return does not verify that the filter meets its ripple
+/// specification.
+///
+/// # Errors
+///
+/// Returns an error when `n` is zero, a parameter is out of range, a design
+/// step fails, or a transfer-function output slice is too short.
+///
+/// # Panics
+///
+/// Panics when `format` is [`IirFormat::SecondOrderSections`] and `b` or `a`
+/// is too short for the sections.
 pub fn iir_design(
     ftype: IirFilterShape,
     btype: IirBandType,
@@ -716,17 +764,21 @@ pub fn iir_design(
     Ok(())
 }
 
-/// Checks stability of iir filter
+/// Checks whether an IIR denominator has no poles outside the unit circle.
 ///
-/// # Arguments
+/// `a[..n]` holds the denominator in ascending powers of `z^-1`, so its order
+/// is `n - 1`. The numerator `_b` is not used.
 ///
-/// * `b` - feed-forward coefficients [size: n x 1]
-/// * `a` - feed-back coefficients [size: n x 1]
-/// * `n` - number of coefficients
+/// This is not a strict stability test. A pole on the unit circle counts as
+/// stable, so `true` does not rule out a marginally stable filter.
 ///
-/// # Returns
+/// # Errors
 ///
-/// `true` if the filter is stable, `false` otherwise
+/// Returns an error when `n < 2` or root finding fails.
+///
+/// # Panics
+///
+/// Panics when `a` is shorter than `n`.
 pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
     if n < 2 {
         return Err(Error::Config("filter order too low".into()));
@@ -751,19 +803,18 @@ pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
     Ok(true)
 }
 
-/// Compute group delay for an IIR filter
+/// Estimates the group delay of an IIR filter, in samples, at `fc` cycles per
+/// sample.
 ///
-/// # Arguments
+/// `b` and `a` are in ascending powers of `z^-1`. Near a null in the
+/// response, the calculation divides by a value close to zero. When that
+/// value falls below `1e-5` in magnitude, the function returns zero instead.
+/// That zero is a fallback, not the true delay.
 ///
-/// * `b` - filter coefficients array (numerator), [size: nb x 1]
-/// * `nb` - filter length (numerator)
-/// * `a` - filter coefficients array (denominator), [size: na x 1]
-/// * `na` - filter length (denominator)
-/// * `fc` - frequency at which delay is evaluated (-0.5 < fc < 0.5)
+/// # Errors
 ///
-/// # Returns
-///
-/// Group delay at the specified frequency
+/// Returns an error when `b` or `a` is empty, or when `fc` is outside
+/// `[-0.5, 0.5]`.
 pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
     // validate input
     if b.is_empty() {

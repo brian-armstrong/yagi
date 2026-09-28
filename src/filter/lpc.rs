@@ -2,15 +2,22 @@ use crate::error::{Error, Result};
 
 const LEVINSON_MAXORDER: usize = 256;
 
-/// Compute the linear prediction coefficients for an input signal _x
+/// Designs an order-`p` linear predictor for `x` with the Levinson-Durbin
+/// recursion.
 ///
-/// # Arguments
-/// * `x`: input signal [size: n x 1]
-/// * `p`: prediction filter order
+/// The first vector holds the `p + 1` coefficients of the prediction-error
+/// filter `a[0] + a[1] z^-1 + ... + a[p] z^-p`, with `a[0] = 1`. The predicted
+/// value of `x[n]` is `-(a[1] x[n-1] + ... + a[p] x[n-p])`. The second vector
+/// holds the prediction-error energy for each order from zero to `p`. Its
+/// first value is the energy of `x`.
 ///
-/// # Returns
-/// * `a`: prediction filter [size: p+1 x 1]
-/// * `g`: prediction error variance [size: p+1 x 1]
+/// The recursion does not check for a singular or poorly conditioned
+/// autocorrelation. Degenerate input, such as an all-zero signal with a
+/// positive order, can produce non-finite coefficients and errors.
+///
+/// # Errors
+///
+/// Returns an error when `p` exceeds `x.len()` or 256.
 pub fn design_lpc(x: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     let n = x.len();
 
@@ -30,19 +37,11 @@ pub fn design_lpc(x: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     levinson(&r, p)
 }
 
-/// Solve the Yule-Walker equations using Levinson-Durbin recursion
-/// for _symmetric_ autocorrelation
+/// Solves the Yule-Walker equations with the Levinson-Durbin recursion.
 ///
-/// # Arguments
-/// * `r`: autocorrelation array [size: p+1 x 1]
-/// * `p`: filter order
-///
-/// # Returns
-/// * `a`: output coefficients [size: p+1 x 1]
-/// * `e`: error variance [size: p+1 x 1]
-///
-/// # Notes
-/// By definition a`[0]` = 1.0
+/// `r` holds the symmetric autocorrelation for lags zero to `p`. Returns the
+/// `p + 1` prediction-error filter coefficients, with `a[0] = 1`, and the
+/// prediction-error energy for each order.
 fn levinson(r: &[f32], p: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     // check allocation length
     if p > LEVINSON_MAXORDER {

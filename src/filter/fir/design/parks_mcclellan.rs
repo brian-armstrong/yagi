@@ -33,42 +33,59 @@ use super::estimate_req_filter_transition_bandwidth;
 const IEXT_SEARCH_TOL: f64 = 1e-15;
 const MAX_ITERATIONS: usize = 40;
 
-/// Internal Parks-McClellan response type.
+/// Kind of response a Parks-McClellan design approximates.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(dead_code)] // Reserved for dedicated differentiator and Hilbert constructors.
 pub(crate) enum FirPmBandType {
-    /// regular band-pass filter
+    /// Piecewise-constant band response.
     Bandpass,
-    /// differentiating filter (currently unsupported)
+    /// Differentiator. Not yet supported.
     Differentiator,
-    /// Hilbert transform (currently unsupported)
+    /// Hilbert transform. Not yet supported.
     Hilbert,
 }
 
-/// Parks-McClellan filter design weight type
+/// How a Parks-McClellan error weight varies across a band.
+///
+/// The variation starts at the band's lower edge and multiplies the band's
+/// weight. Larger weights reduce the error at those frequencies.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FirPmWeightType {
-    /// flat weighting
+    /// Constant weight.
     Flat,
-    /// exponential weighting
+    /// Weight that grows as `exp(2 * (f - f_low))`.
     Exp,
-    /// linear weighting
+    /// Weight that grows as `1 + 2.7 * (f - f_low)`.
     Lin,
 }
 
-/// Desired response and weight at a frequency grid point.
+/// Desired response and error weight at one frequency.
+///
+/// Returned by the callback given to
+/// [`ParksMcClellanDesigner::new_with_response`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[doc(alias = "FirPmResponse")]
 pub struct ParksMcClellanResponse {
-    /// Desired filter response. Must be finite.
+    /// Desired amplitude response. Must be finite.
     pub desired: f64,
-    /// Positive, finite error weight. Larger values prioritize this frequency.
+    /// Error weight. Must be finite and positive. A larger weight reduces the
+    /// error at this frequency relative to others.
     pub weight: f64,
 }
 
 // TODO consider not using a struct here. is this reusable? could we combine ctor and execute?
 
-/// Parks-McClellan filter design object
+/// Equiripple FIR filter designer based on the Parks-McClellan algorithm.
+///
+/// The designer finds the even-symmetric, linear-phase filter that minimizes
+/// the largest weighted error across a set of bands. Frequencies between
+/// bands are left unconstrained.
+///
+/// Use [`Self::new`] for a constant response in each band, or
+/// [`Self::new_with_response`] for a response that varies with frequency.
+/// Then call [`Self::execute`] to run the design. An even-length filter always
+/// has zero response at 0.5 cycles per sample, so it cannot meet a
+/// specification that requires gain there.
 #[derive(Debug, Clone)]
 #[doc(alias = "FirDesignPm")]
 pub struct ParksMcClellanDesigner {
@@ -97,20 +114,20 @@ pub struct ParksMcClellanDesigner {
 }
 
 impl ParksMcClellanDesigner {
-    /// Create a Parks-McClellan filter designer for an ordinary even-symmetric
-    /// response.
+    /// Creates a designer with a constant response in each band.
     ///
-    /// # Arguments
+    /// `band_edges` holds a lower and an upper edge for each band, in cycles
+    /// per sample. The edges must be finite, nondecreasing, and within
+    /// `0.0..=0.5`. `desired_response`, `weights`, and `weight_types` each hold
+    /// one value per band. Omit the last two for a flat weight of one in every
+    /// band.
     ///
-    /// * `filter_length` - Number of filter taps
-    /// * `band_edges` - Lower and upper edge of each band, in cycles per sample. The number of bands is derived from these pairs.
-    /// * `desired_response` - Desired response in each band
-    /// * `weights` - Error weight for each band, or unit weights if `None`
-    /// * `weight_types` - Weight variation within each band, or flat weights if `None`
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new Parks-McClellan filter design object
+    /// Returns an error when `filter_length` is zero, `band_edges` is empty or
+    /// has an odd length, an edge is invalid, another slice has the wrong
+    /// length, a desired response is not finite, or a weight is not finite and
+    /// positive.
     pub fn new(
         filter_length: usize,
         band_edges: &[f32],
@@ -131,17 +148,19 @@ impl ParksMcClellanDesigner {
         Ok(obj)
     }
 
-    /// Create a Parks-McClellan filter designer with a user-defined response.
+    /// Creates a designer with a response that varies with frequency.
     ///
-    /// # Arguments
+    /// `band_edges` holds a lower and an upper edge for each band, in cycles
+    /// per sample, with the same limits as in [`Self::new`]. `response` is
+    /// called once for each point on the design grid, with its frequency in
+    /// cycles per sample. It returns the desired response and weight there.
     ///
-    /// * `filter_length` - Number of filter taps
-    /// * `band_edges` - Lower and upper edge of each band, in cycles per sample. The number of bands is derived from these pairs.
-    /// * `response` - User-defined response and weight function
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new Parks-McClellan filter design object
+    /// Returns an error when `filter_length` or `band_edges` is invalid, as in
+    /// [`Self::new`], or when `response` returns a nonfinite desired response
+    /// or a weight that is not finite and positive. An error from `response`
+    /// is returned unchanged.
     pub fn new_with_response<F>(
         filter_length: usize,
         band_edges: &[f32],
@@ -157,11 +176,15 @@ impl ParksMcClellanDesigner {
         Ok(obj)
     }
 
-    /// execute filter design and return the filter coefficients
+    /// Runs the design and returns `filter_length` taps.
     ///
-    /// # Returns
+    /// A successful result is the best design the algorithm found. It does not
+    /// certify that the weighted error meets any particular bound.
     ///
-    /// A vec of filter coefficients
+    /// # Errors
+    ///
+    /// Returns an error when the exchange algorithm does not converge within
+    /// 40 iterations or its interpolation step fails.
     pub fn execute(&mut self) -> Result<Vec<f32>> {
         self.execute_with_max_iterations(MAX_ITERATIONS)
     }
@@ -396,7 +419,8 @@ impl ParksMcClellanDesigner {
         Ok(())
     }
 
-    /// compute interpolating polynomial
+    /// Computes the interpolating polynomial through the current extremal
+    /// frequencies.
     fn compute_interp(&mut self) -> Result<()> {
         // compute Chebyshev points on F[iext[]] : cos(2*pi*f)
         for i in 0..self.r + 1 {
@@ -458,8 +482,8 @@ impl ParksMcClellanDesigner {
         Ok(())
     }
 
-    /// search error curve for r+1 extremal indices
-    /// TODO : return number of values which have changed (stopping criteria)
+    /// Searches the error curve for `r + 1` extremal indices.
+    // TODO : return number of values which have changed (stopping criteria)
     fn iext_search(&mut self) -> Result<()> {
         // found extremal frequency indices
         let nmax = 2 * self.r + 2 * self.num_bands; // max number of extremals
@@ -566,8 +590,7 @@ impl ParksMcClellanDesigner {
         Ok(())
     }
 
-    /// evaluate result to determine if Remez exchange algorithm
-    /// has converged
+    /// Reports whether the exchange algorithm has converged.
     fn is_search_complete(&mut self) -> Result<bool> {
         // if no extremal frequencies have been exchanged, Remez
         // algorithm has converged
@@ -596,7 +619,7 @@ impl ParksMcClellanDesigner {
         Ok((emax - emin) / emax < tol)
     }
 
-    /// compute filter taps (coefficients) from result
+    /// Computes the filter taps from the converged response.
     fn compute_taps(&mut self) -> Result<Vec<f32>> {
         // re-generate interpolator and compute coefficients
         // for best cosine approximation
@@ -657,19 +680,14 @@ impl ParksMcClellanDesigner {
     }
 }
 
-/// Run filter design (full life cycle of object)
+/// Designs an equiripple FIR filter with a constant response in each band.
 ///
-/// # Arguments
+/// This is a shortcut for [`ParksMcClellanDesigner::new`] followed by
+/// [`ParksMcClellanDesigner::execute`]. The parameters have the same meaning.
 ///
-/// * `filter_length` - Number of filter taps
-/// * `band_edges` - Lower and upper edge of each band, in cycles per sample. The number of bands is derived from these pairs
-/// * `desired_response` - Desired response in each band
-/// * `weights` - Error weight for each band, or unit weights if `None`
-/// * `weight_types` - Weight variation within each band, or flat weights if `None`
+/// # Errors
 ///
-/// # Returns
-///
-/// A vec of filter coefficients
+/// Returns the same errors as those two calls.
 pub fn fir_design_pm(
     filter_length: usize,
     band_edges: &[f32],
@@ -681,18 +699,23 @@ pub fn fir_design_pm(
     obj.execute()
 }
 
-/// Run filter design for basic low-pass filter
+/// Designs an equiripple low-pass FIR filter.
 ///
-/// # Arguments
+/// The filter has `n` taps and a cutoff of `fc` cycles per sample. The
+/// transition band is centered on `fc`, and its width is estimated from `n`
+/// and the stopband attenuation `as_` in dB. The passband gain is one, unlike
+/// the Kaiser and windowed-sinc designers. The stopband weight grows across
+/// the band, so the stopband ripple shrinks at higher frequencies.
 ///
-/// * `n` : filter length, n > 0
-/// * `fc` : cutoff frequency, 0 < fc < 0.5
-/// * `as_` : stop-band attenuation \[dB\], as_ > 0
-/// * `mu` : fractional sample offset, -0.5 < mu < 0.5 \[ignored\]
+/// `mu` is range-checked but does not affect the taps.
 ///
-/// # Returns
+/// # Errors
 ///
-/// A vec of filter coefficients
+/// Returns an error when `n` is zero, `mu` is outside `-0.5..=0.5`, `fc` is
+/// outside `0.0..=0.5`, `as_` is zero or negative, or the resulting band
+/// specification is invalid. A `fc` near either end of its range can place a
+/// band edge outside `0.0..=0.5`. It also returns an error when the design
+/// does not converge.
 pub fn fir_design_pm_lowpass(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32>> {
     if mu < -0.5 || mu > 0.5 {
         return Err(Error::Config("firdespm_lowpass(), mu (%12.4e) out of range [-0.5,0.5]".to_string()));

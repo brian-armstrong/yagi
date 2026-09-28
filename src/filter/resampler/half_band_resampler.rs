@@ -4,6 +4,21 @@ use crate::error::{Error, Result};
 use crate::filter;
 use crate::filter::Sample;
 
+/// Half-band filter that resamples by two or splits a signal into two bands.
+///
+/// The same filter supports four operations. [`Self::decim_execute`] halves
+/// the sample rate and [`Self::interp_execute`] doubles it.
+/// [`Self::analyzer_execute`] splits pairs of samples into low and high
+/// subbands, and [`Self::synthesizer_execute`] combines them again.
+/// [`Self::filter_execute`] produces both bands at the original rate. Each
+/// operation has a block form. A new filter starts with zero-valued history.
+///
+/// All operations share one filter history. Call [`Self::reset`] before
+/// switching an instance to a different operation.
+///
+/// With a zero center frequency and the default scale of one, decimation
+/// has a gain of about two for a constant input and interpolation has a gain
+/// of about one. Use [`Self::set_scale`] to change the level.
 #[derive(Clone, Debug)]
 #[doc(alias = "Resamp2")]
 pub struct HalfBandResampler<T, Coeff = T> {
@@ -25,6 +40,25 @@ where
     T: Sample + std::ops::Mul<Coeff, Output = T>,
     [T]: DotProd<Coeff, Output = T>,
 {
+    /// Creates a half-band filter.
+    ///
+    /// The prototype filter has `4 * filter_semi_length + 1` taps.
+    /// `center_frequency` shifts the passband to that frequency and must lie in
+    /// `[-0.5, 0.5]`. It is in cycles per sample at the filter's full rate,
+    /// which is the input rate except when interpolating, where it is the
+    /// output rate. Stopband attenuation is given in dB.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `filter_semi_length` is less than two,
+    /// `center_frequency` is outside its range, `stopband_attenuation` is
+    /// negative, or the filter design rejects the attenuation.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the filter length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and the design is
+    /// invalid.
     pub fn new(filter_semi_length: usize, center_frequency: f32, stopband_attenuation: f32) -> Result<Self> {
         if filter_semi_length < 2 {
             return Err(Error::Config("filter semi-length must be at least 2".into()));
@@ -72,27 +106,37 @@ where
         Ok(q)
     }
 
+    /// Clears the sample history to zeros and restarts the phase that
+    /// [`Self::filter_execute`] tracks.
+    ///
+    /// The scale is unchanged.
     pub fn reset(&mut self) {
         self.w0.reset();
         self.w1.reset();
         self.toggle = false;
     }
 
+    /// Sets the factor applied to every output sample.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
+    /// Returns the factor applied to every output sample.
     pub fn scale(&self) -> Coeff {
         self.scale
     }
 
+    /// Returns the nominal filter delay, `2 * filter_semi_length - 1`.
+    ///
+    /// The value is in samples at the filter's full rate. The center tap of
+    /// the prototype sits one sample later, at `2 * filter_semi_length`.
     pub fn delay(&self) -> usize {
         2 * self.m - 1
     }
 
-    /// Pre-size the scratch for decimating blocks of up to `n` input samples
-    /// so that the next [`decim_execute_block`](Self::decim_execute_block)
-    /// call does not allocate. Larger blocks still grow the scratch on demand.
+    /// Grows the workspace used by [`Self::decim_execute_block`].
+    ///
+    /// Later calls with up to `n` input samples then run without allocating.
     pub fn reserve_decim_block(&mut self, n: usize) {
         let phase_len = n / 2;
         if self.decim_phase.len() < phase_len {
@@ -100,6 +144,10 @@ where
         }
     }
 
+    /// Filters one sample into low-pass and high-pass outputs.
+    ///
+    /// Both outputs stay at the input rate. The returned pair is
+    /// `(low_pass, high_pass)`.
     pub fn filter_execute(&mut self, input: T) -> Result<(T, T)> {
         let (yi, yq) = if !self.toggle {
             self.w0.push(input);
@@ -122,6 +170,15 @@ where
         Ok((y0, y1))
     }
 
+    /// Splits two input samples into one low-band and one high-band sample.
+    ///
+    /// The low-band sample goes to `output[0]` and the high-band sample to
+    /// `output[1]`. Extra input is ignored and extra output is left unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `input` or `output` holds fewer than two samples. When
+    /// `output` is the short one, the history has already changed.
     pub fn analyzer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         self.w1.push(Into::<T>::into(0.5) * input[0]);
         let r = self.w1.read();
@@ -135,6 +192,16 @@ where
         Ok(())
     }
 
+    /// Combines one low-band and one high-band sample into two output samples.
+    ///
+    /// This reverses [`Self::analyzer_execute`], taking the low-band sample
+    /// from `input[0]` and the high-band sample from `input[1]`. Extra input
+    /// is ignored and extra output is left unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `input` or `output` holds fewer than two samples. When
+    /// `output` is the short one, the history has already changed.
     pub fn synthesizer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         let x0 = input[0] + input[1];
         let x1 = input[0] - input[1];
@@ -149,6 +216,14 @@ where
         Ok(())
     }
 
+    /// Consumes two input samples and returns one output sample.
+    ///
+    /// Extra input is ignored.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `input` holds fewer than two samples. The history has
+    /// already changed when `input` holds exactly one.
     pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
         self.w1.push(input[0]);
         let r = self.w1.read();
@@ -161,6 +236,14 @@ where
         Ok(y)
     }
 
+    /// Consumes one input sample and writes two output samples.
+    ///
+    /// Extra output is left unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `output` holds fewer than two samples. The history and
+    /// `output[0]` may already have changed.
     pub fn interp_execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
         self.w0.push(input);
         output[0] = self.w0.index(self.m - 1)? * self.scale;
@@ -172,14 +255,18 @@ where
         Ok(())
     }
 
-    /// Run the half-band filter over a block, producing an output pair per input.
+    /// Filters a block of samples into interleaved low-pass and high-pass
+    /// outputs.
     ///
-    /// # Arguments
+    /// `output` must hold at least `2 * input.len()` samples. Each input
+    /// sample produces a low-pass sample followed by a high-pass sample. Extra
+    /// output is left unchanged. Returns the number of samples written,
+    /// `2 * input.len()`.
     ///
-    /// * `input` - input samples (size: `n`)
-    /// * `output` - output samples (size: `2 * n`)
+    /// # Errors
     ///
-    /// Returns the number of output samples written, `2 * input.len()`.
+    /// Returns an error when `output` is too short. The filter and `output`
+    /// are unchanged on error.
     pub fn filter_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n_out = input.len().checked_mul(2).ok_or_else(|| Error::Range("filter output length overflow".into()))?;
         if output.len() < n_out {
@@ -193,14 +280,19 @@ where
         Ok(n_out)
     }
 
-    /// Run the analyzer over a block of input pairs.
+    /// Splits a block of input pairs into interleaved low-band and high-band
+    /// samples.
     ///
-    /// # Arguments
+    /// Each pair of input samples produces one low-band sample followed by one
+    /// high-band sample, as in [`Self::analyzer_execute`]. A trailing odd
+    /// input sample is ignored. `output` must hold one sample for each input
+    /// sample in a complete pair. Extra output is left unchanged. Returns the
+    /// number of samples written.
     ///
-    /// * `input` - input samples (size: `2 * n`)
-    /// * `output` - output samples (size: `2 * n`)
+    /// # Errors
     ///
-    /// Returns the number of output samples written, `input.len()`.
+    /// Returns an error when `output` is too short. The filter and `output` are
+    /// unchanged on error.
     pub fn analyzer_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n = input.len() / 2;
         let n_out = 2 * n;
@@ -213,14 +305,18 @@ where
         Ok(n_out)
     }
 
-    /// Run the synthesizer over a block of input pairs.
+    /// Combines a block of interleaved low-band and high-band samples.
     ///
-    /// # Arguments
+    /// This reverses [`Self::analyzer_execute_block`]. Each input pair
+    /// produces two output samples, as in [`Self::synthesizer_execute`]. A
+    /// trailing odd input sample is ignored. `output` must hold one sample for
+    /// each input sample in a complete pair. Extra output is left unchanged.
+    /// Returns the number of samples written.
     ///
-    /// * `input` - input samples (size: `2 * n`)
-    /// * `output` - output samples (size: `2 * n`)
+    /// # Errors
     ///
-    /// Returns the number of output samples written, `input.len()`.
+    /// Returns an error when `output` is too short. The filter and `output` are
+    /// unchanged on error.
     pub fn synthesizer_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n = input.len() / 2;
         let n_out = 2 * n;
@@ -233,14 +329,21 @@ where
         Ok(n_out)
     }
 
-    /// Decimate a block of input samples by 2.
+    /// Consumes a block of input samples and writes one output per pair.
     ///
-    /// # Arguments
+    /// `input` must have an even length, and `output` must hold at least
+    /// `input.len() / 2` samples. Extra output is left unchanged. Returns the
+    /// number of samples written, `input.len() / 2`.
     ///
-    /// * `input` - input samples (size: `2 * n`)
-    /// * `output` - output samples (size: `n`)
+    /// The results can differ slightly from repeated
+    /// [`Self::decim_execute`] calls, because the block dot product may sum in
+    /// a different order. The call grows an internal workspace when needed.
+    /// Use [`Self::reserve_decim_block`] to allocate it in advance.
     ///
-    /// Returns the number of output samples written, `input.len() / 2`.
+    /// # Errors
+    ///
+    /// Returns an error when `input` has an odd length or `output` is too
+    /// short. The filter and `output` are unchanged on error.
     pub fn decim_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if !input.len().is_multiple_of(2) {
             return Err(Error::Config("decimation input length must be a multiple of 2".into()));
@@ -295,14 +398,20 @@ where
         Ok(n)
     }
 
-    /// Interpolate a block of input samples by 2.
+    /// Consumes a block of input samples and writes two outputs for each.
     ///
-    /// # Arguments
+    /// `output` must hold at least `2 * input.len()` samples. Extra output is
+    /// left unchanged. Returns the number of samples written,
+    /// `2 * input.len()`.
     ///
-    /// * `input` - input samples (size: `n`)
-    /// * `output` - output samples (size: `2 * n`)
+    /// The results can differ slightly from repeated
+    /// [`Self::interp_execute`] calls, because the block dot product may sum in
+    /// a different order.
     ///
-    /// Returns the number of output samples written, `2 * input.len()`.
+    /// # Errors
+    ///
+    /// Returns an error when `output` is too short. The filter and `output`
+    /// are unchanged on error.
     pub fn interp_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n_out = input
             .len()

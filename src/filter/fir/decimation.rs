@@ -6,7 +6,15 @@ use crate::filter::Sample;
 
 use num_complex::Complex32;
 
-/// Finite impulse response (FIR) decimation filter
+/// Finite impulse response filter that decimates by a fixed factor.
+///
+/// The filter consumes input in groups of `decimation_factor` samples and
+/// produces one output per group. Each output depends on the first sample of
+/// its group and on earlier input. The remaining samples in the group only
+/// affect later outputs. A new filter starts with zero-valued history.
+///
+/// Use [`Self::execute`] to process one group at a time, or
+/// [`Self::execute_block`] to process many.
 #[derive(Clone, Debug)]
 pub struct FirDecimationFilter<T, Coeff = T> {
     h: Vec<Coeff>,
@@ -23,16 +31,15 @@ where
     Complex32: From<Coeff>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a new decimation filter from external coefficients
+    /// Creates a decimation filter from existing coefficients.
     ///
-    /// # Arguments
+    /// The coefficients are in time order, with `coefficients[0]` applied to
+    /// the newest sample. The output scale starts at one.
     ///
-    /// * `decimation_factor` - The decimation factor
-    /// * `coefficients` - The filter coefficients
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A new decimation filter
+    /// Returns an error when `decimation_factor` is zero or `coefficients` is
+    /// empty.
     pub fn new(decimation_factor: usize, coefficients: &[Coeff]) -> Result<Self> {
         if coefficients.is_empty() {
             return Err(Error::Config("filter length must be greater than zero".into()));
@@ -55,17 +62,27 @@ where
         Ok(q)
     }
 
-    /// Create a new decimation filter from a Kaiser-Bessel filter prototype
+    /// Creates a Kaiser-windowed decimation filter.
     ///
-    /// # Arguments
+    /// The filter spans `filter_delay` output symbols on each side of its
+    /// center tap, for `2 * decimation_factor * filter_delay + 1` taps in
+    /// total. The cutoff is `0.5 / decimation_factor` cycles per input sample,
+    /// which is the Nyquist frequency of the output. Stopband attenuation is
+    /// given in dB.
     ///
-    /// * `decimation_factor` - The decimation factor
-    /// * `filter_delay` - The filter delay
-    /// * `stopband_attenuation` - The stop-band attenuation
+    /// The passband gain is about `decimation_factor`. Set the scale to
+    /// `1 / decimation_factor` with [`Self::set_scale`] for unity gain.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// A new decimation filter
+    /// Returns an error when `decimation_factor` is less than two,
+    /// `filter_delay` is zero, or `stopband_attenuation` is zero or negative.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the tap count overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the count wraps and the design is
+    /// invalid.
     pub fn new_kaiser(decimation_factor: usize, filter_delay: usize, stopband_attenuation: f32) -> Result<Self> {
         if decimation_factor < 2 {
             return Err(Error::Config("decim factor must be greater than 1".into()));
@@ -85,19 +102,29 @@ where
         Self::new(decimation_factor, &hc)
     }
 
-    /// Create a new decimation filter from a filter prototype
+    /// Creates a decimation filter from a pulse-shaping prototype.
     ///
     /// # Arguments
     ///
-    /// * `filter_shape` - The filter shape
-    /// * `decimation_factor` - The decimation factor
-    /// * `filter_delay` - The filter delay
-    /// * `excess_bandwidth` - The excess bandwidth factor
-    /// * `fractional_delay` - The fractional sample delay
+    /// - `decimation_factor`: at least two.
+    /// - `filter_delay`: filter span on each side of the center tap, in output
+    ///   symbols. Must be nonzero.
+    /// - `excess_bandwidth`: rolloff factor, in `[0, 1]`.
+    /// - `fractional_delay`: shift of the impulse response, in input samples,
+    ///   in `[-1, 1]`. A positive value moves it earlier. Some prototypes
+    ///   ignore it.
     ///
-    /// # Returns
+    /// Most prototypes have a passband gain of about `decimation_factor`. Set
+    /// the scale to `1 / decimation_factor` with [`Self::set_scale`] for unity
+    /// gain. The GMSK prototypes are an exception, so check their gain with
+    /// [`Self::freqresp`] at zero frequency.
     ///
-    /// A new decimation filter
+    /// # Errors
+    ///
+    /// Returns an error when `decimation_factor` is less than two,
+    /// `filter_delay` is zero, either `excess_bandwidth` or `fractional_delay`
+    /// is outside its range, or the selected prototype rejects the
+    /// configuration.
     pub fn new_prototype(
         filter_shape: design::FirFilterShape,
         decimation_factor: usize,
@@ -130,62 +157,46 @@ where
         Self::new(decimation_factor, &hc)
     }
 
-    /// Reset the filter state
+    /// Clears the sample history to zeros.
+    ///
+    /// The scale is unchanged.
     pub fn reset(&mut self) {
         self.w.reset();
     }
 
-    /// Get the decimation rate
-    ///
-    /// # Returns
-    ///
-    /// The decimation rate
+    /// Returns the decimation factor.
     pub fn decim_rate(&self) -> usize {
         self.decimation_factor
     }
 
-    /// Set the output scaling for the filter
-    ///
-    /// # Arguments
-    ///
-    /// * `scale` - The scaling factor
+    /// Sets the factor applied to every output sample.
     pub fn set_scale(&mut self, scale: Coeff) {
         self.scale = scale;
     }
 
-    /// Get the output scaling for the filter
-    ///
-    /// # Returns
-    ///
-    /// The scaling factor
+    /// Returns the factor applied to every output sample.
     pub fn scale(&self) -> Coeff {
         self.scale
     }
 
-    /// Compute the frequency response of the filter at a given frequency
+    /// Evaluates the frequency response at `fc` cycles per input sample.
     ///
-    /// # Arguments
-    ///
-    /// * `fc` - The normalized frequency
-    ///
-    /// # Returns
-    ///
-    /// The frequency response
+    /// The response includes the output scale. `fc` is not range-checked, and
+    /// the response repeats with a period of one.
     pub fn freqresp(&self, fc: f32) -> Result<Complex32> {
         let mut h_freq = design::freqresponse(&self.h, fc)?;
         h_freq *= Complex32::from(self.scale);
         Ok(h_freq)
     }
 
-    /// Execute the filter on `decimation_factor` input samples
+    /// Consumes one group of input samples and returns one output sample.
     ///
-    /// # Arguments
+    /// A group is [`Self::decim_rate`] samples. Samples beyond the first group
+    /// are ignored.
     ///
-    /// * `input` - The input samples
+    /// # Panics
     ///
-    /// # Returns
-    ///
-    /// The output sample
+    /// Panics when `input` is shorter than [`Self::decim_rate`].
     pub fn execute(&mut self, input: &[T]) -> Result<T> {
         let mut y = T::zero();
         for i in 0..self.decimation_factor {
@@ -200,15 +211,17 @@ where
         Ok(y)
     }
 
-    /// Execute the filter on a block of input samples
+    /// Consumes `n` groups of input samples and writes `n` outputs.
     ///
-    /// # Arguments
+    /// `input` must hold at least `n * decim_rate()` samples and `output` at
+    /// least `n`. Extra input is ignored and extra output is left unchanged.
+    /// The results match `n` calls to [`Self::execute`]. Returns `n`.
     ///
-    /// * `input` - The input samples (size: `n * decimation_factor`)
-    /// * `n` - The number of output samples
-    /// * `output` - The output samples (destination) (size: `n`)
+    /// # Errors
     ///
-    /// Returns the number of output samples written, `n`.
+    /// Returns an error when `n * decim_rate()` overflows `usize`, `input` is
+    /// too short, or `output` is too short. The filter and `output` are
+    /// unchanged on error.
     pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<usize> {
         let input_len = n
             .checked_mul(self.decimation_factor)

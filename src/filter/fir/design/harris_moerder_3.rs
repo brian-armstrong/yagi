@@ -7,17 +7,27 @@ use crate::error::{Error, Result};
 //      the Software-Defined Radio Forum, 2005
 //
 
-/// Design root-Nyquist harris-Moerder filter using Parks-McClellan algorithm
+/// Designs a Harris-Moerder root-Nyquist pulse.
 ///
-/// # Arguments
-/// * `k`      : filter over-sampling rate (samples/symbol)
-/// * `m`      : filter delay (symbols)
-/// * `beta`   : filter excess bandwidth factor (0,1)
-/// * `dt`     : filter fractional sample delay
+/// The pulse has `k` samples per symbol and spans `m` symbols on each side of
+/// its center tap, for `2 * k * m + 1` taps. `beta` is the excess bandwidth.
+/// The fractional delay `_dt` is ignored.
 ///
-/// # Returns
+/// The design starts from a Parks-McClellan root-Nyquist filter. It then
+/// lowers the passband edge step by step until the RMS inter-symbol
+/// interference, as measured by [`filter_isi`], stops improving. The taps are
+/// scaled to a total energy of `k`.
 ///
-/// Vec of filter coefficients
+/// # Errors
+///
+/// Returns an error when `k` is less than two, `m` is zero, `beta` is outside
+/// `0.0..=1.0`, or a Parks-McClellan design fails. After the first design,
+/// non-convergence ends the search instead of returning an error.
+///
+/// # Panics
+///
+/// Panics when `2 * k * m + 1` overflows `usize` and overflow checks are
+/// enabled. Without overflow checks the count wraps.
 pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32>> {
     if k < 2 {
         return Err(Error::Config("k must be greater than 1".into()));
