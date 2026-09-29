@@ -64,7 +64,7 @@ impl DirectDigitalSynthesizer {
     /// - `bandwidth`: relative to the low sample rate, in `(0, 1)`. It sets the
     ///   transition width of each half-band stage rather than a passband edge
     ///   of the final output.
-    /// - `stopband_attenuation`: in dB.
+    /// - `stopband_attenuation`: in dB. Must be finite and non-negative.
     ///
     /// With zero stages, the converter mixes and scales one sample without
     /// filtering or changing the sample rate.
@@ -72,22 +72,25 @@ impl DirectDigitalSynthesizer {
     /// # Errors
     ///
     /// Returns an error when `num_stages` is greater than 20,
-    /// `center_frequency` or `bandwidth` is outside its range,
-    /// `stopband_attenuation` is negative, or a half-band stage cannot be
+    /// `center_frequency` or `bandwidth` is nonfinite or outside its range,
+    /// `stopband_attenuation` is nonfinite or negative, or a half-band stage cannot be
     /// designed.
     pub fn new(num_stages: usize, center_frequency: f32, bandwidth: f32, stopband_attenuation: f32) -> Result<Self> {
         // error checking
         if num_stages > 20 {
             return Err(Error::Config(format!("number of stages {} exceeds reasonable maximum (20)", num_stages)));
         }
-        if center_frequency > 0.5 || center_frequency < -0.5 {
+        if !(-0.5..=0.5).contains(&center_frequency) {
             return Err(Error::Config(format!("frequency {} is out of range [-0.5,0.5]", center_frequency)));
         }
-        if bandwidth <= 0.0 || bandwidth >= 1.0 {
+        if !(bandwidth > 0.0 && bandwidth < 1.0) {
             return Err(Error::Config(format!("bandwidth {} is out of range (0,1)", bandwidth)));
         }
-        if stopband_attenuation < 0.0 {
-            return Err(Error::Config(format!("stop-band suppression {} must be non-negative", stopband_attenuation)));
+        if !stopband_attenuation.is_finite() || stopband_attenuation < 0.0 {
+            return Err(Error::Config(format!(
+                "stop-band suppression {} must be finite and non-negative",
+                stopband_attenuation
+            )));
         }
 
         let rate = 1 << num_stages;
@@ -287,6 +290,30 @@ mod tests {
     use crate::filter::fir::design::fir_design_kaiser;
     use crate::framing::ArbitraryRateSymbolStream;
     use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
+
+    #[test]
+    fn test_dds_rejects_nonfinite_design_parameters() {
+        let outside = f32::from_bits(0.5f32.to_bits() + 1);
+        for stages in [0, 1] {
+            for frequency in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -outside, outside] {
+                assert!(matches!(DirectDigitalSynthesizer::new(stages, frequency, 0.1, 60.0), Err(Error::Config(_))));
+            }
+            for bandwidth in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, 1.0] {
+                assert!(matches!(DirectDigitalSynthesizer::new(stages, 0.0, bandwidth, 60.0), Err(Error::Config(_))));
+            }
+            for attenuation in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON] {
+                assert!(matches!(DirectDigitalSynthesizer::new(stages, 0.0, 0.1, attenuation), Err(Error::Config(_))));
+            }
+        }
+        for frequency in [-0.5, 0.0, 0.5] {
+            assert!(DirectDigitalSynthesizer::new(1, frequency, 0.1, 60.0).is_ok());
+            // No filter is designed with zero stages, so zero attenuation and
+            // bandwidths immediately inside the open interval remain valid.
+            for bandwidth in [f32::from_bits(1), f32::from_bits(1.0f32.to_bits() - 1)] {
+                assert!(DirectDigitalSynthesizer::new(0, frequency, bandwidth, 0.0).is_ok());
+            }
+        }
+    }
 
     #[test]
     fn test_dds_zero_stage_decimation() {
