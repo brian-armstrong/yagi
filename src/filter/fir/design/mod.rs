@@ -366,14 +366,14 @@ pub fn fir_design_windowf(window_type: WindowType, n: usize, fc: f32, arg: f32) 
 ///
 /// # Errors
 ///
-/// Returns an error when `m` is outside `1..=1000`, `f0` is outside
-/// `-0.5..=0.5`, or `as_` is zero or negative.
+/// Returns an error when `m` is outside `1..=1000`, `f0` is nonfinite or
+/// outside `-0.5..=0.5`, or `as_` is zero or negative.
 pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
     // validate inputs
     if !(1..=1000).contains(&m) {
         return Err(Error::Config(format!("filter semi-length ({}) out of range [1,1000]", m)));
     }
-    if f0 < -0.5 || f0 > 0.5 {
+    if !(-0.5..=0.5).contains(&f0) {
         return Err(Error::Config(format!("notch frequency ({}) out of range [-0.5,0.5]", f0)));
     }
     if as_ <= 0.0 {
