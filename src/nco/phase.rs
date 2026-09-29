@@ -2,14 +2,15 @@
 
 use std::f32::consts::PI;
 
-/// Unwrap a phase sequence in place.
+/// Unwraps a phase sequence in place.
 ///
-/// Adds or subtracts whole turns so each sample lies within `pi` radians of its
-/// predecessor. Empty and one-sample slices are unchanged.
+/// Each sample, from the second on, gains or loses whole turns until it lies
+/// within `pi` radians of the already unwrapped sample before it. The first
+/// sample is unchanged, as are empty and one-sample slices.
 ///
-/// # Warning
-///
-/// Inputs must be finite. Infinite values do not terminate the adjustment loop.
+/// Values must be finite and small enough that adding `2*pi` changes their
+/// `f32` value. An infinite value, or one too large for a turn to register,
+/// makes the call loop forever.
 pub fn unwrap_phase(theta: &mut [f32]) {
     for i in 1..theta.len() {
         while theta[i] - theta[i - 1] > PI {
@@ -21,16 +22,18 @@ pub fn unwrap_phase(theta: &mut [f32]) {
     }
 }
 
-/// Unwrap a phase sequence using its mean phase increment.
+/// Unwraps a phase sequence in place, allowing for a mean phase increment.
 ///
-/// This estimates the average adjacent increment before removing whole-turn
-/// discontinuities.
+/// This works like [`unwrap_phase`], but centers the allowed step on an
+/// estimate of the mean increment instead of on zero. The estimate is taken
+/// from the input as given, before unwrapping, so it equals
+/// `(theta[n - 1] - theta[0]) / (n - 1)`. For input wrapped to one turn, that
+/// is at most `2*pi / (n - 1)` in magnitude and says little about the true
+/// increment. The result then differs from [`unwrap_phase`] only for steps
+/// close to half a turn. Prefer [`unwrap_phase`].
 ///
-/// # Warning
-///
-/// This compatibility routine is not used within the crate and has not been
-/// validated as thoroughly as [`unwrap_phase`]. Prefer [`unwrap_phase`] unless
-/// its mean-increment behavior is specifically required.
+/// The same input limits apply as for [`unwrap_phase`]. An infinite value, or
+/// one too large for a turn to register, makes the call loop forever.
 pub fn unwrap_phase2(theta: &mut [f32]) {
     // TODO: verify this method
     let n = theta.len();

@@ -7,15 +7,29 @@ use crate::error::{Error, Result};
 
 const SYNTH_PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 
-/// A table-driven complex oscillator.
+/// Complex oscillator that steps through a caller-supplied table.
 ///
-/// Unlike [`Nco`](super::Nco), this oscillator walks caller-supplied complex
-/// samples. With its default frequency it visits every table entry once per
-/// cycle. This makes it useful for spreading and despreading sequences.
+/// One turn of phase spans the whole table. The oscillator selects the entry
+/// nearest the phase, without interpolation, so [`Self::current`] is always a
+/// table entry. The index is rounded in `f32`, so a phase within a rounding
+/// step of the midpoint between two entries can select the farther one. With
+/// the default frequency it moves one entry per step, which suits spreading
+/// and despreading a symbol with a code such as an m-sequence.
+/// [`Self::half_previous`] and [`Self::half_next`] give the midpoints to the
+/// neighboring entries, for early and late timing correlations.
 ///
-/// The oscillator selects the nearest table index without interpolation, so
-/// [`Self::current`] is always a table entry. Half-sample outputs are adjacent
-/// entry midpoints for early/late timing discrimination.
+/// Phase and frequency are stored as `f32`, and the default frequency
+/// `2*pi / len` is rounded. Over long runs the selected entry drifts from an
+/// exact count of steps, skipping or repeating an entry. With a table of 1023
+/// entries the first slip can come after about 190,000 steps. Two oscillators
+/// with the same table and the same sequence of calls slip identically, so
+/// they stay aligned with each other, but not with a code that advances by an
+/// exact count.
+///
+/// The phase is kept in `[-pi, pi]` by adding or subtracting at most one turn
+/// per update. Keep the frequency and each phase offset within one turn in
+/// magnitude. Larger values leave the phase outside that range, where it can
+/// drift without bound and select the wrong entry.
 #[derive(Debug, Clone)]
 #[doc(alias = "Synth")]
 pub struct TableOscillator {
@@ -34,10 +48,11 @@ pub struct TableOscillator {
 }
 
 impl TableOscillator {
-    /// Create an oscillator from a nonempty complex table.
+    /// Creates an oscillator from a copy of `table`.
     ///
-    /// The initial frequency is `2*pi / table.len()` radians per sample, which
-    /// visits each table entry once per cycle.
+    /// The phase starts at zero, which selects the first entry. The frequency
+    /// starts at `2*pi / table.len()` radians per sample, one entry per step,
+    /// and the PLL bandwidth at 0.1.
     ///
     /// # Errors
     ///
@@ -71,10 +86,12 @@ impl TableOscillator {
         Ok(q)
     }
 
-    /// Reset phase, frequency, and table selection.
+    /// Sets the phase and frequency to zero and selects the first entry.
     ///
-    /// This sets the frequency to zero. Call [`Self::set_frequency`] to restore
-    /// the default table-walking rate after reset.
+    /// Unlike [`Self::new`], this leaves the frequency at zero, so the
+    /// oscillator no longer moves when stepped. Call [`Self::set_frequency`]
+    /// with `2*pi / length` to walk the table again. The PLL bandwidth is
+    /// unchanged.
     pub fn reset(&mut self) {
         self.theta = 0.0;
         self.d_theta = 0.0;
@@ -88,86 +105,97 @@ impl TableOscillator {
         self.compute_synth();
     }
 
-    /// Set the phase increment in radians per sample.
+    /// Sets the frequency in radians per sample.
+    ///
+    /// The value is stored as given and takes effect at the next step.
     pub fn set_frequency(&mut self, frequency: f32) {
         self.d_theta = frequency;
     }
 
-    /// Add a frequency offset in radians per sample.
+    /// Adds `frequency_offset`, in radians per sample, to the frequency.
     pub fn adjust_frequency(&mut self, frequency_offset: f32) {
         self.d_theta += frequency_offset;
     }
 
-    /// Set the oscillator phase in radians and refresh the table selection.
+    /// Sets the phase in radians and selects the matching entry.
     pub fn set_phase(&mut self, phase: f32) {
         self.theta = phase;
         self.constrain_phase();
         self.compute_synth();
     }
 
-    /// Add a phase offset in radians.
+    /// Adds `phase_offset`, in radians, to the phase.
     ///
     /// # Warning
     ///
-    /// This updates the stored phase but does not refresh [`Self::current`] or
-    /// the half-sample values. Call [`Self::step`] before reading or mixing with
-    /// those cached values.
+    /// The selected entry is not updated. [`Self::current`], the half-entry
+    /// getters and the mixers keep using the old entry until the next
+    /// [`Self::step`], [`Self::set_phase`] or [`Self::pll_step`].
     pub fn adjust_phase(&mut self, phase_offset: f32) {
         self.theta += phase_offset;
         self.constrain_phase();
     }
 
-    /// Advance phase by one sample and refresh the table selection.
+    /// Advances the phase by one sample and selects the matching entry.
     pub fn step(&mut self) {
         self.theta += self.d_theta;
         self.constrain_phase();
         self.compute_synth();
     }
 
-    /// Return the stored phase in radians.
+    /// Returns the phase in radians, normally in `[-pi, pi]`.
     pub fn phase(&self) -> f32 {
         self.theta
     }
 
-    /// Return the phase increment in radians per sample.
+    /// Returns the frequency in radians per sample.
     pub fn frequency(&self) -> f32 {
         self.d_theta
     }
 
-    /// Return the number of samples in the table.
+    /// Returns the number of entries in the table.
     pub fn length(&self) -> usize {
         self.tab.len()
     }
 
-    /// Return the table entry nearest the current cached phase.
+    /// Returns the selected table entry.
     pub fn current(&self) -> Complex32 {
         self.current
     }
 
-    /// Return the midpoint between the current and previous table entries.
+    /// Returns the midpoint between the selected entry and the one before it.
+    ///
+    /// The table wraps, so the entry before the first is the last.
     pub fn half_previous(&self) -> Complex32 {
         self.prev_half
     }
 
-    /// Return the midpoint between the current and next table entries.
+    /// Returns the midpoint between the selected entry and the one after it.
+    ///
+    /// The table wraps, so the entry after the last is the first.
     pub fn half_next(&self) -> Complex32 {
         self.next_half
     }
 
     // pll methods
 
-    /// Reset PLL state.
+    /// Does nothing.
     ///
-    /// This is currently a no-op because the PLL stores no filter history.
+    /// The phase-locked loop keeps no state apart from the phase and
+    /// frequency, so there is nothing to clear.
     pub fn pll_reset(&mut self) {}
 
-    /// Set the PLL loop bandwidth.
+    /// Sets the phase-locked loop gain.
     ///
-    /// A value of zero disables corrections made by [`Self::pll_step`].
+    /// `bandwidth` is a dimensionless gain, not a loop bandwidth in hertz or
+    /// radians per sample. Each [`Self::pll_step`] adds `bandwidth * dphi` to
+    /// the frequency and `sqrt(bandwidth) * dphi` to the phase. Zero turns the
+    /// loop off.
     ///
     /// # Errors
     ///
-    /// Returns an error when `bandwidth` is negative.
+    /// Returns an error when `bandwidth` is negative. The gain is unchanged on
+    /// error.
     pub fn pll_set_bandwidth(&mut self, bandwidth: f32) -> Result<()> {
         // validate input
         if bandwidth < 0.0 {
@@ -179,10 +207,21 @@ impl TableOscillator {
         Ok(())
     }
 
-    /// Apply one PLL correction from a phase error in radians.
+    /// Applies one phase-locked loop correction for the phase error `dphi`.
     ///
-    /// This adjusts phase and frequency, then refreshes the table selection. It
-    /// does not advance one sample.
+    /// `dphi` is the input phase minus the oscillator phase, in radians. Each
+    /// call adds `bandwidth * dphi` to the frequency and
+    /// `sqrt(bandwidth) * dphi` to the phase, where `bandwidth` is set by
+    /// [`Self::pll_set_bandwidth`], and then selects the matching entry.
+    ///
+    /// When entry `k` of the table is `exp(j * 2*pi * k / len)`, then
+    /// `osc.mix_down(x).arg()` gives `dphi` for an input `x`, to within half
+    /// the phase step between entries. For other tables, such as a spreading
+    /// code, `mix_down` removes the phase of the selected entry rather than
+    /// the oscillator phase, so compute `dphi` another way.
+    ///
+    /// Per sample, call [`Self::mix_down`], compute `dphi`, call this method,
+    /// then call [`Self::step`]. This method does not advance the oscillator.
     pub fn pll_step(&mut self, dphi: f32) {
         // increase frequency proportional to error
         self.adjust_frequency(dphi * self.alpha);
@@ -195,29 +234,29 @@ impl TableOscillator {
 
     // mixing functions
 
-    /// Multiply one input sample by the current table value.
+    /// Returns `input` multiplied by the selected entry.
     ///
     /// This does not advance the oscillator.
     pub fn mix_up(&self, input: Complex32) -> Complex32 {
         input * self.current
     }
 
-    /// Multiply one input sample by the conjugated current table value.
+    /// Returns `input` multiplied by the conjugate of the selected entry.
     ///
     /// This does not advance the oscillator.
     pub fn mix_down(&self, input: Complex32) -> Complex32 {
         input * self.current.conj()
     }
 
-    /// Mix every input sample up and advance once per sample.
+    /// Mixes each sample of `input` up and steps once after each one.
     ///
-    /// The first `input.len()` elements of `output` receive the results.
-    /// Remaining output elements are unchanged.
+    /// The results go to the first `input.len()` samples of `output`, and the
+    /// rest of `output` is left unchanged. Returns `input.len()`.
     ///
     /// # Errors
     ///
     /// Returns an error when `output` is shorter than `input`. The oscillator
-    /// and output are unchanged on error.
+    /// and `output` are unchanged on error.
     pub fn mix_block_up(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Range("output length must be at least the input length".into()));
@@ -232,15 +271,15 @@ impl TableOscillator {
         Ok(input.len())
     }
 
-    /// Mix every input sample down and advance once per sample.
+    /// Mixes each sample of `input` down and steps once after each one.
     ///
-    /// The first `input.len()` elements of `output` receive the results.
-    /// Remaining output elements are unchanged.
+    /// The results go to the first `input.len()` samples of `output`, and the
+    /// rest of `output` is left unchanged. Returns `input.len()`.
     ///
     /// # Errors
     ///
     /// Returns an error when `output` is shorter than `input`. The oscillator
-    /// and output are unchanged on error.
+    /// and `output` are unchanged on error.
     pub fn mix_block_down(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Range("output length must be at least the input length".into()));
@@ -255,16 +294,17 @@ impl TableOscillator {
         Ok(input.len())
     }
 
-    /// Spread one symbol across `self.length()` oscillator samples.
+    /// Spreads one symbol over [`Self::length`] output samples.
     ///
-    /// The first `self.length()` elements of `output` receive the mixed symbol.
-    /// The oscillator advances once per output. At the default frequency this
-    /// visits every table entry once.
+    /// Each output is `input` times the selected entry, and the oscillator
+    /// steps after each one. At the default frequency this multiplies the
+    /// symbol by the table once through, subject to the slips described on
+    /// the type. The rest of `output` is left unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when `output` is shorter than `self.length()`. The
-    /// oscillator and output are unchanged on error.
+    /// Returns an error when `output` is shorter than [`Self::length`]. The
+    /// oscillator and `output` are unchanged on error.
     pub fn spread(&mut self, input: Complex32, output: &mut [Complex32]) -> Result<()> {
         if output.len() < self.tab.len() {
             return Err(Error::Range("synth spread output too small".into()));
@@ -278,20 +318,21 @@ impl TableOscillator {
         Ok(())
     }
 
-    /// Despread `self.length()` samples into one correlation result.
+    /// Correlates the first [`Self::length`] samples of `input` with the
+    /// table and returns the result.
     ///
-    /// The oscillator advances once per consumed input. The correlation is
-    /// normalized by `sum(|input| * |table|)`, so a matched constant-amplitude
-    /// symbol produces its phase at unit magnitude.
+    /// Each sample is mixed down by the selected entry, and the oscillator
+    /// steps after each one. The sum is divided by the sum of
+    /// `|input| * |entry|`, so an input of `s` times the entries it meets
+    /// gives `s / |s|`. Input beyond [`Self::length`] samples is ignored.
+    ///
+    /// When every input sample, or every entry it meets, is zero, the result
+    /// is NaN.
     ///
     /// # Errors
     ///
-    /// Returns an error when `input` is shorter than `self.length()`.
-    ///
-    /// # Warning
-    ///
-    /// A zero input or zero-magnitude table yields a zero normalization and a
-    /// nonfinite result.
+    /// Returns an error when `input` is shorter than [`Self::length`]. The
+    /// oscillator is unchanged on error.
     pub fn despread(&mut self, input: &[Complex32]) -> Result<Complex32> {
         if input.len() < self.tab.len() {
             return Err(Error::Range("synth despread input too small".into()));
@@ -310,20 +351,22 @@ impl TableOscillator {
         Ok(despread / sum)
     }
 
-    /// Despread with early, punctual, and late correlations.
+    /// Correlates like [`Self::despread`] against three versions of the
+    /// table, for timing recovery.
     ///
-    /// The early and late paths use adjacent-entry midpoints to form a timing
-    /// discriminant. The oscillator advances once per consumed input. Returns
-    /// `(early, punctual, late)`.
+    /// Returns `(early, punctual, late)`. The punctual result uses the
+    /// selected entries, as [`Self::despread`] does. The early result uses
+    /// [`Self::half_previous`] and the late result [`Self::half_next`]. Each
+    /// is normalized on its own. Comparing the early and late magnitudes shows
+    /// which way the timing is off.
+    ///
+    /// A result is NaN when every input sample, or every value it is
+    /// correlated with, is zero.
     ///
     /// # Errors
     ///
-    /// Returns an error when `input` is shorter than `self.length()`.
-    ///
-    /// # Warning
-    ///
-    /// A zero input or zero-magnitude table path yields a zero normalization
-    /// and a nonfinite result.
+    /// Returns an error when `input` is shorter than [`Self::length`]. The
+    /// oscillator is unchanged on error.
     pub fn despread_triple(&mut self, input: &[Complex32]) -> Result<(Complex32, Complex32, Complex32)> {
         if input.len() < self.tab.len() {
             return Err(Error::Range("synth despread input too small".into()));
