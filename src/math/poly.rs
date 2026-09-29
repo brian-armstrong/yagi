@@ -1,9 +1,7 @@
 //! Polynomial evaluation, fitting, interpolation, expansion, and root finding.
 //!
-//! Polynomial coefficient slices use ascending powers throughout this module.
-//! `[c0, c1, c2, ...]` represents `c0 + c1*x + c2*x^2 + ...`. A slice of
-//! length `n + 1` has order `n`. Functions use this nominal order even when
-//! the final coefficient is zero.
+//! Coefficient slices use ascending powers, as described in the `math` module
+//! docs.
 
 use num_complex::Complex;
 use num_traits::{Float, One, Zero};
@@ -12,10 +10,9 @@ use std::cmp::Ordering;
 use crate::error::{Error, Result};
 use crate::matrix::{ColMatrixMut, FloatComplex, LeastSquaresWorkspace};
 
-/// Evaluate a polynomial using successive powers.
+/// Evaluates the polynomial `p` at `x`.
 ///
-/// `p[k]` is the coefficient of `x^k`. An empty coefficient slice evaluates to
-///  zero.
+/// `p[k]` is the coefficient of `x^k`. An empty slice evaluates to zero.
 ///
 /// # Examples
 ///
@@ -38,21 +35,20 @@ where
     y
 }
 
-/// Fit a polynomial to a set of data points with Householder QR.
+/// Fits a polynomial to samples `(x[i], y[i])` by least squares.
 ///
-/// `x` and `y` contain the independent and dependent values for each sample.
-/// They must have the same length. The length of `p` selects the number of
-/// coefficients and must not be zero. The fit requires at least as many
-/// samples as coefficients.
-///
-/// Coefficients are written to `p` in ascending-power order. The output is left
-/// unchanged when the fit fails.
+/// The length of `p` sets the number of coefficients, and the fit writes them
+/// to `p`. With as many samples as coefficients, the polynomial passes
+/// through every sample. With more, it minimizes the squared error. The fit
+/// uses a Householder QR factorization. `p` is unchanged on error.
 ///
 /// # Errors
 ///
-/// Returns an error when the slice lengths are invalid or an input is not
-/// finite. It also returns an error when the design matrix is rank deficient
-/// or the fit does not produce finite coefficients.
+/// Returns an error when `x` and `y` differ in length, `p` is empty, there
+/// are fewer samples than coefficients, or an input is not finite. It also
+/// returns an error when the samples do not determine every coefficient, as
+/// with too few distinct `x` values or a numerically rank-deficient fit, or
+/// when the fit does not produce finite coefficients.
 pub fn poly_fit<T>(x: &[T], y: &[T], p: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
@@ -68,15 +64,11 @@ where
     workspace.solve(y, p)
 }
 
-/// Build and factor the Vandermonde matrix for a polynomial fit over `x`.
+/// Builds and factors the Vandermonde matrix for a polynomial fit over `x`.
 ///
-/// Column `k` holds `x[row]^k`, so a solve against this workspace fits a
-/// polynomial with `coefficient_count` coefficients through samples at `x`.
-///
-/// # Arguments
-///
-/// * `x` - Independent variable, one sample per row
-/// * `coefficient_count` - Number of polynomial coefficients (columns)
+/// The matrix has one row per sample and `coefficient_count` columns, with
+/// column `k` holding `x[row]^k`. A solve against this workspace fits a
+/// polynomial with `coefficient_count` coefficients to samples at `x`.
 pub(crate) fn vandermonde_workspace<T>(x: &[T], coefficient_count: usize) -> Result<LeastSquaresWorkspace<T>>
 where
     T: FloatComplex,
@@ -119,15 +111,15 @@ where
     LeastSquaresWorkspace::from_design_matrix(matrix.as_ref())
 }
 
-/// Expand `(1 + x)^n` into ascending-power coefficients.
+/// Expands `(1 + x)^n` into the `n + 1` coefficients of `c`.
 ///
-/// `c` must contain `n + 1` elements. When `n` is zero, `c[0]` is set to zero.
-/// Binomial coefficients grow rapidly with `n`. Floating-point coefficients can
-/// overflow or lose precision at high orders.
+/// When `n` is zero, `c[0]` is set to zero rather than to one, the value of
+/// the empty product. The coefficients grow quickly with `n`, and at high
+/// orders they overflow or lose precision.
 ///
 /// # Errors
 ///
-/// Returns an error when `n + 1` overflows or does not equal `c.len()`.
+/// Returns an error when `c.len()` is not `n + 1`.
 pub fn poly_expandbinomial<T>(n: usize, c: &mut [T]) -> Result<()>
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + From<f32>,
@@ -156,17 +148,15 @@ where
     Ok(())
 }
 
-/// Expand `(1 + x)^m * (1 - x)^k` into ascending-power coefficients.
+/// Expands `(1 + x)^m * (1 - x)^k` into the `m + k + 1` coefficients of `c`.
 ///
-/// `c` must contain `m + k + 1` elements. When both orders are zero, this
-/// routine sets `c[0]` to zero.
-/// Coefficients can grow rapidly with the combined order. Floating-point
-/// coefficients can overflow or lose precision at high orders.
+/// When `m` and `k` are both zero, `c[0]` is set to zero rather than to one,
+/// the value of the empty product. The coefficients grow quickly with
+/// `m + k`, and at high orders they overflow or lose precision.
 ///
 /// # Errors
 ///
-/// Returns an error when the required length overflows or does not equal
-/// `c.len()`.
+/// Returns an error when `c.len()` is not `m + k + 1`.
 pub fn poly_expandbinomial_pm<T>(m: usize, k: usize, c: &mut [T]) -> Result<()>
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Sub<Output = T> + From<f32>,
@@ -203,18 +193,17 @@ where
     Ok(())
 }
 
-/// Expand `product(x - r[i])` into ascending-power coefficients.
+/// Expands the monic polynomial `product(x - r[i])` into the coefficients of
+/// `p`.
 ///
-/// `p` must contain one more element than `r`. With no roots, this routine
-/// sets `p[0]` to zero.
-/// Coefficient magnitudes can grow rapidly with the number or scale of roots.
-/// Floating-point coefficients can overflow or lose precision for large or
-/// poorly scaled root sets.
+/// `p` has one more element than `r`, and its last coefficient is one. With
+/// no roots, `p[0]` is set to zero rather than to one, the value of the empty
+/// product. The coefficients grow quickly with the number and size of the
+/// roots, and for many or large roots they overflow or lose precision.
 ///
 /// # Errors
 ///
-/// Returns an error when the required length overflows or does not equal
-/// `p.len()`.
+/// Returns an error when `p.len()` is not `r.len() + 1`.
 pub fn poly_expandroots<T>(r: &[T], p: &mut [T]) -> Result<()>
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + std::ops::Neg<Output = T> + From<f32>,
@@ -244,19 +233,18 @@ where
     Ok(())
 }
 
-/// Expand `product(x*b[i] - a[i])` into ascending-power coefficients.
+/// Expands `product(a[i] - b[i]*x)` into the coefficients of `p`.
 ///
-/// `a` and `b` must have the same length. `p` must contain one more element.
-/// With no roots, this routine sets `p[0]` to zero.
-/// Every element of `b` must be nonzero. This routine does not validate that
-/// requirement, so division by zero follows the scalar type's behavior.
-/// Coefficient magnitudes can also grow rapidly with the number or scale of
-/// roots.
+/// `p` has one more element than `a` and `b`. With no factors, `p[0]` is set
+/// to zero rather than to one, the value of the empty product. Every `b[i]`
+/// must be nonzero, which is not checked, because the expansion divides by
+/// it. As with [`poly_expandroots`], the coefficients grow quickly with the
+/// number and size of the factors.
 ///
 /// # Errors
 ///
-/// Returns an error when the input lengths differ or the required output
-/// length overflows. It also returns an error when `p` has the wrong length.
+/// Returns an error when `a` and `b` differ in length or `p.len()` is not
+/// `a.len() + 1`.
 pub fn poly_expandroots2<T>(a: &[T], b: &[T], p: &mut [T]) -> Result<()>
 where
     T: Copy
@@ -292,16 +280,12 @@ where
     Ok(())
 }
 
-/// Multiply two polynomials expressed in ascending-power order.
-///
-/// The product of `a[0] + a[1]*x + ...` and `b[0] + b[1]*x + ...` is
-/// written to `c`. Both inputs must be nonempty. The output length must be
-/// `a.len() + b.len() - 1`.
+/// Multiplies the polynomials `a` and `b` and writes the product to `c`.
 ///
 /// # Errors
 ///
-/// Returns an error when an input is empty, the required length overflows, or
-/// `c` has the wrong length.
+/// Returns an error when `a` or `b` is empty or `c.len()` is not
+/// `a.len() + b.len() - 1`.
 pub fn poly_mul<T>(a: &[T], b: &[T], c: &mut [T]) -> Result<()>
 where
     T: Copy + std::ops::Mul<Output = T> + std::ops::Add<Output = T> + From<f32>,
@@ -327,20 +311,18 @@ where
     Ok(())
 }
 
-/// Evaluate the Lagrange interpolant through a set of samples.
+/// Evaluates at `x0` the polynomial that passes through the samples
+/// `(x[i], y[i])`.
 ///
-/// The interpolation nodes in `x` must be distinct. This direct formulation is
-/// useful for one evaluation. Use the barycentric functions when evaluating
-/// the same interpolant repeatedly. `x` and `y` must have the same length. An
-/// empty sample set evaluates to zero.
-///
-/// This routine does not validate distinct nodes. Duplicate nodes cause
-/// division by zero. The direct formulation can also lose precision quickly as
-/// the number of nodes grows or nodes become closely spaced.
+/// The nodes in `x` must be distinct, which is not checked. Each call costs
+/// time proportional to the square of the sample count. To evaluate the same
+/// interpolant at many points, compute weights once with
+/// [`poly_fit_lagrange_barycentric`] and use [`poly_val_lagrange_barycentric`].
+/// An empty sample set evaluates to zero.
 ///
 /// # Errors
 ///
-/// Returns an error when `x` and `y` have different lengths.
+/// Returns an error when `x` and `y` differ in length.
 pub fn poly_interp_lagrange<T>(x: &[T], y: &[T], x0: T) -> Result<T>
 where
     T: Copy
@@ -369,20 +351,18 @@ where
     Ok(y0)
 }
 
-/// Construct the Lagrange interpolating polynomial through a set of samples.
+/// Writes to `p` the coefficients of the polynomial that passes through the
+/// samples `(x[i], y[i])`.
 ///
-/// The interpolation nodes in `x` must be distinct. The resulting coefficients
-/// are written to `p` in ascending-power order. `x`, `y`, and `p` must have the
-/// same length.
-///
-/// This routine does not validate distinct nodes. Duplicate nodes cause
-/// division by zero. Converting an interpolant to power-basis coefficients can
-/// also lose precision quickly as the number of nodes grows or nodes become
-/// closely spaced.
+/// The nodes in `x` must be distinct, which is not checked. For a single
+/// sample, `p[0]` is set to zero rather than to `y[0]`. Power-basis
+/// coefficients lose precision quickly as the number of nodes grows or the
+/// nodes crowd together. [`poly_fit_lagrange_barycentric`] avoids the power
+/// basis.
 ///
 /// # Errors
 ///
-/// Returns an error when the slice lengths do not match.
+/// Returns an error when `x`, `y`, and `p` do not all have the same length.
 pub fn poly_fit_lagrange<T>(x: &[T], y: &[T], p: &mut [T]) -> Result<()>
 where
     T: Copy
@@ -430,19 +410,24 @@ where
     Ok(())
 }
 
-/// Compute barycentric weights for a set of interpolation nodes.
+/// Computes barycentric interpolation weights for the nodes in `x`.
 ///
-/// `x` must contain finite and distinct nodes. `w` must have the same nonzero
-/// length. The weights are normalized so the first output weight is one.
-/// Barycentric evaluation is unchanged by this common scaling.
+/// The weights go to `w`, for use with [`poly_val_lagrange_barycentric`].
+/// They are scaled so that `w[0]` is one, which leaves the interpolant
+/// unchanged.
 ///
-/// Length and finiteness checks occur before writing to `w`. A numerical error
-/// during weight construction may leave `w` partially written.
+/// The scaling by `w[0]` can underflow a weight to zero without an error when
+/// the nodes are spread over many orders of magnitude. For `f64` nodes
+/// `[0, 1e-250, 1e100]` the weights come out as `[1, -1, 0]`, and
+/// [`poly_val_lagrange_barycentric`] then rejects them.
 ///
 /// # Errors
 ///
-/// Returns an error for invalid lengths, non-finite nodes, duplicate nodes, or
-/// weights that cannot be represented by `T`.
+/// Returns an error when `x` and `w` differ in length or are empty, or when
+/// `x` holds a non-finite or repeated node. It also returns an error when a
+/// weight overflows or reaches zero before the scaling. `w` is unchanged when
+/// a length or finiteness check fails, but can be partly written when a later
+/// check fails.
 pub fn poly_fit_lagrange_barycentric<T>(x: &[T], w: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
@@ -482,19 +467,17 @@ where
     Ok(())
 }
 
-/// Evaluate an interpolant from precomputed barycentric weights.
+/// Evaluates at `x0` the interpolant through the samples `(x[i], y[i])`,
+/// using weights `w` from [`poly_fit_lagrange_barycentric`].
 ///
-/// When `x0` exactly equals a node, the corresponding sample value is returned
-/// directly. Otherwise this evaluates the first barycentric formula. Use
-/// [`poly_fit_lagrange_barycentric`] to construct `w`.
-///
-/// `x`, `y`, and `w` must have the same nonzero length. All values must be
-/// finite. Each weight must be nonzero.
+/// This uses the second, or true, barycentric formula. When `x0` equals a
+/// node exactly, the matching `y` value is returned.
 ///
 /// # Errors
 ///
-/// Returns an error when an input does not meet these conditions. It also
-/// returns an error when interpolation produces a non-finite result.
+/// Returns an error when `x`, `y`, and `w` differ in length or are empty, an
+/// input is not finite, or a weight is zero. It also returns an error when
+/// the result is not finite.
 pub fn poly_val_lagrange_barycentric<T>(x: &[T], y: &[T], w: &[T], x0: T) -> Result<T>
 where
     T: FloatComplex,
@@ -539,20 +522,19 @@ where
     Ok(value)
 }
 
-/// Find the complex roots of a monic polynomial using the Durand-Kerner method.
+/// Finds the complex roots of a monic polynomial by the Durand-Kerner method.
 ///
-/// `p` must contain at least two coefficients in ascending-power order. Its
-/// final coefficient must be exactly one. `roots` must contain one fewer
-/// element than `p`. The output is only written after the iteration converges.
-///
-/// Durand-Kerner is sensitive to repeated or closely spaced roots. It is not a
-/// general-purpose root finder for high-order power-basis polynomials.
+/// `p` has at least two coefficients, and its last one must be exactly one.
+/// `roots` has one fewer element than `p`. The method converges slowly or not
+/// at all for repeated or closely spaced roots, so it does not suit high-order
+/// polynomials in general. [`poly_findroots_bairstow`] is an alternative.
 ///
 /// # Errors
 ///
-/// Returns an error when the input lengths or leading coefficient are invalid.
-/// It also returns an error when root estimates coincide or the iteration does
-/// not converge.
+/// Returns an error when `p` has fewer than two coefficients, its last
+/// coefficient is not one, or `roots` has the wrong length. It also returns
+/// an error when two root estimates coincide or the iteration does not
+/// converge. `roots` is unchanged on error.
 pub fn poly_findroots_durandkerner(p: &[f64], roots: &mut [Complex<f64>]) -> Result<()> {
     if p.len() < 2 {
         return Err(Error::Range("order must be greater than 0".to_owned()));
@@ -624,22 +606,25 @@ pub fn poly_findroots_durandkerner(p: &[f64], roots: &mut [Complex<f64>]) -> Res
     unreachable!("the bounded Durand-Kerner iteration always returns")
 }
 
-/// Find the complex roots of a real polynomial using Bairstow's method.
+/// Finds the complex roots of a real polynomial by Bairstow's method.
 ///
-/// `p` must contain at least two finite coefficients in ascending-power order.
-/// Its highest-order coefficient must be nonzero. `roots` must contain one
-/// fewer element than `p`. The output is written only after all roots are
-/// finite.
+/// `p` has at least two coefficients, and its last one must be nonzero.
+/// `roots` has one fewer element than `p`. The method splits off one
+/// quadratic factor at a time. Roots of high-order polynomials are poorly
+/// conditioned, especially when repeated or closely spaced, and such inputs
+/// can fail to converge.
 ///
-/// Root finding from high-order power-basis coefficients can be poorly
-/// conditioned, especially for repeated or closely spaced roots. This routine
-/// can return `Error::NoConvergence` for such inputs.
+/// Each quadratic factor is solved with the direct quadratic formula, so a
+/// factor whose two roots differ greatly in magnitude loses the smaller one to
+/// cancellation. For `[1, -1e9, 1]` the roots come out as 1e9 and 0 rather
+/// than 1e9 and 1e-9.
 ///
 /// # Errors
 ///
-/// Returns an error when the input lengths or coefficients are invalid, the
-/// iteration does not converge, or a root is non-finite. `roots` is unchanged
-/// on error.
+/// Returns an error when `p` has fewer than two coefficients, a coefficient
+/// is not finite, the last coefficient is zero, or `roots` has the wrong
+/// length. It also returns an error when the iteration does not converge or
+/// a root is not finite. `roots` is unchanged on error.
 pub fn poly_findroots_bairstow(p: &[f64], roots: &mut [Complex<f64>]) -> Result<()> {
     if p.len() < 2 {
         return Err(Error::Range("order must be greater than 0".to_owned()));
@@ -713,19 +698,13 @@ pub fn poly_findroots_bairstow(p: &[f64], roots: &mut [Complex<f64>]) -> Result<
     Ok(())
 }
 
-/// Iterate over Bairstow's method, finding quadratic factor x^2 + u*x + v
+/// Runs Bairstow's iteration to find a quadratic factor `x^2 + u*x + v` of
+/// `p`.
 ///
-/// # Arguments
-///
-/// * `p` - Polynomial coefficients (length: `k`)
-/// * `k` - Polynomial length (poly order = `k` - 1)
-/// * `p1` - Reduced polynomial (output) (length: `k` - 2)
-/// * `u` - Input: initial estimate for u; output: resulting u
-/// * `v` - Input: initial estimate for v; output: resulting v
-///
-/// # Returns
-///
-/// `Ok(())` on success, `Err(())` on failure
+/// `u` and `v` hold the starting estimate and receive the result. On success,
+/// the reduced polynomial goes to `p1`, which is two shorter than `p`. Returns
+/// an error when the lengths are wrong or the iteration does not converge
+/// within 20 steps.
 fn poly_findroots_bairstow_recursion(p: &[f64], p1: &mut [f64], u: &mut f64, v: &mut f64) -> Result<()> {
     let k = p.len();
     if k < 3 {
@@ -797,20 +776,12 @@ fn poly_findroots_bairstow_recursion(p: &[f64], p1: &mut [f64], u: &mut f64, v: 
     Ok(())
 }
 
-/// Run multiple iterations of Bairstow's method with different starting
-/// conditions looking for convergence
+/// Runs [`poly_findroots_bairstow_recursion`] up to 10 times until it
+/// converges.
 ///
-/// # Arguments
-///
-/// * `p` - Polynomial coefficients (length: `k`)
-/// * `k` - Polynomial length (poly order = `k` - 1)
-/// * `p1` - Reduced polynomial (output) (length: `k` - 2)
-/// * `u` - Input: initial estimate for u; output: resulting u
-/// * `v` - Input: initial estimate for v; output: resulting v
-///
-/// # Returns
-///
-/// `Ok(())` on success, `Err(())` on failure
+/// The first attempt starts from the given `u` and `v`, and later attempts
+/// start from fixed alternative points. Returns an error when no attempt
+/// converges.
 fn poly_findroots_bairstow_persistent(p: &[f64], p1: &mut [f64], u: &mut f64, v: &mut f64) -> Result<()> {
     let num_iterations_max = 10;
     for i in 0..num_iterations_max {
@@ -837,26 +808,25 @@ fn poly_sort_roots_compare(a: &Complex<f64>, b: &Complex<f64>) -> Ordering {
     a.re.total_cmp(&b.re).then_with(|| b.im.total_cmp(&a.im))
 }
 
-/// Find the complex roots of a real polynomial.
+/// Finds the complex roots of a real polynomial.
 ///
-/// Coefficients in `p` are ordered from the constant term to the highest
-/// power. `roots` receives one root for each degree of the polynomial. Roots
-/// are ordered by increasing real part, then decreasing imaginary part.
+/// `p` has at least two coefficients, and its last one must be nonzero.
+/// `roots` has one fewer element than `p`. The roots are sorted by increasing
+/// real part, then by decreasing imaginary part.
 ///
-/// The calculation uses f64 intermediate values before converting the roots
-/// to f32. All coefficients must be finite and the highest-order coefficient
-/// must be nonzero.
-///
-/// Root finding from high-order power-basis coefficients can be poorly
-/// conditioned, especially for repeated or closely spaced roots. Use a
-/// dedicated numerical library when that case must be handled reliably.
+/// The roots are found in `f64` by [`poly_findroots_bairstow`] and then
+/// rounded to `f32`, so they share its limits. Roots of high-order
+/// polynomials are poorly conditioned, especially when repeated or closely
+/// spaced, and roots of very different magnitude can lose the smaller one.
+/// Use a dedicated numerical library when those cases must be handled
+/// reliably.
 ///
 /// # Errors
 ///
-/// Returns an error if `p` has fewer than two coefficients, `roots` is not one
-/// element shorter than `p`, a coefficient or resulting f32 root is not finite,
-/// or the root solver does not converge. `roots` is unchanged when an error is
-/// returned.
+/// Returns an error when `p` has fewer than two coefficients, a coefficient
+/// is not finite, the last coefficient is zero, or `roots` has the wrong
+/// length. It also returns an error when the root solver does not converge
+/// or a root does not fit in `f32`. `roots` is unchanged on error.
 pub fn polyf_findroots(p: &[f32], roots: &mut [Complex<f32>]) -> Result<()> {
     if p.len() < 2 {
         return Err(Error::Range(format!("invalid polynomial length: {}", p.len())));

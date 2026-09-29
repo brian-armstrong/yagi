@@ -1,8 +1,6 @@
 //! Bessel functions for real `f32` arguments.
 //!
-//! These routines use fixed-length series and a simple asymptotic expression.
-//! They are intended for the non-negative arguments used by the surrounding
-//! DSP code.
+//! These routines use fixed-length series and one asymptotic expression.
 
 use super::gamma;
 use std::f32;
@@ -11,19 +9,23 @@ const NUM_BESSELI_ITERATIONS: usize = 64;
 const NUM_BESSELJ_ITERATIONS: usize = 128;
 const NUM_BESSELJ0_ITERATIONS: usize = 16;
 
-/// Evaluate `ln(I_nu(z))`, where `I_nu` is the modified Bessel function.
+/// Returns `ln(I_nu(z))`, where `I_nu` is the modified Bessel function of the
+/// first kind.
 ///
-/// `nu` and `z` should be finite and non-negative. At `z == 0`, the result is
-/// `0` for `nu == 0` and negative infinity otherwise.
+/// `nu` and `z` should be non-negative. At a `z` of zero, the result is zero
+/// for a `nu` of zero and negative infinity otherwise.
 ///
 /// # Warning
 ///
-/// This fixed-length series is not a general special-functions implementation.
-/// It can lose accuracy for large order or argument.
+/// The 64-term series is summed before its logarithm is taken, so the sum
+/// can overflow or underflow `f32` even where the logarithm is well within
+/// range. Large `z` gives infinity, and large `nu` relative to `z` gives
+/// negative infinity. For example, `lnbesselif(40.0, 3.0)` returns negative
+/// infinity, where the true value is about -94.
 ///
 /// # Panics
 ///
-/// Panics when `nu` causes an invalid gamma-function argument.
+/// Panics when `nu` is -1 or less and `z` is nonzero.
 pub fn lnbesselif(nu: f32, z: f32) -> f32 {
     // special case: check for zeros; besseli_nu(0) = (nu = 0 ? 1 : 0)
     if z == 0.0 {
@@ -58,14 +60,19 @@ pub fn lnbesselif(nu: f32, z: f32) -> f32 {
     t0 + y.ln()
 }
 
-/// Evaluate `I_nu(z)`, the modified Bessel function of the first kind.
+/// Returns `I_nu(z)`, the modified Bessel function of the first kind.
 ///
-/// `nu` and `z` should be finite and non-negative. At `z == 0`, the result is
-/// `1` for `nu == 0` and `0` otherwise.
+/// `nu` and `z` should be non-negative. At a `z` of zero, the result is one
+/// for a `nu` of zero and zero otherwise.
 ///
-/// # Warning
+/// Most arguments go through [`lnbesselif`] and share its limits. Large `z`
+/// overflows to infinity, as `I_nu(z)` itself soon exceeds the `f32` range.
+/// Large `nu` relative to `z` can return zero where `I_nu(z)` is small but
+/// representable.
 ///
-/// This routine inherits the range and accuracy limits of [`lnbesselif`].
+/// # Panics
+///
+/// Panics when `nu` is -1 or less and `z` is nonzero.
 pub fn besselif(nu: f32, z: f32) -> f32 {
     // special case: check for zeros; besseli_nu(0) = (nu = 0 ? 1 : 0)
     if z == 0.0 {
@@ -86,21 +93,30 @@ pub fn besselif(nu: f32, z: f32) -> f32 {
     lnbesselif(nu, z).exp()
 }
 
-/// Evaluate the order-zero modified Bessel function `I_0(z)`.
+/// Returns the order-zero modified Bessel function `I_0(z)`.
 ///
-/// The implementation is intended for finite, non-negative `z`.
+/// `z` must be non-negative. A negative `z` does not give `I_0(abs(z))`.
+/// Large `z` overflows to infinity, as for [`besselif`].
 pub fn besseli0f(z: f32) -> f32 {
     besselif(0.0, z)
 }
 
-/// Evaluate `J_nu(z)`, the Bessel function of the first kind.
+/// Returns `J_nu(z)`, the Bessel function of the first kind.
 ///
-/// `nu` and `z` should be finite and non-negative. At `z == 0`, the result is
-/// `1` for `nu == 0` and `0` otherwise.
+/// `nu` and `z` should be non-negative. At a `z` of zero, the result is one
+/// for a `nu` of zero and zero otherwise.
 ///
 /// # Warning
 ///
-/// This fixed-length series can lose accuracy for large order or argument.
+/// The alternating `f32` series cancels badly as `z` grows. At `z == 10`,
+/// order one is already off by about one percent. Beyond that, the result
+/// can be far outside the range of `J_nu`. For example,
+/// `besseljf(0.0, 20.0)` returns about `66`. Tests cover `z` up to 8. For
+/// order zero, [`besselj0f`] has a large-argument branch and avoids this.
+///
+/// # Panics
+///
+/// Panics when `nu` is -1 and `z` is negative.
 pub fn besseljf(nu: f32, z: f32) -> f32 {
     // special case: check for zeros; besselj_nu(0) = (nu = 0 ? 1 : 0)
     if z == 0.0 {
@@ -139,13 +155,11 @@ pub fn besseljf(nu: f32, z: f32) -> f32 {
     j
 }
 
-/// Evaluate the order-zero Bessel function `J_0(z)`.
+/// Returns the order-zero Bessel function `J_0(z)`.
 ///
-/// # Warning
-///
-/// For `abs(z) > 10`, this uses only the leading asymptotic term. It is useful
-/// for the filter-design callers in this crate, but it is not a uniformly
-/// accurate `J_0` implementation.
+/// Negative `z` is accepted, since `J_0` is even. Up to `abs(z) == 10`, this
+/// sums a 16-term series. Beyond that, it uses only the leading term of the
+/// large-argument expansion, whose error shrinks slowly as `abs(z)` grows.
 pub fn besselj0f(z: f32) -> f32 {
     // large signal approximation, see
     // Gross, F. B "New Approximations to J0 and J1 Bessel Functions,"

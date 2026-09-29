@@ -1,16 +1,16 @@
 //! Tapering windows for finite sample blocks.
 //!
-//! Each sample function takes a zero-based index `i` and a window length
-//! `wlen`. Valid indices are in `0..wlen`. A one-sample window has value `1`.
+//! Each sample function takes a zero-based index `i` in `0..wlen` and the
+//! window length `wlen`.
 
 use crate::error::{Error, Result};
 use crate::math::besseli0f;
 use std::f32::consts::PI;
 
-/// Window family for [`window`].
+/// Window family selected by [`window`] or [`get_window_type`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowType {
-    /// No window family.
+    /// No window family. [`window`] rejects it.
     Unknown,
     /// Hamming window.
     Hamming,
@@ -55,10 +55,10 @@ const WINDOW_INFO: [WindowInfo; 10] = [
     WindowInfo { short_name: "kbd", long_name: "Kaiser-Bessel derived" },
 ];
 
-/// Print the supported window names to standard output.
+/// Prints the short and long name of each window family to standard output.
 ///
-/// This is intended for interactive discovery. Use [`get_window_type`] when a
-/// program needs to select a window by name.
+/// The list includes `unknown`. Use [`get_window_type`] to select a window
+/// by name in a program.
 pub fn print_windows() {
     println!("Available window functions:");
     for info in &WINDOW_INFO {
@@ -66,15 +66,17 @@ pub fn print_windows() {
     }
 }
 
-/// Look up a window family by its lowercase short name.
+/// Returns the window family with the given short name.
 ///
-/// Accepted names include `"hann"`, `"blackmanharris4"`, `"kaiser"`, and
-/// `"rcostaper"`. `"blackmanharris"` is accepted as a compatibility alias for
-/// the four-term Blackman-Harris window.
+/// The names are `"hamming"`, `"hann"`, `"blackmanharris4"`,
+/// `"blackmanharris7"`, `"kaiser"`, `"flattop"`, `"triangular"`,
+/// `"rcostaper"` and `"kbd"`. Matching is exact and case-sensitive.
+/// `"blackmanharris"` also selects the four-term Blackman-Harris window.
+/// `"unknown"` returns [`WindowType::Unknown`], which [`window`] rejects.
 ///
 /// # Errors
 ///
-/// Returns an error when `name` does not identify a supported window.
+/// Returns an error when `name` is not one of these names.
 pub fn get_window_type(name: &str) -> Result<WindowType> {
     if name == "blackmanharris" {
         return Ok(WindowType::BlackmanHarris4);
@@ -87,17 +89,17 @@ pub fn get_window_type(name: &str) -> Result<WindowType> {
     Err(Error::Config("Unknown window type".to_string()))
 }
 
-/// Evaluate one sample of a selected window family.
+/// Returns sample `i` of a window of family `window_type` and length `wlen`.
 ///
-/// `i` is a zero-based sample index and must be less than `wlen`. `arg` is
-/// used only by the parameterized window families. It is the non-negative
-/// Kaiser or KBD beta, the triangular sub-length, or the raised-cosine taper
-/// length. Triangular and raised-cosine arguments must be whole numbers.
+/// `arg` is used only by the families that take a parameter. It is the beta
+/// for [`kaiser`] and [`kbd`], the sub-length for [`triangular`], and the
+/// taper length for [`rcos_taper`]. The last two must be whole numbers. See
+/// each family's function for its requirements.
 ///
 /// # Errors
 ///
-/// Returns an error for an unknown family, an invalid index or length, or an
-/// invalid family-specific argument.
+/// Returns an error for [`WindowType::Unknown`], a zero `wlen`, an `i` of
+/// `wlen` or more, or an `arg` the family rejects.
 pub fn window(window_type: WindowType, i: usize, wlen: usize, arg: f32) -> Result<f32> {
     match window_type {
         WindowType::Hamming => hamming(i, wlen),
@@ -130,18 +132,17 @@ fn window_arg_as_usize(arg: f32, name: &str) -> Result<usize> {
     Ok(arg as usize)
 }
 
-/// Evaluate one sample of a Kaiser window.
+/// Returns sample `i` of a Kaiser window of length `wlen`.
 ///
-/// `beta` controls the taper and must be finite and non-negative.
+/// `beta` sets the taper. Zero gives a rectangular window, and larger values
+/// give lower sidelobes and a wider main lobe. The window is scaled so that
+/// the center of an odd-length window is one. A `beta` above about 92
+/// overflows the Bessel function, and the samples become NaN or zero.
 ///
 /// # Errors
 ///
-/// Returns an error when `wlen` is zero, `i >= wlen`, or `beta` is invalid.
-///
-/// # Warning
-///
-/// Very large beta values can exceed the range of the Bessel-function
-/// calculation.
+/// Returns an error when `wlen` is zero, `i >= wlen`, or `beta` is negative
+/// or not finite.
 pub fn kaiser(i: usize, wlen: usize, beta: f32) -> Result<f32> {
     validate_window_index(i, wlen, "Kaiser")?;
     if !beta.is_finite() || beta < 0.0 {
@@ -159,7 +160,10 @@ pub fn kaiser(i: usize, wlen: usize, beta: f32) -> Result<f32> {
     Ok(a / b)
 }
 
-/// Evaluate one sample of a Hamming window.
+/// Returns sample `i` of a Hamming window of length `wlen`.
+///
+/// The coefficients are 0.53836 and 0.46164, so the end samples are 0.07672
+/// and the center of an odd-length window is one.
 ///
 /// # Errors
 ///
@@ -173,7 +177,9 @@ pub fn hamming(i: usize, wlen: usize) -> Result<f32> {
     Ok(0.53836 - 0.46164 * ((2.0 * PI * i as f32) / (wlen - 1) as f32).cos())
 }
 
-/// Evaluate one sample of a Hann window.
+/// Returns sample `i` of a Hann window of length `wlen`.
+///
+/// The end samples are zero and the center of an odd-length window is one.
 ///
 /// # Errors
 ///
@@ -187,7 +193,10 @@ pub fn hann(i: usize, wlen: usize) -> Result<f32> {
     Ok(0.5 - 0.5 * ((2.0 * PI * i as f32) / (wlen - 1) as f32).cos())
 }
 
-/// Evaluate one sample of a four-term Blackman-Harris window.
+/// Returns sample `i` of a four-term Blackman-Harris window of length
+/// `wlen`.
+///
+/// The center of an odd-length window is one.
 ///
 /// # Errors
 ///
@@ -208,7 +217,11 @@ pub fn blackman_harris4(i: usize, wlen: usize) -> Result<f32> {
     Ok(a0 - a1 * t.cos() + a2 * (2.0 * t).cos() - a3 * (3.0 * t).cos())
 }
 
-/// Evaluate one sample of a seven-term Blackman-Harris window.
+/// Returns sample `i` of a seven-term Blackman-Harris window of length
+/// `wlen`.
+///
+/// The coefficients sum to 0.99997, so the center of an odd-length window is
+/// slightly below one.
 ///
 /// # Errors
 ///
@@ -234,7 +247,11 @@ pub fn blackman_harris7(i: usize, wlen: usize) -> Result<f32> {
     )
 }
 
-/// Evaluate one sample of a flat-top window.
+/// Returns sample `i` of a flat-top window of length `wlen`.
+///
+/// Unlike the other windows, this one is not scaled to a peak of one. For
+/// odd `wlen` greater than one, the center sample is 4.636, or 13.3 dB above
+/// one. Divide by that value if a unit peak is needed.
 ///
 /// # Errors
 ///
@@ -255,13 +272,16 @@ pub fn flat_top(i: usize, wlen: usize) -> Result<f32> {
     Ok(a0 - a1 * t.cos() + a2 * (2.0 * t).cos() - a3 * (3.0 * t).cos() + a4 * (4.0 * t).cos())
 }
 
-/// Evaluate one sample of a triangular window.
+/// Returns sample `i` of a triangular window of length `wlen`.
 ///
-/// `n` must be `wlen - 1`, `wlen`, or `wlen + 1`. It must be nonzero.
+/// `n` sets the width of the triangle and must be `wlen - 1`, `wlen`, or
+/// `wlen + 1`. With `wlen - 1`, the end samples are zero. The larger values
+/// leave them above zero.
 ///
 /// # Errors
 ///
-/// Returns an error when the index, length, or sub-length is invalid.
+/// Returns an error when `wlen` is zero, `i >= wlen`, or `n` is zero or not
+/// one of the allowed values.
 pub fn triangular(i: usize, wlen: usize, n: usize) -> Result<f32> {
     validate_window_index(i, wlen, "Triangular")?;
     if n == 0 {
@@ -276,14 +296,15 @@ pub fn triangular(i: usize, wlen: usize, n: usize) -> Result<f32> {
     Ok(1.0 - (v0 / v1).abs())
 }
 
-/// Evaluate one sample of a raised-cosine taper window.
+/// Returns sample `i` of a raised-cosine taper window of length `wlen`.
 ///
-/// `t` is the taper length at each end of the window. `t == 0` produces a
-/// rectangular window. It may not exceed half of `wlen`.
+/// The window is one except for a half-cosine taper of `t` samples at each
+/// end. A `t` of zero gives a rectangular window. `t` may be at most
+/// `wlen / 2`, rounded down.
 ///
 /// # Errors
 ///
-/// Returns an error when the index, length, or taper length is invalid.
+/// Returns an error when `wlen` is zero, `i >= wlen`, or `t` is too large.
 pub fn rcos_taper(i: usize, wlen: usize, t: usize) -> Result<f32> {
     validate_window_index(i, wlen, "Raised-cosine taper")?;
     if t > wlen / 2 {
@@ -301,18 +322,22 @@ pub fn rcos_taper(i: usize, wlen: usize, t: usize) -> Result<f32> {
     }
 }
 
-/// Evaluate one sample of a Kaiser-Bessel derived window.
+/// Returns sample `i` of a Kaiser-Bessel derived window of length `wlen`.
 ///
-/// `wlen` must be positive and even. `beta` controls the Kaiser taper.
+/// The first half of the window is the square root of the running sum of a
+/// Kaiser window of length `wlen / 2 + 1`, divided by its total. The second
+/// half mirrors the first. Up to rounding, the samples satisfy
+/// `w[i]^2 + w[i + wlen / 2]^2 = 1`, the Princen-Bradley condition for MDCT
+/// windows. `beta` is the Kaiser window's parameter, with the same limits as
+/// in [`kaiser`].
+///
+/// Each call recomputes the whole Kaiser window. [`kbd_window`] builds the
+/// complete window at once and returns the same values.
 ///
 /// # Errors
 ///
-/// Returns an error when the index, length, or beta is invalid.
-///
-/// # Warning
-///
-/// This recomputes the partial Kaiser sum for every sample. Use
-/// [`kbd_window`] when constructing a complete window.
+/// Returns an error when `wlen` is zero or odd, `i >= wlen`, or `beta` is
+/// negative or not finite.
 pub fn kbd(i: usize, wlen: usize, beta: f32) -> Result<f32> {
     validate_window_index(i, wlen, "KBD")?;
     if !beta.is_finite() || beta < 0.0 {
@@ -340,14 +365,14 @@ pub fn kbd(i: usize, wlen: usize, beta: f32) -> Result<f32> {
     Ok((w0 / w1).sqrt())
 }
 
-/// Construct a complete Kaiser-Bessel derived window.
+/// Returns a complete Kaiser-Bessel derived window of length `wlen`.
 ///
-/// `wlen` must be positive and even. `beta` must be finite and non-negative.
-/// The returned samples have even symmetry.
+/// The samples are the same as those from [`kbd`].
 ///
 /// # Errors
 ///
-/// Returns an error when the length or beta is invalid.
+/// Returns an error when `wlen` is zero or odd, or `beta` is negative or not
+/// finite.
 pub fn kbd_window(wlen: usize, beta: f32) -> Result<Vec<f32>> {
     if wlen == 0 {
         return Err(Error::Value("KBD window: window length must be greater than zero".to_string()));

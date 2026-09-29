@@ -1,8 +1,23 @@
-//! Mathematical special functions, number theory, polynomials, and windows.
+//! Special functions, number theory, polynomials, and windows.
 //!
-//! Scalar special functions in this module use `f32` unless their name ends
-//! with `d`. Polynomial functions define their coefficient order in their own
-//! documentation.
+//! The special functions work in `f32` unless their name ends in `d`. They use
+//! short fixed-length series and simple approximations, and several lose
+//! accuracy or overflow at moderate arguments, as their docs say. Use a
+//! dedicated special-functions library where accuracy over a wide range
+//! matters.
+//!
+//! Polynomial coefficients are in ascending powers, so `[c0, c1, c2]` is
+//! `c0 + c1*x + c2*x^2`. A slice of length `n + 1` has order `n`, even when
+//! its last coefficient is zero.
+//!
+//! The number-theory functions work on `u32` by trial division and repeated
+//! multiplication. Most run in time that grows with the value of the input,
+//! so they suit small numbers.
+//!
+//! Most window functions return one sample at a time, from a zero-based
+//! index and the window length. The windows are symmetric, with matching
+//! samples at opposite ends, as used for filter design. They are not the
+//! periodic windows often used for spectral analysis.
 
 mod bessel;
 mod complex_tests;
@@ -30,23 +45,22 @@ use std::f32::consts::{PI, SQRT_2};
 
 use crate::error::{Error, Result};
 
-/// Evaluate the standard normal upper-tail probability at `z`.
-///
-/// Returns `P(Z > z)` for a standard normal random variable `Z`.
+/// Returns the standard normal upper-tail probability `P(Z > z)`.
 pub fn qf(z: f32) -> f32 {
     0.5 * erfcf(z / SQRT_2)
 }
 
-/// Approximate the order-`m` Marcum Q function.
+/// Returns a rough estimate of the order-`m` Marcum Q function.
 ///
-/// `m` is the positive integer order. `alpha` and `beta` are non-negative
-/// arguments.
+/// `m` is the positive integer order, and `alpha` and `beta` are
+/// non-negative. For order one, [`marcumq1f`] evaluates the function
+/// directly.
 ///
 /// # Warning
 ///
-/// This uses an approximation. It is intended for the parameter ranges used
-/// by the surrounding signal-processing routines, not as a general numerical
-/// Marcum-Q implementation.
+/// The result is not a usable Marcum Q probability, even for ordinary
+/// arguments. It can exceed one. For example, `marcumqf(1, 0.0, 0.0)` returns
+/// about `1.84` instead of `1`. Do not use it for probability calculations.
 pub fn marcumqf(m: i32, alpha: f32, beta: f32) -> f32 {
     // Use approximation [Helstrom:1992] (Eq. 25)
     // Q_M(a,b) ~ erfc(x),
@@ -58,14 +72,17 @@ pub fn marcumqf(m: i32, alpha: f32, beta: f32) -> f32 {
     erfcf(x)
 }
 
-/// Evaluate the order-one Marcum Q function.
+/// Returns the order-one Marcum Q function `Q_1(alpha, beta)`.
 ///
-/// `alpha` and `beta` must be non-negative. `beta == 0` returns `1`.
+/// `alpha` and `beta` must be non-negative. A `beta` of zero returns one.
 ///
 /// # Warning
 ///
-/// The fixed-length series can lose accuracy for extreme arguments. Use a
-/// dedicated special-functions library when that accuracy is important.
+/// The 64-term `f32` series returns infinity or NaN for many ordinary
+/// arguments. It fails when `alpha` is more than about four times `beta`,
+/// because the power `(alpha / beta)^k` overflows. It also fails once
+/// `alpha * beta` reaches about 90, where the Bessel terms overflow. For
+/// example, `marcumq1f(9.0, 10.0)` returns infinity.
 pub fn marcumq1f(alpha: f32, beta: f32) -> f32 {
     const NUM_MARCUMQ1_ITERATIONS: usize = 64;
 
@@ -90,9 +107,11 @@ pub fn marcumq1f(alpha: f32, beta: f32) -> f32 {
     t0 * y
 }
 
-/// Evaluate `sin(pi * x) / (pi * x)`.
+/// Returns the normalized sinc function `sin(pi * x) / (pi * x)`.
 ///
-/// The value at zero is `1`.
+/// The value at zero is one. Where `abs(x) < 0.01`, a product of three
+/// cosines stands in for the ratio. It runs slightly high, by up to about
+/// `3e-6` relative at the edge of that range.
 pub fn sincf(x: f32) -> f32 {
     if x.abs() < 0.01 {
         (PI * x / 2.0).cos() * (PI * x / 4.0).cos() * (PI * x / 8.0).cos()
@@ -101,9 +120,12 @@ pub fn sincf(x: f32) -> f32 {
     }
 }
 
-/// Evaluate `sin(pi * x) / (pi * x)` in `f64`.
+/// Returns the normalized sinc function `sin(pi * x) / (pi * x)` in `f64`.
 ///
-/// The value at zero is `1`.
+/// The value at zero is one. Where `abs(x) < 0.01`, a product of three
+/// cosines stands in for the ratio. It runs slightly high, by up to about
+/// `3e-6` relative at the edge of that range, which is far above `f64`
+/// rounding.
 pub fn sincd(x: f64) -> f64 {
     if x.abs() < 0.01 {
         (std::f64::consts::PI * x / 2.0).cos()
@@ -114,7 +136,7 @@ pub fn sincd(x: f64) -> f64 {
     }
 }
 
-/// Return the smallest exponent `p` for which `2^p >= x`.
+/// Returns the smallest exponent `p` for which `2^p >= x`.
 ///
 /// For example, `nextpow2(9)` returns `4`.
 ///
@@ -135,16 +157,20 @@ pub fn nextpow2(mut x: u32) -> Result<u32> {
     Ok(n)
 }
 
-/// Compute the binomial coefficient `n choose k`.
+/// Returns the binomial coefficient `n choose k`.
+///
+/// For `n` up to 12, the result is exact. Larger `n` goes through a difference
+/// of [`lngammaf`] values in `f32`, rounded to a whole number. A coefficient
+/// above the `f32` range gives infinity, as for `nchoosek(200, 100)`.
+///
+/// The log values grow with `n` and nearly cancel, so accuracy falls as `n`
+/// grows, whatever the size of the result. `nchoosek(1_000_000, 1)` returns
+/// 1_202_604 rather than 1_000_000. For `n` near `u32::MAX` the difference
+/// can round to zero, so `nchoosek(u32::MAX, 100)` returns 1.
 ///
 /// # Errors
 ///
 /// Returns an error when `k > n`.
-///
-/// # Warning
-///
-/// The result is represented as `f32`. Large coefficients cannot be
-/// represented exactly and may overflow or lose precision.
 pub fn nchoosek(n: u32, k: u32) -> Result<f32> {
     if k > n {
         return Err(Error::Value(("invalid input: k cannot exceed n").to_owned()));
