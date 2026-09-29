@@ -63,7 +63,7 @@ impl FskDemodulator {
         let df = bandwidth / m2;
         let mut err_min = 1e9f32;
         let k_min = k;
-        let k_max = (k * 4).min(16);
+        let k_max = (k * 4).max(16);
         let mut k_size = k_min;
 
         for k_hat in k_min..=k_max {
@@ -241,6 +241,13 @@ mod tests {
         assert!(dem.demodulate(&y_short).is_err());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_fskdem_fft_size_search() -> Result<()> {
+        let dem = FskDemodulator::new(3, 8, 0.2)?;
+        assert_eq!(dem.k_size, 32);
+        fskmodem_test_mod_demod(3, 8, 0.2)
     }
 
     // Helper function to keep code base small
