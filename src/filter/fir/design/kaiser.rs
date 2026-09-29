@@ -21,7 +21,7 @@ pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32
         return Err(Error::Config(format!("fractional sample offset ({}) out of range [-1, 1]", mu)));
     }
     if fc <= 0.0 || fc > 0.5 {
-        return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", fc)));
+        return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5]", fc)));
     }
     if n == 0 {
         return Err(Error::Config("filter length must be greater than zero".into()));
