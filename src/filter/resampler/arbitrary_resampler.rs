@@ -56,13 +56,12 @@ where
     /// above the output Nyquist frequency alias. The constructor does not
     /// enforce this.
     ///
-    /// A NaN `rate` is not rejected. It leaves a zero phase step, and later
-    /// calls that count or produce output panic. `num_filters` is cast to
-    /// `u32` before rounding, so values above `u32::MAX` are truncated.
+    /// `num_filters` is cast to `u32` before rounding, so values above
+    /// `u32::MAX` are truncated.
     ///
     /// # Errors
     ///
-    /// Returns an error when `rate` is outside `[0.004, 250]`,
+    /// Returns an error when `rate` is nonfinite or outside `[0.004, 250]`,
     /// `filter_semi_length` is zero, `cutoff_frequency` is outside its range,
     /// `stopband_attenuation` is zero or negative, or `num_filters` is outside
     /// its range.
@@ -79,8 +78,8 @@ where
         stopband_attenuation: f32,
         num_filters: usize,
     ) -> Result<Self> {
-        if rate <= 0.0 {
-            return Err(Error::Config("resampling rate must be greater than zero".into()));
+        if !(0.004..=250.0).contains(&rate) {
+            return Err(Error::Config("resampling rate must be in [0.004,250]".into()));
         }
         if filter_semi_length == 0 {
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
@@ -139,13 +138,8 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `rate` is outside `[0.004, 250]`. A NaN rate is
-    /// not rejected and makes later calls panic, as with [`Self::new`].
+    /// Returns an error when `rate` is nonfinite or outside `[0.004, 250]`.
     pub fn from_rate(rate: f32) -> Result<Self> {
-        if rate <= 0.0 {
-            return Err(Error::Config("resampling rate must be greater than zero".into()));
-        }
-
         let m = 7;
         let fc = 0.25;
         let as_ = 60.0;
@@ -170,8 +164,7 @@ where
     /// Changes the rate while keeping the history and phase.
     ///
     /// [`Self::rate`] then reports `rate` exactly, while the phase step is
-    /// rounded. A NaN `rate` is not rejected. It leaves a zero phase step,
-    /// and later calls that count or produce output panic.
+    /// rounded.
     ///
     /// The filter is not redesigned, so the cutoff rule on [`Self::new`] now
     /// applies to the new rate. A resampler built at rate 1 with a cutoff of
@@ -181,12 +174,10 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `rate` is outside `[0.004, 250]`. The rate is
-    /// unchanged on error.
+    /// Returns an error when `rate` is nonfinite or outside `[0.004, 250]`.
+    /// The resampler is unchanged on error.
     pub fn set_rate(&mut self, rate: f32) -> Result<()> {
-        if rate <= 0.0 {
-            return Err(Error::Config("resampling rate must be greater than zero".into()));
-        } else if rate < 0.004 || rate > 250.0 {
+        if !(0.004..=250.0).contains(&rate) {
             return Err(Error::Config("resampling rate must be in [0.004,250]".into()));
         }
 
@@ -205,17 +196,18 @@ where
 
     /// Multiplies the rate by `gamma` while keeping the history and phase.
     ///
-    /// A NaN `gamma` is not rejected and makes later calls panic, as with
-    /// [`Self::set_rate`]. The filter is not redesigned, as with
-    /// [`Self::set_rate`].
+    /// The filter is not redesigned, as with [`Self::set_rate`].
     ///
     /// # Errors
     ///
-    /// Returns an error when `gamma` is zero or negative or the new rate is
-    /// outside `[0.004, 250]`. The rate is unchanged on error.
+    /// Returns an error when `gamma` is nonfinite, zero or negative, or the
+    /// new rate is outside `[0.004, 250]`. The resampler is unchanged on error.
     pub fn adjust_rate(&mut self, gamma: f32) -> Result<()> {
-        if gamma <= 0.0 {
-            return Err(Error::Config(format!("resampling adjustment ({}) must be greater than zero", gamma)));
+        if !gamma.is_finite() || gamma <= 0.0 {
+            return Err(Error::Config(format!(
+                "resampling adjustment ({}) must be finite and greater than zero",
+                gamma
+            )));
         }
 
         self.set_rate(self.r * gamma)
@@ -236,10 +228,6 @@ where
     /// before each call. It is the output length that [`Self::execute_block`]
     /// requires for that input. A count too large for `usize` saturates at
     /// `usize::MAX`.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the phase step is zero, which follows from a NaN rate.
     pub fn num_output(&self, num_input: usize) -> usize {
         // after consuming n inputs and producing k outputs, the accumulator is
         // phase + k*step - n*PHASE_SCALE
@@ -271,10 +259,6 @@ where
     ///
     /// Returns an error when `output` is too short. The resampler and `output`
     /// are unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the phase step is zero, which follows from a NaN rate.
     pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<usize> {
         if output.len() < self.num_output(1) {
             return Err(Error::Config("output length too small for resampler output".into()));
@@ -302,10 +286,6 @@ where
     ///
     /// Returns an error when `output` is too short. The resampler and `output`
     /// are unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the phase step is zero, which follows from a NaN rate.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < self.num_output(input.len()) {
             return Err(Error::Config("output length too small for resampler output".into()));
@@ -341,6 +321,58 @@ mod tests {
     use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_resamp_rate_validation() {
+        for rate in [
+            f32::NAN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            0.0,
+            -0.0,
+            -1.0,
+            f32::from_bits(0.004f32.to_bits() - 1),
+            f32::from_bits(250.0f32.to_bits() + 1),
+        ] {
+            assert!(ArbitraryResampler::<f32>::new(rate, 7, 0.25, 60.0, 64).is_err());
+            assert!(ArbitraryResampler::<f32>::from_rate(rate).is_err());
+        }
+        for rate in [0.004, 250.0] {
+            for q in [
+                ArbitraryResampler::<f32>::new(rate, 7, 0.25, 60.0, 64).unwrap(),
+                ArbitraryResampler::<f32>::from_rate(rate).unwrap(),
+            ] {
+                assert_eq!(q.rate(), rate);
+                assert_eq!(q.num_output(1), if rate == 250.0 { 250 } else { 1 });
+            }
+        }
+    }
+
+    #[test]
+    fn test_resamp_rejected_rate_change_preserves_stream() {
+        let mut initial = ArbitraryResampler::<f32>::new(1.37, 7, 0.25, 60.0, 64).unwrap();
+        let warmup = [1.0, -0.5, 0.25];
+        initial.execute_block(&warmup, &mut vec![0.0; initial.num_output(warmup.len())]).unwrap();
+        let input = [0.75, -0.25, 0.5, -1.0, 0.0];
+
+        for adjust in [false, true] {
+            let mut q = initial.clone();
+            let mut reference = initial.clone();
+            for rate in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -0.0, -1.0, f32::MIN_POSITIVE, f32::MAX] {
+                let result = if adjust { q.adjust_rate(rate) } else { q.set_rate(rate) };
+                assert!(result.is_err());
+                assert_eq!(q.rate(), reference.rate());
+
+                let required = reference.num_output(input.len());
+                assert_eq!(q.num_output(input.len()), required);
+                let mut expected = vec![0.0; required];
+                let mut actual = expected.clone();
+                assert_eq!(reference.execute_block(&input, &mut expected).unwrap(), required);
+                assert_eq!(q.execute_block(&input, &mut actual).unwrap(), required);
+                assert_eq!(actual, expected);
+            }
+        }
+    }
 
     fn testbench_resamp_crcf(r: f32, as_db: f32, _id: usize) {
         // options
