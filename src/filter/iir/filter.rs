@@ -335,18 +335,12 @@ where
 
 /// Evaluates a transfer function at `fc` cycles per sample, including `scale`.
 ///
-/// Coefficients are in ascending order. The result is `scale * B / A`, where
-/// `B = sum(b[i] * exp(j*2*pi*fc*i))` and `A` is the same sum over `a`.
+/// Coefficients are in ascending powers of `z^-1`. The result is
+/// `scale * B / A`, where `B = sum(b[i] * exp(-j*2*pi*fc*i))` and `A` is
+/// the same sum over `a`.
 ///
 /// Neither `fc` nor the coefficient lengths are checked. A zero denominator sum
 /// gives a nonfinite response.
-///
-/// # Warning
-///
-/// The exponent has a positive sign. The usual convention is
-/// `exp(-j*2*pi*fc*i)`, so this function returns the usual response at `-fc`.
-/// For real coefficients, that is the complex conjugate of the usual response:
-/// the same magnitude with the opposite phase.
 pub fn iir_filter_freqresponse<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> Complex32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -355,14 +349,13 @@ where
     let mut ha = Complex32::default();
 
     for (i, &bi) in b.iter().enumerate() {
-        hb += bi.into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+        hb += bi.into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * i as f32);
     }
 
     for (i, &ai) in a.iter().enumerate() {
-        ha += ai.into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * i as f32);
+        ha += ai.into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * i as f32);
     }
 
-    // TODO : check to see if we need to take conjugate
     let h = hb / ha;
 
     h * scale.into()
@@ -376,11 +369,6 @@ where
 /// the section responses. With `nsos == 0` the result is `scale`. A zero
 /// section denominator gives a nonfinite response.
 ///
-/// # Warning
-///
-/// This uses the positive exponent sign of [`iir_filter_freqresponse`], so the
-/// result is the usual response at `-fc`.
-///
 /// # Panics
 ///
 /// Panics when `b` or `a` is shorter than `3 * nsos`.
@@ -393,13 +381,13 @@ where
     h = Complex32::from(1.0);
 
     for i in 0..nsos {
-        let hb = b[3 * i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0)
-            + b[3 * i + 1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0)
-            + b[3 * i + 2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
+        let hb = b[3 * i].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 0.0)
+            + b[3 * i + 1].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 1.0)
+            + b[3 * i + 2].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 2.0);
 
-        let ha = a[3 * i].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 0.0)
-            + a[3 * i + 1].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 1.0)
-            + a[3 * i + 2].into() * Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * fc * 2.0);
+        let ha = a[3 * i].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 0.0)
+            + a[3 * i + 1].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 1.0)
+            + a[3 * i + 2].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 2.0);
 
         h *= hb / ha;
     }
@@ -412,12 +400,6 @@ where
 /// `fc` is in cycles per sample. The result is `10 * log10(|H|^2)`, where `H` is
 /// the response from [`iir_filter_freqresponse`]. A response null gives negative
 /// infinity, and a zero denominator gives a nonfinite result.
-///
-/// # Warning
-///
-/// [`iir_filter_freqresponse`] evaluates the response at `-fc`, so this is the
-/// power response at `-fc`. For complex coefficients that differs from the
-/// power response at `fc`.
 pub fn iir_filter_get_psd<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> f32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -432,12 +414,6 @@ where
 /// `fc` is in cycles per sample. The result is `10 * log10(|H|^2)`, where `H` is
 /// the response from [`iir_filter_freqresponse_sos`]. A response null gives
 /// negative infinity.
-///
-/// # Warning
-///
-/// [`iir_filter_freqresponse_sos`] evaluates the response at `-fc`, so this is
-/// the power response at `-fc`. For complex coefficients that differs from the
-/// power response at `fc`.
 ///
 /// # Panics
 ///
@@ -998,11 +974,6 @@ where
     ///
     /// After [`Self::set_coefficients`] on a single-section cascade, it still
     /// describes the old section.
-    ///
-    /// # Warning
-    ///
-    /// This uses the positive exponent sign of [`iir_filter_freqresponse`], so the
-    /// result is the usual response at `-fc`.
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_freqresponse(&self.b, &self.a, self.scale, fc)
@@ -1016,12 +987,6 @@ where
     ///
     /// A response null gives negative infinity. After [`Self::set_coefficients`] on
     /// a single-section cascade, it still describes the old section.
-    ///
-    /// # Warning
-    ///
-    /// [`Self::freqresponse`] evaluates the response at `-fc`, so this is the
-    /// power response at `-fc`. For complex coefficients that differs from the
-    /// power response at `fc`.
     pub fn psd(&self, fc: f32) -> f32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_get_psd(&self.b, &self.a, self.scale, fc)
@@ -1057,6 +1022,81 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use design::{IirBandType, IirFilterShape, IirFormat};
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_iirfilt_freqresponse_delay_phase() {
+        // Three samples of delay: H(1/4) = exp(-j*3*pi/2) = j.
+        let b = [0.0, 0.0, 0.0, 1.0];
+        let a = [1.0];
+        let b_sos = [0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let a_sos = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        let mut q = IirFilter::<f32, f32>::new(&b, &a).unwrap();
+        let mut q_sos = IirFilter::<f32, f32>::new_sos(&b_sos, &a_sos).unwrap();
+        q.set_scale(2.0);
+        q_sos.set_scale(2.0);
+
+        for fc in [-0.25, 0.25] {
+            for h in [
+                iir_filter_freqresponse(&b, &a, 2.0, fc),
+                iir_filter_freqresponse_sos(&b_sos, &a_sos, 2.0, 2, fc),
+                q.freqresponse(fc),
+                q_sos.freqresponse(fc),
+            ] {
+                assert_abs_diff_eq!(h.re, 0.0, epsilon = 1e-6);
+                assert_abs_diff_eq!(h.im, 8.0 * fc, epsilon = 1e-6);
+            }
+        }
+    }
+
+    #[test]
+    fn test_iirfilt_freqresponse_complex_power() {
+        // H(z) = 1 / ((1 - 0.5j*z^-1) * (1 - 0.25*z^-1)).
+        // The first factor gives gains of 2 and 2/3 at +1/4 and -1/4.
+        let one = Complex32::new(1.0, 0.0);
+        let zero = Complex32::new(0.0, 0.0);
+        let b = [one];
+        let a = [one, Complex32::new(-0.25, -0.5), Complex32::new(0.0, 0.125)];
+        let b_sos = [one, zero, zero, one, zero, zero];
+        let a_sos = [one, Complex32::new(0.0, -0.5), zero, one, Complex32::new(-0.25, 0.0), zero];
+        let scale = Complex32::new(0.75, -0.25);
+
+        for (fc, gain) in [(-0.25, 2.0 / 3.0), (0.25, 2.0)] {
+            let expected = scale * gain / Complex32::new(1.0, fc);
+            let expected_psd = 10.0 * expected.norm_sqr().log10();
+            for h in [
+                iir_filter_freqresponse(&b, &a, scale, fc),
+                iir_filter_freqresponse_sos(&b_sos, &a_sos, scale, 2, fc),
+            ] {
+                assert_abs_diff_eq!(h.re, expected.re, epsilon = 1e-6);
+                assert_abs_diff_eq!(h.im, expected.im, epsilon = 1e-6);
+            }
+            assert_abs_diff_eq!(iir_filter_get_psd(&b, &a, scale, fc), expected_psd, epsilon = 1e-5);
+            assert_abs_diff_eq!(iir_filter_get_psd_sos(&b_sos, &a_sos, scale, 2, fc), expected_psd, epsilon = 1e-5);
+
+            for mut q in [
+                IirFilter::<Complex32, Complex32>::new(&b, &a).unwrap(),
+                IirFilter::<Complex32, Complex32>::new_sos(&b_sos, &a_sos).unwrap(),
+            ] {
+                q.set_scale(scale);
+                let h = q.freqresponse(fc);
+                assert_abs_diff_eq!(h.re, expected.re, epsilon = 1e-6);
+                assert_abs_diff_eq!(h.im, expected.im, epsilon = 1e-6);
+                assert_abs_diff_eq!(q.psd(fc), expected_psd, epsilon = 1e-5);
+
+                // Check the reported response against steady-state filtering.
+                let tone = [one, Complex32::new(0.0, 1.0), -one, Complex32::new(0.0, -1.0)];
+                for i in 0..64 {
+                    let x = if fc > 0.0 { tone[i % 4] } else { tone[i % 4].conj() };
+                    let y = q.execute(x);
+                    if i >= 32 {
+                        let measured = y / x;
+                        assert_abs_diff_eq!(measured.re, expected.re, epsilon = 1e-5);
+                        assert_abs_diff_eq!(measured.im, expected.im, epsilon = 1e-5);
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_iirfilt_integrator)]
