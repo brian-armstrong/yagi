@@ -271,6 +271,7 @@ where
     /// setting, loop bandwidth, and output rate are kept.
     pub fn reset(&mut self) {
         self.mf.reset();
+        self.dmf.reset();
         self.rate = self.k as f32 / self.k_out as f32;
         self.del = self.rate;
         self.b = 0;
@@ -526,6 +527,35 @@ mod tests {
         assert_eq!(buf_0[..nw_0], buf_1[..nw_1]);
 
         // check other internal properties
+        assert_eq!(q0.tau(), q1.tau());
+    }
+
+    #[test]
+    fn test_symsync_reset_matches_new() {
+        let new = || {
+            let mut q =
+                SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Arkaiser, 5, 7, 0.25, 64).unwrap();
+            q.set_lf_bw(0.02).unwrap();
+            q
+        };
+
+        let buf_len = 640;
+        let mut buf_0 = vec![Complex32::new(0.0, 0.0); buf_len];
+        let mut buf_1 = vec![Complex32::new(0.0, 0.0); buf_len];
+
+        let mut q0 = new();
+        let warmup: Vec<_> = (0..buf_len).map(|_| Complex32::new(randnf(), randnf())).collect();
+        q0.execute(&warmup, &mut buf_0).unwrap();
+        q0.reset();
+
+        let mut q1 = new();
+
+        let buf: Vec<_> = (0..buf_len).map(|_| Complex32::new(randnf(), randnf())).collect();
+        let nw_0 = q0.execute(&buf, &mut buf_0).unwrap();
+        let nw_1 = q1.execute(&buf, &mut buf_1).unwrap();
+
+        assert_eq!(nw_0, nw_1);
+        assert_eq!(buf_0[..nw_0], buf_1[..nw_1]);
         assert_eq!(q0.tau(), q1.tau());
     }
 
