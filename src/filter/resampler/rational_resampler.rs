@@ -74,8 +74,8 @@ where
     /// - `filter_semi_length`: filter span on each side of the center tap, in
     ///   input samples.
     /// - `bandwidth`: cutoff in cycles per input sample, in `(0, 0.5]`. A
-    ///   negative value selects the Nyquist frequency of the slower of the
-    ///   input and output rates.
+    ///   finite negative value selects the Nyquist frequency of the slower
+    ///   of the input and output rates.
     /// - `stopband_attenuation`: in dB. Must be positive.
     ///
     /// When decimating, a cutoff above the output Nyquist frequency lets
@@ -91,13 +91,13 @@ where
     /// [`Self::set_scale`] to change the level.
     ///
     /// The rate factors are reduced to lowest terms before the filter is
-    /// designed. The reduction casts them to `u32`, so factors above
-    /// `u32::MAX` are truncated and can produce the wrong ratio.
+    /// designed.
     ///
     /// # Errors
     ///
-    /// Returns an error when either rate factor is zero, `bandwidth` is zero or
-    /// above 0.5, or `stopband_attenuation` is zero or negative.
+    /// Returns an error when either rate factor is zero, `bandwidth` is
+    /// nonfinite, zero or above 0.5, or `stopband_attenuation` is zero or
+    /// negative.
     ///
     /// # Panics
     ///
@@ -111,10 +111,13 @@ where
         bandwidth: f32,
         stopband_attenuation: f32,
     ) -> Result<Self> {
-        let gcd = gcd(interpolation_factor as u32, decimation_factor as u32)? as usize;
+        let gcd = gcd(interpolation_factor, decimation_factor)?;
         let interpolation_factor = interpolation_factor / gcd;
         let decimation_factor = decimation_factor / gcd;
 
+        if !bandwidth.is_finite() {
+            return Err(Error::Config("bandwidth must be finite".into()));
+        }
         let bandwidth = if bandwidth < 0.0 {
             if interpolation_factor > decimation_factor {
                 0.5
@@ -158,8 +161,7 @@ where
     /// [`Self::set_scale`] to change the level.
     ///
     /// The rate factors are reduced to lowest terms before the filter is
-    /// designed. The reduction casts them to `u32`, so factors above
-    /// `u32::MAX` are truncated and can produce the wrong ratio.
+    /// designed.
     ///
     /// # Errors
     ///
@@ -178,7 +180,7 @@ where
         filter_semi_length: usize,
         excess_bandwidth: f32,
     ) -> Result<Self> {
-        let gcd = gcd(interpolation_factor as u32, decimation_factor as u32)? as usize;
+        let gcd = gcd(interpolation_factor, decimation_factor)?;
         let interpolation_factor = interpolation_factor / gcd;
         let decimation_factor = decimation_factor / gcd;
 

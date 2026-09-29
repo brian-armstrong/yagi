@@ -4,6 +4,8 @@
 
 use crate::error::{Error, Result};
 
+use num_traits::{One, Zero};
+
 const MAX_FACTORS: usize = 40;
 
 /// Returns whether `n` is prime.
@@ -113,12 +115,23 @@ pub fn unique_factor(n: u32, factors: &mut Vec<u32>) -> Result<usize> {
 /// # Errors
 ///
 /// Returns an error when either input is zero.
-pub fn gcd(mut p: u32, mut q: u32) -> Result<u32> {
+pub fn gcd<T>(mut p: T, mut q: T) -> Result<T>
+where
+    T: Copy
+        + std::cmp::PartialEq
+        + std::cmp::PartialOrd
+        + std::ops::DivAssign
+        + std::ops::MulAssign
+        + std::ops::AddAssign
+        + std::ops::Rem<Output = T>
+        + Zero
+        + One,
+{
     // check base cases
-    if p == 0 || q == 0 {
+    if p == T::zero() || q == T::zero() {
         return Err(Error::Value("input cannot be zero".to_string()));
-    } else if p == 1 || q == 1 {
-        return Ok(1);
+    } else if p == T::one() || q == T::one() {
+        return Ok(T::one());
     } else if p == q {
         return Ok(p);
     } else if p < q {
@@ -126,15 +139,18 @@ pub fn gcd(mut p: u32, mut q: u32) -> Result<u32> {
     }
 
     // dumb, slow method
-    let mut gcd = 1;
-    let mut r = 2; // root
+    let zero = T::zero();
+    let one = T::one();
+    let two = T::one() + T::one();
+    let mut gcd = one;
+    let mut r = two; // root
     while r <= q {
-        while p.is_multiple_of(r) && q.is_multiple_of(r) {
+        while p % r == zero && q % r == zero {
             p /= r;
             q /= r;
             gcd *= r;
         }
-        r += if r == 2 { 1 } else { 2 };
+        r += if r == two { one } else { two };
     }
 
     Ok(gcd)
@@ -325,6 +341,21 @@ mod tests {
         testbench_gcd(3, 127, 131);
         testbench_gcd(131, 127, 3);
         testbench_gcd(127, 131, 3);
+    }
+
+    #[test]
+    fn test_gcd_traits() {
+        let p: u32 = 15;
+        let q: u32 = 3;
+        assert_eq!(gcd(p, q).unwrap(), 3);
+
+        let p: i32 = 28;
+        let q: i32 = 14;
+        assert_eq!(gcd(p, q).unwrap(), 14);
+
+        let p: usize = 105;
+        let q: usize = 140;
+        assert_eq!(gcd(p, q).unwrap(), 35);
     }
 
     #[test]
