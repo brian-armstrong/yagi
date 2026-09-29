@@ -173,6 +173,12 @@ where
     /// rounded. A NaN `rate` is not rejected. It leaves a zero phase step,
     /// and later calls that count or produce output panic.
     ///
+    /// The filter is not redesigned, so the cutoff rule on [`Self::new`] now
+    /// applies to the new rate. A resampler built at rate 1 with a cutoff of
+    /// 0.4 and then set to rate 0.25 passes a tone at 0.3 cycles per input
+    /// sample almost unattenuated, and it aliases. Choose the cutoff for the
+    /// lowest rate the resampler will use.
+    ///
     /// # Errors
     ///
     /// Returns an error when `rate` is outside `[0.004, 250]`. The rate is
@@ -200,6 +206,7 @@ where
     /// Multiplies the rate by `gamma` while keeping the history and phase.
     ///
     /// A NaN `gamma` is not rejected and makes later calls panic, as with
+    /// [`Self::set_rate`]. The filter is not redesigned, as with
     /// [`Self::set_rate`].
     ///
     /// # Errors

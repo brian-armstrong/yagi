@@ -62,6 +62,9 @@ use num_complex::{Complex32, Complex64, ComplexFloat};
 /// `Rrcos`, `Hm3`, `Rfexp`, `Rfsech`, and `Rfarcsech` are root-Nyquist pulses.
 /// `Gmsktx` and `Gmskrx` are a GMSK transmit and receive pair.
 ///
+/// A designed pulse is truncated to a finite length, so its inter-symbol
+/// interference is small but not zero. [`filter_isi`] measures what remains.
+///
 /// A shape can be parsed from its lowercase variant name, such as `"rrcos"`,
 /// with [`str::parse`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -316,12 +319,15 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
 /// beta. Other window types ignore it.
 ///
 /// The sinc peaks at one rather than `2 * fc`, so a long filter has a DC gain
-/// of about `1 / (2 * fc)`. The exact gain depends on the length and window.
+/// of about `1 / (2 * fc)` for windows that peak at one, such as `Hann` and
+/// `Kaiser`. The exact gain depends on the length and window. `FlatTop` peaks
+/// at 4.636, which raises the gain by about that factor.
 ///
 /// # Errors
 ///
-/// Returns an error when `n` is zero, `fc` is not in `0.0 < fc <= 0.5`, or
-/// the window rejects `arg`.
+/// Returns an error when `n` is zero, `fc` is not in `0.0 < fc <= 0.5`, or the
+/// window rejects `n` or `arg`. `WindowType::Unknown` is always rejected, and
+/// `WindowType::Kbd` requires an even `n`.
 pub fn fir_design_windowf(window_type: WindowType, n: usize, fc: f32, arg: f32) -> Result<Vec<f32>> {
     // validate input
     if fc <= 0.0 || fc > 0.5 {
@@ -611,9 +617,11 @@ pub fn filter_crosscorr(h: &[f32], g: &[f32], lag: isize) -> f32 {
 /// Measures the inter-symbol interference of a pulse-shaping filter.
 ///
 /// The measurement uses the autocorrelation of `h`, which is the pulse after
-/// its matched filter. It samples the autocorrelation at lags `k` through
-/// `(2 * m - 1) * k`, relative to the zero-lag value, and returns
-/// `(rms, max)`. `h` should have `2 * k * m + 1` taps.
+/// its matched filter. It samples the autocorrelation at lags `k`, `2 * k`,
+/// through `(2 * m - 1) * k`, relative to the zero-lag value, and returns
+/// `(rms, max)`. `max` is the largest magnitude among those samples. `rms` sums
+/// their squares over the `2 * m - 1` lags but divides by `2 * m` before the
+/// square root. `h` should have `2 * k * m + 1` taps.
 ///
 /// `k` should be nonzero. Zero energy in `h` or `m == 0` produces nonfinite
 /// results. None of these conditions is checked.

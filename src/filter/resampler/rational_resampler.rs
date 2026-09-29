@@ -79,8 +79,12 @@ where
     /// - `stopband_attenuation`: in dB. Must be positive.
     ///
     /// When decimating, a cutoff above the output Nyquist frequency lets
-    /// aliasing through. The constructor accepts such a cutoff, so pass a
-    /// negative `bandwidth` or choose a lower one to prevent it.
+    /// aliasing through. The constructor accepts such a cutoff. A negative
+    /// `bandwidth` puts the cutoff exactly at the output Nyquist frequency, so
+    /// the transition band lies above it and still aliases. With a rate of 1/4,
+    /// a semi-length of 12 and 60 dB of attenuation, a tone at 0.126 cycles per
+    /// input sample aliases only about 6.2 dB below the DC level. Leave room for
+    /// the transition band below the output Nyquist frequency to prevent this.
     ///
     /// The output scale is set so that a constant input settles to a gain of
     /// about `sqrt(decimation_factor / interpolation_factor)`. Use

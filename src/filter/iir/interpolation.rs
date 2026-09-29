@@ -11,9 +11,11 @@ use num_complex::Complex32;
 /// history.
 ///
 /// Inserting zeros lowers the output level. With a unit-gain filter, a
-/// constant input produces an output of about `1 / interpolation_factor`
-/// times its level. [`Self::new_prototype`] compensates by scaling the
-/// output, and [`Self::new`] leaves the scaling to the caller.
+/// constant input produces outputs that average about
+/// `1 / interpolation_factor` times its level. The outputs within each group
+/// are even only when the filter removes the images that zero insertion
+/// creates. [`Self::new_prototype`] compensates for the lower level by scaling
+/// the output, and [`Self::new`] leaves the scaling to the caller.
 ///
 /// Use [`Self::execute`] to process one input sample at a time, or
 /// [`Self::execute_block`] to process many.
@@ -33,8 +35,12 @@ where
     ///
     /// The coefficients follow the conventions of [`IirFilter::new`] and run at
     /// the output rate. The output is not scaled, so unit-gain coefficients
-    /// produce about `1 / interpolation_factor` of the input level. Multiply
-    /// the numerator coefficients by `interpolation_factor` to restore it.
+    /// give outputs that average about `1 / interpolation_factor` of the input
+    /// level. How evenly that level spreads across each group depends on how
+    /// well the filter removes the zero-insertion images. With `b = a = [1]`
+    /// and a factor of four, a constant input comes out as `[1, 0, 0, 0]`
+    /// repeating. Multiply the numerator coefficients by
+    /// `interpolation_factor` to restore the average level.
     ///
     /// # Errors
     ///

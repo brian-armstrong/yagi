@@ -19,6 +19,14 @@ use crate::nco::{Nco, NcoBackend};
 /// frequency and raises its sample rate. [`Self::decim_execute`] does the
 /// reverse. Both directions share the oscillator phase and filter history, so
 /// use one direction per synthesizer.
+///
+/// The half-band stages have real coefficients, so each one also passes a
+/// mirror band at the negative of its center frequency. At most nonzero center
+/// frequencies this lets an interpolation image through at about the same
+/// level as the wanted signal. With two stages and a center frequency of 0.2,
+/// a constant input comes out at both 0.2 and -0.3, and down-conversion
+/// accepts a tone at either. The level of the wanted signal also varies with
+/// the center frequency.
 #[derive(Clone, Debug)]
 #[doc(alias = "Dds")]
 pub struct DirectDigitalSynthesizer {

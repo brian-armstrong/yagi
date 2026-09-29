@@ -202,6 +202,12 @@ fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize)
 /// cycles per sample, and only band-pass and band-stop transformations use
 /// it. Neither frequency is validated. Values that make the formula singular,
 /// such as `fc = 0` for a high-pass transformation, return infinity or `NaN`.
+///
+/// The factor should be non-negative, but this returns the signed formula. It
+/// is negative for every high-pass cutoff, and for band-pass and band-stop
+/// when `cos(2 * pi * fc) < cos(2 * pi * f0)`. A negative factor moves the
+/// poles outside the unit circle, so a design built from it is unstable. See
+/// the warning on [`iir_design`].
 pub fn iir_design_freqprewarp(btype: IirBandType, fc: f32, f0: f32) -> f32 {
     // See [Constantinides:1967]
     match btype {
@@ -218,6 +224,11 @@ pub fn iir_design_freqprewarp(btype: IirBandType, fc: f32, f0: f32) -> f32 {
 /// receive one entry for every analog pole, and `kd` receives the digital
 /// gain. A filter with fewer zeros than poles gets its missing zeros at -1.
 /// Analog zeros beyond the pole count are ignored.
+///
+/// `ka` is the gain of the digital filter at DC, not the analog gain factor.
+/// The analog filter's own DC gain does not carry over. For the analog filter
+/// `2 / (s + 2)`, whose DC gain is one, passing `ka = 2` gives a digital DC
+/// gain of two.
 ///
 /// An analog root at `1 / m`, or an analog zero at zero, produces nonfinite
 /// roots or gain without an error.
@@ -578,13 +589,14 @@ pub fn iir_design_lp2bp(
 /// - `ap`: passband ripple in dB. Must be positive. Used by Chebyshev type I
 ///   and elliptic.
 /// - `as_`: stopband attenuation in dB. Must be positive. Used by Chebyshev
-///   type II and elliptic.
+///   type II and elliptic. An elliptic design also needs `as_` greater than
+///   `ap`. Otherwise it returns `Ok` with `NaN` coefficients.
 /// - `b`, `a`: output coefficients in ascending powers of `z^-1`, sized as
 ///   described below.
 ///
 /// For band-pass and band-stop designs, `fc` is one band edge rather than a
 /// bandwidth or half-width, and `f0` places the other edge. For desired edges
-/// `f1` and `f2`, use either one as `fc` and set
+/// `f1` and `f2`, set
 /// `f0 = acos(cos(pi * (f1 + f2)) / cos(pi * (f2 - f1))) / (2 * pi)`. Both
 /// edges must lie in `(0, 0.5)`, and the `acos` argument must lie in
 /// `[-1, 1]`. The edges need not be symmetric about `f0`.
@@ -598,6 +610,15 @@ pub fn iir_design_lp2bp(
 ///
 /// A successful return does not verify that the filter meets its ripple
 /// specification.
+///
+/// # Warning
+///
+/// Every high-pass design is unstable. So is a band-pass or band-stop design
+/// whose `fc` is the upper band edge. The prewarp factor from
+/// [`iir_design_freqprewarp`] is negative in those cases, which puts poles
+/// outside the unit circle, and the function still returns `Ok`. For
+/// band-pass and band-stop, pass the lower edge as `fc`. Check the result with
+/// [`iir_design_is_stable`].
 ///
 /// # Errors
 ///
@@ -806,10 +827,12 @@ pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
 /// Estimates the group delay of an IIR filter, in samples, at `fc` cycles per
 /// sample.
 ///
-/// `b` and `a` are in ascending powers of `z^-1`. Near a null in the
-/// response, the calculation divides by a value close to zero. When that
-/// value falls below `1e-5` in magnitude, the function returns zero instead.
-/// That zero is a fallback, not the true delay.
+/// `b` and `a` are in ascending powers of `z^-1`. The calculation divides by a
+/// term that scales with `b` and `a` and falls near zero close to a null in the
+/// response. When its magnitude is below `1e-5`, the function returns zero
+/// instead. That zero is a fallback, not the true delay. The threshold is
+/// absolute, so scaling the coefficients down also trips it. A one-sample delay
+/// reports 1, but the same filter with `b` scaled by `1e-6` reports 0.
 ///
 /// # Errors
 ///

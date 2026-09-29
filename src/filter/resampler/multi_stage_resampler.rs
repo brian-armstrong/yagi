@@ -46,11 +46,22 @@ where
     /// forever. A NaN `rate` is not rejected, and later calls that count or
     /// produce output panic.
     ///
+    /// Up to 16 half-band stages are supported, which covers rates from
+    /// `2^-17` to `2^17`. A buffer of `2^stages` samples is allocated before
+    /// the stage count is checked, so a rate far outside that range can
+    /// exhaust memory before the error is returned.
+    ///
     /// # Errors
     ///
     /// Returns an error when `rate` is zero or negative, the rate needs more than
     /// 16 half-band stages, or a stage design rejects
     /// `stopband_attenuation`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the rate needs at least as many stages as `usize` has bits
+    /// and overflow checks are enabled. A rate of `1e30` does this. Without
+    /// overflow checks, the buffer size wraps to an arbitrary power of two.
     pub fn new(rate: f32, stopband_attenuation: f32) -> Result<Self> {
         if rate <= 0.0 {
             return Err(Error::Config("resampling rate must be greater than zero".into()));

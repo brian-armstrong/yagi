@@ -155,6 +155,11 @@ impl ParksMcClellanDesigner {
     /// called once for each point on the design grid, with its frequency in
     /// cycles per sample. It returns the desired response and weight there.
     ///
+    /// Grid points are evenly spaced from the lower edge of each band. The last
+    /// point is then moved to the band's upper edge, and it keeps the response
+    /// and weight returned for its original frequency. `response` is not called
+    /// at the upper edge itself.
+    ///
     /// # Errors
     ///
     /// Returns an error when `filter_length` or `band_edges` is invalid, as in

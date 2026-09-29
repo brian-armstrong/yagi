@@ -412,6 +412,12 @@ where
 /// `fc` is in cycles per sample. The result is `10 * log10(|H|^2)`, where `H` is
 /// the response from [`iir_filter_freqresponse`]. A response null gives negative
 /// infinity, and a zero denominator gives a nonfinite result.
+///
+/// # Warning
+///
+/// [`iir_filter_freqresponse`] evaluates the response at `-fc`, so this is the
+/// power response at `-fc`. For complex coefficients that differs from the
+/// power response at `fc`.
 pub fn iir_filter_get_psd<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> f32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -426,6 +432,12 @@ where
 /// `fc` is in cycles per sample. The result is `10 * log10(|H|^2)`, where `H` is
 /// the response from [`iir_filter_freqresponse_sos`]. A response null gives
 /// negative infinity.
+///
+/// # Warning
+///
+/// [`iir_filter_freqresponse_sos`] evaluates the response at `-fc`, so this is
+/// the power response at `-fc`. For complex coefficients that differs from the
+/// power response at `fc`.
 ///
 /// # Panics
 ///
@@ -1004,6 +1016,12 @@ where
     ///
     /// A response null gives negative infinity. After [`Self::set_coefficients`] on
     /// a single-section cascade, it still describes the old section.
+    ///
+    /// # Warning
+    ///
+    /// [`Self::freqresponse`] evaluates the response at `-fc`, so this is the
+    /// power response at `-fc`. For complex coefficients that differs from the
+    /// power response at `fc`.
     pub fn psd(&self, fc: f32) -> f32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_get_psd(&self.b, &self.a, self.scale, fc)

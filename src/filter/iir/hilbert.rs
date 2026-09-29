@@ -10,6 +10,16 @@ use num_complex::Complex32;
 /// shifts the signal by a quarter of the sample rate, applies a low-pass
 /// prototype with a cutoff of 0.25 cycles per sample, and shifts it back.
 ///
+/// The negative-frequency half is removed only as well as the prototype
+/// separates the two halves, so the suppression and the passband gain vary
+/// with frequency, shape and order. The prototype's transition bands sit near
+/// zero and near half the sample rate. A tone close to either edge is passed
+/// at a lower level and keeps more of its negative-frequency image. A
+/// fifth-order Butterworth transform splits a cosine at 0.01 cycles per sample
+/// into positive and negative components of about 0.81 and 0.59, where an
+/// ideal transform gives 1 and 0. A fourth-order Chebyshev type II transform
+/// with 60 dB of attenuation passes a tone at 0.10 at only about -21 dB.
+///
 /// [`Self::r2c_execute`] and [`Self::c2r_execute`] keep the sample rate.
 /// [`Self::decim_execute`] converts two real samples into one complex sample,
 /// and [`Self::interp_execute`] converts one complex sample into two real
@@ -202,6 +212,11 @@ impl IirHilbertFilter {
 
     /// Converts two real samples to one complex sample.
     ///
+    /// The conversion also shifts the spectrum. The real band centered at 0.25
+    /// cycles per input sample moves to complex baseband, so a real tone at
+    /// 0.25 comes out at DC and one at 0.30 comes out at 0.10 cycles per output
+    /// sample. [`Self::interp_execute`] reverses the shift.
+    ///
     /// Samples beyond the first two are ignored.
     ///
     /// # Panics
@@ -249,6 +264,11 @@ impl IirHilbertFilter {
     }
 
     /// Converts one complex sample to two real samples.
+    ///
+    /// The conversion also shifts the spectrum, reversing
+    /// [`Self::decim_execute`]. Complex baseband moves up to 0.25 cycles per
+    /// output sample, so a tone at 0.10 cycles per input sample comes out as a
+    /// real tone at 0.30 cycles per output sample.
     ///
     /// Output beyond the first two samples is left unchanged.
     ///

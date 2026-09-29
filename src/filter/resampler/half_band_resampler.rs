@@ -48,6 +48,12 @@ where
     /// which is the input rate except when interpolating, where it is the
     /// output rate. Stopband attenuation is given in dB.
     ///
+    /// Complex coefficients move the passband to `center_frequency` alone. Real
+    /// coefficients place it at both `center_frequency` and
+    /// `-center_frequency`. At a center frequency of 0.25, the two copies
+    /// cover the whole band, and real coefficients pass every frequency at
+    /// about half amplitude.
+    ///
     /// # Errors
     ///
     /// Returns an error when `filter_semi_length` is less than two,
@@ -198,6 +204,12 @@ where
     /// from `input[0]` and the high-band sample from `input[1]`. Extra input
     /// is ignored and extra output is left unchanged.
     ///
+    /// Analysis followed by synthesis does not reconstruct the signal exactly.
+    /// Content well away from 0.25 cycles per sample, the boundary between the
+    /// bands, comes back at its original level, but content near the boundary
+    /// is attenuated. With a semi-length of 12 and 60 dB of attenuation, a tone
+    /// at 0.24 loses about 6.4 dB and a tone at 0.25 is removed.
+    ///
     /// # Panics
     ///
     /// Panics when `input` or `output` holds fewer than two samples. When
@@ -307,11 +319,12 @@ where
 
     /// Combines a block of interleaved low-band and high-band samples.
     ///
-    /// This reverses [`Self::analyzer_execute_block`]. Each input pair
-    /// produces two output samples, as in [`Self::synthesizer_execute`]. A
-    /// trailing odd input sample is ignored. `output` must hold one sample for
-    /// each input sample in a complete pair. Extra output is left unchanged.
-    /// Returns the number of samples written.
+    /// This reverses [`Self::analyzer_execute_block`], with the limits
+    /// described on [`Self::synthesizer_execute`]. Each input pair produces
+    /// two output samples, as in [`Self::synthesizer_execute`]. A trailing odd
+    /// input sample is ignored. `output` must hold one sample for each input
+    /// sample in a complete pair. Extra output is left unchanged. Returns the
+    /// number of samples written.
     ///
     /// # Errors
     ///

@@ -295,7 +295,10 @@ where
     /// - `fractional_delay`: in samples. A positive value moves the impulse
     ///   response earlier. Some prototypes ignore it.
     ///
-    /// The filter has `2 * samples_per_symbol * filter_delay + 1` taps.
+    /// The filter has `2 * samples_per_symbol * filter_delay + 1` taps. Most
+    /// shapes have a DC gain of about `samples_per_symbol`. The GMSK transmit
+    /// pulse sums to `pi * samples_per_symbol / 2`, and the GMSK receive pulse
+    /// has its own gain. Use [`Self::set_scale`] to change the gain.
     ///
     /// # Errors
     ///

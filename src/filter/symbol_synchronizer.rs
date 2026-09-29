@@ -307,6 +307,11 @@ where
     /// which discards any loop correction. The filter history and timing phase
     /// are kept.
     ///
+    /// The count of outputs since the last timing update is also kept. The
+    /// loop updates when that count reaches the output rate, so lowering the
+    /// rate below the current count stops timing recovery for good. Call
+    /// [`Self::reset`] after lowering the output rate to clear the count.
+    ///
     /// # Errors
     ///
     /// Returns an error when `output_rate` is zero.

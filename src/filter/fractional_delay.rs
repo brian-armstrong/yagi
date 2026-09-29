@@ -10,6 +10,11 @@ use crate::filter::{FirPolyphaseFilter, Sample};
 /// part, and its filter adds `filter_semi_length` samples of delay on top of
 /// the requested delay.
 ///
+/// The interpolating filter only approximates an ideal fractional delay, and
+/// its gain falls near the Nyquist frequency. With the default filter and a
+/// delay of 0.5 samples, the gain is about -3 dB at 0.45 cycles per sample
+/// and -16 dB at 0.49.
+///
 /// Feed input with [`Self::push`] and read the delayed signal with
 /// [`Self::execute`], or do both at once with [`Self::execute_block`]. The
 /// delay can change at any time with [`Self::set_delay`] without clearing the
@@ -123,6 +128,13 @@ where
     ///
     /// The delay must lie in `[0, maximum_delay]` and is rounded to the nearest
     /// `1 / num_filters` of a sample. The input history is kept.
+    ///
+    /// The change does not take full effect at once. The interpolating filter
+    /// still holds samples taken under the old delay, so the output blends the
+    /// two delays until those samples have passed through. It matches the new
+    /// delay after `2 * filter_semi_length - 1` more outputs. When both delays
+    /// are whole numbers of samples, the output instead keeps the old delay for
+    /// `filter_semi_length` outputs and then switches.
     ///
     /// # Errors
     ///

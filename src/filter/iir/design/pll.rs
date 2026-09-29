@@ -14,6 +14,11 @@ use crate::error::{Error, Result};
 /// dimensionless. `b` and `a` each receive three coefficients in ascending
 /// powers of `z^-1`.
 ///
+/// The coefficients describe the whole open-loop response
+/// `loop_gain * F(s) / s`, not `F(s)` alone. They include the loop gain and
+/// the `1 / s` integrator of the phase accumulator, which puts a pole at
+/// `z = 1`.
+///
 /// Very small positive values can overflow `t1`.
 ///
 /// # Errors
@@ -63,6 +68,11 @@ pub fn iir_design_pll_active_lag(
 /// `t2 = 2 * damping_factor / natural_frequency`. `natural_frequency` is in
 /// radians per sample, and `damping_factor` is dimensionless. `b` and `a`
 /// each receive three coefficients in ascending powers of `z^-1`.
+///
+/// The coefficients describe the whole open-loop response
+/// `loop_gain * F(s) / s`, not `F(s)` alone. They include the loop gain and
+/// the `1 / s` integrator of the phase accumulator. `F(s)` has an integrator
+/// of its own, so the result has a double pole at `z = 1`.
 ///
 /// Very small positive values can overflow `t1`.
 ///

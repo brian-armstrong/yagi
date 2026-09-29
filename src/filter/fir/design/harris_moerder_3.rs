@@ -13,10 +13,12 @@ use crate::error::{Error, Result};
 /// its center tap, for `2 * k * m + 1` taps. `beta` is the excess bandwidth.
 /// The fractional delay `_dt` is ignored.
 ///
-/// The design starts from a Parks-McClellan root-Nyquist filter. It then
-/// lowers the passband edge step by step until the RMS inter-symbol
-/// interference, as measured by [`filter_isi`], stops improving. The taps are
-/// scaled to a total energy of `k`.
+/// The design starts from a Parks-McClellan root-Nyquist filter whose
+/// passband ends at `(1 - beta) / (2 * k)`. It then steps the passband edge
+/// down from `1 / (2 * k)` toward that value and keeps the design with the
+/// lowest RMS inter-symbol interference, as measured by [`filter_isi`]. The
+/// search stops once the interference stops improving. The taps are scaled to
+/// a total energy of `k`.
 ///
 /// # Errors
 ///

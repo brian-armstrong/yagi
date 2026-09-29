@@ -1,7 +1,11 @@
 //! Filters that change the sample rate of a stream.
 //!
 //! Every type here keeps history between calls, so a stream can be processed
-//! in pieces of any size. Rates are the output rate divided by the input rate.
+//! in pieces. Some methods take input only in whole steps. Half-band
+//! decimation and analysis work on pairs of samples, a decimating
+//! [`MultiStageHalfBandResampler`] on a multiple of its total factor, and
+//! [`RationalResampler`] on whole blocks. Each method states what it needs.
+//! Rates are the output rate divided by the input rate.
 //!
 //! [`RationalResampler`] and [`HalfBandResampler`] produce a fixed number of
 //! outputs for each block of input. [`MultiStageHalfBandResampler`] chains

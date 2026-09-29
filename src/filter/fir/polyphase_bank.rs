@@ -172,6 +172,11 @@ where
     ///   symbols. Must be nonzero.
     /// - `excess_bandwidth`: rolloff factor, in `[0, 1]`.
     ///
+    /// Each phase has a DC gain of about `samples_per_symbol` for most shapes.
+    /// With the GMSK transmit pulse it is `pi * samples_per_symbol / 2`, and the
+    /// GMSK receive pulse has its own gain. Use [`Self::set_scale`] to change
+    /// the gain.
+    ///
     /// # Errors
     ///
     /// Returns an error when `num_filters` or `filter_delay` is zero,

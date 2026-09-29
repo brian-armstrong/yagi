@@ -11,9 +11,12 @@ use num_complex::Complex32;
 ///
 /// The transformer works in four modes. [`Self::r2c_execute`] turns each
 /// real sample into a complex sample at the same rate, and
-/// [`Self::c2r_execute`] does the reverse. [`Self::decim_execute`] turns two
-/// real samples into one complex sample, and [`Self::interp_execute`] turns
-/// one complex sample into two real samples.
+/// [`Self::c2r_execute`] turns each complex sample into a pair of real
+/// samples, one for each sideband. [`Self::decim_execute`] turns two real
+/// samples into one complex sample, and [`Self::interp_execute`] turns one
+/// complex sample into two real samples. The decimator and interpolator also
+/// shift the spectrum by a quarter of the real sample rate, as their docs
+/// describe.
 ///
 /// All modes share the same internal history and alternate between two
 /// phases on each call. Use one mode per stream, and call [`Self::reset`]
@@ -126,7 +129,9 @@ impl FirHilbertFilter {
     /// Converts one complex sample into two real samples, one per sideband.
     ///
     /// The first value keeps the lower sideband and the second keeps the
-    /// upper sideband.
+    /// upper sideband, each at twice its level in `input`. A real signal passed
+    /// through [`Self::r2c_execute`] and then this method comes back in the
+    /// second value at twice its original amplitude.
     pub fn c2r_execute(&mut self, input: Complex32) -> Result<(f32, f32)> {
         let yi; // in-phase component
 
@@ -160,6 +165,11 @@ impl FirHilbertFilter {
     }
 
     /// Converts two real samples into one complex sample.
+    ///
+    /// The conversion also shifts the spectrum. The real band centered at 0.25
+    /// cycles per input sample moves to complex baseband, so a real tone at
+    /// 0.25 comes out at DC and one at 0.30 comes out at 0.10 cycles per output
+    /// sample. [`Self::interp_execute`] reverses the shift.
     ///
     /// Samples beyond the first two are ignored.
     ///
@@ -210,6 +220,11 @@ impl FirHilbertFilter {
     }
 
     /// Converts one complex sample into two real samples.
+    ///
+    /// The conversion also shifts the spectrum, reversing
+    /// [`Self::decim_execute`]. Complex baseband moves up to 0.25 cycles per
+    /// output sample, so a tone at 0.10 cycles per input sample comes out as a
+    /// real tone at 0.30 cycles per output sample.
     ///
     /// The samples are written to the first two entries of `output`. Later
     /// entries are left unchanged.

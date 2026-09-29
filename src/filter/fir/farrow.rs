@@ -26,6 +26,15 @@ use crate::math::{poly_val, vandermonde_workspace};
 /// opposite sign from the `mu` offset used by
 /// [`crate::filter::fir::design::fir_design_kaiser`].
 ///
+/// The fractional delay is approximate, and it falls further short of the
+/// request as the cutoff drops. A low cutoff leaves the prototype nearly flat
+/// across the fitted range, so changing the delay moves the filter less than
+/// requested. At a cutoff of zero the delay has no effect. With 19 taps,
+/// polynomial order five and 60 dB of attenuation, a delay of 0.75 gives a DC
+/// group delay of 9.01 samples at a cutoff of 0.01 and 9.26 at 0.05, against a
+/// nominal 9.75. [`Self::groupdelay`] reports the delay the filter actually
+/// gives.
+///
 /// The taps are always real, even for complex `Coeff`. A new filter starts
 /// with zero-valued history and zero fractional delay. Changing the delay
 /// keeps the history.
@@ -235,8 +244,10 @@ where
 
     /// Estimates the group delay in samples at `fc` cycles per sample.
     ///
-    /// The estimate is for the current delay, and includes both the
-    /// `(filter_length - 1) / 2` center delay and the fractional delay.
+    /// The estimate comes from the current taps. It includes the
+    /// `(filter_length - 1) / 2` center delay and the fractional delay the taps
+    /// actually give, which can be less than the delay set with
+    /// [`Self::set_delay`] when the cutoff is low.
     ///
     /// # Errors
     ///
