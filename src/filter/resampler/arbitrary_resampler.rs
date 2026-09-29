@@ -128,22 +128,21 @@ where
     /// Creates an arbitrary-rate resampler with a default filter.
     ///
     /// The filter spans 7 input samples on each side of its center tap, with
-    /// a cutoff of 0.25 cycles per input sample, 60 dB of stopband attenuation,
-    /// and 256 phases.
+    /// a cutoff of `min(0.5 * rate, 0.49)` cycles per input sample, 60 dB of
+    /// stopband attenuation, and 64 phases.
     ///
-    /// The cutoff does not depend on the rate. Below a rate of 0.5, it passes
-    /// frequencies above the output Nyquist frequency, which then alias. Above
-    /// a rate of one, it removes input content between 0.25 and 0.5 cycles per
-    /// sample. Use [`Self::new`] to choose a cutoff for the band you need.
+    /// Below a rate of 0.98, the cutoff follows the output Nyquist frequency.
+    /// At higher rates, it stays at 0.49. Use [`Self::new`] to choose a narrower
+    /// cutoff or a longer filter when the transition band needs more room.
     ///
     /// # Errors
     ///
     /// Returns an error when `rate` is nonfinite or outside `[0.004, 250]`.
     pub fn from_rate(rate: f32) -> Result<Self> {
         let m = 7;
-        let fc = 0.25;
+        let fc = (0.5 * rate).min(0.49);
         let as_ = 60.0;
-        let npfb = 256;
+        let npfb = 64;
 
         Self::new(rate, m, fc, as_, npfb)
     }
@@ -321,6 +320,30 @@ mod tests {
     use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_resamp_from_rate_defaults() {
+        for rate in [0.2, 0.731, 0.98, 1.0, 1.414, 2.3] {
+            let mut default = ArbitraryResampler::<Complex32>::from_rate(rate).unwrap();
+            let mut reference =
+                ArbitraryResampler::<Complex32>::new(rate, 7, (0.5 * rate).min(0.49), 60.0, 64).unwrap();
+            let input: Vec<_> = (0..257)
+                .map(|i| {
+                    let t = i as f32;
+                    Complex32::new((0.31 * t).sin(), (0.73 * t).cos())
+                })
+                .collect();
+            for block in input.chunks(37) {
+                let required = reference.num_output(block.len());
+                assert_eq!(default.num_output(block.len()), required);
+                let mut expected = vec![Complex32::default(); required];
+                let mut actual = vec![Complex32::default(); required];
+                assert_eq!(reference.execute_block(block, &mut expected).unwrap(), required);
+                assert_eq!(default.execute_block(block, &mut actual).unwrap(), required);
+                assert_eq!(actual, expected, "rate={rate}");
+            }
+        }
+    }
 
     #[test]
     fn test_resamp_rate_validation() {
