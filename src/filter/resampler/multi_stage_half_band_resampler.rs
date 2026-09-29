@@ -253,17 +253,18 @@ where
 
     /// Consumes `2^num_stages` input samples and returns one output sample.
     ///
-    /// Extra input is ignored. With zero stages, this ignores `input` and
-    /// returns a value from internal scratch storage rather than copying it.
-    /// Prefer [`Self::execute`], which checks the input length and passes
-    /// input through when there are no stages.
+    /// Extra input is ignored. With zero stages, this returns `input[0]`.
+    /// Prefer [`Self::execute`], which checks the input length first.
     ///
     /// # Panics
     ///
-    /// Panics when there is at least one stage and `input` holds fewer than
-    /// `2^num_stages` samples. Some stages may already have changed when that
-    /// happens.
+    /// Panics when `input` holds fewer than `2^num_stages` samples. Some
+    /// stages may already have changed when that happens.
     pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
+        if self.num_stages == 0 {
+            return Ok(input[0] * self.zeta);
+        }
+
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
 
@@ -408,18 +409,22 @@ where
     /// Interpolates a block of input samples through every stage.
     ///
     /// Returns the number of samples written, `input.len() * 2^num_stages`.
-    /// With zero stages, this returns `input.len()` without writing `output`.
-    /// Prefer [`Self::execute_block`], which checks the output length and
-    /// handles zero stages.
+    /// With zero stages, this copies `input` to `output`. Extra output is
+    /// left unchanged. Prefer [`Self::execute_block`], which checks the
+    /// output length first.
     ///
     /// # Panics
     ///
-    /// Panics when there is at least one stage and `output` is shorter than
-    /// `input.len() * 2^num_stages`. Earlier stages may already have changed
-    /// when that happens. The length calculation can also overflow, which
-    /// panics when overflow checks are enabled and wraps otherwise.
+    /// Panics when `output` is shorter than `input.len() * 2^num_stages`.
+    /// Earlier stages may already have changed when that happens. The length
+    /// calculation can also overflow, which panics when overflow checks are
+    /// enabled and wraps otherwise.
     pub fn interp_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n = input.len();
+        if self.num_stages == 0 {
+            output[..n].copy_from_slice(input);
+            return Ok(n);
+        }
         let n_out = n << self.num_stages;
 
         let (cap0, cap1) = self.interp_block_caps(n);
@@ -451,9 +456,9 @@ where
     /// Decimates a block of input samples through every stage.
     ///
     /// Returns the number of samples written, `input.len() / 2^num_stages`.
-    /// With zero stages, this returns `input.len()` and leaves `output` as it
-    /// was. Prefer [`Self::execute_block`], which checks both lengths and
-    /// handles zero stages.
+    /// With zero stages, this copies `input` to `output`. Extra output is
+    /// left unchanged. Prefer [`Self::execute_block`], which checks both
+    /// lengths first.
     ///
     /// # Errors
     ///
@@ -462,11 +467,14 @@ where
     ///
     /// # Panics
     ///
-    /// Panics when there is at least one stage and `output` is shorter than
-    /// `input.len() / 2^num_stages`. Earlier stages may already have changed
-    /// when that happens.
+    /// Panics when `output` is shorter than `input.len() / 2^num_stages`.
+    /// Earlier stages may already have changed when that happens.
     pub fn decim_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n_in = input.len();
+        if self.num_stages == 0 {
+            output[..n_in].copy_from_slice(input);
+            return Ok(n_in);
+        }
         let n_out = n_in >> self.num_stages;
 
         let (cap0, cap1) = self.decim_block_caps(n_in);
@@ -507,6 +515,54 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_msresamp2_zero_stage_single_sample() {
+        let input = [Complex32::new(1.0, -2.0), Complex32::new(-3.0, 0.5), Complex32::new(0.0, 0.0)];
+        for type_ in [ResampType::Decim, ResampType::Interp] {
+            let mut q = MultiStageHalfBandResampler::<Complex32, f32>::new(type_, 0, 0.4, 0.0, 60.0).unwrap();
+            for x in input {
+                let sentinel = Complex32::new(99.0, -99.0);
+                let mut output = [sentinel; 2];
+                q.execute(&[x, sentinel], &mut output).unwrap();
+                assert_eq!(output, [x, sentinel]);
+
+                match type_ {
+                    ResampType::Decim => assert_eq!(q.decim_execute(&[x, sentinel]).unwrap(), x),
+                    ResampType::Interp => {
+                        q.interp_execute(x, &mut output).unwrap();
+                        assert_eq!(output, [x, sentinel]);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_msresamp2_zero_stage_block() {
+        let input = [Complex32::new(1.0, -2.0), Complex32::new(-3.0, 0.5), Complex32::new(0.0, 0.0)];
+        let sentinel = Complex32::new(99.0, -99.0);
+        for type_ in [ResampType::Decim, ResampType::Interp] {
+            let mut q = MultiStageHalfBandResampler::<Complex32, f32>::new(type_, 0, 0.4, 0.0, 60.0).unwrap();
+            // Exercise empty blocks and changing block lengths on the same cascade.
+            for n in [0, 3, 1, 0, 2] {
+                for checked in [false, true] {
+                    let mut output = [sentinel; 4];
+                    let written = if checked {
+                        q.execute_block(&input[..n], &mut output).unwrap()
+                    } else {
+                        match type_ {
+                            ResampType::Decim => q.decim_execute_block(&input[..n], &mut output).unwrap(),
+                            ResampType::Interp => q.interp_execute_block(&input[..n], &mut output).unwrap(),
+                        }
+                    };
+                    assert_eq!(written, n);
+                    assert_eq!(&output[..n], &input[..n]);
+                    assert!(output[n..].iter().all(|&x| x == sentinel));
+                }
+            }
+        }
+    }
 
     fn testbench_msresamp2_crcf_interp(num_stages: usize, fc: f32, as_: f32) {
         // create and configure objects
