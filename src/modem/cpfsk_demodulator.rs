@@ -15,8 +15,16 @@ use std::f32::consts::PI;
 /// timing or frequency recovery, and a frequency offset shifts every phase
 /// change.
 ///
+/// The outermost symbols change the phase by `pi * modulation_index * (M - 1)`
+/// per symbol, where `M` is the constellation size. The change is measured as
+/// an angle in `(-pi, pi]`, so when `modulation_index * (M - 1)` is above one
+/// those symbols wrap and decode as other symbols, even without noise. With
+/// two bits per symbol and a `modulation_index` of 0.5, symbols 0 and 3 are
+/// misread.
+///
 /// The demodulated symbols lag the transmitted ones by the modulator's
-/// delay plus this demodulator's [`Self::delay`].
+/// delay plus this demodulator's [`Self::delay`]. See [`Self::delay`] for the
+/// modes where it reports zero.
 #[derive(Clone, Debug)]
 #[doc(alias = "Cpfskdem")]
 pub struct CpfskDemodulator {

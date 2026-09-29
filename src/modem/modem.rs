@@ -184,7 +184,7 @@ pub enum ModulationScheme {
     /// Constellation from a table.
     ///
     /// [`Modem::from_table`] creates one. Modems built from the preset tables
-    /// above also report this scheme.
+    /// above use the same table code but report their own scheme.
     Arb,
 }
 

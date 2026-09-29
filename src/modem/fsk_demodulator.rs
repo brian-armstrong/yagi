@@ -12,6 +12,11 @@ use num_complex::Complex32;
 /// `samples_per_symbol` long, with its size chosen so that the tones fall
 /// close to bin centers. The decided symbol is the one whose tone bin has the
 /// largest magnitude. There is no timing or frequency recovery.
+///
+/// Each tone needs a bin of its own. The constructor compares only neighboring
+/// symbols, so it accepts some settings where two non-adjacent tones share a
+/// bin. `new(2, 4, 0.49)` is one, and symbols 0 and 3 then decode as the same
+/// symbol.
 pub struct FskDemodulator {
     k: usize,                 // samples per symbol
     m_size: usize,            // constellation size (M)
@@ -33,8 +38,9 @@ impl FskDemodulator {
     ///
     /// Returns an error when `bits_per_symbol` is zero, `samples_per_symbol`
     /// is outside `2..=2048`, `bandwidth` is negative or at least 0.5, or two
-    /// tones fall in the same FFT bin. A wider `bandwidth` or more samples per
-    /// symbol separates the tones.
+    /// the tones of two neighboring symbols fall in the same FFT bin. A wider
+    /// `bandwidth` or more samples per symbol separates the tones. Collisions
+    /// between non-adjacent symbols are not caught, as described on the type.
     ///
     /// # Panics
     ///
@@ -123,6 +129,12 @@ impl FskDemodulator {
     ///
     /// Returns an error when the length of `input` is not
     /// `samples_per_symbol`. The demodulator is unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics for some narrow settings that the constructor accepts, where the
+    /// tone just below zero frequency rounds to one past the last FFT bin.
+    /// `new(1, 2, 0.01)` is one example.
     pub fn demodulate(&mut self, input: &[Complex32]) -> Result<usize> {
         if input.len() != self.k {
             return Err(Error::Range("input length must match samples/symbol".into()));
@@ -183,6 +195,11 @@ impl FskDemodulator {
     /// # Errors
     ///
     /// Returns an error when `symbol` is `2^bits_per_symbol` or more.
+    ///
+    /// # Panics
+    ///
+    /// Panics for the symbol whose tone rounds past the last FFT bin, under the
+    /// settings described on [`Self::demodulate`].
     pub fn symbol_energy(&self, symbol: usize, range: usize) -> Result<f32> {
         if symbol >= self.m_size {
             return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", symbol, self.m_size)));

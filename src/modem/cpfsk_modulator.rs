@@ -32,8 +32,11 @@ pub enum CpfskFilterType {
 /// continuous phase.
 ///
 /// A [`CpfskDemodulator`](super::CpfskDemodulator) with the same settings
-/// recovers the symbols. The demodulated symbols lag by the sum of the two
-/// objects' [`Self::delay`] values.
+/// recovers the symbols when `modulation_index * (M - 1)` is below one. Above
+/// that, the outermost symbols are misread. The demodulated symbols lag by the
+/// sum of the two objects' [`Self::delay`] values, apart from the multi-level
+/// raised-cosine modes noted on
+/// [`CpfskDemodulator::delay`](super::CpfskDemodulator::delay).
 #[derive(Clone, Debug)]
 #[doc(alias = "Cpfskmod")]
 pub struct CpfskModulator {

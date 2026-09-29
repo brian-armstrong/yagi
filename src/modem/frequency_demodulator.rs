@@ -12,8 +12,11 @@ use std::f32::consts::PI;
 /// sensitivity, with no delay. A phase change of more than half a turn per
 /// sample is read as a smaller change of the opposite sign.
 ///
-/// The input amplitude does not matter, but a zero sample has no phase. It
-/// gives an output of zero, as does the sample after it.
+/// The input amplitude does not matter, but a zero sample has no phase. An
+/// output measured against a zero sample is not a real frequency. It is zero,
+/// or `0.5 / modulation_sensitivity` for some signs of the other sample, such
+/// as `-1 - 1i`. This covers the first output after a reset, a zero input
+/// sample and the output after it.
 pub struct FrequencyDemodulator {
     ref_: f32,          // 1/(2*pi*kf)
     r_prime: Complex32, // previous received sample
@@ -45,7 +48,8 @@ impl FrequencyDemodulator {
 
     /// Forgets the previous input sample.
     ///
-    /// The next output is then zero. This never returns an error.
+    /// The next output is then measured against a zero sample, as described
+    /// on the type. This never returns an error.
     pub fn reset(&mut self) -> Result<()> {
         self.r_prime = Complex32::new(0.0, 0.0);
         Ok(())
@@ -53,8 +57,8 @@ impl FrequencyDemodulator {
 
     /// Demodulates one complex sample into one message sample.
     ///
-    /// The first output after a reset is zero, because there is no previous
-    /// sample to compare with. This never returns an error.
+    /// The first output after a reset has no previous sample to compare with,
+    /// as described on the type. This never returns an error.
     pub fn demodulate(&mut self, input: Complex32) -> Result<f32> {
         // Compute phase difference and normalize by modulation index
         let output = (self.r_prime.conj() * input).arg() * self.ref_;
