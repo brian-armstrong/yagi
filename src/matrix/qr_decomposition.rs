@@ -3,19 +3,26 @@ use num_traits::{Float, Zero};
 use crate::error::{Error, Result};
 use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
-/// Factor a square matrix as `X = Q * R` with classical Gram-Schmidt.
+/// Factors a square matrix as `x = q * r` with the classical Gram-Schmidt
+/// process.
 ///
-/// `q` and `r` must have the same square shape as `x`. `q` receives the
-/// orthonormal columns and `r` receives the upper-triangular factor.
+/// `q` and `r` must have the same shape as `x`. `q` receives a matrix with
+/// orthonormal columns and `r` an upper-triangular matrix, computed as
+/// `q^H * x`.
 ///
-/// This retained compatibility routine does not detect rank-deficient input
-/// and can lose accuracy for nearly dependent columns. Use a dedicated
-/// linear-algebra library for a general-purpose QR factorization.
+/// Rank-deficient input is not detected. A dependent column can make the
+/// factors infinite or NaN, and a nearly dependent one loses accuracy, with no
+/// error.
+///
+/// The normalization squares each column norm without rescaling, as in
+/// [`matrix_gramschmidt`](crate::matrix::matrix_gramschmidt). For `f32`,
+/// columns with norms outside roughly `1e-19` to `1e19` give infinite, NaN or
+/// zero factors with no error.
 ///
 /// # Errors
 ///
-/// Returns an error if `x` is not square or either output shape differs from
-/// `x`. Outputs are unchanged on those errors.
+/// Returns an error when `x` is not square or `q` or `r` has a different
+/// shape. The outputs are unchanged on error.
 pub fn matrix_qrdecomp_gramschmidt<T>(
     x: MatrixRef<'_, T>,
     q: &mut MatrixMut<'_, T>,

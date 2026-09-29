@@ -1,20 +1,21 @@
 use crate::error::{Error, Result};
 use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
-/// Factor a square matrix with Crout's L/U decomposition.
+/// Factors a square matrix into triangular matrices with Crout's method.
 ///
-/// `l`, `u`, and `p` must have the same square shape as `x`. `l` receives the
-/// lower-triangular factor, `u` receives a unit-diagonal upper-triangular
-/// factor, and `p` receives the identity matrix.
+/// `l`, `u` and `p` must have the same shape as `x`. `l` receives the
+/// lower-triangular factor and `u` the upper-triangular factor with ones on
+/// its diagonal.
 ///
-/// This retained compatibility routine does not pivot or detect singular
-/// matrices. Its permutation output is always the identity. Use a dedicated
-/// linear-algebra library for a general-purpose LU factorization.
+/// The factorization does not pivot, so `p` is always set to the identity and
+/// `x = l * u`. A zero pivot makes later factors infinite or NaN, with no
+/// error. This happens for many nonsingular matrices, including any with a
+/// zero in the top-left corner.
 ///
 /// # Errors
 ///
-/// Returns an error if any matrix is not square with the shape of `x`. Outputs
-/// are unchanged on that error.
+/// Returns an error when `x` is not square or `l`, `u` or `p` has a different
+/// shape. The outputs are unchanged on error.
 pub fn matrix_ludecomp_crout<T>(
     x: MatrixRef<'_, T>,
     l: &mut MatrixMut<'_, T>,
@@ -66,20 +67,21 @@ where
     Ok(())
 }
 
-/// Factor a square matrix with Doolittle's L/U decomposition.
+/// Factors a square matrix into triangular matrices with Doolittle's method.
 ///
-/// `l`, `u`, and `p` must have the same square shape as `x`. `l` receives a
-/// unit-diagonal lower-triangular factor, `u` receives the upper-triangular
-/// factor, and `p` receives the identity matrix.
+/// `l`, `u` and `p` must have the same shape as `x`. `l` receives the
+/// lower-triangular factor with ones on its diagonal and `u` the
+/// upper-triangular factor.
 ///
-/// This retained compatibility routine does not pivot or detect singular
-/// matrices. Its permutation output is always the identity. Use a dedicated
-/// linear-algebra library for a general-purpose LU factorization.
+/// The factorization does not pivot, so `p` is always set to the identity and
+/// `x = l * u`. A zero pivot makes later factors infinite or NaN, with no
+/// error. This happens for many nonsingular matrices, including any with a
+/// zero in the top-left corner.
 ///
 /// # Errors
 ///
-/// Returns an error if any matrix is not square with the shape of `x`. Outputs
-/// are unchanged on that error.
+/// Returns an error when `x` is not square or `l`, `u` or `p` has a different
+/// shape. The outputs are unchanged on error.
 pub fn matrix_ludecomp_doolittle<T>(
     x: MatrixRef<'_, T>,
     l: &mut MatrixMut<'_, T>,

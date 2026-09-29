@@ -3,16 +3,16 @@ const DEBUG_MATRIX_GRAMSCHMIDT: bool = false;
 use crate::error::{Error, Result};
 use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
-/// Project `v` onto `u` and write the result to `e`.
+/// Writes the projection of `v` onto `u` to `e`.
 ///
-/// All three vectors must have the same length.
-///
-/// This retained compatibility routine does not reject a zero or nearly zero
-/// `u`. That input can produce non-finite output.
+/// The result is `u * g`, with `g = sum(u_i * conj(v_i)) / sum(|u_i|^2)`. For
+/// real values this is the usual projection. For complex values `g` is the
+/// conjugate of the usual coefficient, so the result is not the standard
+/// complex projection. A zero `u` divides by zero, with no error.
 ///
 /// # Errors
 ///
-/// Returns an error if the vector lengths differ. `e` is unchanged on error.
+/// Returns an error when the three lengths differ. `e` is unchanged on error.
 pub fn matrix_proj<T>(u: &[T], v: &[T], e: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
@@ -39,19 +39,29 @@ where
     Ok(())
 }
 
-/// Orthonormalize the columns of `x` with classical Gram-Schmidt.
+/// Applies the Gram-Schmidt process to the columns of `x`, writing the result
+/// to `v`.
 ///
-/// `v` receives a matrix with the same shape as `x`. The matrix must have at
-/// least one row and one column.
+/// `v` must have the same shape as `x`, with at least one row and one column.
+/// The columns are processed in order with the modified Gram-Schmidt process.
+/// Each column of `v` has the projections onto the earlier columns removed
+/// and is then scaled to unit length.
 ///
-/// This retained compatibility routine does not detect linearly dependent or
-/// nearly dependent columns. Use a dedicated linear-algebra library for a
-/// general-purpose orthonormalization.
+/// Linearly dependent columns are not detected. A dependent column can become
+/// infinite or NaN, and a nearly dependent one loses accuracy, with no error.
+///
+/// The normalization squares each column norm without rescaling, so the
+/// squares must stay within the float range even for orthogonal input. For
+/// `f32`, columns with norms outside roughly `1e-19` to `1e19` give infinite
+/// or NaN entries, or zero columns followed by NaN ones, with no error.
+///
+/// For complex input, each projection uses the conjugate of the usual
+/// coefficient, as in [`matrix_proj`], so the columns need not be orthogonal.
 ///
 /// # Errors
 ///
-/// Returns an error for zero dimensions or a mismatched output shape. `v` is
-/// unchanged on those errors. It can be partly written on a later failure.
+/// Returns an error when `x` has no rows or no columns, or `v` has a different
+/// shape. `v` is unchanged on error.
 pub fn matrix_gramschmidt<T>(x: MatrixRef<'_, T>, v: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,

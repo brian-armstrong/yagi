@@ -1,7 +1,8 @@
 //! Borrowed views over dense matrix storage.
 //!
-//! [`MatrixRef`] and [`MatrixMut`] offer a checked, two-dimensional access for
-//! borrowed slices. Shapes are validated at construction.
+//! [`MatrixRef`](crate::matrix::MatrixRef) and
+//! [`MatrixMut`](crate::matrix::MatrixMut) provide checked, two-dimensional
+//! access to row-major slices. Shapes are validated at construction.
 
 use std::ops::{Index, IndexMut};
 
@@ -18,10 +19,12 @@ fn validate_shape(actual_len: usize, rows: usize, cols: usize) -> Result<()> {
     Ok(())
 }
 
-/// A read-only view over a checked, row-major matrix buffer.
+/// Read-only view of a row-major matrix buffer.
 ///
-/// Element `(row, column)` is stored at `row * columns + column`.
-/// [`MatrixRef::new`] requires the buffer length to match the requested shape.
+/// Element `(row, column)` is stored at `row * columns + column`. The shape is
+/// checked once, when the view is created, so the buffer always holds exactly
+/// `rows * columns` elements. Tuple indexing panics when either index is out
+/// of bounds.
 ///
 /// # Examples
 ///
@@ -42,28 +45,28 @@ pub struct MatrixRef<'a, T> {
 }
 
 impl<'a, T> MatrixRef<'a, T> {
-    /// Construct a view over an exactly-sized row-major buffer.
+    /// Creates a view of `data` as a `rows` by `cols` matrix.
     ///
     /// # Errors
     ///
-    /// Returns an error if `rows * cols` overflows or does not equal
-    /// `data.len()`.
+    /// Returns an error when `data.len()` is not `rows * cols`, including when
+    /// that product overflows `usize`.
     pub fn new(data: &'a [T], rows: usize, cols: usize) -> Result<Self> {
         validate_shape(data.len(), rows, cols)?;
         Ok(Self { data, rows, cols })
     }
 
-    /// Return the underlying row-major storage.
+    /// Returns the underlying row-major storage.
     pub fn as_slice(&self) -> &'a [T] {
         self.data
     }
 
-    /// Return `(rows, columns)`.
+    /// Returns the shape as `(rows, columns)`.
     pub fn shape(&self) -> (usize, usize) {
         (self.rows, self.cols)
     }
 
-    /// Return one row.
+    /// Returns one row as a slice.
     ///
     /// # Panics
     ///
@@ -73,12 +76,12 @@ impl<'a, T> MatrixRef<'a, T> {
         &self.data[range]
     }
 
-    /// Iterate over rows in row-major order.
+    /// Returns an iterator over the rows, first row first.
     pub fn rows(&self) -> impl Iterator<Item = &[T]> {
         (0..self.rows).map(move |row| self.row(row))
     }
 
-    /// Iterate over a column in increasing row order.
+    /// Returns an iterator over one column, first row first.
     ///
     /// # Panics
     ///
@@ -103,10 +106,11 @@ impl<T> Index<(usize, usize)> for MatrixRef<'_, T> {
     }
 }
 
-/// A mutable view over a checked, row-major matrix buffer.
+/// Mutable view of a row-major matrix buffer.
 ///
-/// This is the mutable counterpart to [`MatrixRef`]. Changes through the view
-/// are written directly into the borrowed buffer.
+/// This is the mutable counterpart to [`MatrixRef`], with the same layout and
+/// shape check. Writes through the view go directly into the borrowed buffer.
+/// Tuple indexing panics when either index is out of bounds.
 ///
 /// # Examples
 ///
@@ -130,38 +134,38 @@ pub struct MatrixMut<'a, T> {
 }
 
 impl<'a, T> MatrixMut<'a, T> {
-    /// Construct a mutable view over an exactly-sized row-major buffer.
+    /// Creates a mutable view of `data` as a `rows` by `cols` matrix.
     ///
     /// # Errors
     ///
-    /// Returns an error if `rows * cols` overflows or does not equal
-    /// `data.len()`.
+    /// Returns an error when `data.len()` is not `rows * cols`, including when
+    /// that product overflows `usize`.
     pub fn new(data: &'a mut [T], rows: usize, cols: usize) -> Result<Self> {
         validate_shape(data.len(), rows, cols)?;
         Ok(Self { data, rows, cols })
     }
 
-    /// Return the underlying row-major storage.
+    /// Returns the underlying row-major storage.
     pub fn as_slice(&self) -> &[T] {
         self.data
     }
 
-    /// Borrow this mutable view as a read-only view without revalidating its shape.
+    /// Returns a read-only view of the same matrix.
     pub fn as_ref(&self) -> MatrixRef<'_, T> {
         MatrixRef { data: &*self.data, rows: self.rows, cols: self.cols }
     }
 
-    /// Return the underlying row-major storage mutably.
+    /// Returns the underlying row-major storage for writing.
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         self.data
     }
 
-    /// Return `(rows, columns)`.
+    /// Returns the shape as `(rows, columns)`.
     pub fn shape(&self) -> (usize, usize) {
         (self.rows, self.cols)
     }
 
-    /// Return one row.
+    /// Returns one row as a slice.
     ///
     /// # Panics
     ///
@@ -171,7 +175,7 @@ impl<'a, T> MatrixMut<'a, T> {
         &self.data[range]
     }
 
-    /// Return one row mutably.
+    /// Returns one row as a mutable slice.
     ///
     /// # Panics
     ///
@@ -181,12 +185,12 @@ impl<'a, T> MatrixMut<'a, T> {
         &mut self.data[range]
     }
 
-    /// Iterate over rows mutably in row-major order.
+    /// Returns an iterator over the rows as mutable slices, first row first.
     pub fn rows_mut(&mut self) -> MatrixRowsMut<'_, T> {
         MatrixRowsMut { remaining: &mut *self.data, rows_remaining: self.rows, cols: self.cols }
     }
 
-    /// Iterate over a column in increasing row order.
+    /// Returns an iterator over one column, first row first.
     ///
     /// # Panics
     ///
@@ -268,10 +272,9 @@ impl<T> IndexMut<(usize, usize)> for MatrixMut<'_, T> {
     }
 }
 
-/// An iterator over disjoint mutable rows in row-major order.
+/// Iterator over the rows of a [`MatrixMut`] as mutable slices.
 ///
-/// This type is returned by [`MatrixMut::rows_mut`]. It is not normally
-/// constructed directly.
+/// Returned by [`MatrixMut::rows_mut`].
 pub struct MatrixRowsMut<'a, T> {
     remaining: &'a mut [T],
     rows_remaining: usize,

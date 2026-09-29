@@ -1,21 +1,25 @@
 use crate::error::{Error, Result};
 use crate::matrix::{matrix_gjelim, FloatComplex, MatrixMut, MatrixRef};
 
-/// Solve the square linear system `A * x = b`.
+/// Solves the square linear system `a * x = b`.
 ///
-/// `a` must be square. `b` and `x` must each have one element per row of `a`.
-/// Passing `scratch` avoids a temporary allocation. It must contain at least
-/// `n * (n + 1)` elements, where `n` is the dimension of `a`. Extra elements
-/// are ignored.
+/// `a` must be square, and `b` and `x` must each have one element per row of
+/// `a`. The system is solved by [`matrix_gjelim`] on `a` with `b` appended as
+/// an extra column.
 ///
-/// This retained compatibility routine uses Gauss-Jordan elimination. Use a
-/// dedicated linear-algebra library for a robust general-purpose solver.
+/// That augmented matrix needs `n * (n + 1)` elements for an `n` by `n` system.
+/// Pass `scratch` to supply them and avoid an allocation. Extra elements are
+/// ignored, and the contents of `scratch` are unspecified after the call.
+/// With `None`, the storage is allocated for the call.
+///
+/// Only an exactly zero pivot is detected. A nearly singular system gives an
+/// inaccurate result with no error. A very small pivot can also give an
+/// infinite `x`, as described on [`matrix_gjelim`].
 ///
 /// # Errors
 ///
-/// Returns an error for invalid shapes, insufficient scratch storage, an
-/// overflowing augmented shape, or a singular system. `x` is unchanged on
-/// error. Caller-provided scratch can be modified when elimination fails.
+/// Returns an error when the shapes do not match, `scratch` is too short, or
+/// elimination meets a zero pivot. `x` is unchanged on error.
 pub fn matrix_linsolve<T>(a: MatrixRef<'_, T>, b: &[T], x: &mut [T], scratch: Option<&mut [T]>) -> Result<()>
 where
     T: FloatComplex,

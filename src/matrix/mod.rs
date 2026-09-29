@@ -1,13 +1,20 @@
-//! Dense matrix views and matrix operations.
+//! Dense matrix operations on borrowed row-major storage, plus a sparse matrix
+//! type.
 //!
-//! [`MatrixRef`](crate::matrix::MatrixRef) and
-//! [`MatrixMut`](crate::matrix::MatrixMut) are the canonical dense interfaces. They
-//! borrow exactly-sized, row-major storage and validate the requested shape at
-//! construction. Matrix operations use those views to validate relationships
-//! between input and output shapes before changing output.
+//! Dense matrices are passed as [`MatrixRef`] and [`MatrixMut`] views. Each
+//! view borrows a slice of exactly `rows * columns` elements, with element
+//! `(row, column)` at `row * columns + column`. The routines are generic over
+//! [`FloatComplex`], which covers `f32`, `f64` and their complex forms.
 //!
-//! Some retained routines have numerical limitations. Their individual
-//! documentation describes those contracts.
+//! Each routine checks the shapes of its inputs and outputs before writing
+//! anything, so an output is unchanged when a shape is wrong. Routines named
+//! with "transpose" or "trans" do not conjugate complex values. Routines named
+//! with "hermitian" do.
+//!
+//! The factorizations and solvers are small direct implementations sized for
+//! the rest of the crate. Some do not pivot, and some report success on
+//! input they cannot handle. Each routine states its limits. For general
+//! numerical work, use a dedicated linear-algebra library.
 
 mod cholesky;
 mod conjugate_gradient;

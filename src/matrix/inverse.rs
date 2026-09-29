@@ -2,16 +2,20 @@ use crate::error::{Error, Result};
 use crate::matrix::{FloatComplex, MatrixMut};
 use num_traits::Zero;
 
-/// Replace a square matrix with its inverse.
+/// Overwrites a square matrix with its inverse.
 ///
-/// This retained compatibility routine uses Gauss-Jordan elimination. Use a
-/// dedicated linear-algebra library when a robust general-purpose inverse or
-/// linear solve is needed.
+/// The inverse comes from [`matrix_gjelim`] applied to `x` placed beside an
+/// identity matrix, which allocates storage for twice the size of `x`.
+/// Singularity is detected only as an exactly zero pivot. A singular matrix
+/// usually leaves a tiny rounded pivot instead, so success does not prove
+/// that `x` was invertible, and a nearly singular matrix gives an inaccurate
+/// result with no error. A very small pivot can also give infinite entries,
+/// as described on [`matrix_gjelim`].
 ///
 /// # Errors
 ///
-/// Returns an error if `x` is not square, its augmented shape overflows, or it
-/// is singular to machine precision. `x` is unchanged on error.
+/// Returns an error when `x` is not square or elimination meets a zero pivot.
+/// `x` is unchanged on error.
 pub fn matrix_inv<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -53,19 +57,24 @@ where
     Ok(())
 }
 
-/// Reduce a matrix in place with Gauss-Jordan elimination.
+/// Reduces a matrix in place with Gauss-Jordan elimination.
 ///
-/// `x` must have at least as many columns as rows. The routine selects the
-/// largest available pivot in each column, then normalizes each pivot row.
+/// `x` must have at least as many columns as rows. For each column, the row
+/// with the largest remaining magnitude becomes the pivot row. On success the
+/// leftmost square block of `x` is the identity, and the remaining columns
+/// hold the transformed right-hand sides.
 ///
-/// This retained compatibility routine is intended for the existing small
-/// matrix paths. Use a dedicated linear-algebra library for general-purpose
-/// elimination.
+/// Only an exactly zero pivot is detected. A nearly singular matrix passes
+/// and gives an inaccurate result. Each row is also scaled by the reciprocal
+/// of its pivot, and a pivot so small that the reciprocal overflows leaves
+/// infinite entries with no error, even in a well-conditioned matrix. The
+/// `f32` matrix `[1e-39]` becomes `[inf]` rather than `[1]`.
 ///
 /// # Errors
 ///
-/// Returns an error if `x` has more rows than columns or a pivot is zero. `x`
-/// can be partly reduced when an error is returned.
+/// Returns an error when `x` has more rows than columns, or when every
+/// remaining entry of a pivot column is zero. `x` can be partly reduced on
+/// error.
 pub fn matrix_gjelim<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,

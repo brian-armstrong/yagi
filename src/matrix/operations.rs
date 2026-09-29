@@ -1,12 +1,12 @@
 use crate::error::{Error, Result};
 use crate::matrix::{matrix_inv, matrix_ludecomp_doolittle, FloatComplex, MatrixMut, MatrixRef};
 
-/// Add two matrices element by element.
+/// Computes `z = x + y`, element by element.
 ///
 /// # Errors
 ///
-/// Returns an error unless `x`, `y`, and `z` have the same shape. `z` is
-/// unchanged on error.
+/// Returns an error when `x`, `y` and `z` do not all have the same shape. `z`
+/// is unchanged on error.
 pub fn matrix_add<T>(x: MatrixRef<'_, T>, y: MatrixRef<'_, T>, z: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -20,12 +20,12 @@ where
     Ok(())
 }
 
-/// Subtract one matrix from another element by element.
+/// Computes `z = x - y`, element by element.
 ///
 /// # Errors
 ///
-/// Returns an error unless `x`, `y`, and `z` have the same shape. `z` is
-/// unchanged on error.
+/// Returns an error when `x`, `y` and `z` do not all have the same shape. `z`
+/// is unchanged on error.
 pub fn matrix_sub<T>(x: MatrixRef<'_, T>, y: MatrixRef<'_, T>, z: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -39,12 +39,12 @@ where
     Ok(())
 }
 
-/// Multiply two matrices element by element.
+/// Computes the element-by-element product of `x` and `y` into `z`.
 ///
 /// # Errors
 ///
-/// Returns an error unless `x`, `y`, and `z` have the same shape. `z` is
-/// unchanged on error.
+/// Returns an error when `x`, `y` and `z` do not all have the same shape. `z`
+/// is unchanged on error.
 pub fn matrix_pmul<T>(x: MatrixRef<'_, T>, y: MatrixRef<'_, T>, z: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -58,13 +58,12 @@ where
     Ok(())
 }
 
-/// Divide two matrices element by element.
+/// Computes the element-by-element quotient of `x` and `y` into `z`.
 ///
 /// # Errors
 ///
-/// Returns an error unless `x`, `y`, and `z` have the same shape. `z` is
-/// unchanged on error. Division by zero follows the scalar type's division
-/// behavior and can produce non-finite values.
+/// Returns an error when `x`, `y` and `z` do not all have the same shape. `z`
+/// is unchanged on error.
 pub fn matrix_pdiv<T>(x: MatrixRef<'_, T>, y: MatrixRef<'_, T>, z: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -78,15 +77,15 @@ where
     Ok(())
 }
 
-/// Multiply two matrices.
+/// Computes the matrix product `z = x * y`.
 ///
-/// `z` must have shape `(x.rows(), y.columns())`. The column count of `x` must
-/// equal the row count of `y`.
+/// The column count of `x` must equal the row count of `y`. `z` must have the
+/// row count of `x` and the column count of `y`.
 ///
 /// # Errors
 ///
-/// Returns an error if the matrix shapes cannot be multiplied. `z` is
-/// unchanged on error.
+/// Returns an error when the shapes do not fit those rules. `z` is unchanged
+/// on error.
 ///
 /// ```
 /// use yagi::matrix::{matrix_mul, MatrixMut, MatrixRef};
@@ -126,15 +125,15 @@ where
     Ok(())
 }
 
-/// Multiply a matrix by a column vector.
+/// Multiplies a matrix by a column vector.
 ///
-/// `vector` must have one element per column of `matrix`. `output` must have
-/// one element per row.
+/// `vector` must have one element per column of `matrix`, and `output` one
+/// element per row.
 ///
 /// # Errors
 ///
-/// Returns an error if the vector lengths do not match the matrix shape.
-/// `output` is unchanged on error.
+/// Returns an error when either length does not match. `output` is unchanged
+/// on error.
 pub fn matrix_mul_vec<T>(matrix: MatrixRef<'_, T>, vector: &[T], output: &mut [T]) -> Result<()>
 where
     T: FloatComplex,
@@ -155,15 +154,15 @@ where
     Ok(())
 }
 
-/// Concatenate two matrices horizontally.
+/// Places `x` and `y` side by side in `z`.
 ///
-/// `x` and `y` must have the same number of rows. `z` must have the same row
-/// count and `x.columns() + y.columns()` columns.
+/// `x` and `y` must have the same row count. `z` must have that row count and
+/// as many columns as `x` and `y` together.
 ///
 /// # Errors
 ///
-/// Returns an error if the shapes are incompatible or the combined column
-/// count overflows `usize`. `z` is unchanged on error.
+/// Returns an error when the shapes do not fit those rules, including when
+/// the combined column count overflows `usize`. `z` is unchanged on error.
 pub fn matrix_aug<T>(x: MatrixRef<'_, T>, y: MatrixRef<'_, T>, z: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -185,16 +184,15 @@ where
     Ok(())
 }
 
-/// Compute right matrix division as `z = x * inverse(y)`.
+/// Computes `z = x * inverse(y)`.
 ///
-/// All matrices must have the same square shape. This retained compatibility
-/// helper explicitly forms the inverse. Use a dedicated linear-algebra library
-/// to solve a new numerical problem without forming an inverse.
+/// All three matrices must be square with the same size. The inverse is formed
+/// explicitly with [`matrix_inv`], so its limits apply here too.
 ///
 /// # Errors
 ///
-/// Returns an error for mismatched shapes or a singular `y`. `z` is unchanged
-/// on error.
+/// Returns an error when the shapes differ or are not square, or when
+/// [`matrix_inv`] fails on `y`. `z` is unchanged on error.
 pub fn matrix_div<T>(x: MatrixRef<'_, T>, y: MatrixRef<'_, T>, z: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -210,11 +208,11 @@ where
     matrix_mul(x, y_inv.as_ref(), z)
 }
 
-/// Compute the determinant of a 2 by 2 matrix.
+/// Returns the determinant of a 2 by 2 matrix.
 ///
 /// # Errors
 ///
-/// Returns an error unless `x` has shape `(2, 2)`.
+/// Returns an error when `x` is not 2 by 2.
 pub fn matrix_det2x2<T>(x: MatrixRef<'_, T>) -> Result<T>
 where
     T: FloatComplex,
@@ -226,16 +224,23 @@ where
     Ok(x[(0, 0)] * x[(1, 1)] - x[(0, 1)] * x[(1, 0)])
 }
 
-/// Compute the determinant of a square matrix.
+/// Returns the determinant of a square matrix.
 ///
-/// This retained compatibility routine uses an unpivoted LU factorization. It
-/// is not a robust general-purpose determinant calculation. Use a dedicated
-/// linear-algebra library when numerical conditioning matters.
+/// A 2 by 2 matrix uses the direct formula. Larger matrices use the product of
+/// the diagonal of an unpivoted LU factorization, as in
+/// [`matrix_ludecomp_doolittle`]. An empty matrix gives one.
+///
+/// # Warning
+///
+/// A zero pivot before the last one makes the result infinite or NaN with no
+/// error, and many nonsingular matrices have one. Every matrix of 3 by 3 or
+/// larger with a zero in the top-left corner is affected, and small pivots
+/// lose accuracy in the same way. A zero final pivot correctly gives zero, as
+/// for `diag(1, 1, 0)`.
 ///
 /// # Errors
 ///
-/// Returns an error if `x` is not square or its temporary storage shape
-/// overflows `usize`.
+/// Returns an error when `x` is not square.
 pub fn matrix_det<T>(x: MatrixRef<'_, T>) -> Result<T>
 where
     T: FloatComplex,
@@ -271,11 +276,11 @@ where
     Ok(det)
 }
 
-/// Transpose a matrix in place.
+/// Overwrites a matrix with its transpose.
 ///
-/// For complex values, this computes the ordinary transpose `X^T` without
-/// conjugation. The view retains its original shape, so rectangular matrices
-/// must be reinterpreted with swapped dimensions after the call.
+/// Complex values are not conjugated. The view keeps its original shape, so
+/// for a rectangular matrix the caller must read the storage back with the
+/// row and column counts swapped. This never returns an error.
 pub fn matrix_trans<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -293,11 +298,11 @@ where
     Ok(())
 }
 
-/// Replace a matrix with its conjugate transpose in place.
+/// Overwrites a matrix with its conjugate transpose.
 ///
-/// For complex values, this computes `X^H`. The view retains its original
-/// shape, so rectangular matrices must be reinterpreted with swapped
-/// dimensions after the call.
+/// The view keeps its original shape, so for a rectangular matrix the caller
+/// must read the storage back with the row and column counts swapped. This
+/// never returns an error.
 pub fn matrix_hermitian<T>(x: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -309,13 +314,14 @@ where
     Ok(())
 }
 
-/// Compute `X * X^T`.
+/// Computes `x * x^T` into `xxt`, without conjugation.
 ///
-/// `xxt` must have shape `(x.rows(), x.rows())`.
+/// `xxt` must be square, with one row per row of `x`.
 ///
 /// # Errors
 ///
-/// Returns an error if `xxt` has the wrong shape. `xxt` is unchanged on error.
+/// Returns an error when `xxt` has the wrong shape. `xxt` is unchanged on
+/// error.
 pub fn matrix_mul_transpose<T>(x: MatrixRef<'_, T>, xxt: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -337,13 +343,14 @@ where
     Ok(())
 }
 
-/// Compute `X^T * X`.
+/// Computes `x^T * x` into `xtx`, without conjugation.
 ///
-/// `xtx` must have shape `(x.columns(), x.columns())`.
+/// `xtx` must be square, with one row per column of `x`.
 ///
 /// # Errors
 ///
-/// Returns an error if `xtx` has the wrong shape. `xtx` is unchanged on error.
+/// Returns an error when `xtx` has the wrong shape. `xtx` is unchanged on
+/// error.
 pub fn matrix_transpose_mul<T>(x: MatrixRef<'_, T>, xtx: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -364,13 +371,14 @@ where
     Ok(())
 }
 
-/// Compute `X * X^H`.
+/// Computes `x * x^H` into `xxh`.
 ///
-/// `xxh` must have shape `(x.rows(), x.rows())`.
+/// `xxh` must be square, with one row per row of `x`.
 ///
 /// # Errors
 ///
-/// Returns an error if `xxh` has the wrong shape. `xxh` is unchanged on error.
+/// Returns an error when `xxh` has the wrong shape. `xxh` is unchanged on
+/// error.
 pub fn matrix_mul_hermitian<T>(x: MatrixRef<'_, T>, xxh: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,
@@ -392,13 +400,14 @@ where
     Ok(())
 }
 
-/// Compute `X^H * X`.
+/// Computes `x^H * x` into `xhx`.
 ///
-/// `xhx` must have shape `(x.columns(), x.columns())`.
+/// `xhx` must be square, with one row per column of `x`.
 ///
 /// # Errors
 ///
-/// Returns an error if `xhx` has the wrong shape. `xhx` is unchanged on error.
+/// Returns an error when `xhx` has the wrong shape. `xhx` is unchanged on
+/// error.
 pub fn matrix_hermitian_mul<T>(x: MatrixRef<'_, T>, xhx: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,

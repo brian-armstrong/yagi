@@ -3,20 +3,25 @@ use num_traits::{Float, Zero};
 use crate::error::{Error, Result};
 use crate::matrix::{FloatComplex, MatrixMut, MatrixRef};
 
-/// Factor a positive-definite matrix as `A = L * L^H`.
+/// Factors a Hermitian positive-definite matrix as `a = l * l^H`.
 ///
-/// `l` receives the lower-triangular factor. `a` and `l` must have the same
-/// square shape.
+/// `a` and `l` must be square with the same size. `l` receives the
+/// lower-triangular factor, with zeros above the diagonal. Only the diagonal
+/// and lower triangle of `a` are read, so `a` is assumed to be Hermitian
+/// without a check.
 ///
-/// This retained compatibility routine does not verify that `a` is Hermitian.
-/// Use a dedicated linear-algebra library for a general-purpose Cholesky
-/// factorization.
+/// Each diagonal entry of `l` is `sqrt(a[j][j] - s)`, where `s` is the sum of
+/// squared magnitudes already in row `j` of `l`. When that difference is
+/// exactly zero, the zero diagonal entry makes later entries infinite or NaN,
+/// with no error. This can happen for singular positive semidefinite input.
 ///
 /// # Errors
 ///
-/// Returns an error if the matrices are not equally sized and square, or a
-/// diagonal term shows that `a` is not positive definite. `l` can be partly
-/// written when factorization fails.
+/// Returns an error when the shapes differ or are not square. It also returns
+/// an error when a diagonal entry of `a` has a nonzero imaginary part, or its
+/// real part is negative or below `s`, which means `a` is not positive
+/// definite. `l` is unchanged on a shape error. On the other errors, `l` has
+/// been cleared and partly written.
 pub fn matrix_chol<T>(a: MatrixRef<'_, T>, l: &mut MatrixMut<'_, T>) -> Result<()>
 where
     T: FloatComplex,

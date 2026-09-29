@@ -19,22 +19,30 @@ where
     sum
 }
 
-/// Solve `A * x = b` with conjugate gradient iteration.
+/// Solves `a * x = b` by conjugate gradient iteration.
 ///
-/// `a` must be a nonempty Hermitian positive-definite matrix. `b` and `x`
-/// must have one element per row of `a`. The solver starts from zero, uses a
-/// relative tolerance of `1e-6`, and runs at most `4 * n` iterations. `_opts`
-/// is reserved and currently ignored.
+/// `a` must be square, Hermitian and positive definite, and `b` and `x` must
+/// each have one element per row of `a`. The matrix properties are not
+/// checked. `_opts` is reserved and ignored.
 ///
-/// This retained compatibility routine does not validate that `a` is Hermitian
-/// positive definite. Use a dedicated linear-algebra library when convergence
-/// guarantees or configurable stopping criteria are needed.
+/// The iteration starts from zero and stops once the residual norm is at most
+/// `1e-6` times the norm of `b`, or after `4 * n` iterations for an `n` by `n`
+/// system. The residual is recomputed from `a` every 50 iterations. `x`
+/// receives the iterate with the smallest residual. Hitting the iteration
+/// limit is not reported, so check the residual when accuracy matters. A zero
+/// `b` gives a zero `x`.
+///
+/// The stopping test compares squared residual norms. When `b^H * b`
+/// underflows to zero, the test is met before the first step and `x` stays
+/// zero. For `f32` `a = [1e-30]` and `b = [1e-30]`, the result is `[0]`
+/// rather than `[1]`.
 ///
 /// # Errors
 ///
-/// Returns an error for invalid shapes, an iteration-count overflow, or a
-/// non-finite residual or search direction. `x` is unchanged on error. If the
-/// iteration limit is reached, the best estimate found so far is returned.
+/// Returns an error when `a` is empty or the shapes do not match. It also
+/// returns an error when a residual or step becomes infinite or NaN, or when
+/// `d^H * a * d` is zero or negative for a search direction `d`, which
+/// happens when `a` is not positive definite. `x` is unchanged on error.
 pub fn matrix_cgsolve<T>(a: MatrixRef<'_, T>, b: &[T], x: &mut [T], _opts: Option<()>) -> Result<()>
 where
     T: FloatComplex,
