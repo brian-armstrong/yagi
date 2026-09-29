@@ -637,9 +637,9 @@ pub fn filter_crosscorr(h: &[f32], g: &[f32], lag: isize) -> f32 {
 ///
 /// The measurement uses the autocorrelation of `h`, which is the pulse after
 /// its matched filter. It samples the autocorrelation at lags `k`, `2 * k`,
-/// through `(2 * m - 1) * k`, relative to the zero-lag value, and returns
+/// through `2 * m * k`, relative to the zero-lag value, and returns
 /// `(rms, max)`. `max` is the largest magnitude among those samples. `rms` sums
-/// their squares over the `2 * m - 1` lags but divides by `2 * m` before the
+/// their squares over the `2 * m` lags and divides by `2 * m` before the
 /// square root. `h` should have `2 * k * m + 1` taps.
 ///
 /// `k` should be nonzero. Zero energy in `h` or `m == 0` produces nonfinite
@@ -653,7 +653,7 @@ pub fn filter_isi(h: &[f32], k: usize, m: usize) -> (f32, f32) {
     let rxx0 = filter_autocorr(h, 0);
     let mut isi_rms = 0.0;
     let mut isi_max = 0.0;
-    for i in 1..2 * m {
+    for i in 1..=2 * m {
         let e = filter_autocorr(h, (i * k) as isize) / rxx0;
         let e = e.abs();
         isi_rms += e * e;
