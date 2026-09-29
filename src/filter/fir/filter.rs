@@ -149,8 +149,8 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `m` is outside `1..=1000` or `as_` is zero or negative.
-/// Real coefficients also require `f0` to lie in `[-0.5, 0.5]`.
+/// Returns an error when `m` is outside `1..=1000`, `as_` is zero or negative,
+/// or `f0` is nonfinite or outside `[-0.5, 0.5]`.
 pub fn fir_filter_design_notch<Coeff>(m: usize, as_: f32, f0: f32) -> Result<Vec<Coeff>>
 where
     Coeff: Sample,
@@ -375,9 +375,9 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `filter_delay` is outside `1..=1000` or
-    /// `stopband_attenuation` is zero or negative. Real coefficients also require
-    /// `center_frequency` to lie in `[-0.5, 0.5]`.
+    /// Returns an error when `filter_delay` is outside `1..=1000`,
+    /// `stopband_attenuation` is zero or negative, or `center_frequency` is
+    /// nonfinite or outside `[-0.5, 0.5]`.
     pub fn new_notch(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Self> {
         let h = fir_filter_design_notch(filter_delay, stopband_attenuation, center_frequency)?;
         Self::new(&h)
@@ -583,6 +583,32 @@ mod tests {
         ];
 
         assert!(validate_psd_firfilt(&q, 301, &regions).unwrap());
+    }
+
+    #[test]
+    fn test_fir_notch_frequency_range() {
+        for f0 in [
+            -f32::from_bits(0.5f32.to_bits() + 1),
+            f32::from_bits(0.5f32.to_bits() + 1),
+            f32::NEG_INFINITY,
+            f32::INFINITY,
+            f32::NAN,
+        ] {
+            assert!(f32::notch_coefficients(20, 60.0, f0).is_err());
+            assert!(Complex32::notch_coefficients(20, 60.0, f0).is_err());
+            assert!(fir_filter_design_notch::<f32>(20, 60.0, f0).is_err());
+            assert!(fir_filter_design_notch::<Complex32>(20, 60.0, f0).is_err());
+            assert!(FirFilter::<Complex32, f32>::new_notch(20, 60.0, f0).is_err());
+            assert!(FirFilter::<Complex32, Complex32>::new_notch(20, 60.0, f0).is_err());
+        }
+
+        // Both endpoints remain accepted and the notch stays at the requested frequency.
+        for f0 in [-0.5, -0.125, 0.0, 0.125, 0.5] {
+            let real = FirFilter::<Complex32, f32>::new_notch(20, 60.0, f0).unwrap();
+            let complex = FirFilter::<Complex32, Complex32>::new_notch(20, 60.0, f0).unwrap();
+            assert_abs_diff_eq!(real.freqresponse(f0).norm(), 0.0, epsilon = 1e-5);
+            assert_abs_diff_eq!(complex.freqresponse(f0).norm(), 0.0, epsilon = 1e-5);
+        }
     }
 
     #[test]

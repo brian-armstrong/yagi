@@ -1,6 +1,6 @@
 //! Private implementation details for generic filter sample types.
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use num_complex::{Complex32, ComplexFloat};
 use std::f32::consts::PI;
 
@@ -41,9 +41,9 @@ pub trait Sample: Default + ComplexFloat<Real = f32> + From<f32> + private::Seal
     ///
     /// # Errors
     ///
-    /// Returns an error when `filter_delay` is outside `1..=1000` or
-    /// `stopband_attenuation` is zero or negative. Real coefficients also require
-    /// `center_frequency` in `[-0.5, 0.5]`.
+    /// Returns an error when `filter_delay` is outside `1..=1000`,
+    /// `stopband_attenuation` is zero or negative, or `center_frequency` is
+    /// nonfinite or outside `[-0.5, 0.5]`.
     fn notch_coefficients(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Vec<Self>>;
 }
 
@@ -72,6 +72,9 @@ impl Sample for Complex32 {
     }
 
     fn notch_coefficients(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Vec<Self>> {
+        if !(-0.5..=0.5).contains(&center_frequency) {
+            return Err(Error::Config(format!("notch frequency ({}) out of range [-0.5,0.5]", center_frequency)));
+        }
         let coefficients = crate::filter::fir::design::fir_design_notch(filter_delay, 0.0, stopband_attenuation)?;
         Ok(coefficients
             .into_iter()
