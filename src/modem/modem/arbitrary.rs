@@ -1,20 +1,18 @@
 use super::*;
 
 impl Modem {
-    pub(super) fn new_arb_preset(table: &[Complex32]) -> Result<Self> {
+    pub(super) fn new_arb_preset(scheme: ModulationScheme, table: &[Complex32]) -> Result<Self> {
         if !table.len().is_power_of_two() {
             return Err(Error::Config("constellation table size must be power of 2".into()));
         }
-        Modem::new_arb(ModulationScheme::Arb, table, table.len().ilog2() as usize)
+        Modem::new_arb(scheme, table, table.len().ilog2() as usize)
     }
 
     pub(super) fn new_arb(scheme: ModulationScheme, table: &[Complex32], m: usize) -> Result<Self> {
         let mut modem = Modem::new_base(m, scheme)?;
         modem.symbol_map = Some(table.to_vec());
-        if scheme == ModulationScheme::Arb {
-            modem.arb_balance_iq()?;
-            modem.demodulate_soft_func = Some(Self::demodulate_soft_arb);
-        }
+        modem.arb_balance_iq()?;
+        modem.demodulate_soft_func = Some(Self::demodulate_soft_arb);
         modem.arb_scale()?;
         Ok(modem)
     }

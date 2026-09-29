@@ -676,14 +676,28 @@ impl Modem {
             ModulationScheme::Pi4Dqpsk => Modem::new_pi4dqpsk(),
 
             // preset arbitrary constellations
-            ModulationScheme::V29 => Modem::new_arb_preset(&v29_constellation::MODEM_ARB_V29),
-            ModulationScheme::Arb16Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB16OPT),
-            ModulationScheme::Arb32Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB32OPT),
-            ModulationScheme::Arb64Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB64OPT),
-            ModulationScheme::Arb128Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB128OPT),
-            ModulationScheme::Arb256Opt => Modem::new_arb_preset(&arbitrary_optimized::MODEM_ARB256OPT),
-            ModulationScheme::Arb64Vt => Modem::new_arb_preset(&arbitrary_virginia_tech_logo::MODEM_ARB_VT64),
-            ModulationScheme::Arb64Ui => Modem::new_arb_preset(&arbitrary_illinois_logo::MODEM_ARB_UI64),
+            ModulationScheme::V29 => Modem::new_arb_preset(ModulationScheme::V29, &v29_constellation::MODEM_ARB_V29),
+            ModulationScheme::Arb16Opt => {
+                Modem::new_arb_preset(ModulationScheme::Arb16Opt, &arbitrary_optimized::MODEM_ARB16OPT)
+            }
+            ModulationScheme::Arb32Opt => {
+                Modem::new_arb_preset(ModulationScheme::Arb32Opt, &arbitrary_optimized::MODEM_ARB32OPT)
+            }
+            ModulationScheme::Arb64Opt => {
+                Modem::new_arb_preset(ModulationScheme::Arb64Opt, &arbitrary_optimized::MODEM_ARB64OPT)
+            }
+            ModulationScheme::Arb128Opt => {
+                Modem::new_arb_preset(ModulationScheme::Arb128Opt, &arbitrary_optimized::MODEM_ARB128OPT)
+            }
+            ModulationScheme::Arb256Opt => {
+                Modem::new_arb_preset(ModulationScheme::Arb256Opt, &arbitrary_optimized::MODEM_ARB256OPT)
+            }
+            ModulationScheme::Arb64Vt => {
+                Modem::new_arb_preset(ModulationScheme::Arb64Vt, &arbitrary_virginia_tech_logo::MODEM_ARB_VT64)
+            }
+            ModulationScheme::Arb64Ui => {
+                Modem::new_arb_preset(ModulationScheme::Arb64Ui, &arbitrary_illinois_logo::MODEM_ARB_UI64)
+            }
 
             _ => Err(Error::Config("modulation scheme not supported".into())),
         }
@@ -2694,6 +2708,41 @@ mod tests {
 
             let modem = Modem::new(scheme).unwrap();
             assert_eq!(modem.bps(), bps, "{}: modem disagrees with scheme", name);
+        }
+    }
+
+    #[test]
+    fn test_modem_preset_reports_scheme() {
+        let presets: [(ModulationScheme, &[Complex32]); 8] = [
+            (ModulationScheme::V29, &v29_constellation::MODEM_ARB_V29),
+            (ModulationScheme::Arb16Opt, &arbitrary_optimized::MODEM_ARB16OPT),
+            (ModulationScheme::Arb32Opt, &arbitrary_optimized::MODEM_ARB32OPT),
+            (ModulationScheme::Arb64Opt, &arbitrary_optimized::MODEM_ARB64OPT),
+            (ModulationScheme::Arb128Opt, &arbitrary_optimized::MODEM_ARB128OPT),
+            (ModulationScheme::Arb256Opt, &arbitrary_optimized::MODEM_ARB256OPT),
+            (ModulationScheme::Arb64Vt, &arbitrary_virginia_tech_logo::MODEM_ARB_VT64),
+            (ModulationScheme::Arb64Ui, &arbitrary_illinois_logo::MODEM_ARB_UI64),
+        ];
+        for (scheme, table) in presets {
+            let mut preset = Modem::new(scheme).unwrap();
+            let mut arb = Modem::from_table(table).unwrap();
+            assert_eq!(preset.scheme(), scheme);
+            assert_eq!(arb.scheme(), ModulationScheme::Arb);
+
+            let bps = preset.bps();
+            let mut soft_preset = vec![0u8; bps];
+            let mut soft_arb = vec![0u8; bps];
+            for s in 0..preset.constellation_size() as u32 {
+                let x = preset.modulate(s).unwrap();
+                assert_eq!(x, arb.modulate(s).unwrap(), "{:?} symbol {}", scheme, s);
+
+                // perturb off the constellation point so soft bits are not trivial
+                let y = x + Complex32::new(0.05, -0.03);
+                let d_preset = preset.demodulate_soft(y, &mut soft_preset).unwrap();
+                let d_arb = arb.demodulate_soft(y, &mut soft_arb).unwrap();
+                assert_eq!(d_preset, d_arb, "{:?} symbol {}", scheme, s);
+                assert_eq!(soft_preset, soft_arb, "{:?} symbol {}", scheme, s);
+            }
         }
     }
 
