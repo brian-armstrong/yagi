@@ -17,6 +17,10 @@ use crate::filter::fir::design::{estimate_req_filter_stopband_attenuation, filte
 /// [`fir_design_arkaiser`] is a faster approximation. The taps are scaled to a
 /// total energy of `k`.
 ///
+/// If the first quadratic fit falls outside its bounds, the search falls back
+/// to a bounded interval search. With `liquid-quirks`, it stops at the initial
+/// estimate instead, preserving liquid's pulse shape.
+///
 /// # Errors
 ///
 /// Returns an error when `k` is less than two, `m` is zero, `beta` is not in
@@ -234,8 +238,8 @@ fn fir_design_rkaiser_bounded(k: usize, m: usize, beta: f32, dt: f32, rho_hat: f
 ///
 /// `h` must hold `2 * k * m + 1` taps. The search fits a parabola to the ISI
 /// at three values of `rho` and moves toward its minimum. If the first fit
-/// falls outside its bounds, the bounded search runs instead. Returns the
-/// chosen `rho`.
+/// falls outside its bounds, the bounded search runs instead unless
+/// `liquid-quirks` is enabled. Returns the chosen `rho`.
 fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut [f32]) -> Result<f32> {
     // algorithm:
     //  1. choose initial bounding points [x0,x2] where x0 < x2
@@ -293,6 +297,7 @@ fn fir_design_rkaiser_quadratic(k: usize, m: usize, beta: f32, dt: f32, h: &mut 
 
         // ensure x_hat is within boundary (this will fail if y1 > y0 || y1 > y2)
         if x_hat < x0 || x_hat > x2 {
+            #[cfg(not(feature = "liquid-quirks"))]
             // when this fires at p == 0, rho_opt is still rho_hat and the search has
             // contributed nothing
             if p == 0 {
