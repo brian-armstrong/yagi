@@ -712,19 +712,13 @@ pub fn fir_design_pm(
 /// the Kaiser and windowed-sinc designers. The stopband weight grows across
 /// the band, so the stopband ripple shrinks at higher frequencies.
 ///
-/// `mu` is range-checked but does not affect the taps.
-///
 /// # Errors
 ///
-/// Returns an error when `n` is zero, `mu` is outside `-0.5..=0.5`, `fc` is
-/// outside `0.0..=0.5`, `as_` is zero or negative, or the resulting band
-/// specification is invalid. A `fc` near either end of its range can place a
-/// band edge outside `0.0..=0.5`. It also returns an error when the design
-/// does not converge.
-pub fn fir_design_pm_lowpass(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32>> {
-    if mu < -0.5 || mu > 0.5 {
-        return Err(Error::Config("firdespm_lowpass(), mu (%12.4e) out of range [-0.5,0.5]".to_string()));
-    }
+/// Returns an error when `n` is zero, `fc` is outside `0.0..=0.5`, `as_` is
+/// zero or negative, or the resulting band specification is invalid. A `fc`
+/// near either end of its range can place a band edge outside `0.0..=0.5`.
+/// It also returns an error when the design does not converge.
+pub fn fir_design_pm_lowpass(n: usize, fc: f32, as_: f32) -> Result<Vec<f32>> {
     if fc < 0.0 || fc > 0.5 {
         return Err(Error::Config("firdespm_lowpass(), cutoff frequency (%12.4e) out of range (0, 0.5)".to_string()));
     }
@@ -750,6 +744,15 @@ mod tests {
     use crate::utility::test_helpers::{validate_psd_signalf, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_firdespm_lowpass_dc_and_nyquist_response() {
+        let h = fir_design_pm_lowpass(51, 0.2, 60.0).unwrap();
+        let dc: f32 = h.iter().sum();
+        let nyquist: f32 = h.iter().enumerate().map(|(i, &tap)| if i % 2 == 0 { tap } else { -tap }).sum();
+        assert_abs_diff_eq!(dc, 1.0, epsilon = 0.003);
+        assert_abs_diff_eq!(nyquist, 0.0, epsilon = 0.001);
+    }
 
     #[test]
     #[autotest_annotate(autotest_firdespm_bandpass_n24)]
@@ -878,8 +881,7 @@ mod tests {
         let n = 51;
         let fc = 0.2f32;
         let as_ = 60.0f32;
-        let mu = 0.0f32;
-        let h = fir_design_pm_lowpass(n, fc, as_, mu).unwrap();
+        let h = fir_design_pm_lowpass(n, fc, as_).unwrap();
 
         // verify resulting spectrum
         #[rustfmt::skip]
@@ -958,12 +960,10 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_firdespm_config)]
     fn test_firdespm_config() {
-        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, 0.0).is_ok()); // ok
-        assert!(fir_design_pm_lowpass(0, 0.2, 60.0, 0.0).is_err());
-        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, -1.0).is_err());
-        assert!(fir_design_pm_lowpass(51, 0.2, 60.0, 1.0).is_err());
-        assert!(fir_design_pm_lowpass(51, 0.8, 60.0, 0.0).is_err());
-        assert!(fir_design_pm_lowpass(51, -0.2, 60.0, 0.0).is_err());
+        assert!(fir_design_pm_lowpass(51, 0.2, 60.0).is_ok()); // ok
+        assert!(fir_design_pm_lowpass(0, 0.2, 60.0).is_err());
+        assert!(fir_design_pm_lowpass(51, 0.8, 60.0).is_err());
+        assert!(fir_design_pm_lowpass(51, -0.2, 60.0).is_err());
 
         // try to create object with filter length 0
         assert!(ParksMcClellanDesigner::new(0, &[], &[], None, None).is_err());

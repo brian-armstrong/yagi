@@ -13,7 +13,7 @@ use std::f64::consts::PI;
 ///
 /// # Errors
 ///
-/// Returns an error when `k` or `m` is zero, or `beta` is outside
+/// Returns an error when `k` or `m` is zero, or `beta` is nonfinite or outside
 /// `0.0..=1.0`.
 ///
 /// # Panics
@@ -27,7 +27,7 @@ pub fn fir_design_rcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f32
     if m < 1 {
         return Err(Error::Config("m must be greater than 0".into()));
     }
-    if beta < 0.0 || beta > 1.0 {
+    if !(0.0..=1.0).contains(&beta) {
         return Err(Error::Config("beta must be in [0,1]".into()));
     }
 
@@ -66,6 +66,24 @@ mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_rcos_rolloff_range() {
+        let above_one = f32::from_bits(1.0f32.to_bits() + 1);
+        for beta in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON, above_one] {
+            assert!(matches!(fir_design_rcos(4, 3, beta, 0.0), Err(Error::Config(_))));
+        }
+        let pi = std::f32::consts::PI;
+        // Samples at t = 0, 1/4, 1/2 and 1, including the unit-rolloff limit.
+        for (beta, expected) in
+            [(0.0, [1.0, 2.0 * 2.0f32.sqrt() / pi, 2.0 / pi, 0.0]), (1.0, [1.0, 8.0 / (3.0 * pi), 0.5, 0.0])]
+        {
+            let h = fir_design_rcos(4, 3, beta, 0.0).unwrap();
+            for (index, value) in [12, 13, 14, 16].into_iter().zip(expected) {
+                assert_abs_diff_eq!(h[index], value, epsilon = 1e-6);
+            }
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_liquid_firdes_rcos)]

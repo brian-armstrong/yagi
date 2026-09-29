@@ -161,8 +161,8 @@ where
     /// # Errors
     ///
     /// Returns an error when `samples_per_symbol` is less than two,
-    /// `filter_delay` or `num_filters` is zero, `excess_bandwidth` is outside
-    /// its range, or the selected prototype rejects the configuration.
+    /// `filter_delay` or `num_filters` is zero, `excess_bandwidth` is nonfinite
+    /// or outside its range, or the selected prototype rejects the configuration.
     ///
     /// # Panics
     ///
@@ -182,7 +182,7 @@ where
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
         if num_filters == 0 {
@@ -219,7 +219,7 @@ where
     ///
     /// Returns an error when `samples_per_symbol` is less than two,
     /// `filter_delay` or `num_filters` is zero, or `excess_bandwidth` is
-    /// outside its range.
+    /// nonfinite or outside its range.
     ///
     /// # Panics
     ///
@@ -238,7 +238,7 @@ where
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if excess_bandwidth <= 0.0 || excess_bandwidth > 1.0 {
+        if !(excess_bandwidth > 0.0 && excess_bandwidth <= 1.0) {
             return Err(Error::Config("excess bandwidth factor must be in (0,1]".into()));
         }
         if num_filters == 0 {
@@ -334,10 +334,11 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `rate` is zero or negative.
+    /// Returns an error when `rate` is nonfinite, zero or negative. The
+    /// synchronizer is unchanged on error.
     pub fn set_fractional_rate(&mut self, rate: f32) -> Result<()> {
-        if rate <= 0.0 {
-            return Err(Error::Config("rate must be greater than 0".into()));
+        if !rate.is_finite() || rate <= 0.0 {
+            return Err(Error::Config("rate must be finite and greater than 0".into()));
         }
         self.rate = rate;
         self.del = self.rate;
@@ -350,10 +351,10 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `bandwidth` is outside `[0, 1]`. The loop is
-    /// unchanged on error.
+    /// Returns an error when `bandwidth` is nonfinite or outside `[0, 1]`.
+    /// The loop is unchanged on error.
     pub fn set_lf_bw(&mut self, bandwidth: f32) -> Result<()> {
-        if bandwidth < 0.0 || bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&bandwidth) {
             return Err(Error::Config("bandwidth must be in [0,1]".into()));
         }
 

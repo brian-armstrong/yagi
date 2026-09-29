@@ -14,20 +14,20 @@ use crate::math::{kaiser, sincf};
 /// # Errors
 ///
 /// Returns an error when `n` is zero, `fc` is not in `0.0 < fc <= 0.5`,
-/// `as_` is zero or negative, or `mu` is outside `-1.0..=1.0`.
+/// `as_` is nonfinite, zero or negative, or `mu` is outside `-1.0..=1.0`.
 pub fn fir_design_kaiser(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<f32>> {
     // validate input
     if !(-1.0..=1.0).contains(&mu) {
         return Err(Error::Config(format!("fractional sample offset ({}) out of range [-1, 1]", mu)));
     }
-    if fc <= 0.0 || fc > 0.5 {
+    if !(fc > 0.0 && fc <= 0.5) {
         return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5]", fc)));
     }
     if n == 0 {
         return Err(Error::Config("filter length must be greater than zero".into()));
     }
-    if as_ <= 0.0 {
-        return Err(Error::Config("stop-band attenuation must be greater than zero".into()));
+    if !as_.is_finite() || as_ <= 0.0 {
+        return Err(Error::Config("stop-band attenuation must be finite and greater than zero".into()));
     }
 
     // compute Kaiser window paramter (beta)
@@ -72,6 +72,27 @@ pub fn kaiser_beta_stopband_attenuation(as_: f32) -> f32 {
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_kaiser_rejects_invalid_design_parameters() {
+        let above_half = f32::from_bits(0.5f32.to_bits() + 1);
+        for fc in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -f32::EPSILON, above_half] {
+            assert!(matches!(fir_design_kaiser(5, fc, 60.0, 0.0), Err(Error::Config(_))));
+        }
+        for attenuation in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -1.0] {
+            assert!(matches!(fir_design_kaiser(5, 0.25, attenuation, 0.0), Err(Error::Config(_))));
+        }
+        // Below 21 dB the window is rectangular, giving closed-form sinc taps.
+        let h = fir_design_kaiser(5, 0.25, 10.0, 0.0).unwrap();
+        let expected = [0.0, 2.0 / std::f32::consts::PI, 1.0, 2.0 / std::f32::consts::PI, 0.0];
+        for (&actual, reference) in h.iter().zip(expected) {
+            assert_abs_diff_eq!(actual, reference, epsilon = 1e-6);
+        }
+        let h = fir_design_kaiser(5, 0.5, 60.0, 0.0).unwrap();
+        for (&actual, reference) in h.iter().zip([0.0, 0.0, 1.0, 0.0, 0.0]) {
+            assert_abs_diff_eq!(actual, reference, epsilon = 1e-6);
+        }
+    }
 
     #[test]
     fn test_kaiser_single_tap_filter() {

@@ -26,7 +26,7 @@ use super::FirFilterShape;
 /// # Errors
 ///
 /// Returns an error when `ftype` is not a flipped shape, `k` or `m` is zero,
-/// `beta` is outside `0.0..=1.0`, or `dt` is outside `-1.0..=1.0`.
+/// `beta` is nonfinite or outside `0.0..=1.0`, or `dt` is outside `-1.0..=1.0`.
 ///
 /// # Panics
 ///
@@ -47,7 +47,7 @@ pub fn fir_design_fnyquist(
     if m < 1 {
         return Err(Error::Config("m must be greater than 0".into()));
     }
-    if beta < 0.0 || beta > 1.0 {
+    if !(0.0..=1.0).contains(&beta) {
         return Err(Error::Config("beta must be in [0,1]".into()));
     }
     if !(-1.0..=1.0).contains(&dt) {
@@ -292,6 +292,30 @@ pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut 
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_fnyquist_rolloff_range() {
+        let above_one = f32::from_bits(1.0f32.to_bits() + 1);
+        for shape in [FirFilterShape::Fexp, FirFilterShape::Fsech, FirFilterShape::Farcsech] {
+            for root in [false, true] {
+                for beta in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON, above_one] {
+                    assert!(matches!(fir_design_fnyquist(shape, root, 4, 3, beta, 0.0), Err(Error::Config(_))));
+                }
+                // Zero rolloff is a rectangular spectrum: bins -3 through 3
+                // are unity for k=4 and 25 taps, for both root and non-root.
+                let h = fir_design_fnyquist(shape, root, 4, 3, 0.0, 0.0).unwrap();
+                for (i, &actual) in h.iter().enumerate() {
+                    let t = i as f64 - 12.0;
+                    let mut expected = 1.0;
+                    for bin in 1..=3 {
+                        expected += 2.0 * (2.0 * std::f64::consts::PI * bin as f64 * t / 25.0).cos();
+                    }
+                    expected *= 4.0 / 25.0;
+                    assert_abs_diff_eq!(actual, expected as f32, epsilon = 1e-6);
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_fnyquist_lower_transition_endpoint() {

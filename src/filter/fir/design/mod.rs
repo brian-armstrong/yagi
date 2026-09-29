@@ -155,14 +155,14 @@ const USE_KAISER_REQ_FILTER_LEN_ESTIMATE: bool = true;
 ///
 /// # Errors
 ///
-/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is zero
-/// or negative.
+/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is nonfinite,
+/// zero or negative.
 pub fn estimate_req_filter_len(df: f32, as_: f32) -> Result<usize> {
-    if df <= 0.0 || df > 0.5 {
-        return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", df)));
+    if !(df > 0.0 && df <= 0.5) {
+        return Err(Error::Config(format!("transition width ({}) out of range (0, 0.5]", df)));
     }
-    if as_ <= 0.0 {
-        return Err(Error::Config("stopband attenuation must be greater than zero".into()));
+    if !as_.is_finite() || as_ <= 0.0 {
+        return Err(Error::Config("stopband attenuation must be finite and greater than zero".into()));
     }
 
     let n = if USE_KAISER_REQ_FILTER_LEN_ESTIMATE {
@@ -217,7 +217,7 @@ pub fn estimate_req_filter_stopband_attenuation(df: f32, n: usize) -> Result<f32
 ///
 /// # Errors
 ///
-/// Returns an error when `as_` is zero or negative.
+/// Returns an error when `as_` is nonfinite, zero or negative.
 pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f32> {
     // run search for transition bandwidth which gives these results
     let mut df0 = 1e-3; // lower bound
@@ -252,15 +252,15 @@ pub fn estimate_req_filter_transition_bandwidth(as_: f32, n: usize) -> Result<f3
 ///
 /// # Errors
 ///
-/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is zero
-/// or negative.
+/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is nonfinite,
+/// zero or negative.
 pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
     // [Vaidyanathan:1993]
-    if df > 0.5 || df <= 0.0 {
-        return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", df)));
+    if !(df > 0.0 && df <= 0.5) {
+        return Err(Error::Config(format!("transition width ({}) out of range (0, 0.5]", df)));
     }
-    if as_ <= 0.0 {
-        return Err(Error::Config("stopband attenuation must be greater than zero".into()));
+    if !as_.is_finite() || as_ <= 0.0 {
+        return Err(Error::Config("stopband attenuation must be finite and greater than zero".into()));
     }
     let h_len = (as_ - 7.95) / (14.26 * df);
     Ok(h_len)
@@ -275,15 +275,15 @@ pub fn estimate_req_filter_len_kaiser(df: f32, as_: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is zero
-/// or negative.
+/// Returns an error when `df` is not in `0.0 < df <= 0.5` or `as_` is nonfinite,
+/// zero or negative.
 pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
     // [Herrmann:1973]
-    if df > 0.5 || df <= 0.0 {
-        return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", df)));
+    if !(df > 0.0 && df <= 0.5) {
+        return Err(Error::Config(format!("transition width ({}) out of range (0, 0.5]", df)));
     }
-    if as_ <= 0.0 {
-        return Err(Error::Config("stopband attenuation must be greater than zero".into()));
+    if !as_.is_finite() || as_ <= 0.0 {
+        return Err(Error::Config("stopband attenuation must be finite and greater than zero".into()));
     }
 
     // Gaeddert's revisions:
@@ -325,13 +325,14 @@ pub fn estimate_req_filter_len_herrmann(df: f32, as_: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `n` is zero, `fc` is not in `0.0 < fc <= 0.5`, or the
-/// window rejects `n` or `arg`. `WindowType::Unknown` is always rejected, and
-/// `WindowType::Kbd` requires an even `n`.
+/// Returns an error when `n` is zero, `fc` is nonfinite or outside
+/// `0.0 < fc <= 0.5`, or the window rejects `n` or `arg`.
+/// `WindowType::Unknown` is always rejected, and `WindowType::Kbd` requires
+/// an even `n`.
 pub fn fir_design_windowf(window_type: WindowType, n: usize, fc: f32, arg: f32) -> Result<Vec<f32>> {
     // validate input
-    if fc <= 0.0 || fc > 0.5 {
-        return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5)", fc)));
+    if !(fc > 0.0 && fc <= 0.5) {
+        return Err(Error::Config(format!("cutoff frequency ({}) out of range (0, 0.5]", fc)));
     }
     if n == 0 {
         return Err(Error::Config("filter length must be greater than zero".into()));
@@ -367,7 +368,7 @@ pub fn fir_design_windowf(window_type: WindowType, n: usize, fc: f32, arg: f32) 
 /// # Errors
 ///
 /// Returns an error when `m` is outside `1..=1000`, `f0` is nonfinite or
-/// outside `-0.5..=0.5`, or `as_` is zero or negative.
+/// outside `-0.5..=0.5`, or `as_` is nonfinite, zero or negative.
 pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
     // validate inputs
     if !(1..=1000).contains(&m) {
@@ -376,8 +377,8 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
     if !(-0.5..=0.5).contains(&f0) {
         return Err(Error::Config(format!("notch frequency ({}) out of range [-0.5,0.5]", f0)));
     }
-    if as_ <= 0.0 {
-        return Err(Error::Config("stop-band attenuation must be greater than zero".into()));
+    if !as_.is_finite() || as_ <= 0.0 {
+        return Err(Error::Config("stop-band attenuation must be finite and greater than zero".into()));
     }
 
     let mut h = vec![0.0; 2 * m + 1];
@@ -520,10 +521,25 @@ pub fn fir_design_prototype(
 /// `k` is the Rice factor as a linear power ratio. `theta` is the angle
 /// between the line-of-sight path and the direction of motion, in radians.
 ///
-/// This designer does not validate its parameters. Supply a nonzero `n`, an
-/// `fd` in `0.0..0.5`, and a nonnegative `k`.
-/// This never returns an error.
+/// # Errors
+///
+/// Returns an error when `n` is zero, `fd` is nonfinite or outside `[0, 0.5)`,
+/// `k` is nonfinite or negative, or `theta` is nonfinite. Any finite angle is
+/// accepted.
 pub fn fir_design_doppler(n: usize, fd: f32, k: f32, theta: f32) -> Result<Vec<f32>> {
+    if n == 0 {
+        return Err(Error::Config("filter length must be greater than zero".into()));
+    }
+    if !(0.0..0.5).contains(&fd) {
+        return Err(Error::Config("Doppler frequency must be in [0,0.5)".into()));
+    }
+    if !k.is_finite() || k < 0.0 {
+        return Err(Error::Config("Rice factor must be finite and non-negative".into()));
+    }
+    if !theta.is_finite() {
+        return Err(Error::Config("line-of-sight angle must be finite".into()));
+    }
+
     let beta = 4.0;
     let mut h = vec![0.0; n];
     for (i, hi) in h.iter_mut().enumerate() {
@@ -653,10 +669,10 @@ pub fn filter_isi(h: &[f32], k: usize, m: usize) -> (f32, f32) {
 ///
 /// # Errors
 ///
-/// Returns an error when `h` is empty, `nfft` is zero, or `fc` is outside
+/// Returns an error when `h` is empty, `nfft` is zero, or `fc` is nonfinite or outside
 /// `0.0..=0.5`.
 pub fn filter_energy(h: &[f32], fc: f32, nfft: usize) -> Result<f32> {
-    if fc < 0.0 || fc > 0.5 {
+    if !(0.0..=0.5).contains(&fc) {
         return Err(Error::Config(format!("cutoff frequency ({}) out of range [0, 0.5]", fc)));
     }
     if h.is_empty() {
@@ -728,12 +744,13 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `h` is empty or `fc` is outside `-0.5..=0.5`.
+/// Returns an error when `h` is empty or `fc` is nonfinite or outside
+/// `-0.5..=0.5`.
 pub fn fir_group_delay(h: &[f32], fc: f32) -> Result<f32> {
     // validate input
     if h.is_empty() {
         return Err(Error::Config("fir_group_delay(), length must be greater than zero".to_string()));
-    } else if fc < -0.5 || fc > 0.5 {
+    } else if !(-0.5..=0.5).contains(&fc) {
         return Err(Error::Config("fir_group_delay(), _fc must be in [-0.5,0.5]".to_string()));
     }
 

@@ -122,7 +122,7 @@ where
     ///
     /// Returns an error when `interpolation_factor` is less than two,
     /// `filter_delay` is zero, either `excess_bandwidth` or `fractional_delay`
-    /// is outside its range, or the selected prototype rejects the
+    /// is nonfinite or outside its range, or the selected prototype rejects the
     /// configuration.
     pub fn new_prototype(
         filter_shape: filter::FirFilterShape,
@@ -137,10 +137,10 @@ where
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
-        if fractional_delay < -1.0 || fractional_delay > 1.0 {
+        if !(-1.0..=1.0).contains(&fractional_delay) {
             return Err(Error::Config("filter fractional sample delay must be in [-1,1]".into()));
         }
 
@@ -324,6 +324,37 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_firinterp_prototype_parameter_ranges() {
+        for shape in [filter::FirFilterShape::Pm, filter::FirFilterShape::Hm3, filter::FirFilterShape::Rcos] {
+            for delay in [f32::NAN, f32::NEG_INFINITY, f32::INFINITY, -1.0001, 1.0001] {
+                assert!(matches!(
+                    FirInterpolationFilter::<Complex32, f32>::new_prototype(shape, 2, 3, 0.5, delay),
+                    Err(Error::Config(_))
+                ));
+            }
+            for beta in [f32::NAN, f32::NEG_INFINITY, f32::INFINITY, -0.0001, 1.0001] {
+                assert!(matches!(
+                    FirInterpolationFilter::<Complex32, f32>::new_prototype(shape, 2, 3, beta, 0.0),
+                    Err(Error::Config(_))
+                ));
+            }
+        }
+
+        for beta in [0.0, 1.0] {
+            for delay in [-1.0, 0.0, 1.0] {
+                assert!(FirInterpolationFilter::<Complex32, f32>::new_prototype(
+                    filter::FirFilterShape::Rcos,
+                    2,
+                    3,
+                    beta,
+                    delay
+                )
+                .is_ok());
+            }
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_firinterp_rrrf_common)]

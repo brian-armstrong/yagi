@@ -77,13 +77,13 @@ where
     ///   that generates each tap. Must be nonzero.
     /// - `cutoff_frequency`: low-pass cutoff, in cycles per sample, in
     ///   `[0, 0.5]`.
-    /// - `stopband_attenuation`: in dB. Must not be negative.
+    /// - `stopband_attenuation`: in dB. Must be finite and non-negative.
     ///
     /// # Errors
     ///
     /// Returns an error when `filter_length` is less than two,
     /// `polynomial_order` is zero, `cutoff_frequency` is outside `[0, 0.5]`,
-    /// `stopband_attenuation` is negative, or the polynomial fit fails.
+    /// `stopband_attenuation` is nonfinite or negative, or the polynomial fit fails.
     ///
     /// # Panics
     ///
@@ -102,11 +102,11 @@ where
         if polynomial_order < 1 {
             return Err(Error::Config("polynomial order must be at least 1".into()));
         }
-        if cutoff_frequency < 0.0 || cutoff_frequency > 0.5 {
+        if !(0.0..=0.5).contains(&cutoff_frequency) {
             return Err(Error::Config("filter cutoff must be in [0,0.5]".into()));
         }
-        if stopband_attenuation < 0.0 {
-            return Err(Error::Config("filter stop-band attenuation must be non-negative".into()));
+        if !stopband_attenuation.is_finite() || stopband_attenuation < 0.0 {
+            return Err(Error::Config("filter stop-band attenuation must be finite and non-negative".into()));
         }
 
         let mut q = Self {
@@ -163,10 +163,10 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `fractional_delay` is outside `[-1, 1]`. The
-    /// filter is unchanged on error.
+    /// Returns an error when `fractional_delay` is nonfinite or outside `[-1, 1]`.
+    /// The filter is unchanged on error.
     pub fn set_delay(&mut self, fractional_delay: f32) -> Result<()> {
-        if fractional_delay < -1.0 || fractional_delay > 1.0 {
+        if !(-1.0..=1.0).contains(&fractional_delay) {
             return Err(Error::Config("delay must be in [-1,1]".into()));
         }
 
@@ -303,6 +303,59 @@ mod tests {
     use super::*;
     use crate::utility::test_helpers::validate_block_execute;
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_firfarrow_rejects_invalid_design_parameters() {
+        let above_half = f32::from_bits(0.5f32.to_bits() + 1);
+        for cutoff in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON, above_half] {
+            assert!(matches!(FirFarrowFilter::<f32>::new(19, 5, cutoff, 60.0), Err(Error::Config(_))));
+        }
+        for attenuation in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON] {
+            assert!(matches!(FirFarrowFilter::<f32>::new(19, 5, 0.4, attenuation), Err(Error::Config(_))));
+        }
+        for cutoff in [0.0, 0.5] {
+            for attenuation in [0.0, 60.0] {
+                let mut filter = FirFarrowFilter::<f32>::new(19, 5, cutoff, attenuation).unwrap();
+                let mut output = [0.0; 32];
+                filter.execute_block(&[1.0; 32], &mut output).unwrap();
+                for &value in &output[19..] {
+                    assert_abs_diff_eq!(value, 1.0, epsilon = 1e-6);
+                }
+            }
+        }
+        // At zero cutoff and attenuation, the filter is a moving average.
+        let mut filter = FirFarrowFilter::<f32>::new(5, 3, 0.0, 0.0).unwrap();
+        let mut output = [0.0; 7];
+        filter.execute_block(&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], &mut output).unwrap();
+        for (actual, expected) in output.into_iter().zip([0.2, 0.2, 0.2, 0.2, 0.2, 0.0, 0.0]) {
+            assert_abs_diff_eq!(actual, expected, epsilon = 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_firfarrow_rejected_delay_preserves_stream() {
+        let mut initial = FirFarrowFilter::<Complex32, f32>::new(19, 5, 0.4, 60.0).unwrap();
+        initial.set_delay(0.375).unwrap();
+        let input: Vec<_> = (0..64)
+            .map(|i| {
+                let t = i as f32;
+                Complex32::new((0.17 * t).sin(), (0.29 * t).cos())
+            })
+            .collect();
+        initial.execute_block(&input, &mut [Complex32::default(); 64]).unwrap();
+        let outside = f32::from_bits(1.0f32.to_bits() + 1);
+        for delay in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -outside, outside] {
+            let mut filter = initial.clone();
+            assert!(matches!(filter.set_delay(delay), Err(Error::Config(_))));
+            assert_eq!(filter.coefficients(), initial.coefficients());
+            let mut reference = initial.clone();
+            let mut actual = [Complex32::default(); 64];
+            let mut expected = actual;
+            filter.execute_block(&input, &mut actual).unwrap();
+            reference.execute_block(&input, &mut expected).unwrap();
+            assert_eq!(actual, expected);
+        }
+    }
 
     /// estimate the group delay of an impulse response from the phase at a
     /// single low frequency, as the fdelay testbench does

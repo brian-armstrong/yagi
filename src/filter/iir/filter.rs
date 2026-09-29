@@ -31,10 +31,11 @@ enum IirFilterType {
 ///   for Chebyshev I and elliptic, and the stopband edge for Chebyshev II.
 /// - `center_frequency`: in cycles per sample, in `[0, 0.5]`. Only band-pass
 ///   and band-stop designs use it, but it is range-checked for every design.
-/// - `passband_ripple`: in dB. Must be positive. Used by Chebyshev I and
-///   elliptic, but checked for every shape.
-/// - `stopband_attenuation`: in dB. Must be positive. Used by Chebyshev II and
-///   elliptic, but checked for every shape.
+/// - `passband_ripple`: in dB. Must be finite and positive. Used by Chebyshev I
+///   and elliptic, but checked for every shape.
+/// - `stopband_attenuation`: in dB. Must be finite and positive. Used by
+///   Chebyshev II and elliptic, but checked for every shape. For elliptic
+///   designs, it must exceed `passband_ripple`.
 ///
 /// For band-pass and band-stop designs, `cutoff_frequency` is one band edge and
 /// `center_frequency` sets the other, as described by
@@ -249,20 +250,20 @@ where
 ///
 /// The pole sits at `1 - alpha`. A small `alpha` gives a narrow notch around DC.
 /// The filter is stable only for `0 < alpha < 2`. At `alpha == 2` the pole is on
-/// the unit circle, and larger values are unstable. Only zero and negative
-/// values are rejected. Use [`iir_filter_design_dc_blocker_scale`] for the
+/// the unit circle, and larger values are unstable. Only nonfinite, zero and
+/// negative values are rejected. Use [`iir_filter_design_dc_blocker_scale`] for the
 /// matching output scale.
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha` is zero or negative.
+/// Returns an error when `alpha` is nonfinite, zero or negative.
 pub fn iir_filter_design_dc_blocker<Coeff>(alpha: f32) -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    if alpha <= 0.0 {
-        return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));
+    if !alpha.is_finite() || alpha <= 0.0 {
+        return Err(Error::Config("DC-blocking filter bandwidth must be finite and greater than zero".into()));
     }
 
     let bf = [1.0, -1.0];
@@ -282,13 +283,13 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha` is zero or negative.
+/// Returns an error when `alpha` is nonfinite, zero or negative.
 pub fn iir_filter_design_dc_blocker_scale<Coeff>(alpha: f32) -> Result<Coeff>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
-    if alpha <= 0.0 {
-        return Err(Error::Config("DC-blocking filter bandwidth must be greater than zero".into()));
+    if !alpha.is_finite() || alpha <= 0.0 {
+        return Err(Error::Config("DC-blocking filter bandwidth must be finite and greater than zero".into()));
     }
 
     Ok(Coeff::from((1.0 - alpha).sqrt()).unwrap())
@@ -303,7 +304,7 @@ where
 /// # Errors
 ///
 /// Returns an error when `natural_frequency`, `damping_factor`, or `loop_gain`
-/// is zero or negative.
+/// is nonfinite, zero or negative.
 pub fn iir_filter_design_pll<Coeff>(
     natural_frequency: f32,
     damping_factor: f32,
@@ -313,14 +314,14 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    if natural_frequency <= 0.0 {
-        return Err(Error::Config("PLL natural frequency must be greater than zero".into()));
+    if !natural_frequency.is_finite() || natural_frequency <= 0.0 {
+        return Err(Error::Config("PLL natural frequency must be finite and greater than zero".into()));
     }
-    if damping_factor <= 0.0 {
-        return Err(Error::Config("PLL damping factor must be greater than zero".into()));
+    if !damping_factor.is_finite() || damping_factor <= 0.0 {
+        return Err(Error::Config("PLL damping factor must be finite and greater than zero".into()));
     }
-    if loop_gain <= 0.0 {
-        return Err(Error::Config("PLL loop gain must be greater than zero".into()));
+    if !loop_gain.is_finite() || loop_gain <= 0.0 {
+        return Err(Error::Config("PLL loop gain must be finite and greater than zero".into()));
     }
 
     let mut bf = [0.0; 3];
@@ -435,7 +436,7 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `b` or `a` is empty, or when `fc` is outside
+/// Returns an error when `b` or `a` is empty, or when `fc` is nonfinite or outside
 /// `[-0.5, 0.5]`.
 pub fn iir_filter_groupdelay<Coeff>(b: &[Coeff], a: &[Coeff], fc: f32) -> Result<f32>
 where
@@ -463,7 +464,7 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `fc` is outside `[-0.5, 0.5]`.
+/// Returns an error when `fc` is nonfinite or outside `[-0.5, 0.5]`.
 ///
 /// # Panics
 ///
@@ -728,7 +729,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `alpha` is zero or negative.
+    /// Returns an error when `alpha` is nonfinite, zero or negative.
     pub fn new_dc_blocker(alpha: f32) -> Result<Self> {
         let (b, a, _nsos) = iir_filter_design_dc_blocker(alpha)?;
         let scale = iir_filter_design_dc_blocker_scale(alpha)?;
@@ -746,7 +747,7 @@ where
     /// # Errors
     ///
     /// Returns an error when `natural_frequency`, `damping_factor`, or `loop_gain`
-    /// is zero or negative.
+    /// is nonfinite, zero or negative.
     pub fn new_pll(natural_frequency: f32, damping_factor: f32, loop_gain: f32) -> Result<Self> {
         let (b, a, _num_sections) = iir_filter_design_pll(natural_frequency, damping_factor, loop_gain)?;
         Self::new_sos(&b, &a)
@@ -789,19 +790,8 @@ where
     /// # Errors
     ///
     /// Returns an error when a transfer-function filter receives slices of the wrong
-    /// length, or when a cascade with more than one section receives a nonempty
-    /// slice. The filter is unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics when a single-section cascade receives a slice shorter than three, or
-    /// when a cascade with more than one section receives two empty slices.
-    ///
-    /// # Warning
-    ///
-    /// On a single-section cascade, the filter runs the new coefficients but
-    /// [`Self::coeffs`], [`Self::freqresponse`], [`Self::psd`], and
-    /// [`Self::groupdelay`] still describe the old section.
+    /// length, a single-section cascade receives a slice shorter than three, or
+    /// the cascade has more than one section. The filter is unchanged on error.
     pub fn set_coefficients(
         &mut self,
         numerator_coefficients: &[Coeff],
@@ -810,8 +800,19 @@ where
         let b = numerator_coefficients;
         let a = denominator_coefficients;
 
-        if self.filter_type == IirFilterType::Sos && self.qsos.len() == 1 {
-            return self.qsos[0].set_coefficients(&[b[0], b[1], b[2]], &[a[0], a[1], a[2]]);
+        if self.filter_type == IirFilterType::Sos {
+            if self.qsos.len() != 1 {
+                return Err(Error::Config("cannot update a cascade with more than one section".into()));
+            }
+            if b.len() < 3 || a.len() < 3 {
+                return Err(Error::Config(
+                    "a second-order section requires three numerator and denominator coefficients".into(),
+                ));
+            }
+            self.qsos[0].set_coefficients(&[b[0], b[1], b[2]], &[a[0], a[1], a[2]])?;
+            self.b.copy_from_slice(&b[..3]);
+            self.a.copy_from_slice(&a[..3]);
+            return Ok(());
         }
 
         if b.len() != self.nb || a.len() != self.na {
@@ -837,9 +838,8 @@ where
     ///
     /// For a transfer-function filter, they are normalized by the first denominator
     /// coefficient. For a cascade, they are the section coefficients as passed to
-    /// [`Self::new_sos`], three per section and not normalized. After
-    /// [`Self::set_coefficients`] on a single-section cascade, they still hold the
-    /// original section.
+    /// [`Self::new_sos`] or [`Self::set_coefficients`], three per section and not
+    /// normalized.
     pub fn coeffs(&self) -> (Vec<Coeff>, Vec<Coeff>) {
         (self.b.clone(), self.a.clone())
     }
@@ -971,9 +971,6 @@ where
 
     /// Evaluates the frequency response at `fc` cycles per sample, including the
     /// output scale.
-    ///
-    /// After [`Self::set_coefficients`] on a single-section cascade, it still
-    /// describes the old section.
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_freqresponse(&self.b, &self.a, self.scale, fc)
@@ -985,8 +982,7 @@ where
     /// Evaluates the power response in dB at `fc` cycles per sample, including the
     /// output scale.
     ///
-    /// A response null gives negative infinity. After [`Self::set_coefficients`] on
-    /// a single-section cascade, it still describes the old section.
+    /// A response null gives negative infinity.
     pub fn psd(&self, fc: f32) -> f32 {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_get_psd(&self.b, &self.a, self.scale, fc)
@@ -998,12 +994,10 @@ where
     /// Estimates the group delay in samples at `fc` cycles per sample.
     ///
     /// The output scale and the imaginary parts of the coefficients are ignored.
-    /// After [`Self::set_coefficients`] on a single-section cascade, the estimate
-    /// still describes the old section.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
+    /// Returns an error when `fc` is nonfinite or outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         if self.filter_type == IirFilterType::Norm {
             iir_filter_groupdelay(&self.b, &self.a, fc)

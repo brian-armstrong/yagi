@@ -580,11 +580,11 @@ pub fn iir_design_lp2bp(
 /// - `f0`: the center frequency for band-pass and band-stop designs, in
 ///   cycles per sample. Must lie in `[0, 0.5]` for every band type, including
 ///   those that ignore it.
-/// - `ap`: passband ripple in dB. Must be positive. Used by Chebyshev type I
-///   and elliptic.
-/// - `as_`: stopband attenuation in dB. Must be positive. Used by Chebyshev
-///   type II and elliptic. An elliptic design also needs `as_` greater than
-///   `ap`. Otherwise it returns `Ok` with `NaN` coefficients.
+/// - `ap`: passband ripple in dB. Must be finite and positive. Used by
+///   Chebyshev type I and elliptic.
+/// - `as_`: stopband attenuation in dB. Must be finite and positive. Used by
+///   Chebyshev type II and elliptic. An elliptic design also needs `as_` greater than
+///   `ap`.
 /// - `b`, `a`: output coefficients in ascending powers of `z^-1`, sized as
 ///   described below.
 ///
@@ -607,8 +607,9 @@ pub fn iir_design_lp2bp(
 ///
 /// # Errors
 ///
-/// Returns an error when `n` is zero, a parameter is out of range, a design
-/// step fails, or a transfer-function output slice is too short.
+/// Returns an error when `n` is zero, a parameter is out of range, an elliptic
+/// design has `as_ <= ap`, a design step fails, or a transfer-function output
+/// slice is too short.
 ///
 /// # Panics
 ///
@@ -627,17 +628,20 @@ pub fn iir_design(
     a: &mut [f32],
 ) -> Result<()> {
     // validate input
-    if fc <= 0.0 || fc >= 0.5 {
+    if !(fc > 0.0 && fc < 0.5) {
         return Err(Error::Config("cutoff frequency out of range".into()));
     }
-    if f0 < 0.0 || f0 > 0.5 {
+    if !(0.0..=0.5).contains(&f0) {
         return Err(Error::Config("center frequency out of range".into()));
     }
-    if ap <= 0.0 {
+    if !ap.is_finite() || ap <= 0.0 {
         return Err(Error::Config("pass-band ripple out of range".into()));
     }
-    if as_ <= 0.0 {
+    if !as_.is_finite() || as_ <= 0.0 {
         return Err(Error::Config("stop-band ripple out of range".into()));
+    }
+    if ftype == IirFilterShape::Ellip && as_ <= ap {
+        return Err(Error::Config("elliptic stop-band attenuation must exceed pass-band ripple".into()));
     }
     if n == 0 {
         return Err(Error::Config("filter order must be > 0".into()));
@@ -821,7 +825,7 @@ pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
 ///
 /// # Errors
 ///
-/// Returns an error when `b` or `a` is empty, or when `fc` is outside
+/// Returns an error when `b` or `a` is empty, or when `fc` is nonfinite or outside
 /// `[-0.5, 0.5]`.
 pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
     // validate input
@@ -831,7 +835,7 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
     if a.is_empty() {
         return Err(Error::Config("iir_group_delay(), denominator length must be greater than zero".to_string()));
     }
-    if fc < -0.5 || fc > 0.5 {
+    if !(-0.5..=0.5).contains(&fc) {
         return Err(Error::Config("iir_group_delay(), _fc must be in [-0.5,0.5]".to_string()));
     }
 

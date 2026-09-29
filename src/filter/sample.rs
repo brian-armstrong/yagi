@@ -42,7 +42,7 @@ pub trait Sample: Default + ComplexFloat<Real = f32> + From<f32> + private::Seal
     /// # Errors
     ///
     /// Returns an error when `filter_delay` is outside `1..=1000`,
-    /// `stopband_attenuation` is zero or negative, or `center_frequency` is
+    /// `stopband_attenuation` is nonfinite, zero or negative, or `center_frequency` is
     /// nonfinite or outside `[-0.5, 0.5]`.
     fn notch_coefficients(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Vec<Self>>;
 }

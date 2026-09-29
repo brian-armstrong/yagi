@@ -67,8 +67,8 @@ where
     /// # Errors
     ///
     /// Returns an error when `num_stages` is above 16, `cutoff_frequency` is
-    /// outside its range, `center_frequency` is nonzero, or a stage design
-    /// rejects `stopband_attenuation`.
+    /// nonfinite or outside its range, `center_frequency` is nonzero, or a
+    /// stage design rejects `stopband_attenuation`.
     pub fn new(
         resampler_type: ResampType,
         num_stages: usize,
@@ -79,7 +79,7 @@ where
         if num_stages > 16 {
             return Err(Error::Config("number of stages should not exceed 16".into()));
         }
-        if cutoff_frequency <= 0.0 || cutoff_frequency >= 0.5 {
+        if !(cutoff_frequency > 0.0 && cutoff_frequency < 0.5) {
             return Err(Error::Config("cut-off frequency must be in (0,0.5)".into()));
         }
         if center_frequency != 0.0 {

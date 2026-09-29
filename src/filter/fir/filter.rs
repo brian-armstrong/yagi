@@ -13,7 +13,7 @@ use num_complex::{Complex32, ComplexFloat};
 ///
 /// - `n`: number of taps. Must be nonzero.
 /// - `fc`: cutoff frequency, in cycles per sample, in `(0, 0.5]`.
-/// - `as_`: stopband attenuation, in dB. Must be positive.
+/// - `as_`: stopband attenuation, in dB. Must be finite and positive.
 /// - `mu`: fractional delay, in samples, in `[-1, 1]`. A positive value moves
 ///   the impulse response earlier.
 ///
@@ -22,7 +22,7 @@ use num_complex::{Complex32, ComplexFloat};
 /// # Errors
 ///
 /// Returns an error when `n` is zero, `fc` is outside `(0, 0.5]`, `as_` is
-/// zero or negative, or `mu` is outside `[-1, 1]`.
+/// nonfinite, zero or negative, or `mu` is outside `[-1, 1]`.
 pub fn fir_filter_design_kaiser<Coeff>(n: usize, fc: f32, as_: f32, mu: f32) -> Result<Vec<Coeff>>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -88,7 +88,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
 {
-    let mut h = filter::fir::design::fir_design_pm_lowpass(h_len, fc, as_, 0.0)?;
+    let mut h = filter::fir::design::fir_design_pm_lowpass(h_len, fc, as_)?;
     // scale by filter bandwidth to be consistent with other lowpass prototypes
     for h_i in h.iter_mut() {
         *h_i = *h_i * 0.5 / fc;
@@ -122,7 +122,8 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `m` is outside `1..=1000` or `as_` is zero or negative.
+/// Returns an error when `m` is outside `1..=1000` or `as_` is nonfinite, zero
+/// or negative.
 pub fn fir_filter_design_dc_blocker<Coeff>(m: usize, as_: f32) -> Result<Vec<Coeff>>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -149,7 +150,7 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `m` is outside `1..=1000`, `as_` is zero or negative,
+/// Returns an error when `m` is outside `1..=1000`, `as_` is nonfinite, zero or negative,
 /// or `f0` is nonfinite or outside `[-0.5, 0.5]`.
 pub fn fir_filter_design_notch<Coeff>(m: usize, as_: f32, f0: f32) -> Result<Vec<Coeff>>
 where
@@ -191,7 +192,8 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error when `h` is empty or `fc` is outside `[-0.5, 0.5]`.
+/// Returns an error when `h` is empty or `fc` is nonfinite or outside
+/// `[-0.5, 0.5]`.
 pub fn fir_filter_groupdelay<Coeff>(h: &[Coeff], fc: f32) -> Result<f32>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
@@ -261,7 +263,7 @@ where
     ///
     /// - `filter_length`: number of taps. Must be nonzero.
     /// - `cutoff_frequency`: in cycles per sample, in `(0, 0.5]`.
-    /// - `stopband_attenuation`: in dB. Must be positive.
+    /// - `stopband_attenuation`: in dB. Must be finite and positive.
     /// - `fractional_delay`: in samples, in `[-1, 1]`. A positive value moves
     ///   the impulse response earlier.
     ///
@@ -272,7 +274,7 @@ where
     /// # Errors
     ///
     /// Returns an error when `filter_length` is zero, `cutoff_frequency` is
-    /// outside `(0, 0.5]`, `stopband_attenuation` is zero or negative, or
+    /// outside `(0, 0.5]`, `stopband_attenuation` is nonfinite, zero or negative, or
     /// `fractional_delay` is outside `[-1, 1]`.
     pub fn new_kaiser(
         filter_length: usize,
@@ -359,7 +361,7 @@ where
     /// # Errors
     ///
     /// Returns an error when `filter_delay` is outside `1..=1000` or
-    /// `stopband_attenuation` is zero or negative.
+    /// `stopband_attenuation` is nonfinite, zero or negative.
     pub fn new_dc_blocker(filter_delay: usize, stopband_attenuation: f32) -> Result<Self> {
         let h = fir_filter_design_dc_blocker(filter_delay, stopband_attenuation)?;
         Self::new(&h)
@@ -376,7 +378,7 @@ where
     /// # Errors
     ///
     /// Returns an error when `filter_delay` is outside `1..=1000`,
-    /// `stopband_attenuation` is zero or negative, or `center_frequency` is
+    /// `stopband_attenuation` is nonfinite, zero or negative, or `center_frequency` is
     /// nonfinite or outside `[-0.5, 0.5]`.
     pub fn new_notch(filter_delay: usize, stopband_attenuation: f32, center_frequency: f32) -> Result<Self> {
         let h = fir_filter_design_notch(filter_delay, stopband_attenuation, center_frequency)?;
@@ -515,7 +517,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `fc` is outside `[-0.5, 0.5]`.
+    /// Returns an error when `fc` is nonfinite or outside `[-0.5, 0.5]`.
     pub fn groupdelay(&self, fc: f32) -> Result<f32> {
         fir_filter_groupdelay(&self.h, fc)
     }
@@ -583,6 +585,24 @@ mod tests {
         ];
 
         assert!(validate_psd_firfilt(&q, 301, &regions).unwrap());
+    }
+
+    #[test]
+    fn test_fir_notch_rejects_nonfinite_attenuation() {
+        for attenuation in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -1.0] {
+            assert!(matches!(filter::fir::design::fir_design_notch(1, 0.0, attenuation), Err(Error::Config(_))));
+            assert!(matches!(fir_filter_design_notch::<f32>(1, attenuation, 0.125), Err(Error::Config(_))));
+            assert!(matches!(fir_filter_design_notch::<Complex32>(1, attenuation, 0.125), Err(Error::Config(_))));
+            assert!(matches!(FirFilter::<f32>::new_notch(1, attenuation, 0.125), Err(Error::Config(_))));
+            assert!(matches!(FirFilter::<Complex32>::new_notch(1, attenuation, 0.125), Err(Error::Config(_))));
+            assert!(matches!(fir_filter_design_dc_blocker::<f32>(1, attenuation), Err(Error::Config(_))));
+            assert!(matches!(FirFilter::<f32>::new_dc_blocker(1, attenuation), Err(Error::Config(_))));
+        }
+        // At DC and attenuation below 21 dB, subtract the three-tap moving average.
+        let h = filter::fir::design::fir_design_notch(1, 0.0, 10.0).unwrap();
+        for (&actual, expected) in h.iter().zip([-1.0 / 3.0, 2.0 / 3.0, -1.0 / 3.0]) {
+            assert_abs_diff_eq!(actual, expected, epsilon = 1e-6);
+        }
     }
 
     #[test]

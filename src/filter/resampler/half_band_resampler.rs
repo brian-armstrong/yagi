@@ -57,8 +57,9 @@ where
     /// # Errors
     ///
     /// Returns an error when `filter_semi_length` is less than two,
-    /// `center_frequency` is outside its range, `stopband_attenuation` is
-    /// negative, or the filter design rejects the attenuation.
+    /// `center_frequency` is nonfinite or outside its range,
+    /// `stopband_attenuation` is nonfinite or negative, or the filter design
+    /// rejects the attenuation.
     ///
     /// # Panics
     ///
@@ -69,12 +70,12 @@ where
         if filter_semi_length < 2 {
             return Err(Error::Config("filter semi-length must be at least 2".into()));
         }
-        if center_frequency < -0.5 || center_frequency > 0.5 {
+        if !(-0.5..=0.5).contains(&center_frequency) {
             return Err(Error::Config(format!("center frequency ({}) must be in [-0.5,0.5]", center_frequency)));
         }
-        if stopband_attenuation < 0.0 {
+        if !stopband_attenuation.is_finite() || stopband_attenuation < 0.0 {
             return Err(Error::Config(format!(
-                "stopband attenuation ({}) must be greater than zero",
+                "stopband attenuation ({}) must be finite and non-negative",
                 stopband_attenuation
             )));
         }
@@ -876,6 +877,23 @@ mod tests {
                 assert_eq!(q_block.w0.read(), q_sample.w0.read(), "m={m}, n={n}, w0");
                 assert_eq!(q_block.w1.read(), q_sample.w1.read(), "m={m}, n={n}, w1");
             }
+        }
+    }
+
+    #[test]
+    fn test_resamp2_rejects_nonfinite_design_parameters() {
+        let outside = f32::from_bits(0.5f32.to_bits() + 1);
+        for frequency in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -outside, outside] {
+            assert!(matches!(HalfBandResampler::<f32>::new(4, frequency, 60.0), Err(Error::Config(_))));
+            assert!(matches!(HalfBandResampler::<Complex32>::new(4, frequency, 60.0), Err(Error::Config(_))));
+        }
+        for attenuation in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON] {
+            assert!(matches!(HalfBandResampler::<f32>::new(4, 0.0, attenuation), Err(Error::Config(_))));
+            assert!(matches!(HalfBandResampler::<Complex32>::new(4, 0.0, attenuation), Err(Error::Config(_))));
+        }
+        for frequency in [-0.5, 0.0, 0.5] {
+            assert!(HalfBandResampler::<f32>::new(4, frequency, 60.0).is_ok());
+            assert!(HalfBandResampler::<Complex32>::new(4, frequency, 60.0).is_ok());
         }
     }
 }

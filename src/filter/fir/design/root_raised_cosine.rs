@@ -15,7 +15,7 @@ use std::f64::consts::PI;
 ///
 /// # Errors
 ///
-/// Returns an error when `k` or `m` is zero, or `beta` is outside
+/// Returns an error when `k` or `m` is zero, or `beta` is nonfinite or outside
 /// `0.0..=1.0`.
 ///
 /// # Panics
@@ -29,7 +29,7 @@ pub fn fir_design_rrcos(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
     if m < 1 {
         return Err(Error::Config("m must be greater than 0".into()));
     }
-    if beta < 0.0 || beta > 1.0 {
+    if !(0.0..=1.0).contains(&beta) {
         return Err(Error::Config("beta must be in [0,1]".into()));
     }
 
@@ -83,6 +83,26 @@ mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_rrcos_rolloff_range() {
+        let above_one = f32::from_bits(1.0f32.to_bits() + 1);
+        for beta in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON, above_one] {
+            assert!(matches!(fir_design_rrcos(4, 3, beta, 0.0), Err(Error::Config(_))));
+        }
+        let pi = std::f32::consts::PI;
+        // Zero rolloff gives sinc(t), sampled at t = 0, 1/4, 1/2 and 1.
+        let h = fir_design_rrcos(4, 3, 0.0, 0.0).unwrap();
+        assert_abs_diff_eq!(h[12], 1.0, epsilon = 1e-6);
+        assert_abs_diff_eq!(h[13], 2.0 * 2.0f32.sqrt() / pi, epsilon = 1e-6);
+        assert_abs_diff_eq!(h[14], 2.0 / pi, epsilon = 1e-6);
+        assert_abs_diff_eq!(h[16], 0.0, epsilon = 1e-6);
+        // Unit rolloff includes the removable singularity at t = 1/4.
+        let h = fir_design_rrcos(4, 3, 1.0, 0.0).unwrap();
+        assert_abs_diff_eq!(h[12], 4.0 / pi, epsilon = 1e-6);
+        assert_abs_diff_eq!(h[13], 1.0, epsilon = 1e-6);
+        assert_abs_diff_eq!(h[14], 4.0 / (3.0 * pi), epsilon = 1e-6);
+    }
 
     #[test]
     #[autotest_annotate(autotest_liquid_firdes_rrcos)]

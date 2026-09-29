@@ -24,7 +24,7 @@ use crate::error::{Error, Result};
 /// # Errors
 ///
 /// Returns an error when `natural_frequency`, `damping_factor`, or
-/// `loop_gain` is zero or negative. `b` and `a` are unchanged on error.
+/// `loop_gain` is nonfinite, zero or negative. `b` and `a` are unchanged on error.
 pub fn iir_design_pll_active_lag(
     natural_frequency: f32,
     damping_factor: f32,
@@ -33,12 +33,12 @@ pub fn iir_design_pll_active_lag(
     a: &mut [f32; 3],
 ) -> Result<()> {
     // validate input
-    if natural_frequency <= 0.0 {
-        return Err(Error::Config("natural frequency must be greater than 0".into()));
-    } else if damping_factor <= 0.0 {
-        return Err(Error::Config("damping factor must be greater than 0".into()));
-    } else if loop_gain <= 0.0 {
-        return Err(Error::Config("loop gain must be greater than 0".into()));
+    if !natural_frequency.is_finite() || natural_frequency <= 0.0 {
+        return Err(Error::Config("natural frequency must be finite and greater than 0".into()));
+    } else if !damping_factor.is_finite() || damping_factor <= 0.0 {
+        return Err(Error::Config("damping factor must be finite and greater than 0".into()));
+    } else if !loop_gain.is_finite() || loop_gain <= 0.0 {
+        return Err(Error::Config("loop gain must be finite and greater than 0".into()));
     }
 
     let t1 = loop_gain / (natural_frequency * natural_frequency);
@@ -79,7 +79,7 @@ pub fn iir_design_pll_active_lag(
 /// # Errors
 ///
 /// Returns an error when `natural_frequency`, `damping_factor`, or
-/// `loop_gain` is zero or negative. `b` and `a` are unchanged on error.
+/// `loop_gain` is nonfinite, zero or negative. `b` and `a` are unchanged on error.
 pub fn iir_design_pll_active_pi(
     natural_frequency: f32,
     damping_factor: f32,
@@ -88,12 +88,12 @@ pub fn iir_design_pll_active_pi(
     a: &mut [f32; 3],
 ) -> Result<()> {
     // validate input
-    if natural_frequency <= 0.0 {
-        return Err(Error::Config("natural frequency must be greater than 0".into()));
-    } else if damping_factor <= 0.0 {
-        return Err(Error::Config("damping factor must be greater than 0".into()));
-    } else if loop_gain <= 0.0 {
-        return Err(Error::Config("loop gain must be greater than 0".into()));
+    if !natural_frequency.is_finite() || natural_frequency <= 0.0 {
+        return Err(Error::Config("natural frequency must be finite and greater than 0".into()));
+    } else if !damping_factor.is_finite() || damping_factor <= 0.0 {
+        return Err(Error::Config("damping factor must be finite and greater than 0".into()));
+    } else if !loop_gain.is_finite() || loop_gain <= 0.0 {
+        return Err(Error::Config("loop gain must be finite and greater than 0".into()));
     }
 
     // loop filter (active lag)
