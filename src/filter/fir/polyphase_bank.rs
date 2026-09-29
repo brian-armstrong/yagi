@@ -140,10 +140,10 @@ where
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
         if cutoff_frequency <= 0.0 || cutoff_frequency > 0.5 {
-            return Err(Error::Config("filter cut-off frequency must be in (0,0.5)".into()));
+            return Err(Error::Config("filter cut-off frequency must be in (0,0.5]".into()));
         }
         if stopband_attenuation < 0.0 {
-            return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
+            return Err(Error::Config("stop-band attenuation must be greater than zero".into()));
         }
 
         let h_len = 2 * num_filters * filter_delay + 1;
