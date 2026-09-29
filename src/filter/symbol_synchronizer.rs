@@ -306,12 +306,7 @@ where
     ///
     /// The timing increment returns to its nominal value for the new rate,
     /// which discards any loop correction. The filter history and timing phase
-    /// are kept.
-    ///
-    /// The count of outputs since the last timing update is also kept. The
-    /// loop updates when that count reaches the output rate, so lowering the
-    /// rate below the current count stops timing recovery for good. Call
-    /// [`Self::reset`] after lowering the output rate to clear the count.
+    /// are kept. The count of outputs since the last timing update is cleared.
     ///
     /// # Errors
     ///
@@ -323,6 +318,7 @@ where
         self.k_out = output_rate;
         self.rate = self.k as f32 / self.k_out as f32;
         self.del = self.rate;
+        self.decim_counter = 0;
         Ok(())
     }
 
