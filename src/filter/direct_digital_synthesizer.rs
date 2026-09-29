@@ -66,8 +66,8 @@ impl DirectDigitalSynthesizer {
     ///   of the final output.
     /// - `stopband_attenuation`: in dB.
     ///
-    /// Zero stages are accepted, but [`Self::decim_execute`] then ignores its
-    /// input. Use at least one stage for down-conversion.
+    /// With zero stages, the converter mixes and scales one sample without
+    /// filtering or changing the sample rate.
     ///
     /// # Errors
     ///
@@ -206,16 +206,12 @@ impl DirectDigitalSynthesizer {
     /// The output is divided by [`Self::rate`] and then multiplied by the
     /// scale. Samples beyond the first [`Self::rate`] are ignored.
     ///
-    /// # Warning
-    ///
-    /// With zero stages, this ignores `input` and returns a value from
-    /// internal scratch storage instead. Create the synthesizer with at least
-    /// one stage for down-conversion.
+    /// With zero stages, `input[0]` is mixed down and scaled directly.
     ///
     /// # Panics
     ///
-    /// Panics when `input` is shorter than [`Self::rate`] and there is at least
-    /// one stage. The filter history may already have changed.
+    /// Panics when `input` is shorter than [`Self::rate`]. The filter history
+    /// may already have changed.
     pub fn decim_execute(&mut self, input: &[Complex32]) -> Result<Complex32> {
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
@@ -236,7 +232,7 @@ impl DirectDigitalSynthesizer {
         }
 
         // output value
-        let y = b0[0];
+        let y = if self.num_stages == 0 { input[0] } else { b0[0] };
 
         // increment NCO
         let y = self.ncox.mix_down(y);
@@ -291,6 +287,28 @@ mod tests {
     use crate::filter::fir::design::fir_design_kaiser;
     use crate::framing::ArbitraryRateSymbolStream;
     use crate::utility::test_helpers::{validate_psd_signal, PsdRegion};
+
+    #[test]
+    fn test_dds_zero_stage_decimation() {
+        let scale = Complex32::new(2.0, -0.5);
+        let samples = [Complex32::new(1.0, -2.0), Complex32::new(-3.0, 0.5), Complex32::new(0.0, 0.0)];
+        for fc in [0.0, 0.125, -0.2] {
+            let mut q = DirectDigitalSynthesizer::new(0, fc, 0.1, 60.0).unwrap();
+            q.set_scale(scale);
+            for _ in 0..2 {
+                for i in 0..24 {
+                    let baseband = samples[i % samples.len()];
+                    let carrier = Complex32::from_polar(1.0, 2.0 * PI * fc * i as f32);
+                    let input = [baseband * carrier, Complex32::new(99.0, -99.0)];
+                    let output = q.decim_execute(&input).unwrap();
+                    let expected = baseband * scale;
+                    approx::assert_abs_diff_eq!(output.re, expected.re, epsilon = 1e-4);
+                    approx::assert_abs_diff_eq!(output.im, expected.im, epsilon = 1e-4);
+                }
+                q.reset();
+            }
+        }
+    }
 
     fn testbench_dds_cccf(num_stages: usize, fc: f32, as_: f32) {
         let tol = 1.0f32; // error tolerance [dB]
