@@ -44,13 +44,7 @@ where
     /// Each requested delay is rounded to the nearest `1 / num_filters` of a
     /// sample. The interpolating filter spans `filter_semi_length` samples on
     /// each side of its center and delays the output by that many samples.
-    ///
-    /// # Warning
-    ///
-    /// A new delay line reports a delay of zero through [`Self::delay`], but
-    /// it actually delays by one whole sample until the first
-    /// [`Self::set_delay`] call. Call `set_delay(0.0)` first if the output
-    /// must line up with the reported delay.
+    /// A new line starts with zero requested delay and zero-valued history.
     ///
     /// # Errors
     ///
@@ -83,7 +77,7 @@ where
             delay: 0.0,
             w,
             pfb,
-            w_index: maximum_delay - 1,
+            w_index: maximum_delay,
             f_index: 0,
         };
 
@@ -103,20 +97,18 @@ where
         Self::new(maximum_delay, 8, 64)
     }
 
-    /// Clears the history and sets the reported delay to zero.
+    /// Clears the history and sets the requested delay to zero.
     ///
-    /// Until the next [`Self::set_delay`] call, the line actually delays by one
-    /// whole sample, not zero, as a newly created delay line does. See the
-    /// warning on [`Self::new`].
+    /// The interpolating filter still adds [`Self::m`] samples of delay.
     pub fn reset(&mut self) {
         self.delay = 0.0;
-        self.w_index = self.nmax - 1;
+        self.w_index = self.nmax;
         self.f_index = 0;
         self.w.reset();
         self.pfb.reset();
     }
 
-    /// Returns the delay last set with [`Self::set_delay`], in samples.
+    /// Returns the requested delay in samples, zero after construction or reset.
     ///
     /// The value is the requested delay, before rounding to the nearest
     /// filter phase.
@@ -260,6 +252,47 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_fdelay_new_matches_zero_delay() {
+        for (nmax, m, npfb) in [(1, 2, 16), (9, 4, 32), (20, 8, 64)] {
+            let mut fresh = FractionalDelay::<f32>::new(nmax, m, npfb).unwrap();
+            let mut explicit = fresh.clone();
+            explicit.set_delay(0.0).unwrap();
+            assert_eq!(fresh.delay(), 0.0);
+
+            let mut input = vec![0.0; nmax + 2 * m + 2];
+            input[0] = 1.0;
+            let mut expected = vec![0.0; input.len()];
+            explicit.execute_block(&input, &mut expected).unwrap();
+            for (i, &x) in input.iter().enumerate() {
+                fresh.push(x);
+                let y = fresh.execute().unwrap();
+                assert_abs_diff_eq!(y, expected[i], epsilon = 1e-6);
+                // At phase zero the sinc taps give a pure m-sample delay.
+                assert_abs_diff_eq!(y, if i == m { 1.0 } else { 0.0 }, epsilon = 1e-6);
+            }
+        }
+    }
+
+    #[test]
+    fn test_fdelay_reset_restores_zero_delay() {
+        let mut q = FractionalDelay::<Complex32, f32>::new(9, 4, 32).unwrap();
+        q.set_delay(5.375).unwrap();
+        let warmup = [Complex32::new(1.0, -0.5); 32];
+        q.execute_block(&warmup, &mut [Complex32::default(); 32]).unwrap();
+        q.reset();
+        assert_eq!(q.delay(), 0.0);
+
+        let mut reference = FractionalDelay::<Complex32, f32>::new(9, 4, 32).unwrap();
+        reference.set_delay(0.0).unwrap();
+        let input: Vec<_> = (0..40).map(|i| Complex32::new((i as f32 * 0.13).sin(), (i as f32 * 0.07).cos())).collect();
+        let mut expected = vec![Complex32::default(); input.len()];
+        let mut actual = expected.clone();
+        reference.execute_block(&input, &mut expected).unwrap();
+        q.execute_block(&input, &mut actual).unwrap();
+        assert_eq!(actual, expected);
+    }
 
     fn testbench_fdelay_rrrf(nmax: usize, m: usize, npfb: usize, delay: f32) {
         let tol = 0.01f32;
