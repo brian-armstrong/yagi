@@ -11,7 +11,7 @@ use crate::error::{Error, Result};
 ///
 /// The pulse has `k` samples per symbol and spans `m` symbols on each side of
 /// its center tap, for `2 * k * m + 1` taps. `beta` is the excess bandwidth.
-/// The fractional delay `_dt` is ignored.
+/// The pulse has zero fractional delay.
 ///
 /// The design starts from a Parks-McClellan root-Nyquist filter whose
 /// passband ends at `(1 - beta) / (2 * k)`. It then steps the passband edge
@@ -30,7 +30,7 @@ use crate::error::{Error, Result};
 ///
 /// Panics when `2 * k * m + 1` overflows `usize` and overflow checks are
 /// enabled. Without overflow checks the count wraps.
-pub fn fir_design_hm3(k: usize, m: usize, beta: f32, _dt: f32) -> Result<Vec<f32>> {
+pub fn fir_design_hm3(k: usize, m: usize, beta: f32) -> Result<Vec<f32>> {
     if k < 2 {
         return Err(Error::Config("k must be greater than 1".into()));
     }

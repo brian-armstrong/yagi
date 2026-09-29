@@ -6,8 +6,8 @@
 //!
 //! The pulse-shaping designers describe a pulse by its samples per symbol `k`
 //! and its delay `m` in symbols on each side of the center tap. Their results
-//! have `2 * k * m + 1` taps. A fractional delay `dt` is in samples, and a
-//! positive value moves the pulse earlier.
+//! have `2 * k * m + 1` taps. Where supported, a fractional delay `dt` is in
+//! samples, and a positive value moves the pulse earlier.
 //!
 //! The designers differ in gain. The windowed-sinc and Kaiser low-pass
 //! designers have a DC gain of about `1 / (2 * fc)`. The Parks-McClellan
@@ -422,7 +422,7 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
 /// - `excess_bandwidth`: the rolloff factor, or the bandwidth-time product for
 ///   the GMSK shapes.
 /// - `fractional_delay`: shift in samples. A positive value moves the pulse
-///   earlier. The `Pm` and `Hm3` shapes ignore it.
+///   earlier. The `Pm` shape ignores it, and `Hm3` requires zero.
 ///
 /// The pulse has `2 * samples_per_symbol * filter_delay + 1` taps. Each shape
 /// checks its own parameter ranges, which differ slightly. See the designer
@@ -435,7 +435,7 @@ pub fn fir_design_notch(m: usize, f0: f32, as_: f32) -> Result<Vec<f32>> {
 /// # Errors
 ///
 /// Returns an error when the designer for the selected shape rejects the
-/// parameters.
+/// parameters, or when `Hm3` is selected with nonzero fractional delay.
 ///
 /// # Panics
 ///
@@ -493,7 +493,10 @@ pub fn fir_design_prototype(
             root_raised_cosine::fir_design_rrcos(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
         }
         FirFilterShape::Hm3 => {
-            harris_moerder_3::fir_design_hm3(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
+            if fractional_delay != 0.0 {
+                return Err(Error::Config("Hm3 requires zero fractional delay".into()));
+            }
+            harris_moerder_3::fir_design_hm3(samples_per_symbol, filter_delay, excess_bandwidth)
         }
         FirFilterShape::Gmsktx => {
             gmsk::fir_design_gmsktx(samples_per_symbol, filter_delay, excess_bandwidth, fractional_delay)
