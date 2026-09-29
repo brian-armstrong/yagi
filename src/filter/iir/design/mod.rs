@@ -200,22 +200,17 @@ fn find_conjugate_pairs_cleanup(p: &mut [Complex32], n: usize, num_pairs: usize)
 ///
 /// `fc` is the cutoff in cycles per sample. `f0` is the center frequency in
 /// cycles per sample, and only band-pass and band-stop transformations use
-/// it. Neither frequency is validated. Values that make the formula singular,
-/// such as `fc = 0` for a high-pass transformation, return infinity or `NaN`.
-///
-/// The factor should be non-negative, but this returns the signed formula. It
-/// is negative for every high-pass cutoff, and for band-pass and band-stop
-/// when `cos(2 * pi * fc) < cos(2 * pi * f0)`. A negative factor moves the
-/// poles outside the unit circle, so a design built from it is unstable. See
-/// the warning on [`iir_design`].
+/// it. Neither frequency is validated. The factor is non-negative. For
+/// band-pass and band-stop designs, either band edge may be supplied as `fc`.
 pub fn iir_design_freqprewarp(btype: IirBandType, fc: f32, f0: f32) -> f32 {
     // See [Constantinides:1967]
-    match btype {
+    let m = match btype {
         IirBandType::Lowpass => (PI * fc).tan(),
         IirBandType::Highpass => -(PI * fc).cos() / (PI * fc).sin(),
         IirBandType::Bandpass => ((2.0 * PI * fc).cos() - (2.0 * PI * f0).cos()) / (2.0 * PI * fc).sin(),
         IirBandType::Bandstop => (2.0 * PI * fc).sin() / ((2.0 * PI * fc).cos() - (2.0 * PI * f0).cos()),
-    }
+    };
+    m.abs()
 }
 
 /// Applies a bilinear transform to analog zeros, poles, and gain.
@@ -274,31 +269,27 @@ pub fn iir_design_bilinear_a2d(
     Ok(())
 }
 
-/// Attempts to apply a bilinear transform to analog transfer-function
-/// polynomials.
+/// Applies a bilinear transform to analog transfer-function polynomials.
 ///
-/// `b` and `a` hold ascending powers of `s`, and `bd` and `ad` would receive
-/// ascending powers of `z^-1`. `m` is the prewarp factor.
+/// `b` and `a` hold ascending powers of `s`, with `b_order + 1` and
+/// `a_order + 1` coefficients. Both outputs receive `a_order + 1`
+/// coefficients in ascending powers of `z^-1`, normalized so `ad[0]` is one.
 ///
-/// # Warning
-///
-/// This function never produces a valid transform. For a positive
-/// `a_order`, it clears `bd` and `ad` and then returns an error from its
-/// first polynomial expansion. For a zero `a_order`, it divides by zero and
-/// returns nonfinite coefficients without an error. Use
-/// [`iir_design_bilinear_a2d`] instead.
+/// The substitution is `s = (1 - z^-1) / (m * (1 + z^-1))`, using the same
+/// prewarp factor as [`iir_design_bilinear_a2d`]. `m` must be nonzero, and
+/// the transformed denominator's constant coefficient must be nonzero.
+/// Unlike the root-based transform, this preserves the analog gain factor.
 ///
 /// # Errors
 ///
-/// Returns an error when `b_order` exceeds `a_order`, or whenever `a_order`
-/// is positive.
+/// Returns an error when `a_order` is zero or `b_order` exceeds `a_order`.
 ///
 /// # Panics
 ///
-/// Panics when `bd` or `ad` is shorter than `a_order + 1`, or when `a_order`
-/// is zero and `a` or `b` is empty. With overflow checks enabled, also panics
-/// when `a_order + 1` overflows. Without overflow checks, that count wraps to
-/// zero.
+/// Panics when `a` is shorter than `a_order + 1`, `b` is shorter than
+/// `b_order + 1`, or either output is shorter than `a_order + 1`. With
+/// overflow checks enabled, also panics when `a_order + 1` overflows.
+/// Without overflow checks, that count wraps to zero.
 pub fn iir_design_bilinear_z(
     b: &[Complex32],
     b_order: usize,
@@ -308,6 +299,9 @@ pub fn iir_design_bilinear_z(
     bd: &mut [Complex32],
     ad: &mut [Complex32],
 ) -> Result<()> {
+    if a_order == 0 {
+        return Err(Error::Range("denominator order must be greater than zero".into()));
+    }
     if b_order > a_order {
         return Err(Error::Range("numerator order cannot be higher than denominator".into()));
     }
@@ -321,15 +315,15 @@ pub fn iir_design_bilinear_z(
         ad[i] = Complex32::new(0.0, 0.0);
     }
 
-    // temporary polynomial: (1 + 1/z)^(k) * (1 - 1/z)^(n-k)
+    // temporary polynomial: (1 + 1/z)^(n-i) * (1 - 1/z)^i
     let mut poly_1pz = vec![Complex32::new(0.0, 0.0); na];
 
     let mut mk = Complex32::new(1.0, 0.0);
 
-    // multiply denominator by ((1-1/z)/(1+1/z))^na and expand
+    // substitute s and multiply denominator by (1+1/z)^a_order
     for i in 0..na {
-        // expand the polynomial (1+x)^i * (1-x)^(_a_order-i)
-        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz)?;
+        // expand the polynomial (1+x)^(a_order-i) * (1-x)^i
+        poly_expandbinomial_pm(a_order - i, i, &mut poly_1pz)?;
 
         // accumulate polynomial coefficients
         for j in 0..na {
@@ -337,14 +331,14 @@ pub fn iir_design_bilinear_z(
         }
 
         // update multiplier
-        mk *= m;
+        mk /= m;
     }
 
-    // multiply numerator by ((1-1/z)/(1+1/z))^na and expand
+    // substitute s and multiply numerator by (1+1/z)^a_order
     mk = Complex32::new(1.0, 0.0);
     for i in 0..nb {
-        // expand the polynomial (1+x)^i * (1-x)^(_a_order-i)
-        poly_expandbinomial_pm(a_order, a_order - i, &mut poly_1pz)?;
+        // expand the polynomial (1+x)^(a_order-i) * (1-x)^i
+        poly_expandbinomial_pm(a_order - i, i, &mut poly_1pz)?;
 
         // accumulate polynomial coefficients
         for j in 0..na {
@@ -352,10 +346,10 @@ pub fn iir_design_bilinear_z(
         }
 
         // update multiplier
-        mk *= m;
+        mk /= m;
     }
 
-    // normalize by a[0]
+    // normalize by ad[0]
     let a0_inv = 1.0 / ad[0];
     for i in 0..na {
         bd[i] *= a0_inv;
@@ -595,8 +589,8 @@ pub fn iir_design_lp2bp(
 ///   described below.
 ///
 /// For band-pass and band-stop designs, `fc` is one band edge rather than a
-/// bandwidth or half-width, and `f0` places the other edge. For desired edges
-/// `f1` and `f2`, set
+/// bandwidth or half-width, and `f0` places the other edge. Either edge may
+/// be supplied as `fc`. For desired edges `f1` and `f2`, set
 /// `f0 = acos(cos(pi * (f1 + f2)) / cos(pi * (f2 - f1))) / (2 * pi)`. Both
 /// edges must lie in `(0, 0.5)`, and the `acos` argument must lie in
 /// `[-1, 1]`. The edges need not be symmetric about `f0`.
@@ -610,15 +604,6 @@ pub fn iir_design_lp2bp(
 ///
 /// A successful return does not verify that the filter meets its ripple
 /// specification.
-///
-/// # Warning
-///
-/// Every high-pass design is unstable. So is a band-pass or band-stop design
-/// whose `fc` is the upper band edge. The prewarp factor from
-/// [`iir_design_freqprewarp`] is negative in those cases, which puts poles
-/// outside the unit circle, and the function still returns `Ok`. For
-/// band-pass and band-stop, pass the lower edge as `fc`. Check the result with
-/// [`iir_design_is_stable`].
 ///
 /// # Errors
 ///
@@ -891,6 +876,145 @@ mod tests {
     use crate::utility::test_helpers::{validate_psd_iirfilt, PsdRegion};
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
+
+    fn assert_iirdes_sos_poles_stable(a: &[f32]) {
+        for section in a.chunks_exact(3) {
+            // Solve a0*z^2 + a1*z + a2 = 0 independently of the root finder.
+            let discriminant = Complex32::new(section[1] * section[1] - 4.0 * section[0] * section[2], 0.0);
+            for sign in [-1.0, 1.0] {
+                let pole = (-section[1] + sign * discriminant.sqrt()) / (2.0 * section[0]);
+                assert!(pole.norm() < 1.0, "unstable pole: {pole}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_iirdes_freqprewarp_stability() {
+        for btype in [IirBandType::Highpass, IirBandType::Bandpass, IirBandType::Bandstop] {
+            let num_coeffs = if btype == IirBandType::Highpass { 6 } else { 12 };
+            for fc in [0.1, 0.2, 0.3, 0.4] {
+                let f0 = 0.25;
+                let mut b = vec![0.0; num_coeffs];
+                let mut a = b.clone();
+                iir_design(
+                    IirFilterShape::Butter,
+                    btype,
+                    IirFormat::SecondOrderSections,
+                    4,
+                    fc,
+                    f0,
+                    1.0,
+                    60.0,
+                    &mut b,
+                    &mut a,
+                )
+                .unwrap();
+                assert_iirdes_sos_poles_stable(&a);
+            }
+        }
+    }
+
+    #[test]
+    fn test_iirdes_freqprewarp_band_edge_equivalence() {
+        for (f1, f2) in [(0.1, 0.3), (0.2, 0.4)] {
+            let f0 = ((PI * (f1 + f2)).cos() / (PI * (f2 - f1)).cos()).acos() / (2.0 * PI);
+            for btype in [IirBandType::Bandpass, IirBandType::Bandstop] {
+                for format in [IirFormat::TransferFunction, IirFormat::SecondOrderSections] {
+                    let num_coeffs = if format == IirFormat::TransferFunction { 9 } else { 12 };
+                    let mut b_lower = vec![0.0; num_coeffs];
+                    let mut a_lower = b_lower.clone();
+                    let mut b_upper = b_lower.clone();
+                    let mut a_upper = b_lower.clone();
+                    for (fc, b, a) in [(f1, &mut b_lower, &mut a_lower), (f2, &mut b_upper, &mut a_upper)] {
+                        iir_design(IirFilterShape::Butter, btype, format, 4, fc, f0, 1.0, 60.0, b, a).unwrap();
+                    }
+                    for i in 0..num_coeffs {
+                        assert_abs_diff_eq!(b_lower[i], b_upper[i], epsilon = 1e-5);
+                        assert_abs_diff_eq!(a_lower[i], a_upper[i], epsilon = 1e-5);
+                    }
+                    if format == IirFormat::SecondOrderSections {
+                        assert_iirdes_sos_poles_stable(&a_lower);
+                        assert_iirdes_sos_poles_stable(&a_upper);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_iirdes_bilinear_z_first_order() {
+        // Closed forms for 1/(s+1) and (s+3)/(s+2).
+        for m in [0.25, 1.0, 2.0] {
+            for (b, a, expected_b, expected_a) in [
+                (vec![1.0], [1.0, 1.0], [m / (m + 1.0); 2], [1.0, (m - 1.0) / (m + 1.0)]),
+                (
+                    vec![3.0, 1.0],
+                    [2.0, 1.0],
+                    [(3.0 * m + 1.0) / (2.0 * m + 1.0), (3.0 * m - 1.0) / (2.0 * m + 1.0)],
+                    [1.0, (2.0 * m - 1.0) / (2.0 * m + 1.0)],
+                ),
+            ] {
+                let b: Vec<_> = b.into_iter().map(|x| Complex32::new(x, 0.0)).collect();
+                let a = a.map(|x| Complex32::new(x, 0.0));
+                let mut bd = [Complex32::new(0.0, 0.0); 2];
+                let mut ad = bd;
+                iir_design_bilinear_z(&b, b.len() - 1, &a, 1, m, &mut bd, &mut ad).unwrap();
+                for i in 0..2 {
+                    assert_abs_diff_eq!(bd[i].re, expected_b[i], epsilon = 1e-6);
+                    assert_abs_diff_eq!(ad[i].re, expected_a[i], epsilon = 1e-6);
+                    assert_abs_diff_eq!(bd[i].im, 0.0, epsilon = 1e-6);
+                    assert_abs_diff_eq!(ad[i].im, 0.0, epsilon = 1e-6);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_iirdes_bilinear_z_matches_a2d() {
+        for n in 1..=5 {
+            let mut za = Vec::new();
+            let mut pa = Vec::new();
+            let mut ka = Complex32::new(0.0, 0.0);
+            iir_design_butter_analog(n, &mut za, &mut pa, &mut ka).unwrap();
+            let mut a = vec![Complex32::new(0.0, 0.0); n + 1];
+            poly_expandroots(&pa, &mut a).unwrap();
+            // The root-based transform expects DC gain; choose unity for both.
+            let b = [a[0]];
+
+            for m in [0.25, 0.75, 1.5] {
+                let mut bd = vec![Complex32::new(0.0, 0.0); n + 1];
+                let mut ad = bd.clone();
+                iir_design_bilinear_z(&b, 0, &a, n, m, &mut bd, &mut ad).unwrap();
+
+                let mut zd = vec![Complex32::new(0.0, 0.0); n];
+                let mut pd = zd.clone();
+                let mut kd = Complex32::new(0.0, 0.0);
+                iir_design_bilinear_a2d(&za, &pa, ka, m, &mut zd, &mut pd, &mut kd).unwrap();
+                let mut b_ref = vec![0.0; n + 1];
+                let mut a_ref = b_ref.clone();
+                iir_design_d2tf(&zd, &pd, n, kd, &mut b_ref, &mut a_ref).unwrap();
+
+                for i in 0..=n {
+                    assert_abs_diff_eq!(bd[i].re, b_ref[i], epsilon = 1e-5);
+                    assert_abs_diff_eq!(ad[i].re, a_ref[i], epsilon = 1e-5);
+                    assert_abs_diff_eq!(bd[i].im, 0.0, epsilon = 1e-5);
+                    assert_abs_diff_eq!(ad[i].im, 0.0, epsilon = 1e-5);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_iirdes_bilinear_z_rejects_invalid_orders() {
+        let one = Complex32::new(1.0, 0.0);
+        for (b_order, a_order) in [(0, 0), (2, 1)] {
+            let mut bd = [one; 3];
+            let mut ad = bd;
+            assert!(iir_design_bilinear_z(&[], b_order, &[], a_order, 1.0, &mut bd, &mut ad).is_err());
+            assert_eq!(bd, [one; 3]);
+            assert_eq!(ad, [one; 3]);
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_iirdes_cplxpair_n6)]
