@@ -42,29 +42,18 @@ where
     /// `rate` is the output rate divided by the input rate. Stopband
     /// attenuation is given in dB and applies to every stage.
     ///
-    /// `rate` must be finite. An infinite `rate` makes this constructor loop
-    /// forever. A NaN `rate` is not rejected, and later calls that count or
-    /// produce output panic.
-    ///
     /// Up to 16 half-band stages are supported, which covers rates from
-    /// `2^-17` to `2^17`. A buffer of `2^stages` samples is allocated before
-    /// the stage count is checked, so a rate far outside that range can
-    /// exhaust memory before the error is returned.
+    /// `2^-17` to `2^17`, inclusive. The stage count is checked before sizing
+    /// the intermediate buffer.
     ///
     /// # Errors
     ///
-    /// Returns an error when `rate` is zero or negative, the rate needs more than
-    /// 16 half-band stages, or a stage design rejects
+    /// Returns an error when `rate` is nonfinite, zero or negative, the rate
+    /// needs more than 16 half-band stages, or a stage design rejects
     /// `stopband_attenuation`.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the rate needs at least as many stages as `usize` has bits
-    /// and overflow checks are enabled. A rate of `1e30` does this. Without
-    /// overflow checks, the buffer size wraps to an arbitrary power of two.
     pub fn new(rate: f32, stopband_attenuation: f32) -> Result<Self> {
-        if rate <= 0.0 {
-            return Err(Error::Config("resampling rate must be greater than zero".into()));
+        if !rate.is_finite() || rate <= 0.0 {
+            return Err(Error::Config("resampling rate must be finite and greater than zero".into()));
         }
 
         let type_ = if rate > 1.0 { ResampType::Interp } else { ResampType::Decim };
@@ -87,12 +76,12 @@ where
             }
         }
 
-        let buffer_len = 4 + (1 << num_halfband_stages);
-        let buffer = vec![T::default(); buffer_len];
-
         // TODO: Compute appropriate cut-off frequency
         let halfband_resamp =
             MultiStageHalfBandResampler::new(type_, num_halfband_stages, 0.4, 0.0, stopband_attenuation)?;
+
+        let buffer_len = 4 + (1 << num_halfband_stages);
+        let buffer = vec![T::default(); buffer_len];
 
         // TODO: Compute appropriate parameters
         let arbitrary_resamp = ArbitraryResampler::new(
@@ -163,9 +152,8 @@ where
     ///
     /// # Panics
     ///
-    /// Panics when the arbitrary stage has a zero phase step, which follows
-    /// from a NaN rate. Also panics when the count overflows `usize` and
-    /// overflow checks are enabled. Without overflow checks, the count wraps.
+    /// Panics when the count overflows `usize` and overflow checks are enabled.
+    /// Without overflow checks, the count wraps.
     pub fn num_output(&self, num_input: usize) -> usize {
         match self.type_ {
             ResampType::Interp => {
@@ -424,6 +412,35 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_msresamp_rejects_invalid_rate() {
+        for rate in [f32::INFINITY, f32::NEG_INFINITY, f32::NAN, 0.0, -0.0, -1.0] {
+            assert!(MultiStageResampler::<f32>::new(rate, 60.0).is_err(), "accepted rate: {rate}");
+        }
+    }
+
+    #[test]
+    fn test_msresamp_stage_count_limits() {
+        let rate_min = 2.0f32.powi(-17);
+        let rate_max = 2.0f32.powi(17);
+        for rate in [
+            f32::from_bits(rate_min.to_bits() - 1),
+            f32::from_bits(rate_max.to_bits() + 1),
+            1e-30,
+            1e30,
+            f32::from_bits(1),
+            f32::MAX,
+        ] {
+            assert!(MultiStageResampler::<f32>::new(rate, 60.0).is_err(), "accepted rate: {rate}");
+        }
+
+        // Both exact endpoints remain usable.
+        let decim = MultiStageResampler::<f32>::new(rate_min, 60.0).unwrap();
+        let interp = MultiStageResampler::<f32>::new(rate_max, 60.0).unwrap();
+        assert_eq!(decim.num_output(1 << 17), 1);
+        assert_eq!(interp.num_output(1), 1 << 17);
+    }
 
     fn testbench_msresamp_crcf(r: f32, as_: f32) {
         // options
