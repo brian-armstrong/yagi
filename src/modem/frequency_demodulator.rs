@@ -4,12 +4,30 @@ use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
 #[doc(alias = "Freqdem")]
+/// Frequency demodulator that recovers a real message.
+///
+/// Each output is the phase change from the previous input sample, divided
+/// by `2*pi * modulation_sensitivity`. This undoes a
+/// [`FrequencyModulator`](super::FrequencyModulator) with the same
+/// sensitivity, with no delay. A phase change of more than half a turn per
+/// sample is read as a smaller change of the opposite sign.
+///
+/// The input amplitude does not matter, but a zero sample has no phase. It
+/// gives an output of zero, as does the sample after it.
 pub struct FrequencyDemodulator {
     ref_: f32,          // 1/(2*pi*kf)
     r_prime: Complex32, // previous received sample
 }
 
 impl FrequencyDemodulator {
+    /// Creates a frequency demodulator.
+    ///
+    /// `modulation_sensitivity` is the frequency deviation, in cycles per
+    /// sample, that gives an output of one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `modulation_sensitivity` is zero or negative.
     pub fn new(modulation_sensitivity: f32) -> Result<Self> {
         // Validate input
         if modulation_sensitivity <= 0.0 {
@@ -25,11 +43,18 @@ impl FrequencyDemodulator {
         Ok(q)
     }
 
+    /// Forgets the previous input sample.
+    ///
+    /// The next output is then zero. This never returns an error.
     pub fn reset(&mut self) -> Result<()> {
         self.r_prime = Complex32::new(0.0, 0.0);
         Ok(())
     }
 
+    /// Demodulates one complex sample into one message sample.
+    ///
+    /// The first output after a reset is zero, because there is no previous
+    /// sample to compare with. This never returns an error.
     pub fn demodulate(&mut self, input: Complex32) -> Result<f32> {
         // Compute phase difference and normalize by modulation index
         let output = (self.r_prime.conj() * input).arg() * self.ref_;
@@ -40,6 +65,15 @@ impl FrequencyDemodulator {
         Ok(output)
     }
 
+    /// Demodulates each sample of `input` into `output`.
+    ///
+    /// The results go to the first `input.len()` samples of `output`, and the
+    /// rest of `output` is left unchanged. Returns `input.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The
+    /// demodulator and `output` are unchanged on error.
     pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Range("output length must be at least the input length".into()));

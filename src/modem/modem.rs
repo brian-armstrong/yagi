@@ -26,85 +26,176 @@ const SOFTBIT_0: u8 = 0;
 const SOFTBIT_1: u8 = 255;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Constellation used by [`Modem`].
+///
+/// The number in a variant is its constellation size. The `Psk`, `Dpsk`,
+/// `Ask`, `Qam` and `Apsk` families come in each size from 2 or 4 up to 256.
+/// The `Psk`, `Dpsk`, `Ask` and `Qam` symbols are Gray coded, so neighboring
+/// points differ in one bit. The remaining variants each have a fixed table.
+/// Every built-in constellation has unit average energy.
 pub enum ModulationScheme {
-    Unknown, // Unknown modulation scheme
+    /// No modulation scheme.
+    Unknown,
 
-    // Phase-shift keying (PSK)
+    /// 2-point phase-shift keying.
+    ///
+    /// Points are evenly spaced on the unit circle, with symbol 0 at phase
+    /// zero. The same holds for the larger `Psk` sizes.
     Psk2,
+    /// 4-point phase-shift keying.
     Psk4,
+    /// 8-point phase-shift keying.
     Psk8,
+    /// 16-point phase-shift keying.
     Psk16,
+    /// 32-point phase-shift keying.
     Psk32,
+    /// 64-point phase-shift keying.
     Psk64,
+    /// 128-point phase-shift keying.
     Psk128,
+    /// 256-point phase-shift keying.
     Psk256,
 
-    // Differential phase-shift keying (DPSK)
+    /// 2-point differential phase-shift keying.
+    ///
+    /// Each symbol advances the phase by the angle of the matching `Psk`
+    /// point, starting from phase zero after a reset. The same holds for the
+    /// larger `Dpsk` sizes.
     Dpsk2,
+    /// 4-point differential phase-shift keying.
     Dpsk4,
+    /// 8-point differential phase-shift keying.
     Dpsk8,
+    /// 16-point differential phase-shift keying.
     Dpsk16,
+    /// 32-point differential phase-shift keying.
     Dpsk32,
+    /// 64-point differential phase-shift keying.
     Dpsk64,
+    /// 128-point differential phase-shift keying.
     Dpsk128,
+    /// 256-point differential phase-shift keying.
     Dpsk256,
 
-    // amplitude-shift keying
+    /// 2-point amplitude-shift keying.
+    ///
+    /// Points are evenly spaced on the real axis, centered on zero. The same
+    /// holds for the larger `Ask` sizes.
     Ask2,
+    /// 4-point amplitude-shift keying.
     Ask4,
+    /// 8-point amplitude-shift keying.
     Ask8,
+    /// 16-point amplitude-shift keying.
     Ask16,
+    /// 32-point amplitude-shift keying.
     Ask32,
+    /// 64-point amplitude-shift keying.
     Ask64,
+    /// 128-point amplitude-shift keying.
     Ask128,
+    /// 256-point amplitude-shift keying.
     Ask256,
 
-    // rectangular quadrature amplitude-shift keying (QAM)
+    /// 4-point quadrature amplitude modulation.
+    ///
+    /// Points lie on a grid. Sizes with an even number of bits per symbol
+    /// use a square grid. Odd sizes use a grid twice as wide as it is tall,
+    /// for example 8 by 4 for `Qam32`.
     Qam4,
+    /// 8-point quadrature amplitude modulation.
     Qam8,
+    /// 16-point quadrature amplitude modulation.
     Qam16,
+    /// 32-point quadrature amplitude modulation.
     Qam32,
+    /// 64-point quadrature amplitude modulation.
     Qam64,
+    /// 128-point quadrature amplitude modulation.
     Qam128,
+    /// 256-point quadrature amplitude modulation.
     Qam256,
 
-    // amplitude phase-shift keying (APSK)
+    /// 4-point amplitude and phase-shift keying.
+    ///
+    /// Points lie on concentric rings. `Apsk4` has one point at the center and
+    /// three on a ring.
     Apsk4,
+    /// 8-point amplitude and phase-shift keying.
     Apsk8,
+    /// 16-point amplitude and phase-shift keying.
     Apsk16,
+    /// 32-point amplitude and phase-shift keying.
     Apsk32,
+    /// 64-point amplitude and phase-shift keying.
     Apsk64,
+    /// 128-point amplitude and phase-shift keying.
     Apsk128,
+    /// 256-point amplitude and phase-shift keying.
     Apsk256,
 
-    // specific modem types
-    Bpsk,      // Specific: binary PSK
-    Qpsk,      // specific: quaternary PSK
-    Ook,       // Specific: on/off keying
-    Sqam32,    // 'square' 32-QAM
-    Sqam128,   // 'square' 128-QAM
-    V29,       // V.29 star constellation
-    Arb16Opt,  // optimal 16-QAM
-    Arb32Opt,  // optimal 32-QAM
-    Arb64Opt,  // optimal 64-QAM
-    Arb128Opt, // optimal 128-QAM
-    Arb256Opt, // optimal 256-QAM
-    Arb64Vt,   // Virginia Tech logo
-    Arb64Ui,   // University of Illinois logo
-    Pi4Dqpsk,  // pi/4 differential QPSK
+    /// Binary phase-shift keying.
+    ///
+    /// Symbol 0 is `+1` and symbol 1 is `-1`. Unlike `Psk2`, this scheme has
+    /// its own soft demodulator.
+    Bpsk,
+    /// Quadrature phase-shift keying.
+    ///
+    /// Bit 0 of the symbol sets the sign of the real part and bit 1 the sign
+    /// of the imaginary part, with a zero bit giving a positive value. Unlike
+    /// `Psk4`, this scheme has its own soft demodulator.
+    Qpsk,
+    /// On-off keying.
+    ///
+    /// Symbol 0 is the "on" point `sqrt(2)` and symbol 1 is zero.
+    Ook,
+    /// 32-point quadrature amplitude modulation on a cross-shaped grid.
+    ///
+    /// The points form a 6 by 6 grid without its four corners.
+    Sqam32,
+    /// 128-point quadrature amplitude modulation on a cross-shaped grid.
+    ///
+    /// The points form a 12 by 12 grid without a 2 by 2 block at each
+    /// corner.
+    Sqam128,
+    /// V.29 star constellation.
+    V29,
+    /// Preset 16-point optimized constellation.
+    Arb16Opt,
+    /// Preset 32-point optimized constellation.
+    Arb32Opt,
+    /// Preset 64-point optimized constellation.
+    Arb64Opt,
+    /// Preset 128-point optimized constellation.
+    Arb128Opt,
+    /// Preset 256-point optimized constellation.
+    Arb256Opt,
+    /// 64-point Virginia Tech logo constellation.
+    Arb64Vt,
+    /// 64-point University of Illinois logo constellation.
+    Arb64Ui,
+    /// Pi/4 differential quadrature phase-shift keying.
+    ///
+    /// Symbols 0, 1, 2 and 3 advance the phase by `pi/4`, `3*pi/4`, `-pi/4`
+    /// and `-3*pi/4`, starting from phase zero after a reset.
+    Pi4Dqpsk,
 
-    // arbitrary modem type
-    Arb, // arbitrary QAM
+    /// Constellation from a table.
+    ///
+    /// [`Modem::from_table`] creates one. Modems built from the preset tables
+    /// above also report this scheme.
+    Arb,
 }
 
-/// Number of modulation schemes, `Unknown` included
+/// Number of modulation-scheme variants, including [`ModulationScheme::Unknown`].
 pub const NUM_MODULATION_SCHEMES: usize = ModulationScheme::Arb as usize + 1;
 
 impl ModulationScheme {
-    /// Every modulation scheme, in declaration order
+    /// Every scheme that [`Modem::new`] accepts, in declaration order.
     ///
-    /// Excludes `Unknown`, which is not a scheme, and `Arb`, which carries no
-    /// constellation of its own and so cannot be built by [`Modem::new`]
+    /// This leaves out `Unknown`, which is not a scheme, and `Arb`, which has
+    /// no constellation of its own.
     pub const ALL: [ModulationScheme; NUM_MODULATION_SCHEMES - 2] = [
         ModulationScheme::Psk2,
         ModulationScheme::Psk4,
@@ -219,7 +310,10 @@ impl ModulationScheme {
         })
     }
 
-    /// short name
+    /// Returns the short name, such as `"qam16"`.
+    ///
+    /// Every short name except `"unknown"` parses back to the same scheme with
+    /// [`str::parse`].
     pub fn short_name(&self) -> &'static str {
         match self {
             ModulationScheme::Unknown => "unknown",
@@ -279,7 +373,7 @@ impl ModulationScheme {
         }
     }
 
-    /// long name
+    /// Returns a descriptive name, such as `"phase-shift keying (8)"`.
     pub fn long_name(&self) -> &'static str {
         match self {
             ModulationScheme::Unknown => "unknown",
@@ -339,7 +433,9 @@ impl ModulationScheme {
         }
     }
 
-    /// is scheme phase-shift keying?
+    /// Returns whether this is one of the `Psk` sizes.
+    ///
+    /// [`ModulationScheme::Bpsk`] and [`ModulationScheme::Qpsk`] are not.
     pub fn is_psk(&self) -> bool {
         matches!(
             self,
@@ -354,7 +450,7 @@ impl ModulationScheme {
         )
     }
 
-    /// is scheme differential phase-shift keying?
+    /// Returns whether this is one of the `Dpsk` sizes.
     pub fn is_dpsk(&self) -> bool {
         matches!(
             self,
@@ -369,7 +465,7 @@ impl ModulationScheme {
         )
     }
 
-    /// is scheme amplitude-shift keying?
+    /// Returns whether this is one of the `Ask` sizes.
     pub fn is_ask(&self) -> bool {
         matches!(
             self,
@@ -384,7 +480,9 @@ impl ModulationScheme {
         )
     }
 
-    /// is scheme rectangular quadrature amplitude-shift keying?
+    /// Returns whether this is one of the `Qam` sizes.
+    ///
+    /// [`ModulationScheme::Sqam32`] and [`ModulationScheme::Sqam128`] are not.
     pub fn is_qam(&self) -> bool {
         matches!(
             self,
@@ -398,7 +496,7 @@ impl ModulationScheme {
         )
     }
 
-    /// is scheme amplitude phase-shift keying?
+    /// Returns whether this is one of the `Apsk` sizes.
     pub fn is_apsk(&self) -> bool {
         matches!(
             self,
@@ -412,9 +510,10 @@ impl ModulationScheme {
         )
     }
 
-    /// bits per symbol (modulation depth)
+    /// Returns the number of bits per symbol.
     ///
-    /// `Unknown` and `Arb` have no fixed depth
+    /// `Unknown` and `Arb` have no fixed size and return zero. For a modem
+    /// built from a table, use [`Modem::bps`].
     pub fn bits_per_symbol(&self) -> usize {
         match self {
             ModulationScheme::Unknown => 0,
@@ -455,7 +554,10 @@ impl ModulationScheme {
 impl std::str::FromStr for ModulationScheme {
     type Err = Error;
 
-    /// Parses a modulation scheme from its short name
+    /// Parses a scheme from its short name, as returned by
+    /// [`ModulationScheme::short_name`].
+    ///
+    /// Returns an error for any other string, including `"unknown"`.
     fn from_str(s: &str) -> Result<Self> {
         Self::from_short_name(s)
     }
@@ -469,6 +571,19 @@ type DemodulateFn = fn(&mut Modem, Complex32) -> Result<u32>;
 type DemodulateSoftFn = fn(&mut Modem, Complex32, &mut [u8]) -> Result<u32>;
 
 #[derive(Debug, Clone)]
+/// Maps symbols to complex constellation points and back.
+///
+/// Symbols are integers from zero to `constellation_size() - 1`.
+/// [`Self::modulate`] maps one symbol to a point. [`Self::demodulate`] picks
+/// the symbol for one received sample, and [`Self::demodulate_soft`] also
+/// gives a soft value for each bit. After a demodulation, the diagnostic
+/// getters describe how far the sample was from the chosen point.
+///
+/// The differential schemes, `Dpsk` and `Pi4Dqpsk`, keep the phase of the
+/// previous symbol. Modulating and demodulating both update that phase, so
+/// use separate modems for the two directions, and call [`Self::reset`]
+/// between independent streams. The other schemes keep no state between
+/// symbols.
 pub struct Modem {
     // common data
     scheme: ModulationScheme,  // modulation scheme
@@ -536,6 +651,13 @@ impl ModemData {
 }
 
 impl Modem {
+    /// Creates a modem for a built-in constellation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `scheme` is [`ModulationScheme::Unknown`] or
+    /// [`ModulationScheme::Arb`]. Use [`Self::from_table`] for your own
+    /// constellation.
     pub fn new(scheme: ModulationScheme) -> Result<Self> {
         match scheme {
             // linear schemes
@@ -567,6 +689,17 @@ impl Modem {
         }
     }
 
+    /// Creates a modem from a table of constellation points.
+    ///
+    /// The index into `table` is the symbol value. The modem copies the table,
+    /// shifts it to zero mean and scales it to unit average energy. A table
+    /// whose points are all equal has no energy after the shift, and its
+    /// points become NaN. Demodulation picks the nearest point.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the length of `table` is not a power of two
+    /// from 2 to 256.
     pub fn from_table(table: &[Complex32]) -> Result<Self> {
         let bits_per_symbol = crate::math::nextpow2(table.len() as u32)? as usize;
         if (1 << bits_per_symbol) != table.len() {
@@ -576,6 +709,11 @@ impl Modem {
         Ok(modem)
     }
 
+    /// Returns a differential scheme to phase zero and clears the diagnostics.
+    ///
+    /// The diagnostics then describe a received sample and a chosen point of
+    /// `1`. This does not restart the sequence used by
+    /// [`Self::random_symbol`].
     pub fn reset(&mut self) {
         self.r = Complex32::new(1.0, 0.0);
         self.x_hat = self.r;
@@ -584,23 +722,42 @@ impl Modem {
         }
     }
 
+    /// Returns the number of bits per symbol.
     pub fn bps(&self) -> usize {
         self.bits_per_symbol
     }
 
+    /// Returns the modulation scheme.
+    ///
+    /// A modem created with [`Self::from_table`] reports
+    /// [`ModulationScheme::Arb`].
     pub fn scheme(&self) -> ModulationScheme {
         self.scheme
     }
 
+    /// Returns the number of constellation points.
     pub fn constellation_size(&self) -> usize {
         self.constellation_size
     }
 
+    /// Returns a pseudo-random symbol in the constellation.
+    ///
+    /// The symbols come from a fixed sequence, so every new modem of the same
+    /// size returns the same symbols. [`Self::reset`] does not restart the
+    /// sequence.
     pub fn random_symbol(&mut self) -> u32 {
         self.randomizer.generate_symbol(self.bits_per_symbol as u32)
         // rand::random::<u32>() % self.constellation_size as u32
     }
 
+    /// Returns the constellation point for `symbol_in`.
+    ///
+    /// For a differential scheme, this also advances the phase.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `symbol_in` is `constellation_size()` or more.
+    /// The modem is unchanged on error.
     #[inline]
     pub fn modulate(&mut self, symbol_in: u32) -> Result<Complex32> {
         if symbol_in >= self.constellation_size as u32 {
@@ -613,10 +770,44 @@ impl Modem {
         }
     }
 
+    /// Returns the symbol decided for one received sample.
+    ///
+    /// For most schemes this is the symbol whose point is nearest the sample.
+    /// `Apsk` picks a ring by magnitude first and then the point on it by
+    /// phase. A differential scheme decides on the phase change since the
+    /// previous sample, and this sample's phase becomes the new reference.
+    ///
+    /// Call [`Self::demodulator_sample`], [`Self::demodulator_phase_error`]
+    /// or [`Self::demodulator_evm`] afterwards to inspect the decision. This
+    /// never returns an error.
     pub fn demodulate(&mut self, symbol_in: Complex32) -> Result<u32> {
         (self.demodulate_func)(self, symbol_in)
     }
 
+    /// Demodulates like [`Self::demodulate`] and also writes a soft value for
+    /// each bit.
+    ///
+    /// The first [`Self::bps`] values of `soft_bits` are written, most
+    /// significant bit first. A value of 0 means a confident zero bit, 255 a
+    /// confident one bit and 127 no preference. The values are a rough
+    /// confidence, not calibrated likelihoods.
+    ///
+    /// Use the returned symbol as the hard decision. Near a decision boundary
+    /// a soft value can come out at exactly 127, which [`pack_soft_bits`]
+    /// reads as a zero bit, so packing the soft values can give a different
+    /// symbol.
+    ///
+    /// Some schemes give only hard values of 0 and 255: `Psk2`, `Psk4`, all
+    /// `Dpsk` sizes, `Ask2`, `Ask256`, `Qam4`, `Ook`, `Sqam32`, `Sqam128` and
+    /// `Pi4Dqpsk`. For table constellations, including the presets, the soft
+    /// values are unreliable.
+    ///
+    /// This never returns an error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `soft_bits` is shorter than [`Self::bps`]. The modem may
+    /// already have been updated when that happens.
     pub fn demodulate_soft(&mut self, symbol_in: Complex32, soft_bits: &mut [u8]) -> Result<u32> {
         if let Some(demodulate_soft_func) = self.demodulate_soft_func {
             return demodulate_soft_func(self, symbol_in, soft_bits);
@@ -631,14 +822,27 @@ impl Modem {
         Ok(symbol_out)
     }
 
+    /// Returns the constellation point chosen by the last demodulation.
     pub fn demodulator_sample(&self) -> Complex32 {
         self.x_hat
     }
 
+    /// Returns the phase error of the last demodulation.
+    ///
+    /// The value is the imaginary part of the received sample times the
+    /// conjugate of the chosen point. For a small error it is about the phase
+    /// error in radians, scaled by the magnitudes of the two. It is positive
+    /// when the received sample is ahead of the point, that is,
+    /// counterclockwise from it.
     pub fn demodulator_phase_error(&self) -> f32 {
         (self.r * self.x_hat.conj()).im
     }
 
+    /// Returns the distance between the received sample and the chosen point
+    /// in the last demodulation.
+    ///
+    /// This is the linear error-vector magnitude, not normalized and not in
+    /// dB.
     pub fn demodulator_evm(&self) -> f32 {
         (self.x_hat - self.r).norm()
     }
@@ -868,12 +1072,15 @@ impl Modem {
     }
 }
 
-/// gray encoding
+/// Encodes an integer with binary-reflected Gray code.
 pub fn gray_encode(symbol_in: u32) -> u32 {
     symbol_in ^ (symbol_in >> 1)
 }
 
-/// gray decoding
+/// Decodes a binary-reflected Gray-coded integer.
+///
+/// The result is correct for inputs below 512, which covers every symbol a
+/// [`Modem`] uses. Larger inputs decode incorrectly.
 pub fn gray_decode(symbol_in: u32) -> u32 {
     let mut mask = symbol_in;
     let mut symbol_out = symbol_in;
@@ -892,10 +1099,18 @@ pub fn gray_decode(symbol_in: u32) -> u32 {
     symbol_out
 }
 
-/// pack soft bits into symbol
-///  soft_bits  :   soft input bits [size: bps x 1]
-///  bps        :   bits per symbol
-///  sym_out    :   output symbol, value in [0,2^bps)
+/// Packs soft bit values into a symbol.
+///
+/// The first `bps` values of `soft_bits` are read, most significant bit
+/// first. Values above 127 become one bits, and values of 127 or less,
+/// including the no-preference value 127, become zero bits. So packing the
+/// output of [`Modem::demodulate_soft`] can differ from the symbol it
+/// returned. When `soft_bits` holds fewer than `bps` values, only those are
+/// packed, giving a symbol with fewer bits.
+///
+/// # Errors
+///
+/// Returns an error when `bps` is greater than eight.
 pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
     // validate input
     if bps > MAX_MOD_BITS_PER_SYMBOL {
@@ -913,10 +1128,19 @@ pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
     Ok(s)
 }
 
-/// unpack soft bits into symbol
-///  sym_in     :   input symbol, value in [0,2^bps)
-///  bps        :   bits per symbol
-///  soft_bits  :   soft output bits [size: bps x 1]
+/// Expands the low `bps` bits of a symbol into soft bit values.
+///
+/// The first `bps` values of `soft_bits` are written, most significant bit
+/// first. A zero bit becomes 0 and a one bit becomes 255.
+///
+/// # Errors
+///
+/// Returns an error when `bps` is greater than eight. `soft_bits` is
+/// unchanged on error.
+///
+/// # Panics
+///
+/// Panics when `soft_bits` is shorter than `bps`.
 pub fn unpack_soft_bits(sym_in: u32, bps: usize, soft_bits: &mut [u8]) -> Result<()> {
     // validate input
     if bps > MAX_MOD_BITS_PER_SYMBOL {

@@ -5,6 +5,16 @@ use std::f32::consts::PI;
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Fskmod")]
+/// M-ary frequency-shift keying modulator.
+///
+/// Each symbol is sent as a tone lasting `samples_per_symbol` samples. The
+/// `M = 2^bits_per_symbol` tones are evenly spaced from `-bandwidth` to
+/// `+bandwidth` cycles per sample, with symbol 0 at the lowest. The phase is
+/// continuous from one symbol to the next. Output samples have magnitude
+/// close to one.
+///
+/// Use an [`FskDemodulator`](super::FskDemodulator) with the same settings to
+/// recover the symbols.
 pub struct FskModulator {
     k: usize,        // samples per symbol
     bandwidth: f32,  // filter bandwidth parameter
@@ -14,6 +24,22 @@ pub struct FskModulator {
 }
 
 impl FskModulator {
+    /// Creates an FSK modulator with its phase at zero.
+    ///
+    /// `bandwidth` is the frequency of the outermost tones, in cycles per
+    /// sample, so the tones span `2 * bandwidth`. A `bandwidth` of zero is
+    /// accepted and puts every tone at zero frequency.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bits_per_symbol` is zero, `samples_per_symbol`
+    /// is outside `2..=2048`, or `bandwidth` is negative or at least 0.5.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `bits_per_symbol` is at least the width of `usize` and
+    /// overflow checks are enabled. Without overflow checks, the shift wraps
+    /// and the constellation size is wrong.
     pub fn new(bits_per_symbol: usize, samples_per_symbol: usize, bandwidth: f32) -> Result<Self> {
         // Validate input
         if bits_per_symbol == 0 {
@@ -38,11 +64,24 @@ impl FskModulator {
         Ok(q)
     }
 
+    /// Sets the phase to zero.
+    ///
+    /// This never returns an error.
     pub fn reset(&mut self) -> Result<()> {
         self.oscillator.reset();
         Ok(())
     }
 
+    /// Writes the tone for `symbol` to `output`.
+    ///
+    /// `output` must hold exactly `samples_per_symbol` samples. The phase
+    /// carries over from the previous call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `symbol` is `2^bits_per_symbol` or more, or the
+    /// length of `output` is not `samples_per_symbol`. The modulator and
+    /// `output` are unchanged on error.
     pub fn modulate(&mut self, symbol: usize, output: &mut [Complex32]) -> Result<()> {
         // Validate input
         if symbol >= self.m_size {

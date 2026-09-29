@@ -1,3 +1,17 @@
+//! Modulation and demodulation.
+//!
+//! [`Modem`] maps integer symbols to complex constellation points and back,
+//! one point per symbol. The other types turn a message or symbols into
+//! complex baseband samples and back. [`AmplitudeModem`] and the frequency
+//! modulator pair carry a real message. The FSK, CPFSK and GMSK pairs carry
+//! each symbol over several samples.
+//!
+//! Frequencies are in cycles per sample unless an item says otherwise. The
+//! symbol demodulators expect input aligned to symbol boundaries, with no
+//! frequency offset. Most objects keep state between calls, so use separate
+//! objects to modulate and demodulate, and reset them between independent
+//! streams.
+
 mod amplitude_modem;
 mod cpfsk_demodulator;
 mod cpfsk_modulator;

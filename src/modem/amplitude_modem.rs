@@ -4,12 +4,15 @@ use crate::filter::{FirFilter, FirHilbertFilter};
 use crate::nco::{Nco, NcoBackend};
 use num_complex::Complex32;
 
-/// Modulation types
+/// Sidebands sent by an [`AmplitudeModem`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AmpmodemType {
-    Dsb, // Double side-band
-    Usb, // Upper side-band
-    Lsb, // Lower side-band
+    /// Double sideband.
+    Dsb,
+    /// Upper sideband only.
+    Usb,
+    /// Lower sideband only.
+    Lsb,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -22,6 +25,33 @@ enum AmpmodemDemodType {
 
 #[derive(Debug, Clone)]
 #[doc(alias = "Ampmodem")]
+/// Amplitude modulator and demodulator for a real message.
+///
+/// The modulated signal is complex baseband. It is the message times the
+/// modulation index, plus a carrier of amplitude one unless the carrier is
+/// suppressed. The USB and LSB modes send the message through a Hilbert
+/// filter first, so only one sideband remains. Demodulation divides by the
+/// modulation index, so a round trip returns the message at its original
+/// level, delayed by [`Self::delay_mod`] plus [`Self::delay_demod`].
+///
+/// Carrier recovery depends on the mode. Double sideband uses a
+/// phase-locked loop: a Costas loop when the carrier is suppressed, or a loop
+/// that tracks the carrier otherwise. A Costas loop can settle half a turn
+/// off, which negates the recovered message. Single sideband with a carrier
+/// tracks the carrier with a loop. Suppressed-carrier USB and LSB have no
+/// carrier recovery, so their input must have no frequency or phase offset.
+///
+/// Demodulation loses low message frequencies in some modes. With a carrier,
+/// the recovered message passes through a DC blocker that also attenuates
+/// nearby frequencies. Suppressed-carrier USB and LSB lose the low end in
+/// the Hilbert filter. Suppressed-carrier DSB has neither filter. In cycles
+/// per sample, keep the message above about `0.02` in the carrier modes and
+/// `0.01` in suppressed-carrier USB and LSB. With a carrier, the response
+/// above that point still ripples by about 1.5 dB. These are not exact band
+/// edges, so check the response in the band you need.
+///
+/// In the USB and LSB modes, modulation and demodulation share one Hilbert
+/// filter. Use separate objects for the two directions.
 pub struct AmplitudeModem {
     mod_index: f32,                     // modulation index
     mod_type: AmpmodemType,             // modulation type (e.g. DSB)
@@ -37,6 +67,15 @@ pub struct AmplitudeModem {
 }
 
 impl AmplitudeModem {
+    /// Creates an amplitude modem.
+    ///
+    /// `modulation_index` scales the message before the carrier is added.
+    /// `suppressed_carrier` leaves the carrier out. The carrier-recovery loop
+    /// bandwidth starts at 0.001.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `modulation_index` is zero or negative.
     pub fn new(modulation_index: f32, modulation_type: AmpmodemType, suppressed_carrier: bool) -> Result<Self> {
         // Validate input
         if modulation_index <= 0.0 {
@@ -73,6 +112,11 @@ impl AmplitudeModem {
         Ok(q)
     }
 
+    /// Clears the filter history and the carrier-recovery phase and
+    /// frequency.
+    ///
+    /// The loop bandwidth is unchanged, and the value returned by
+    /// [`Self::phase_error`] is not cleared.
     pub fn reset(&mut self) {
         self.mixer.reset();
         self.dcblock.reset();
@@ -81,6 +125,9 @@ impl AmplitudeModem {
         self.delay.reset();
     }
 
+    /// Returns the delay added by modulation, in samples.
+    ///
+    /// This is 0 for DSB and 50 for USB and LSB.
     pub fn delay_mod(&self) -> usize {
         match self.mod_type {
             AmpmodemType::Dsb => 0,
@@ -88,6 +135,11 @@ impl AmplitudeModem {
         }
     }
 
+    /// Returns the delay added by demodulation, in samples.
+    ///
+    /// This is 0 for suppressed-carrier DSB, 50 for DSB with a carrier and
+    /// for suppressed-carrier USB and LSB, and 100 for USB and LSB with a
+    /// carrier.
     pub fn delay_demod(&self) -> usize {
         match self.mod_type {
             AmpmodemType::Dsb => {
@@ -107,14 +159,33 @@ impl AmplitudeModem {
         }
     }
 
+    /// Returns the phase error that the carrier-recovery loop last used.
+    ///
+    /// For DSB with a carrier it is in radians. In the other loop modes it is
+    /// the imaginary part of a mixed-down sample, so it also scales with the
+    /// signal amplitude. Suppressed-carrier USB and LSB have no loop, and the
+    /// value stays at zero.
     pub fn phase_error(&self) -> f32 {
         self.phase_error
     }
 
+    /// Sets the carrier-recovery loop gain.
+    ///
+    /// This is the same dimensionless gain as
+    /// [`Nco::pll_set_bandwidth`](crate::nco::Nco::pll_set_bandwidth). Larger
+    /// values lock faster. Suppressed-carrier USB and LSB have no loop, so the
+    /// value has no effect in those modes.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `bandwidth` is negative.
     pub fn set_pll_bandwidth(&mut self, bandwidth: f32) {
         self.mixer.pll_set_bandwidth(bandwidth);
     }
 
+    /// Modulates one message sample into one complex sample.
+    ///
+    /// This never returns an error.
     pub fn modulate(&mut self, input: f32) -> Result<Complex32> {
         let x_hat = match self.mod_type {
             AmpmodemType::Dsb => Complex32::new(input, 0.0),
@@ -131,6 +202,15 @@ impl AmplitudeModem {
             + if self.suppressed_carrier { Complex32::new(0.0, 0.0) } else { Complex32::new(1.0, 0.0) })
     }
 
+    /// Modulates each sample of `input` into `output`.
+    ///
+    /// The results go to the first `input.len()` samples of `output`, and the
+    /// rest of `output` is left unchanged. Returns `input.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The modem and
+    /// `output` are unchanged on error.
     pub fn modulate_block(&mut self, input: &[f32], output: &mut [Complex32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Range("output length must be at least the input length".into()));
@@ -142,6 +222,9 @@ impl AmplitudeModem {
         Ok(input.len())
     }
 
+    /// Demodulates one complex sample into one message sample.
+    ///
+    /// This never returns an error.
     pub fn demodulate(&mut self, input: Complex32) -> Result<f32> {
         match self.demod_type {
             AmpmodemDemodType::DsbPllCarrier => self.demod_dsb_pll_carrier(input),
@@ -151,6 +234,15 @@ impl AmplitudeModem {
         }
     }
 
+    /// Demodulates each sample of `input` into `output`.
+    ///
+    /// The results go to the first `input.len()` samples of `output`, and the
+    /// rest of `output` is left unchanged. Returns `input.len()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than `input`. The modem and
+    /// `output` are unchanged on error.
     pub fn demodulate_block(&mut self, input: &[Complex32], output: &mut [f32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Range("output length must be at least the input length".into()));

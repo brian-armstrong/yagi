@@ -25,7 +25,17 @@ enum FilterState {
     Equalizer(LeastMeanSquaresEqualizer<f32>),
 }
 
-/// GMSK demodulator
+/// Gaussian minimum-shift keying demodulator.
+///
+/// This undoes a [`GmskModulator`](super::GmskModulator) with the same
+/// settings. It takes the phase change between successive samples, passes it
+/// through a matched filter and decides each bit from the sign at the symbol
+/// boundary. Input must be aligned to symbol boundaries, and its amplitude
+/// does not matter. There is no timing or frequency recovery.
+///
+/// The demodulator adds `filter_delay` symbols of delay, so a round trip
+/// through a modulator with the same settings takes `2 * filter_delay`
+/// symbols.
 #[derive(Clone, Debug)]
 #[doc(alias = "GmskDem")]
 pub struct GmskDemodulator {
@@ -39,13 +49,16 @@ pub struct GmskDemodulator {
 }
 
 impl GmskDemodulator {
-    /// Create GMSK demodulator
+    /// Creates a GMSK demodulator.
     ///
-    /// # Arguments
+    /// `filter_delay` is the matched-filter length on each side of its
+    /// center, in symbols. Use the same values as the modulator.
     ///
-    /// * `samples_per_symbol` - samples per symbol (must be >= 2)
-    /// * `filter_delay` - filter delay in symbols (must be >= 1)
-    /// * `bandwidth_time_product` - bandwidth-time product (must be in (0, 1))
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two,
+    /// `filter_delay` is zero, or `bandwidth_time_product` is outside
+    /// `(0, 1)`.
     pub fn new(samples_per_symbol: usize, filter_delay: usize, bandwidth_time_product: f32) -> Result<Self> {
         if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
@@ -92,7 +105,7 @@ impl GmskDemodulator {
         Ok(q)
     }
 
-    /// Reset demodulator state
+    /// Clears the filter history, the previous sample and the symbol count.
     pub fn reset(&mut self) {
         self.x_prime = Complex32::new(0.0, 0.0);
         self.num_symbols_demod = 0;
@@ -103,29 +116,35 @@ impl GmskDemodulator {
         }
     }
 
-    /// Get samples per symbol
+    /// Returns the number of samples per symbol.
     pub fn k(&self) -> usize {
         self.k
     }
 
-    /// Get filter delay in symbols
+    /// Returns the filter delay in symbols.
     pub fn m(&self) -> usize {
         self.m
     }
 
-    /// Get bandwidth-time product
+    /// Returns the bandwidth-time product.
     pub fn bt(&self) -> f32 {
         self.bt
     }
 
-    /// Get number of symbols demodulated
+    /// Returns the number of symbols demodulated since the last reset.
     pub fn num_symbols_demod(&self) -> u64 {
         self.num_symbols_demod
     }
 
-    /// Set equalizer bandwidth (learning rate)
+    /// Sets the learning rate of the adaptive equalizer.
     ///
-    /// Only effective when using equalizer mode.
+    /// The demodulator is always built with a fixed matched filter and no
+    /// equalizer, so this always returns an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `learning_rate` is outside `[0, 0.5]`, and
+    /// otherwise because there is no equalizer.
     pub fn set_eq_bw(&mut self, learning_rate: f32) -> Result<()> {
         if learning_rate < 0.0 || learning_rate > 0.5 {
             return Err(Error::Config("bandwidth must be in [0, 0.5]".into()));
@@ -137,7 +156,9 @@ impl GmskDemodulator {
         }
     }
 
-    /// Get equalizer bandwidth (learning rate)
+    /// Returns the learning rate of the adaptive equalizer.
+    ///
+    /// There is no equalizer, so this always returns `None`.
     pub fn eq_bw(&self) -> Option<f32> {
         match &self.filter {
             FilterState::Equalizer(eq) => Some(eq.bw()),
@@ -145,20 +166,22 @@ impl GmskDemodulator {
         }
     }
 
-    /// Check if using equalizer mode
+    /// Returns whether this demodulator uses an adaptive equalizer.
+    ///
+    /// This always returns `false`.
     pub fn uses_equalizer(&self) -> bool {
         matches!(self.filter, FilterState::Equalizer(_))
     }
 
-    /// Demodulate k samples to produce one symbol
+    /// Returns the bit decided for one symbol of samples.
     ///
-    /// # Arguments
+    /// Reads the first [`Self::k`] samples of `input` and ignores the rest.
+    /// Returns 0 or 1.
     ///
-    /// * `input` - input buffer (length k)
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// Demodulated symbol (0 or 1)
+    /// Returns an error when `input` is shorter than [`Self::k`]. The
+    /// demodulator is unchanged on error.
     pub fn demodulate(&mut self, input: &[Complex32]) -> Result<u8> {
         if input.len() < self.k {
             return Err(Error::Config(format!("input buffer too small: {} < {}", input.len(), self.k)));

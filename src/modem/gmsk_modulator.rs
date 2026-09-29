@@ -5,7 +5,14 @@ use crate::filter::{FirFilterShape, FirInterpolationFilter};
 use num_complex::Complex32;
 use std::f32::consts::PI;
 
-/// GMSK modulator
+/// Gaussian minimum-shift keying modulator.
+///
+/// Each binary symbol changes the phase by `+pi/2` for a one or `-pi/2` for a
+/// zero. A Gaussian pulse spreads each change over neighboring symbols, which
+/// narrows the spectrum. The output has unit magnitude and continuous phase.
+///
+/// A [`GmskDemodulator`](super::GmskDemodulator) with the same settings
+/// recovers the symbols `2 * filter_delay` symbols later.
 #[derive(Clone, Debug)]
 #[doc(alias = "GmskMod")]
 pub struct GmskModulator {
@@ -18,13 +25,18 @@ pub struct GmskModulator {
 }
 
 impl GmskModulator {
-    /// Create GMSK modulator
+    /// Creates a GMSK modulator with its phase at zero.
     ///
-    /// # Arguments
+    /// `filter_delay` is the pulse length on each side of its center, in
+    /// symbols, and is also the delay the modulator adds.
+    /// `bandwidth_time_product` sets the pulse width. Smaller values give a
+    /// narrower spectrum and more overlap between symbols.
     ///
-    /// * `samples_per_symbol` - samples per symbol (must be >= 2)
-    /// * `filter_delay` - filter delay in symbols (must be >= 1)
-    /// * `bandwidth_time_product` - bandwidth-time product (must be in (0, 1))
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two,
+    /// `filter_delay` is zero, or `bandwidth_time_product` is outside
+    /// `(0, 1)`.
     pub fn new(samples_per_symbol: usize, filter_delay: usize, bandwidth_time_product: f32) -> Result<Self> {
         if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
@@ -57,33 +69,37 @@ impl GmskModulator {
         Ok(q)
     }
 
-    /// Reset modulator state
+    /// Clears the pulse-shaping history and sets the phase to zero.
     pub fn reset(&mut self) {
         self.theta = 0.0;
         self.interp.reset();
     }
 
-    /// Get samples per symbol
+    /// Returns the number of samples per symbol.
     pub fn k(&self) -> usize {
         self.k
     }
 
-    /// Get filter delay in symbols
+    /// Returns the filter delay in symbols.
     pub fn m(&self) -> usize {
         self.m
     }
 
-    /// Get bandwidth-time product
+    /// Returns the bandwidth-time product.
     pub fn bt(&self) -> f32 {
         self.bt
     }
 
-    /// Modulate a single symbol
+    /// Modulates one binary symbol into [`Self::k`] samples.
     ///
-    /// # Arguments
+    /// A `symbol` of zero is a zero bit and any other value is a one bit. The
+    /// samples go to the start of `output`, and the rest of `output` is left
+    /// unchanged.
     ///
-    /// * `symbol` - input symbol (0 or 1)
-    /// * `output` - output buffer (length k)
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than [`Self::k`]. The
+    /// modulator and `output` are unchanged on error.
     pub fn modulate(&mut self, symbol: u8, output: &mut [Complex32]) -> Result<()> {
         if output.len() < self.k {
             return Err(Error::Config(format!("output buffer too small: {} < {}", output.len(), self.k)));

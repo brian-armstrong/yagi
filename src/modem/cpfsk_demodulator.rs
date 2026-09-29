@@ -6,7 +6,17 @@ use crate::filter::{FirFilter, FirFilterShape};
 use num_complex::Complex32;
 use std::f32::consts::PI;
 
-/// Continuous-phase frequency-shift keying demodulator
+/// Continuous-phase frequency-shift keying demodulator.
+///
+/// This undoes a [`CpfskModulator`](super::CpfskModulator) with the same
+/// settings. It filters the input and decides each symbol from the phase
+/// change across one symbol, so it needs no carrier phase and ignores the
+/// input amplitude. Input must be aligned to symbol boundaries. There is no
+/// timing or frequency recovery, and a frequency offset shifts every phase
+/// change.
+///
+/// The demodulated symbols lag the transmitted ones by the modulator's
+/// delay plus this demodulator's [`Self::delay`].
 #[derive(Clone, Debug)]
 #[doc(alias = "Cpfskdem")]
 pub struct CpfskDemodulator {
@@ -26,16 +36,26 @@ pub struct CpfskDemodulator {
 }
 
 impl CpfskDemodulator {
-    /// Create CPFSK demodulator object (frequency demodulator)
+    /// Creates a CPFSK demodulator.
     ///
-    /// # Arguments
+    /// The arguments have the same meaning and limits as for
+    /// [`CpfskModulator::new`](super::CpfskModulator::new). Here
+    /// `filter_delay` sets the receive filter length for every pulse shape.
     ///
-    /// * `bits_per_symbol` - bits per symbol; must be greater than zero
-    /// * `modulation_index` - modulation index; must be greater than zero
-    /// * `samples_per_symbol` - samples per symbol; must be greater than one and even
-    /// * `filter_delay` - filter delay in symbols; must be greater than zero
-    /// * `excess_bandwidth` - filter bandwidth parameter; must be in (0, 1]
-    /// * `filter_type` - filter type (e.g. CpfskFilterType::Square)
+    /// # Errors
+    ///
+    /// Returns an error when `bits_per_symbol` or `filter_delay` is zero,
+    /// `modulation_index` is zero or negative, `samples_per_symbol` is less
+    /// than two or odd, or `excess_bandwidth` is outside `(0, 1]`. With more
+    /// than one bit per symbol, [`CpfskFilterType::RcosFull`] and
+    /// [`CpfskFilterType::RcosPartial`] also need at least four samples per
+    /// symbol.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `bits_per_symbol` is at least the width of `usize` and
+    /// overflow checks are enabled. Without overflow checks, the shift wraps
+    /// and the constellation size is wrong.
     pub fn new(
         bits_per_symbol: usize,
         modulation_index: f32,
@@ -79,22 +99,28 @@ impl CpfskDemodulator {
         Ok(q)
     }
 
-    /// Create demodulator object for minimum-shift keying
+    /// Creates a minimum-shift keying demodulator.
     ///
-    /// # Arguments
+    /// This matches
+    /// [`CpfskModulator::new_msk`](super::CpfskModulator::new_msk).
     ///
-    /// * `samples_per_symbol` - Samples per symbol. Must be even and greater than one.
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two or odd.
     pub fn new_msk(samples_per_symbol: usize) -> Result<Self> {
         Self::new(1, 0.5, samples_per_symbol, 1, 1.0, CpfskFilterType::Square)
     }
 
-    /// Create demodulator object for Gaussian minimum-shift keying
+    /// Creates a Gaussian minimum-shift keying demodulator.
     ///
-    /// # Arguments
+    /// This matches
+    /// [`CpfskModulator::new_gmsk`](super::CpfskModulator::new_gmsk).
     ///
-    /// * `samples_per_symbol` - Samples per symbol. Must be even and greater than one.
-    /// * `filter_delay` - Filter delay in symbols. Must be greater than zero.
-    /// * `bandwidth_time_product` - Bandwidth-time product in (0, 1].
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two or odd,
+    /// `filter_delay` is zero, or `bandwidth_time_product` is outside
+    /// `(0, 1]`.
     pub fn new_gmsk(samples_per_symbol: usize, filter_delay: usize, bandwidth_time_product: f32) -> Result<Self> {
         Self::new(1, 0.5, samples_per_symbol, filter_delay, bandwidth_time_product, CpfskFilterType::Gmsk)
     }
@@ -155,51 +181,60 @@ impl CpfskDemodulator {
         }
     }
 
-    /// Reset state
+    /// Clears the filter history and the previous symbol's phase.
     pub fn reset(&mut self) {
         self.mf.reset();
         self.z_prime = Complex32::new(0.0, 0.0);
     }
 
-    /// Get demodulator's number of bits per symbol
+    /// Returns the number of bits per symbol.
     pub fn bits_per_symbol(&self) -> usize {
         self.bps
     }
 
-    /// Get demodulator's modulation index
+    /// Returns the modulation index.
     pub fn modulation_index(&self) -> f32 {
         self.h
     }
 
-    /// Get demodulator's number of samples per symbol
+    /// Returns the number of samples per symbol.
     pub fn samples_per_symbol(&self) -> usize {
         self.k
     }
 
-    /// Get demodulator's filter delay [symbols]
+    /// Returns the delay the demodulator adds, in symbols.
+    ///
+    /// This is `filter_delay` in every mode except the one below.
+    ///
+    /// # Warning
+    ///
+    /// With more than one bit per symbol, [`CpfskFilterType::RcosFull`] and
+    /// [`CpfskFilterType::RcosPartial`] report zero, although the delay is
+    /// `filter_delay` there too.
     pub fn delay(&self) -> usize {
         self.symbol_delay
     }
 
-    /// Get demodulator's bandwidth parameter
+    /// Returns `excess_bandwidth` as given to the constructor.
     pub fn beta(&self) -> f32 {
         self.beta
     }
 
-    /// Get demodulator's filter type
+    /// Returns the pulse shape.
     pub fn filter_type(&self) -> CpfskFilterType {
         self.filter_type
     }
 
-    /// Demodulate array of samples (non-coherent)
+    /// Returns the symbol decided for one symbol of samples.
     ///
-    /// # Arguments
+    /// Pass exactly [`Self::samples_per_symbol`] samples. Every sample of
+    /// `input` goes through the filter, so extra samples shift the timing of
+    /// later decisions.
     ///
-    /// * `input` - input sample array [size: k x 1]
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// Demodulated symbol
+    /// Returns an error when `input` is shorter than
+    /// [`Self::samples_per_symbol`]. The demodulator is unchanged on error.
     pub fn demodulate(&mut self, input: &[Complex32]) -> Result<usize> {
         if input.len() < self.k {
             return Err(Error::Range(format!(

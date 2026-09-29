@@ -4,6 +4,14 @@ use num_complex::Complex32;
 
 #[derive(Clone, Debug)]
 #[doc(alias = "Fskdem")]
+/// M-ary frequency-shift keying demodulator.
+///
+/// This undoes an [`FskModulator`](super::FskModulator) with the same
+/// settings. Each call takes one symbol's worth of samples, aligned to the
+/// symbol boundary, and takes their FFT. The FFT is at least
+/// `samples_per_symbol` long, with its size chosen so that the tones fall
+/// close to bin centers. The decided symbol is the one whose tone bin has the
+/// largest magnitude. There is no timing or frequency recovery.
 pub struct FskDemodulator {
     k: usize,                 // samples per symbol
     m_size: usize,            // constellation size (M)
@@ -16,6 +24,23 @@ pub struct FskDemodulator {
 }
 
 impl FskDemodulator {
+    /// Creates an FSK demodulator.
+    ///
+    /// `bandwidth` is the frequency of the outermost tones, in cycles per
+    /// sample, so the tones span `2 * bandwidth`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bits_per_symbol` is zero, `samples_per_symbol`
+    /// is outside `2..=2048`, `bandwidth` is negative or at least 0.5, or two
+    /// tones fall in the same FFT bin. A wider `bandwidth` or more samples per
+    /// symbol separates the tones.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `bits_per_symbol` is at least the width of `usize` and
+    /// overflow checks are enabled. Without overflow checks, the shift wraps
+    /// and the constellation size is wrong.
     pub fn new(bits_per_symbol: usize, samples_per_symbol: usize, bandwidth: f32) -> Result<Self> {
         // Validate input
         if bits_per_symbol == 0 {
@@ -82,6 +107,9 @@ impl FskDemodulator {
         Ok(q)
     }
 
+    /// Clears the FFT buffers and the last decision.
+    ///
+    /// This never returns an error.
     pub fn reset(&mut self) -> Result<()> {
         self.buf_time.fill(Complex32::new(0.0, 0.0));
         self.buf_freq.fill(Complex32::new(0.0, 0.0));
@@ -89,6 +117,12 @@ impl FskDemodulator {
         Ok(())
     }
 
+    /// Returns the symbol decided for one symbol's worth of samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the length of `input` is not
+    /// `samples_per_symbol`. The demodulator is unchanged on error.
     pub fn demodulate(&mut self, input: &[Complex32]) -> Result<usize> {
         if input.len() != self.k {
             return Err(Error::Range("input length must match samples/symbol".into()));
@@ -116,6 +150,18 @@ impl FskDemodulator {
         Ok(self.s_demod)
     }
 
+    /// Returns a rough frequency error for the last decision.
+    ///
+    /// The value is the magnitude of the bin above the peak minus the one
+    /// below it, divided by the peak magnitude. It is positive when the tone
+    /// lies above the bin center. It is not in cycles per sample. Before the
+    /// first decision the FFT buffers are zero, and the result is NaN.
+    ///
+    /// # Warning
+    ///
+    /// The peak is taken as the FFT bin whose index equals the decided
+    /// symbol, not that symbol's tone bin. The two differ for most settings,
+    /// and the result is then meaningless.
     pub fn frequency_error(&self) -> f32 {
         // Get index of peak bin
         let vm = self.buf_freq[(self.s_demod + self.k_size - 1) % self.k_size].norm(); // previous
@@ -126,6 +172,17 @@ impl FskDemodulator {
         (vp - vm) / v0
     }
 
+    /// Returns the FFT energy around `symbol`'s tone bin from the last
+    /// decision.
+    ///
+    /// The energy is the sum of squared magnitudes over the tone bin and
+    /// `range` bins on each side of it, without normalization. Bins wrap
+    /// around the ends of the FFT. When `range` is half the FFT size or more,
+    /// some bins are counted twice.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `symbol` is `2^bits_per_symbol` or more.
     pub fn symbol_energy(&self, symbol: usize, range: usize) -> Result<f32> {
         if symbol >= self.m_size {
             return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", symbol, self.m_size)));

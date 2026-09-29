@@ -6,20 +6,34 @@ use crate::filter::FirInterpolationFilter;
 use num_complex::Complex32;
 use std::f32::consts::PI;
 
-/// CPFSK filter type
+/// Frequency pulse shape for [`CpfskModulator`] and
+/// [`CpfskDemodulator`](super::CpfskDemodulator).
+///
+/// The pulse sets how each symbol's frequency change is spread over time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CpfskFilterType {
-    /// Square pulse
+    /// Constant frequency for one symbol.
     Square,
-    /// Raised-cosine (full response)
+    /// Raised-cosine frequency pulse lasting one symbol.
     RcosFull,
-    /// Raised-cosine (partial response)
+    /// Raised-cosine frequency pulse lasting two symbols.
     RcosPartial,
-    /// Gauss minimum-shift keying pulse
+    /// Gaussian frequency pulse, as in Gaussian minimum-shift keying.
+    ///
+    /// `excess_bandwidth` is its bandwidth-time product.
     Gmsk,
 }
 
-/// Continuous-phase frequency-shift keying modulator
+/// Continuous-phase frequency-shift keying modulator.
+///
+/// Each symbol `s` of `M = 2^bits_per_symbol` changes the phase by
+/// `pi * modulation_index * (2*s - M + 1)` radians. The pulse shape sets
+/// how that change is spread over time. The output has unit magnitude and
+/// continuous phase.
+///
+/// A [`CpfskDemodulator`](super::CpfskDemodulator) with the same settings
+/// recovers the symbols. The demodulated symbols lag by the sum of the two
+/// objects' [`Self::delay`] values.
 #[derive(Clone, Debug)]
 #[doc(alias = "Cpfskmod")]
 pub struct CpfskModulator {
@@ -44,16 +58,32 @@ pub struct CpfskModulator {
 }
 
 impl CpfskModulator {
-    /// Create CPFSK modulator object (frequency modulator)
+    /// Creates a CPFSK modulator with its phase at zero.
     ///
     /// # Arguments
     ///
-    /// * `bits_per_symbol` - bits per symbol; must be greater than zero
-    /// * `modulation_index` - modulation index; must be greater than zero
-    /// * `samples_per_symbol` - samples per symbol; must be greater than one and even
-    /// * `filter_delay` - filter delay in symbols; must be greater than zero
-    /// * `excess_bandwidth` - filter bandwidth parameter; must be in (0, 1]
-    /// * `filter_type` - filter type (e.g. CpfskFilterType::Square)
+    /// - `modulation_index`: scales the phase change given on the type. Must
+    ///   be positive. A value of 0.5 with one bit per symbol is
+    ///   minimum-shift keying.
+    /// - `samples_per_symbol`: even, and at least two.
+    /// - `filter_delay`: length of the Gaussian pulse on each side of its
+    ///   center, in symbols. Only [`CpfskFilterType::Gmsk`] uses it, but it
+    ///   must be nonzero for every shape.
+    /// - `excess_bandwidth`: bandwidth-time product of the Gaussian pulse, in
+    ///   `(0, 1]`. Only [`CpfskFilterType::Gmsk`] uses it, but it is checked
+    ///   for every shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bits_per_symbol` or `filter_delay` is zero,
+    /// `modulation_index` is zero or negative, `samples_per_symbol` is less
+    /// than two or odd, or `excess_bandwidth` is outside `(0, 1]`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `bits_per_symbol` is at least the width of `usize` and
+    /// overflow checks are enabled. Without overflow checks, the shift wraps
+    /// and the constellation size is wrong.
     pub fn new(
         bits_per_symbol: usize,
         modulation_index: f32,
@@ -140,69 +170,84 @@ impl CpfskModulator {
         Ok(q)
     }
 
-    /// Create modulator object for minimum-shift keying
+    /// Creates a minimum-shift keying modulator.
     ///
-    /// # Arguments
+    /// This is binary CPFSK with a modulation index of 0.5 and a square
+    /// pulse.
     ///
-    /// * `samples_per_symbol` - Samples per symbol. Must be even and greater than one.
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two or odd.
     pub fn new_msk(samples_per_symbol: usize) -> Result<Self> {
         Self::new(1, 0.5, samples_per_symbol, 1, 1.0, CpfskFilterType::Square)
     }
 
-    /// Create modulator object for Gaussian minimum-shift keying
+    /// Creates a Gaussian minimum-shift keying modulator.
     ///
-    /// # Arguments
+    /// This is binary CPFSK with a modulation index of 0.5 and a Gaussian
+    /// pulse. `filter_delay` is the pulse length on each side of its center,
+    /// in symbols.
     ///
-    /// * `samples_per_symbol` - Samples per symbol. Must be even and greater than one.
-    /// * `filter_delay` - Filter delay in symbols. Must be greater than zero.
-    /// * `bandwidth_time_product` - Bandwidth-time product in (0, 1]
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two or odd,
+    /// `filter_delay` is zero, or `bandwidth_time_product` is outside
+    /// `(0, 1]`.
     pub fn new_gmsk(samples_per_symbol: usize, filter_delay: usize, bandwidth_time_product: f32) -> Result<Self> {
         Self::new(1, 0.5, samples_per_symbol, filter_delay, bandwidth_time_product, CpfskFilterType::Gmsk)
     }
 
-    /// Reset state
+    /// Clears the pulse-shaping history and sets the phase to zero.
     pub fn reset(&mut self) {
         self.interp.reset();
         self.v0 = 0.0;
         self.v1 = 0.0;
     }
 
-    /// Get modulator's number of bits per symbol
+    /// Returns the number of bits per symbol.
     pub fn bits_per_symbol(&self) -> usize {
         self.bps
     }
 
-    /// Get modulator's modulation index
+    /// Returns the modulation index.
     pub fn modulation_index(&self) -> f32 {
         self.h
     }
 
-    /// Get modulator's number of samples per symbol
+    /// Returns the number of samples per symbol.
     pub fn samples_per_symbol(&self) -> usize {
         self.k
     }
 
-    /// Get modulator's filter delay [symbols]
+    /// Returns the delay the modulator adds, in symbols.
+    ///
+    /// This is 1 for [`CpfskFilterType::Square`] and
+    /// [`CpfskFilterType::RcosFull`], 2 for [`CpfskFilterType::RcosPartial`]
+    /// and `filter_delay + 1` for [`CpfskFilterType::Gmsk`].
     pub fn delay(&self) -> usize {
         self.symbol_delay
     }
 
-    /// Get modulator's bandwidth parameter
+    /// Returns `excess_bandwidth` as given to the constructor.
     pub fn beta(&self) -> f32 {
         self.beta
     }
 
-    /// Get modulator's filter type
+    /// Returns the pulse shape.
     pub fn filter_type(&self) -> CpfskFilterType {
         self.filter_type
     }
 
-    /// Modulate sample
+    /// Modulates one symbol into [`Self::samples_per_symbol`] samples.
     ///
-    /// # Arguments
+    /// The samples go to the start of `output`, and the rest of `output` is
+    /// left unchanged.
     ///
-    /// * `symbol` - input symbol
-    /// * `output` - output sample array [size: k x 1]
+    /// # Errors
+    ///
+    /// Returns an error when `symbol` is `2^bits_per_symbol` or more, or
+    /// `output` is shorter than [`Self::samples_per_symbol`]. The modulator
+    /// and `output` are unchanged on error.
     pub fn modulate(&mut self, symbol: usize, output: &mut [Complex32]) -> Result<()> {
         if symbol >= self.m_size {
             return Err(Error::Range(format!("input symbol ({}) exceeds maximum ({})", symbol, self.m_size)));
