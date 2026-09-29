@@ -130,14 +130,11 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `delay` is negative or greater than
-    /// `maximum_delay`. The delay is unchanged on error.
+    /// Returns an error when `delay` is nonfinite or outside
+    /// `[0, maximum_delay]`. The delay is unchanged on error.
     pub fn set_delay(&mut self, delay: f32) -> Result<()> {
-        if delay < 0.0 {
-            return Err(Error::Config("delay cannot be negative".into()));
-        }
-        if delay > self.nmax as f32 {
-            return Err(Error::Config(format!("delay ({}) cannot exceed maximum ({})", delay, self.nmax)));
+        if !(0.0..=self.nmax as f32).contains(&delay) {
+            return Err(Error::Config(format!("delay ({}) must be in [0,{}]", delay, self.nmax)));
         }
 
         let offset = self.nmax as f32 - delay;
@@ -163,8 +160,8 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when the new delay is negative or greater than
-    /// `maximum_delay`. The delay is unchanged on error.
+    /// Returns an error when the new delay is nonfinite or outside
+    /// `[0, maximum_delay]`. The delay is unchanged on error.
     pub fn adjust_delay(&mut self, delta: f32) -> Result<()> {
         self.set_delay(self.delay + delta)
     }
@@ -252,6 +249,41 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn test_fdelay_rejected_delay_preserves_stream() {
+        let mut initial = FractionalDelay::<f32>::new(9, 4, 32).unwrap();
+        initial.set_delay(5.375).unwrap();
+        let input: Vec<_> = (0..64).map(|i| (0.17 * i as f32).sin()).collect();
+        initial.execute_block(&input, &mut [0.0; 64]).unwrap();
+        for adjust in [false, true] {
+            let invalid = if adjust {
+                vec![f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -6.0, 4.0]
+            } else {
+                vec![f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -f32::EPSILON, f32::from_bits(9.0f32.to_bits() + 1)]
+            };
+            for value in invalid {
+                let mut filter = initial.clone();
+                let result = if adjust { filter.adjust_delay(value) } else { filter.set_delay(value) };
+                assert!(matches!(result, Err(Error::Config(_))));
+                assert_eq!(filter.delay(), initial.delay());
+                let mut reference = initial.clone();
+                let mut expected = [0.0; 64];
+                let mut actual = [0.0; 64];
+                reference.execute_block(&input, &mut expected).unwrap();
+                filter.execute_block(&input, &mut actual).unwrap();
+                assert_eq!(actual, expected);
+            }
+        }
+        // Both endpoints remain valid, through either setter.
+        initial.set_delay(0.0).unwrap();
+        initial.adjust_delay(9.0).unwrap();
+        assert_eq!(initial.delay(), 9.0);
+        initial.adjust_delay(-9.0).unwrap();
+        assert_eq!(initial.delay(), 0.0);
+        initial.set_delay(9.0).unwrap();
+        assert_eq!(initial.delay(), 9.0);
+    }
 
     #[test]
     fn test_fdelay_new_matches_zero_delay() {
