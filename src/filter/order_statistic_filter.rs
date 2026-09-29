@@ -13,9 +13,8 @@ use std::cmp::Ordering;
 /// [`Self::execute`], or use [`Self::execute_one`] or [`Self::execute_block`]
 /// to do both.
 ///
-/// Values without a total order, such as floating-point NaN, compare as equal
-/// to everything. The selected value is then unspecified, and the sort can
-/// panic.
+/// Samples must have a total order. Writes reject values that are incomparable
+/// with themselves, such as floating-point NaN, before changing the window.
 #[derive(Clone, Debug)]
 #[doc(alias = "OrdFilt")]
 pub struct OrderStatisticFilter<T> {
@@ -70,23 +69,37 @@ where
     }
 
     /// Adds one sample to the window without selecting a value.
-    pub fn push(&mut self, input: T) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input` is incomparable with itself, such as NaN.
+    /// The window is unchanged on error.
+    pub fn push(&mut self, input: T) -> Result<()> {
+        if input.partial_cmp(&input).is_none() {
+            return Err(Error::Value("sample is incomparable with itself".into()));
+        }
         self.buf.push(input);
+        Ok(())
     }
 
     /// Adds a block of samples to the window without selecting a value.
-    pub fn write(&mut self, input: &[T]) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when any sample is incomparable with itself, such as
+    /// NaN. The entire window is unchanged on error.
+    pub fn write(&mut self, input: &[T]) -> Result<()> {
+        if input.iter().any(|sample| sample.partial_cmp(sample).is_none()) {
+            return Err(Error::Value("sample is incomparable with itself".into()));
+        }
         self.buf.write(input);
+        Ok(())
     }
 
     /// Returns the value at the chosen rank in the current window.
     ///
     /// The window is not changed.
     ///
-    /// # Panics
-    ///
-    /// Can panic when the window holds values without a total order, such as
-    /// NaN.
     pub fn execute(&mut self) -> Result<T> {
         let r = self.buf.read();
         self.buf_sorted.copy_from_slice(r);
@@ -95,8 +108,13 @@ where
     }
 
     /// Adds one sample and returns the value at the chosen rank.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input` is incomparable with itself, such as NaN.
+    /// The window is unchanged on error.
     pub fn execute_one(&mut self, input: T) -> Result<T> {
-        self.push(input);
+        self.push(input)?;
         self.execute()
     }
 
@@ -107,8 +125,10 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `output` is shorter than `input`. The filter and
-    /// `output` are unchanged on error.
+    /// Returns an error when `output` is shorter than `input`, leaving the filter
+    /// and `output` unchanged. An invalid sample stops the block before it is
+    /// stored. Earlier inputs and outputs remain processed. Later inputs are not
+    /// processed.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config("output block length must be at least the input length".into()));
