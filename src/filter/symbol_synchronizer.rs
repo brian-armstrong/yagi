@@ -239,7 +239,7 @@ where
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
         if excess_bandwidth <= 0.0 || excess_bandwidth > 1.0 {
-            return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
+            return Err(Error::Config("excess bandwidth factor must be in (0,1]".into()));
         }
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than 0".into()));
