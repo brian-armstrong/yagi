@@ -16,12 +16,20 @@ use crate::channel::noise::NoiseSource;
 use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
 
-/// A complex baseband multipath channel with fading echo paths.
+/// Complex baseband multipath channel whose echoes fade over time.
 ///
-/// The direct path always has unit gain. Each later tap follows a first-order
-/// autoregressive process driven by complex Gaussian noise. Larger
-/// `standard_deviation` produces stronger echoes. Larger `decorrelation_rate`
-/// changes those echoes more rapidly.
+/// The channel is an FIR filter. Its first tap is the direct path, applied to
+/// the newest sample with a fixed gain of one. Each later tap is an echo one
+/// sample further back, and changes on every pushed sample as a first-order
+/// autoregressive process driven by complex Gaussian noise. A larger
+/// `standard_deviation` gives stronger echoes, and a larger
+/// `decorrelation_rate` makes them change faster.
+///
+/// With `sigma = standard_deviation` and `beta = decorrelation_rate`, the
+/// steady-state RMS magnitude of each echo tap is `2 * sigma / sqrt(2 - beta)`.
+/// That is between `1.41 * sigma` and `2 * sigma`, not `sigma`. The echo
+/// taps start at zero and approach that level over roughly `1 / beta`
+/// samples, so a short run sees weaker echoes than the steady state.
 #[derive(Debug, Clone)]
 #[doc(alias = "Tvmpch")]
 pub struct TimeVaryingMultipathChannel {
@@ -36,11 +44,14 @@ pub struct TimeVaryingMultipathChannel {
 }
 
 impl TimeVaryingMultipathChannel {
-    /// Create a fading multipath channel.
+    /// Creates a fading multipath channel of `num_taps` taps.
     ///
-    /// `num_taps` includes the unit-gain direct path. The remaining taps begin
-    /// at zero and fade as samples are pushed. `decorrelation_rate` is
-    /// normalized and must lie in `(0, 1]`.
+    /// `num_taps` includes the direct path, so one tap gives a channel that
+    /// passes samples through unchanged. `decorrelation_rate` is the weight
+    /// of new noise in each per-sample tap update, in `(0, 1]`. The type
+    /// documentation relates `standard_deviation` and `decorrelation_rate` to
+    /// the echo level. Taps come from the thread-local random-number
+    /// generator.
     ///
     /// # Errors
     ///
@@ -77,27 +88,28 @@ impl TimeVaryingMultipathChannel {
         Ok(q)
     }
 
-    /// Create a fading channel with a seeded tap-noise generator.
+    /// Creates a fading multipath channel whose taps come from a generator
+    /// seeded with `seed`.
     ///
-    /// Channels with the same seed, configuration, and input sequence produce
-    /// the same fading paths.
+    /// Two new channels with the same seed, configuration and input produce
+    /// the same output. The other arguments and errors are as for
+    /// [`Self::new`].
     pub fn new_seeded(num_taps: usize, standard_deviation: f32, decorrelation_rate: f32, seed: u64) -> Result<Self> {
         let mut q = Self::new(num_taps, standard_deviation, decorrelation_rate)?;
         q.noise = NoiseSource::seeded(seed);
         Ok(q)
     }
 
-    /// Clear the delayed input history.
+    /// Clears the sample history to zeros.
     ///
-    /// This preserves the current fading taps and random-number generator
-    /// state.
+    /// The echo taps keep their current values.
     pub fn reset(&mut self) {
         self.w.reset();
     }
 
-    /// Advance the fading paths and append one input sample.
+    /// Updates the echo taps and pushes one sample into the history.
     ///
-    /// Call [`Self::execute`] to compute the resulting output.
+    /// Call [`Self::execute`] afterwards for the output.
     pub fn push(&mut self, input: Complex32) {
         // update coefficients
         let n = self.h.len();
@@ -110,32 +122,29 @@ impl TimeVaryingMultipathChannel {
         self.w.push(input);
     }
 
-    /// Compute the output for the current delayed input history.
+    /// Returns the output for the current sample history and taps.
     ///
-    /// This does not advance the fading paths or input history.
+    /// The channel is unchanged.
     pub fn execute(&self) -> Complex32 {
         self.w.read().dotprod(&self.h)
     }
 
-    /// Process one sample through the fading channel.
-    ///
-    /// This is equivalent to calling [`Self::push`] followed by
+    /// Processes one sample, the same as [`Self::push`] followed by
     /// [`Self::execute`].
     pub fn execute_one(&mut self, input: Complex32) -> Complex32 {
         self.push(input);
         self.execute()
     }
 
-    /// Process every input sample through the fading channel.
+    /// Processes a block of samples.
     ///
-    /// The first `input.len()` elements of `output` receive the results.
-    /// Remaining output elements are unchanged. The returned count is always
-    /// `input.len()` on success.
+    /// The results match calling [`Self::execute_one`] on each sample. Extra
+    /// output is left unchanged. Returns `input.len()`.
     ///
     /// # Errors
     ///
-    /// Returns an error when `output` is shorter than `input`. No samples are
-    /// processed in that case.
+    /// Returns an error when `output` is shorter than `input`. The channel
+    /// and `output` are unchanged on error.
     pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<usize> {
         if output.len() < input.len() {
             return Err(Error::Config(
@@ -148,22 +157,20 @@ impl TimeVaryingMultipathChannel {
         Ok(input.len())
     }
 
-    /// Return the number of channel taps.
+    /// Returns the number of taps, including the direct path.
     pub fn len(&self) -> usize {
         self.h.len()
     }
 
-    /// Return `false`.
-    ///
-    /// A channel always has at least its direct-path tap.
+    /// Returns `false`, because a channel always has its direct-path tap.
     pub fn is_empty(&self) -> bool {
         self.h.is_empty()
     }
 
-    /// Return a copy of the current impulse response.
+    /// Returns the current impulse response in time order.
     ///
-    /// The first coefficient is the unit-gain direct path. Later coefficients
-    /// are fading echoes at successively larger delays.
+    /// The first coefficient is the direct path, which is always one. Later
+    /// coefficients are the echoes, one sample further back each.
     pub fn coefficients(&self) -> Vec<Complex32> {
         self.h.iter().rev().copied().collect()
     }
