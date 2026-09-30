@@ -282,14 +282,10 @@ pub fn iir_design_bilinear_a2d(
 ///
 /// # Errors
 ///
-/// Returns an error when `a_order` is zero or `b_order` exceeds `a_order`.
-///
-/// # Panics
-///
-/// Panics when `a` is shorter than `a_order + 1`, `b` is shorter than
-/// `b_order + 1`, or either output is shorter than `a_order + 1`. With
-/// overflow checks enabled, also panics when `a_order + 1` overflows.
-/// Without overflow checks, that count wraps to zero.
+/// Returns an error when `a_order` is zero, `b_order` exceeds `a_order`, `m`
+/// is zero or nonfinite, an order count overflows, an input or output slice
+/// is too short, or the transformed denominator's constant coefficient is
+/// zero.
 pub fn iir_design_bilinear_z(
     b: &[Complex32],
     b_order: usize,
@@ -305,9 +301,15 @@ pub fn iir_design_bilinear_z(
     if b_order > a_order {
         return Err(Error::Range("numerator order cannot be higher than denominator".into()));
     }
+    if !m.is_finite() || m == 0.0 {
+        return Err(Error::Config("bilinear prewarp factor must be finite and nonzero".into()));
+    }
 
-    let nb = b_order + 1;
-    let na = a_order + 1;
+    let nb = b_order.checked_add(1).ok_or_else(|| Error::Range("numerator order overflow".into()))?;
+    let na = a_order.checked_add(1).ok_or_else(|| Error::Range("denominator order overflow".into()))?;
+    if b.len() < nb || a.len() < na || bd.len() < na || ad.len() < na {
+        return Err(Error::Config("bilinear transform coefficient slices are too short".into()));
+    }
 
     // clear output arrays
     for i in 0..na {
@@ -332,6 +334,10 @@ pub fn iir_design_bilinear_z(
 
         // update multiplier
         mk /= m;
+    }
+
+    if ad[0] == Complex32::new(0.0, 0.0) {
+        return Err(Error::Config("transformed denominator has zero constant coefficient".into()));
     }
 
     // substitute s and multiply numerator by (1+1/z)^a_order
@@ -419,10 +425,10 @@ pub fn iir_design_d2tf(
 /// factors multiply to the magnitude of the real part of `k`. The sign of `k`
 /// goes to the first section. The imaginary part of `k` is ignored.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when `zd` or `pd` is shorter than `n`, when `b` or `a` is shorter
-/// than `3 * ((n + 1) / 2)`, or when `b` has fewer than three entries.
+/// Returns an error when `n` is zero, the section count overflows, or any
+/// input or output slice is too short. Outputs are unchanged for these errors.
 pub fn iir_design_d2sos(
     zd: &[Complex32],
     pd: &[Complex32],
@@ -431,6 +437,15 @@ pub fn iir_design_d2sos(
     b: &mut [f32],
     a: &mut [f32],
 ) -> Result<()> {
+    if n == 0 {
+        return Err(Error::Config("filter order must be greater than zero".into()));
+    }
+    let sections = n / 2 + n % 2;
+    let output_len =
+        sections.checked_mul(3).ok_or_else(|| Error::Range("section coefficient count overflow".into()))?;
+    if zd.len() < n || pd.len() < n || b.len() < output_len || a.len() < output_len {
+        return Err(Error::Config("second-order section slices are too short".into()));
+    }
     let tol = 1e-6f32;
 
     // find/group complex conjugate pairs (zeros)
@@ -508,9 +523,10 @@ pub fn iir_design_d2sos(
 /// The transform negates each root. `zdt` and `pdt` each receive `n`
 /// transformed roots.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when any input or output slice is shorter than `n`.
+/// Returns an error when any input or output slice is shorter than `n`.
+/// Outputs are unchanged on error.
 pub fn iir_design_lp2hp(
     zd: &[Complex32],
     pd: &[Complex32],
@@ -518,6 +534,9 @@ pub fn iir_design_lp2hp(
     zdt: &mut [Complex32],
     pdt: &mut [Complex32],
 ) -> Result<()> {
+    if zd.len() < n || pd.len() < n || zdt.len() < n || pdt.len() < n {
+        return Err(Error::Config("low-pass to high-pass root slices are too short".into()));
+    }
     for i in 0..n {
         zdt[i] = -zd[i];
         pdt[i] = -pd[i];
@@ -528,14 +547,15 @@ pub fn iir_design_lp2hp(
 
 /// Transforms digital low-pass zeros and poles to band-pass.
 ///
-/// `f0` is the center frequency in cycles per sample and is not validated.
+/// `f0` is the center frequency in cycles per sample, in `[0, 0.5]`.
 /// Each input root becomes two output roots, so `zdt` and `pdt` each receive
 /// `2 * n` roots.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when `zd` or `pd` is shorter than `n`, or `zdt` or `pdt` is
-/// shorter than `2 * n`.
+/// Returns an error when `f0` is nonfinite or out of range, `2 * n` overflows,
+/// `zd` or `pd` is shorter than `n`, or `zdt` or `pdt` is shorter than `2 * n`.
+/// Outputs are unchanged on error.
 pub fn iir_design_lp2bp(
     zd: &[Complex32],
     pd: &[Complex32],
@@ -544,6 +564,13 @@ pub fn iir_design_lp2bp(
     zdt: &mut [Complex32],
     pdt: &mut [Complex32],
 ) -> Result<()> {
+    if !(0.0..=0.5).contains(&f0) {
+        return Err(Error::Config("center frequency must be in [0,0.5]".into()));
+    }
+    let output_len = n.checked_mul(2).ok_or_else(|| Error::Range("band-pass root count overflow".into()))?;
+    if zd.len() < n || pd.len() < n || zdt.len() < output_len || pdt.len() < output_len {
+        return Err(Error::Config("low-pass to band-pass root slices are too short".into()));
+    }
     let c0 = (2.0 * PI * f0).cos();
 
     // transform zeros, poles using quadratic formula
@@ -608,13 +635,8 @@ pub fn iir_design_lp2bp(
 /// # Errors
 ///
 /// Returns an error when `n` is zero, a parameter is out of range, an elliptic
-/// design has `as_ <= ap`, a design step fails, or a transfer-function output
-/// slice is too short.
-///
-/// # Panics
-///
-/// Panics when `format` is [`IirFormat::SecondOrderSections`] and `b` or `a`
-/// is too short for the sections.
+/// design has `as_ <= ap`, an order count overflows, a design step fails, or
+/// either output slice is too short for the selected format.
 pub fn iir_design(
     ftype: IirFilterShape,
     btype: IirBandType,
@@ -645,6 +667,17 @@ pub fn iir_design(
     }
     if n == 0 {
         return Err(Error::Config("filter order must be > 0".into()));
+    }
+    let band = matches!(btype, IirBandType::Bandpass | IirBandType::Bandstop);
+    let required_output = match (format, band) {
+        (IirFormat::TransferFunction, false) => n.checked_add(1),
+        (IirFormat::TransferFunction, true) => n.checked_mul(2).and_then(|order| order.checked_add(1)),
+        (IirFormat::SecondOrderSections, false) => (n / 2 + n % 2).checked_mul(3),
+        (IirFormat::SecondOrderSections, true) => n.checked_mul(3),
+    }
+    .ok_or_else(|| Error::Range("filter coefficient count overflow".into()))?;
+    if b.len() < required_output || a.len() < required_output {
+        return Err(Error::Config("filter coefficient output slices are too short".into()));
     }
 
     let mut order = n;
@@ -777,21 +810,21 @@ pub fn iir_design(
 /// Checks whether an IIR denominator has no poles outside the unit circle.
 ///
 /// `a[..n]` holds the denominator in ascending powers of `z^-1`, so its order
-/// is `n - 1`. The numerator `_b` is not used.
+/// is `n - 1`. Stability depends only on the denominator.
 ///
 /// This is not a strict stability test. A pole on the unit circle counts as
 /// stable, so `true` does not rule out a marginally stable filter.
 ///
 /// # Errors
 ///
-/// Returns an error when `n < 2` or root finding fails.
-///
-/// # Panics
-///
-/// Panics when `a` is shorter than `n`.
-pub fn iir_design_is_stable(_b: &[f32], a: &[f32], n: usize) -> Result<bool> {
+/// Returns an error when `n < 2`, `a` is shorter than `n`, or root finding
+/// fails.
+pub fn iir_design_is_stable(a: &[f32], n: usize) -> Result<bool> {
     if n < 2 {
         return Err(Error::Config("filter order too low".into()));
+    }
+    if a.len() < n {
+        return Err(Error::Config("denominator slice is shorter than filter order".into()));
     }
 
     let mut a_hat = vec![0.0; n];
@@ -1151,9 +1184,7 @@ mod tests {
         // for 2^nd-order low-pass Butterworth filter
         // with cutoff frequency 0.25
         let a = [1.0f32, 0.0f32, 0.171572875253810f32];
-        let b = [0.292893218813452f32, 0.585786437626905f32, 0.292893218813452f32];
-
-        let stable = iir_design_is_stable(&b, &a, 3).unwrap();
+        let stable = iir_design_is_stable(&a, 3).unwrap();
         assert!(stable);
     }
 
@@ -1162,18 +1193,14 @@ mod tests {
     fn test_iirdes_isstable_n2_no() {
         // initialize unstable filter
         let a = [1.0f32, 0.0f32, 1.171572875253810f32];
-        let b = [0.292893218813452f32, 0.585786437626905f32, 0.292893218813452f32];
-
-        let stable = iir_design_is_stable(&b, &a, 3).unwrap();
+        let stable = iir_design_is_stable(&a, 3).unwrap();
         assert!(!stable);
     }
 
     #[test]
     fn test_iirdes_isstable_n1() {
-        let b = [1.0f32, 0.0];
-
-        assert!(iir_design_is_stable(&b, &[1.0, -0.5], 2).unwrap());
-        assert!(!iir_design_is_stable(&b, &[1.0, -1.5], 2).unwrap());
+        assert!(iir_design_is_stable(&[1.0, -0.5], 2).unwrap());
+        assert!(!iir_design_is_stable(&[1.0, -1.5], 2).unwrap());
     }
 
     #[test]
