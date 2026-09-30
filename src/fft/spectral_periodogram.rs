@@ -9,17 +9,36 @@ use num_traits::Zero;
 use std::cmp::max;
 use std::ops::Mul;
 
-/// Smallest linear PSD value returned by [`SpectralPeriodogram`].
+/// Floor applied to accumulated linear power before averaging.
 ///
-/// This prevents `log10(0)` in [`SpectralPeriodogram::psd`].
+/// The floor keeps [`SpectralPeriodogram::psd`] finite for empty bins. When
+/// all transforms are averaged equally, the floor is divided by the number of
+/// transforms along with the rest of the spectrum.
 pub const SPGRAM_PSD_MIN: f32 = 1e-12;
 
 /// A windowed, FFT-based power spectral density estimator.
 ///
-/// Samples are retained in a sliding analysis window. The estimator performs a
-/// transform every hop, then either averages all transforms or applies an
-/// exponential average. PSD reads are FFT-shifted, so bin zero represents the
-/// negative-frequency edge rather than DC.
+/// Samples are kept in a sliding analysis window. The estimator runs a
+/// transform once every hop, then either averages all transforms equally or
+/// applies an exponential average. See [`Self::set_alpha`]. A new estimator
+/// starts with zero-valued history and averages all transforms equally.
+///
+/// Reads rotate the bins by `fft_size / 2`. For even FFT sizes, bin zero is
+/// the negative-frequency edge and DC is at the center. For odd sizes, bin
+/// zero is the highest positive-frequency bin and DC is at index
+/// `(fft_size + 1) / 2`.
+///
+/// Each transform contributes the squared FFT magnitude of the windowed
+/// samples. The window has unit energy. For stationary unit-power white
+/// noise, each bin averages to unit linear power, or 0 dB. A bin-centered
+/// complex tone of unit power instead peaks at `(sum(w))^2`, where `w` is the
+/// unit-energy window, so its peak in dB depends on the window's length and
+/// shape.
+///
+/// Before flooring, the sum of the linear bins divided by `fft_size` is the
+/// window-weighted sample power of one transform. For stationary signals, its
+/// average estimates the total sample power. The values are not power per
+/// hertz.
 #[derive(Debug, Clone)]
 #[doc(alias = "Spgram")]
 pub struct SpectralPeriodogram<T> {
@@ -55,17 +74,25 @@ impl<T: Copy + Default + From<f32> + Zero + Mul<Output = T>> SpectralPeriodogram
 where
     Complex32: From<T>,
 {
-    /// Create a periodogram with an explicit analysis window and hop.
+    /// Creates a periodogram with an explicit analysis window and hop.
     ///
-    /// `window_length` samples are windowed and zero-padded to `fft_size`.
-    /// `hop_size` is the number of samples between successive transforms.
-    /// The window is normalized for unit energy.
+    /// Each transform windows the latest `window_length` samples and
+    /// zero-pads them to `fft_size`. `hop_size` is the number of samples
+    /// between transforms. When the hop exceeds the window length, samples
+    /// between analysis windows do not contribute to any transform. The window
+    /// is scaled to unit energy. The Kaiser window uses `beta = 10`, and the
+    /// KBD window uses `beta = 3`.
+    ///
+    /// A window whose coefficients are all zero cannot be scaled to unit
+    /// energy, and every bin then reads as the PSD floor. The only such window
+    /// is a [`WindowType::Hann`] window of length two.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fft_size < 2`, `window_length` is zero or exceeds
-    /// `fft_size`, `hop_size` is zero, or the window configuration is invalid.
-    /// The current Kaiser and KBD window paths require an even window length.
+    /// Returns an error when `fft_size` is less than two, `window_length` is
+    /// zero or exceeds `fft_size`, `hop_size` is zero, or `window_type` is
+    /// [`WindowType::Unknown`]. Also returns an error when `window_length` is
+    /// odd and `window_type` is [`WindowType::Kaiser`] or [`WindowType::Kbd`].
     pub fn new(fft_size: usize, window_type: WindowType, window_length: usize, hop_size: usize) -> Result<Self> {
         // validate input
         if fft_size < 2 {
@@ -142,14 +169,13 @@ where
         Ok(spgram)
     }
 
-    /// Create a periodogram with the default Kaiser window configuration.
-    ///
-    /// The analysis window is `fft_size / 2` samples and the hop is
-    /// `fft_size / 4` samples.
+    /// Creates a periodogram with a Kaiser window of `fft_size / 2` samples
+    /// and a hop of `fft_size / 4` samples.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fft_size < 4`. Smaller sizes produce a zero hop.
+    /// Returns an error when `fft_size` is less than four or `fft_size / 2` is
+    /// odd.
     pub fn from_nfft(fft_size: usize) -> Result<Self> {
         if fft_size < 2 {
             return Err(Error::Config("fft size must be at least 2".into()));
@@ -158,10 +184,12 @@ where
         Self::new(fft_size, WindowType::Kaiser, fft_size / 2, fft_size / 4)
     }
 
-    /// Clear accumulated spectra and interval counters.
+    /// Clears the accumulated spectrum, [`Self::num_samples`] and
+    /// [`Self::num_transforms`].
     ///
-    /// This retains the sample history. The next transform can therefore
-    /// include samples received before this call.
+    /// The sample history is kept, so the next transform can include samples
+    /// received before this call. That transform runs one hop after this call.
+    /// The totals and the averaging mode are unchanged.
     pub fn clear(&mut self) {
         for v in &mut self.buf_time {
             *v = Complex32::new(0.0, 0.0);
@@ -174,7 +202,9 @@ where
         self.psd.fill(0.0);
     }
 
-    /// Reset accumulated spectra, counters, and sample history.
+    /// Clears the accumulated spectrum, every counter and the sample history.
+    ///
+    /// The averaging mode is unchanged.
     pub fn reset(&mut self) {
         self.clear();
         self.buffer.reset();
@@ -182,20 +212,19 @@ where
         self.num_transforms_total = 0;
     }
 
-    /// Set the PSD averaging mode.
+    /// Sets the averaging mode.
     ///
-    /// Pass `-1.0` to average all transforms equally. Pass a value in `[0, 1]`
-    /// for exponential averaging, where the value weights the newest
-    /// transform. A value of zero freezes the estimate after its first
-    /// transform.
+    /// A value of `-1.0` averages all transforms equally. A value in `[0, 1]`
+    /// selects exponential averaging, where the value weights the newest
+    /// transform. The first transform after [`Self::clear`] or
+    /// [`Self::reset`] sets the estimate directly. A value of zero then holds
+    /// that estimate. Changing modes does not clear the existing spectrum or
+    /// counters. Call [`Self::clear`] first to start a new average.
     ///
     /// # Errors
     ///
-    /// Returns an error when `alpha` is outside `{-1} union [0, 1]`.
-    ///
-    /// # Warning
-    ///
-    /// `NaN` is accepted and makes subsequent PSD values nonfinite.
+    /// Returns an error when `alpha` is neither `-1.0` nor in `[0, 1]`. The
+    /// mode is unchanged on error.
     pub fn set_alpha(&mut self, _alpha: f32) -> Result<()> {
         if _alpha != -1.0 && (_alpha < 0.0 || _alpha > 1.0) {
             return Err(Error::Config("alpha must be in {-1,[0,1]}".into()));
@@ -214,20 +243,22 @@ where
         Ok(())
     }
 
-    /// Set center-frequency metadata in cycles per sample.
+    /// Stores a center frequency in cycles per sample.
     ///
-    /// This metadata does not affect the transform or returned PSD values.
+    /// The value is only stored. No method reads it, and it does not affect
+    /// the transform.
     pub fn set_freq(&mut self, _freq: f32) {
         self.frequency = _freq;
     }
 
-    /// Set sample-rate metadata.
+    /// Stores a sample rate in samples per second.
     ///
-    /// This metadata does not affect the transform or returned PSD values.
+    /// The value is only stored. No method reads it, and it does not affect
+    /// the transform.
     ///
     /// # Errors
     ///
-    /// Returns an error when `rate <= 0`.
+    /// Returns an error when the rate is zero or negative.
     pub fn set_rate(&mut self, _rate: f32) -> Result<()> {
         if _rate <= 0.0 {
             return Err(Error::Config("sample rate must be greater than zero".into()));
@@ -236,57 +267,63 @@ where
         Ok(())
     }
 
-    /// Return the FFT size.
+    /// Returns the FFT size, which is also the number of output bins.
     pub fn fft_size(&self) -> usize {
         self.nfft
     }
 
-    /// Return the number of samples in each analysis window.
+    /// Returns the number of samples in each analysis window.
     pub fn window_length(&self) -> usize {
         self.window_len
     }
 
-    /// Return the number of samples between transforms.
+    /// Returns the number of samples between transforms.
     pub fn hop_size(&self) -> usize {
         self.delay
     }
 
-    /// Return the analysis-window type.
+    /// Returns the analysis-window type.
     pub fn window_type(&self) -> WindowType {
         self.wtype
     }
 
-    /// Return samples processed since [`Self::reset`] or [`Self::clear`].
+    /// Returns the number of samples pushed since the last [`Self::clear`] or
+    /// [`Self::reset`].
     pub fn num_samples(&self) -> u64 {
         self.num_samples
     }
 
-    /// Return samples processed since construction or [`Self::reset`].
+    /// Returns the number of samples pushed since construction or the last
+    /// [`Self::reset`].
     pub fn num_samples_total(&self) -> u64 {
         self.num_samples_total
     }
 
-    /// Return transforms processed since [`Self::reset`] or [`Self::clear`].
+    /// Returns the number of transforms run since the last [`Self::clear`] or
+    /// [`Self::reset`].
     pub fn num_transforms(&self) -> u64 {
         self.num_transforms
     }
 
-    /// Return transforms processed since construction or [`Self::reset`].
+    /// Returns the number of transforms run since construction or the last
+    /// [`Self::reset`].
     pub fn num_transforms_total(&self) -> u64 {
         self.num_transforms_total
     }
 
-    /// Return the exponential averaging factor.
+    /// Returns the weight given to the newest transform in exponential
+    /// averaging.
     ///
-    /// This returns `1.0` while accumulate-all mode is active.
+    /// The value is `1.0` while all transforms are averaged equally, not the
+    /// `-1.0` passed to [`Self::set_alpha`].
     pub fn alpha(&self) -> f32 {
         self.alpha
     }
 
-    /// Add one sample to the analysis stream.
+    /// Adds one sample to the analysis stream.
     ///
-    /// A transform runs whenever the configured hop completes. The first
-    /// transform uses default-valued history until a full window has arrived.
+    /// A transform runs each time a hop completes. Until a full window has
+    /// arrived, a transform includes zero-valued history.
     pub fn push(&mut self, _x: T) {
         // update counters
         self.num_samples += 1;
@@ -307,7 +344,9 @@ where
         }
     }
 
-    /// Add every sample in `x` to the analysis stream.
+    /// Adds each sample of a block to the analysis stream.
+    ///
+    /// The result matches calling [`Self::push`] for each sample.
     pub fn write(&mut self, _x: &[T]) {
         for x in _x {
             self.push(*x);
@@ -347,24 +386,26 @@ where
         self.num_transforms_total += 1;
     }
 
-    /// Return the current FFT-shifted linear power spectral density.
+    /// Returns the current linear power spectrum, rotated as described on the
+    /// type.
     ///
-    /// Values are floored at [`SPGRAM_PSD_MIN`]. Before the first transform,
-    /// every bin is this floor.
+    /// Accumulated values are floored at [`SPGRAM_PSD_MIN`] before averaging.
+    /// When all transforms are averaged equally, the floor is divided by the
+    /// transform count. Before the first transform, every bin is
+    /// `SPGRAM_PSD_MIN`.
     pub fn psd_mag(&self) -> Vec<f32> {
         let mut psd_mag = vec![0.0; self.nfft];
         self.read_psd_mag(&mut psd_mag).unwrap();
         psd_mag
     }
 
-    /// Write the current FFT-shifted linear power spectral density.
-    ///
-    /// Values are floored at [`SPGRAM_PSD_MIN`].
+    /// Writes the current linear power spectrum, as [`Self::psd_mag`] returns
+    /// it.
     ///
     /// # Errors
     ///
-    /// Returns an error when `psd_mag.len() != self.fft_size()`. The output is
-    /// unchanged on error.
+    /// Returns an error when `psd_mag.len()` differs from [`Self::fft_size`].
+    /// `psd_mag` is unchanged on error.
     pub fn read_psd_mag(&self, psd_mag: &mut [f32]) -> Result<()> {
         if psd_mag.len() != self.nfft {
             return Err(Error::Value("psd_mag must be the same length as the fft size".into()));
@@ -386,23 +427,26 @@ where
         Ok(())
     }
 
-    /// Return the current FFT-shifted power spectral density in dB.
+    /// Returns the current power spectrum in dB, rotated as described on the
+    /// type.
     ///
-    /// Values are floored at [`SPGRAM_PSD_MIN`] before conversion.
+    /// The values are `10 * log10` of [`Self::psd_mag`]. Unit-power white noise
+    /// averages to 0 dB per bin. A bin-centered tone peaks at the coherent
+    /// window gain, not at its input power. Use [`Self::psd_mag`] for linear
+    /// values when summing bins. When all transforms are averaged equally, a
+    /// floored bin can read below `10 * log10(SPGRAM_PSD_MIN)`.
     pub fn psd(&self) -> Vec<f32> {
         let mut psd = vec![0.0; self.nfft];
         self.read_psd(&mut psd).unwrap();
         psd
     }
 
-    /// Write the current FFT-shifted power spectral density in dB.
-    ///
-    /// Values are floored at [`SPGRAM_PSD_MIN`] before conversion.
+    /// Writes the current power spectrum in dB, as [`Self::psd`] returns it.
     ///
     /// # Errors
     ///
-    /// Returns an error when `psd.len() != self.fft_size()`. The output is
-    /// unchanged on error.
+    /// Returns an error when `psd.len()` differs from [`Self::fft_size`].
+    /// `psd` is unchanged on error.
     pub fn read_psd(&self, psd: &mut [f32]) -> Result<()> {
         self.read_psd_mag(psd)?;
         for p in &mut psd[..self.nfft] {
@@ -411,15 +455,17 @@ where
         Ok(())
     }
 
-    /// Estimate an FFT-shifted PSD from one input slice.
+    /// Estimates the power spectrum in dB of one block of samples.
     ///
-    /// This uses the default configuration from [`Self::from_nfft`]. If `x`
-    /// does not complete one hop, it estimates from the available samples and
-    /// default-valued history.
+    /// The estimate uses the configuration of [`Self::from_nfft`] and averages
+    /// all transforms equally. The result is rotated as described on the type.
+    /// If `x` does not complete one hop, the estimate uses the available
+    /// samples and zero-valued history. Otherwise, samples after the last
+    /// complete hop do not affect the estimate.
     ///
     /// # Errors
     ///
-    /// Returns an error when `nfft < 4`.
+    /// Returns an error when `nfft` is less than four or `nfft / 2` is odd.
     pub fn estimate_psd(nfft: usize, x: &[T]) -> Result<Vec<f32>> {
         let mut q = Self::from_nfft(nfft)?;
 

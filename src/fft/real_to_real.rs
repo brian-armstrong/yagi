@@ -4,35 +4,33 @@ use std::sync::Arc;
 
 use rustdct::DctPlanner;
 
-/// A real-to-real transform convention.
+/// Kind of real-to-real transform.
 ///
-/// Variant names follow FFTW's real-transform naming. [`RealToRealFft::run`]
-/// doubles the underlying DCT or DST result to match this module's convention.
+/// Variant names and definitions follow FFTW's real-to-real transforms. The
+/// transforms are unnormalized. Applying a kind's inverse partner to its
+/// output returns the input scaled by `2 * N` for a length `N`, except that
+/// the DCT-I scale is `2 * (N - 1)` and the DST-I scale is `2 * (N + 1)`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[doc(alias = "FftR2rKind")]
 pub enum RealToRealFftKind {
-    /// DCT-I.
+    /// DCT-I, its own inverse partner.
     Redft00,
     /// DCT-II.
     Redft10,
-    /// DCT-III, the inverse partner of [`Self::Redft10`] before scaling.
+    /// DCT-III, the inverse partner of [`Self::Redft10`].
     Redft01,
-    /// DCT-IV.
+    /// DCT-IV, its own inverse partner.
     Redft11,
-    /// DST-I.
+    /// DST-I, its own inverse partner.
     Rodft00,
     /// DST-II.
     Rodft10,
-    /// DST-III, the inverse partner of [`Self::Rodft10`] before scaling.
+    /// DST-III, the inverse partner of [`Self::Rodft10`].
     Rodft01,
-    /// DST-IV.
+    /// DST-IV, its own inverse partner.
     Rodft11,
 }
 
-/// A reusable real-to-real DCT or DST plan.
-///
-/// The transform has a fixed length and [`RealToRealFftKind`]. It is
-/// unnormalized and doubles every result to match the module convention.
 #[derive(Clone)]
 enum DctDst {
     Dct1(Arc<dyn rustdct::Dct1<f32>>),
@@ -45,6 +43,10 @@ enum DctDst {
     Dst4(Arc<dyn rustdct::Dst4<f32>>),
 }
 
+/// A reusable real-to-real DCT or DST plan.
+///
+/// The transform has a fixed length and [`RealToRealFftKind`], and is
+/// unnormalized. See [`RealToRealFftKind`] for the scale of a round trip.
 #[derive(Clone)]
 #[doc(alias = "FftR2r")]
 pub struct RealToRealFft {
@@ -54,7 +56,13 @@ pub struct RealToRealFft {
 }
 
 impl RealToRealFft {
-    /// Create a real-to-real transform plan.
+    /// Creates a real-to-real transform plan for `size` samples.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `size` is one and `kind` is
+    /// [`RealToRealFftKind::Redft00`]. Planning a zero-length transform can
+    /// also panic for some kinds.
     pub fn new(size: usize, kind: RealToRealFftKind) -> Self {
         let mut planner = DctPlanner::new();
 
@@ -72,9 +80,7 @@ impl RealToRealFft {
         Self { n: size, kind, transform }
     }
 
-    /// Transform `input` and write the result to `output`.
-    ///
-    /// The output is unnormalized and is scaled by two.
+    /// Transforms `input` and writes the result to `output`.
     ///
     /// # Panics
     ///
@@ -102,17 +108,17 @@ impl RealToRealFft {
         }
     }
 
-    /// Return the transform length.
+    /// Returns the transform length.
     pub fn len(&self) -> usize {
         self.n
     }
 
-    /// Return whether the transform length is zero.
+    /// Returns whether the transform length is zero.
     pub fn is_empty(&self) -> bool {
         self.n == 0
     }
 
-    /// Return this plan's transform convention.
+    /// Returns the kind of transform this plan computes.
     pub fn kind(&self) -> RealToRealFftKind {
         self.kind
     }
@@ -124,14 +130,16 @@ impl std::fmt::Debug for RealToRealFft {
     }
 }
 
-/// Transform one real input slice without retaining a plan.
+/// Transforms one real slice without retaining a plan.
 ///
-/// The output is unnormalized and scaled by two. Reuse [`RealToRealFft`] when
+/// The transform length is `x.len()`. Reuse [`RealToRealFft`] when
 /// transforming several slices with the same length and kind.
 ///
 /// # Panics
 ///
-/// Panics when `y.len() != x.len()`.
+/// Panics when `y.len() != x.len()`, or when `x` has length one with
+/// [`RealToRealFftKind::Redft00`]. Zero-length inputs can also panic during
+/// planning.
 pub fn fft_r2r_run(x: &[f32], y: &mut [f32], kind: RealToRealFftKind) {
     let fft = RealToRealFft::new(x.len(), kind);
     fft.run(x, y);
