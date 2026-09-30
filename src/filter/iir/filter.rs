@@ -137,10 +137,7 @@ where
 /// The result is four second-order sections, taken from the digital integrator
 /// of Pintelon and Schoukens (1990). One pole sits at `z = 1`, so a sustained DC
 /// component in the input makes the output grow without bound.
-///
-/// The built-in poles and zeros always group into sections, so this never
-/// returns an error.
-pub fn iir_filter_design_integrator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+pub fn iir_filter_design_integrator<Coeff>() -> (Vec<Coeff>, Vec<Coeff>, usize)
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
@@ -177,12 +174,13 @@ where
     // second-order sections
     let mut b = vec![0.0; 12];
     let mut a = vec![0.0; 12];
-    design::iir_design_d2sos(&zdi, &pdi, 8, kdi, &mut b, &mut a)?;
+    design::iir_design_d2sos(&zdi, &pdi, 8, kdi, &mut b, &mut a)
+        .expect("built-in integrator roots form four second-order sections");
 
     let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
     let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
 
-    Ok((b, a, 4))
+    (b, a, 4)
 }
 
 /// Designs a fixed eighth-order differentiating filter.
@@ -190,10 +188,7 @@ where
 /// The result is four second-order sections, taken from the digital
 /// differentiator of Pintelon and Schoukens (1990). One zero sits at `z = 1`, so
 /// the filter rejects DC.
-///
-/// The built-in poles and zeros always group into sections, so this never
-/// returns an error.
-pub fn iir_filter_design_differentiator<Coeff>() -> Result<(Vec<Coeff>, Vec<Coeff>, usize)>
+pub fn iir_filter_design_differentiator<Coeff>() -> (Vec<Coeff>, Vec<Coeff>, usize)
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     f32: Into<Coeff>,
@@ -229,12 +224,13 @@ where
     // second-order sections
     let mut b = vec![0.0; 12];
     let mut a = vec![0.0; 12];
-    design::iir_design_d2sos(&zdd, &pdd, 8, kdd, &mut b, &mut a)?;
+    design::iir_design_d2sos(&zdd, &pdd, 8, kdd, &mut b, &mut a)
+        .expect("built-in differentiator roots form four second-order sections");
 
     let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
     let a = a.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
 
-    Ok((b, a, 4))
+    (b, a, 4)
 }
 
 /// Designs a first-order DC-blocking filter.
@@ -697,10 +693,9 @@ where
     /// output grow without bound. See [`iir_filter_design_integrator`] for the
     /// design.
     ///
-    /// The built-in design always succeeds, so this never returns an error.
-    pub fn new_integrator() -> Result<Self> {
-        let (b, a, _num_sections) = iir_filter_design_integrator()?;
-        Self::new_sos(&b, &a)
+    pub fn new_integrator() -> Self {
+        let (b, a, _num_sections) = iir_filter_design_integrator();
+        Self::new_sos(&b, &a).expect("built-in integrator coefficients form valid sections")
     }
 
     /// Creates a fixed eighth-order differentiator as four second-order sections.
@@ -708,10 +703,9 @@ where
     /// One zero sits at `z = 1`, so the filter rejects DC. See
     /// [`iir_filter_design_differentiator`] for the design.
     ///
-    /// The built-in design always succeeds, so this never returns an error.
-    pub fn new_differentiator() -> Result<Self> {
-        let (b, a, _num_sections) = iir_filter_design_differentiator()?;
-        Self::new_sos(&b, &a)
+    pub fn new_differentiator() -> Self {
+        let (b, a, _num_sections) = iir_filter_design_differentiator();
+        Self::new_sos(&b, &a).expect("built-in differentiator coefficients form valid sections")
     }
 
     /// Creates a first-order DC-blocking filter with its output scale set.
@@ -1109,7 +1103,7 @@ mod tests {
         }
 
         // create integrator and run on sample data
-        let mut q = IirFilter::<f32, f32>::new_integrator().unwrap();
+        let mut q = IirFilter::<f32, f32>::new_integrator();
         q.execute_block(&buf_0, &mut buf_1).unwrap();
 
         // check that last value matches expected
@@ -1132,7 +1126,7 @@ mod tests {
         }
 
         // create differentiator and run on sample data
-        let mut q = IirFilter::<f32, f32>::new_differentiator().unwrap();
+        let mut q = IirFilter::<f32, f32>::new_differentiator();
         q.execute_block(&buf_0, &mut buf_1).unwrap();
 
         // check that derivative is equal to 1
