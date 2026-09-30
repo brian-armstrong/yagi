@@ -11,33 +11,36 @@ use crate::math::nextpow2;
 use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 
-/// subcarrier allocation type
-///
-/// key: '.' (null), '|' (pilot), '+' (data)
-/// .+++P+++++++P.........P+++++++P+++
+/// Role of one OFDM subcarrier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SubcarrierType {
-    /// disabled subcarrier, carries no energy
+    /// Disabled subcarrier that carries no energy.
     #[default]
     Null,
-    /// known reference symbol, used to track gain and phase
+    /// Carries a known symbol that the receiver uses to track phase and
+    /// timing.
     Pilot,
-    /// payload subcarrier
+    /// Carries payload.
     Data,
 }
 
-/// Counts of each subcarrier type in an allocation
+/// Number of subcarriers of each type in an allocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SubcarrierCounts {
+    /// Number of disabled carriers.
     pub null: usize,
+    /// Number of known-reference carriers.
     pub pilot: usize,
+    /// Number of payload carriers.
     pub data: usize,
 }
 
-/// Validated configuration shared by an OFDM frame generator and synchronizer.
+/// Validated OFDM frame layout shared by a generator and a synchronizer.
 ///
-/// Construction establishes all structural frame invariants so downstream
-/// objects can build directly from the configuration without repeating them.
+/// The configuration sets the number of subcarriers, the cyclic-prefix and
+/// taper lengths, and the role of each subcarrier. A generator and the
+/// synchronizer that receives its frames must use equal configurations.
+/// The allocation is indexed by natural FFT bin.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OfdmFrameConfig {
     num_subcarriers: usize,
@@ -48,10 +51,22 @@ pub struct OfdmFrameConfig {
 }
 
 impl OfdmFrameConfig {
-    /// Create and validate an OFDM frame configuration.
+    /// Creates a frame configuration.
     ///
-    /// `allocation` is indexed by natural FFT bin. Passing `None` selects the
-    /// default allocation.
+    /// `cp_len` is the cyclic-prefix length in samples, and `taper_len` is the
+    /// number of samples over which adjacent symbols are cross-faded.
+    /// `allocation` gives the role of each subcarrier in natural FFT-bin order
+    /// and is copied. `None` selects the allocation that
+    /// [`ofdmframe_init_default_sctype`] produces. The allocation must have at
+    /// least two pilot subcarriers and one data subcarrier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_subcarriers` is odd or less than eight,
+    /// `cp_len` exceeds `num_subcarriers`, `taper_len` exceeds `cp_len`,
+    /// `allocation` does not have `num_subcarriers` entries, or the allocation
+    /// has too few pilot or data subcarriers. The default allocation has too
+    /// few pilots when `num_subcarriers` is eight.
     pub fn new(
         num_subcarriers: usize,
         cp_len: usize,
@@ -93,32 +108,34 @@ impl OfdmFrameConfig {
         Ok(Self { num_subcarriers, cp_len, taper_len, allocation, counts })
     }
 
-    /// Number of subcarriers.
+    /// Returns the number of subcarriers, which is also the FFT size.
     pub fn num_subcarriers(&self) -> usize {
         self.num_subcarriers
     }
 
-    /// Cyclic-prefix length, in samples.
+    /// Returns the cyclic-prefix length, in samples.
     pub fn cp_len(&self) -> usize {
         self.cp_len
     }
 
-    /// Transmit taper/overlap length, in samples.
+    /// Returns the number of samples over which adjacent symbols are
+    /// cross-faded.
     pub fn taper_len(&self) -> usize {
         self.taper_len
     }
 
-    /// Subcarrier allocation indexed by natural FFT bin.
+    /// Returns the role of each subcarrier, in natural FFT-bin order.
     pub fn allocation(&self) -> &[SubcarrierType] {
         &self.allocation
     }
 
-    /// Counts of null, pilot, and data subcarriers.
+    /// Returns the number of subcarriers of each type.
     pub fn counts(&self) -> SubcarrierCounts {
         self.counts
     }
 
-    /// Number of time-domain samples in each OFDM symbol, including its prefix.
+    /// Returns the number of samples in each OFDM symbol, including its cyclic
+    /// prefix.
     pub fn symbol_len(&self) -> usize {
         self.num_subcarriers + self.cp_len
     }
@@ -250,11 +267,21 @@ pub(crate) fn ofdmframe_init_s1(
     Ok(m_s1)
 }
 
-/// initialize default subcarrier allocation
-///   p : output subcarrier allocation array
+/// Fills `p` with the default subcarrier allocation.
 ///
-/// key: '.' (null), 'P' (pilot), '+' (data)
-/// .+++P+++++++P.........P+++++++P+++
+/// For an even number `n` of subcarriers, bin zero (DC) is null, and so is a
+/// guard band of `2 * g + 1` bins centered on bin `n/2`, where `g` is `n/10`
+/// rounded down but at least two. Pilots sit 2, 6, 10 and so on bins from DC
+/// on both sides, or 4, 12, 20 and so on when `n` is more than 34. The other
+/// bins are data.
+///
+/// The whole slice is overwritten. The pilot and data counts are not checked,
+/// and eight subcarriers give no pilots. [`OfdmFrameConfig::new`] checks them.
+///
+/// # Errors
+///
+/// Returns an error when `p` has fewer than six elements. `p` is unchanged on
+/// error.
 pub fn ofdmframe_init_default_sctype(p: &mut [SubcarrierType]) -> Result<()> {
     // validate input
     let num_subcarriers = p.len();
@@ -288,10 +315,24 @@ pub fn ofdmframe_init_default_sctype(p: &mut [SubcarrierType]) -> Result<()> {
     Ok(())
 }
 
-/// initialize subcarrier allocation within an occupied frequency range
-///   f0 : lower frequency band, in [-0.5,0.5]
-///   f1 : upper frequency band, in [-0.5,0.5]
-///   p  : output subcarrier allocation array
+/// Fills `p` with an allocation that occupies the band from `f0` to `f1`.
+///
+/// `f0` and `f1` are in cycles per sample, in `[-0.5, 0.5]`, with `f0` below
+/// `f1`. Each edge is rounded down to a bin, and bins from one edge to the
+/// other inclusive are occupied. The edges must be at least six bins apart.
+/// Occupied bins are pilots when their natural bin index is a multiple of
+/// four, or of eight when the edges are more than 34 bins apart, and data
+/// otherwise. DC is not excluded, so bin zero is a pilot when the band covers
+/// it. Bins outside the band are null.
+///
+/// The whole slice is overwritten. The pilot and data counts are not checked.
+/// [`OfdmFrameConfig::new`] checks them.
+///
+/// # Errors
+///
+/// Returns an error when `p` has fewer than six elements, either edge is
+/// outside `[-0.5, 0.5]`, `f0` is not below `f1`, or the edges are fewer than
+/// six bins apart. `p` is unchanged on error.
 pub fn ofdmframe_init_sctype_range(f0: f32, f1: f32, p: &mut [SubcarrierType]) -> Result<()> {
     // validate input
     let num_subcarriers = p.len();
@@ -369,10 +410,11 @@ fn ofdmframe_validate_sctype(p: &[SubcarrierType]) -> Result<SubcarrierCounts> {
     Ok(counts)
 }
 
-/// render subcarrier allocation, centered on dc
+/// Formats an allocation as a string in frequency order.
 ///
-/// key: '.' (null), '|' (pilot), '+' (data)
-/// .+++P+++++++P.........P+++++++P+++
+/// The string is bracketed and uses `.` for null, `|` for pilot and `+` for
+/// data subcarriers. For an even number of subcarriers it starts at the most
+/// negative frequency, bin `len / 2`, and ends at the highest positive one.
 pub fn ofdmframe_sctype_string(p: &[SubcarrierType]) -> String {
     let num_subcarriers = p.len();
     let mut s = String::with_capacity(num_subcarriers + 2);
@@ -391,7 +433,22 @@ pub fn ofdmframe_sctype_string(p: &[SubcarrierType]) -> String {
     s
 }
 
-/// parse subcarrier allocation from string, centered on dc
+/// Parses an allocation string written in frequency order.
+///
+/// The string uses the format of [`ofdmframe_sctype_string`], and the result
+/// is in natural FFT-bin order. The two functions are inverses for an even
+/// number of subcarriers. With an odd number, the parsed allocation is
+/// rotated by one bin.
+///
+/// # Errors
+///
+/// Returns an error when the string is not bracketed or holds a character
+/// other than `.`, `|` or `+`.
+///
+/// # Panics
+///
+/// Can panic on a string with non-ASCII characters, because its length is
+/// counted in bytes.
 pub fn ofdmframe_sctype_from_string(s: &str) -> Result<Vec<SubcarrierType>> {
     if s.len() < 2 || !s.starts_with('[') || !s.ends_with(']') {
         return Err(Error::Config("ofdmframe_sctype_from_string(), string must be bracketed".into()));

@@ -10,12 +10,21 @@ use crate::fft::{Direction, Fft};
 use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 
-/// OFDM frame generator
+/// Generates OFDM frames for an [`OfdmFrameSynchronizer`].
 ///
-/// writes the PLCP preamble (two S0 symbols and one S1 symbol), then any
-/// number of data symbols, then a tail. each symbol carries a cyclic prefix,
-/// and adjacent symbols are cross-faded over `taper_len` samples to soften the
-/// spectral splatter at symbol boundaries.
+/// A frame is a three-symbol preamble followed by payload symbols. For each
+/// frame, call [`Self::reset`], then [`Self::write_s0a`], [`Self::write_s0b`]
+/// and [`Self::write_s1`] for the preamble, then [`Self::write_symbol`] once
+/// per payload symbol, and finally [`Self::write_tail`]. Each symbol write
+/// produces [`Self::symbol_len`] samples, and the tail produces
+/// [`Self::taper_len`] more.
+///
+/// Each symbol carries a cyclic prefix. Adjacent symbols are cross-faded over
+/// the taper length, and the tail finishes the fade after the last symbol.
+/// With unit-power data values, payload symbols have an average sample power
+/// of one, and the preamble symbols have about the same power.
+///
+/// [`OfdmFrameSynchronizer`]: super::OfdmFrameSynchronizer
 #[derive(Clone, Debug)]
 #[doc(alias = "OfdmFrameGen")]
 pub struct OfdmFrameGenerator {
@@ -50,7 +59,12 @@ pub struct OfdmFrameGenerator {
 }
 
 impl OfdmFrameGenerator {
-    /// Create an OFDM frame generator from a validated configuration.
+    /// Creates a generator for the frame layout in `config`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no pilot or data subcarrier sits at an even bin
+    /// index. The first preamble symbols use only even bins.
     pub fn new(config: &OfdmFrameConfig) -> Result<Self> {
         let num_subcarriers = config.num_subcarriers();
         let cp_len = config.cp_len();
@@ -104,41 +118,48 @@ impl OfdmFrameGenerator {
         })
     }
 
-    /// number of subcarriers
+    /// Returns the number of subcarriers.
     pub fn num_subcarriers(&self) -> usize {
         self.num_subcarriers
     }
 
-    /// cyclic prefix length
+    /// Returns the cyclic-prefix length, in samples.
     pub fn cp_len(&self) -> usize {
         self.cp_len
     }
 
-    /// taper (symbol overlap) length
+    /// Returns the number of samples over which adjacent symbols are
+    /// cross-faded.
     pub fn taper_len(&self) -> usize {
         self.taper_len
     }
 
-    /// number of null subcarriers
+    /// Returns the number of null subcarriers.
     pub fn num_null(&self) -> usize {
         self.counts.null
     }
 
-    /// number of pilot subcarriers
+    /// Returns the number of pilot subcarriers.
     pub fn num_pilot(&self) -> usize {
         self.counts.pilot
     }
 
-    /// number of data subcarriers
+    /// Returns the number of data subcarriers.
     pub fn num_data(&self) -> usize {
         self.counts.data
     }
 
-    /// length of each written symbol, in samples
+    /// Returns the number of samples in each symbol, including its cyclic
+    /// prefix.
     pub fn symbol_len(&self) -> usize {
         self.num_subcarriers + self.cp_len
     }
 
+    /// Prepares the generator for a new frame.
+    ///
+    /// This restarts the pilot sequence and clears the cross-fade state. The
+    /// synchronizer restarts its own pilot sequence with each frame, so skip
+    /// this and the pilots of the next frame will not match.
     pub fn reset(&mut self) {
         self.ms_pilot.reset();
 
@@ -146,7 +167,12 @@ impl OfdmFrameGenerator {
         self.postfix.fill(Complex32::new(0.0, 0.0));
     }
 
-    /// write first PLCP short sequence 'symbol' to buffer
+    /// Writes the first preamble symbol.
+    ///
+    /// The first two preamble symbols repeat a short sequence with a period of
+    /// half a symbol, which the synchronizer uses to detect the frame and
+    /// estimate the carrier offset. This one fades in over the taper length.
+    /// Follow it with [`Self::write_s0b`].
     ///
     /// ```text
     ///  |<- 2*cp->|<-       M       ->|<-       M       ->|
@@ -160,6 +186,11 @@ impl OfdmFrameGenerator {
     ///  |<-        s0[a]       ->|<-        s0[b]       ->|
     ///  |        M + cp_len      |        M + cp_len      |
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `y.len()` is not [`Self::symbol_len`]. The
+    /// generator and `y` are unchanged on error.
     pub fn write_s0a(&mut self, y: &mut [Complex32]) -> Result<()> {
         if y.len() != self.symbol_len() {
             return Err(Error::Config(format!(
@@ -184,7 +215,14 @@ impl OfdmFrameGenerator {
         Ok(())
     }
 
-    /// write second PLCP short sequence 'symbol' to buffer
+    /// Writes the second preamble symbol, which continues the first.
+    ///
+    /// Follow it with [`Self::write_s1`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `y.len()` is not [`Self::symbol_len`]. The
+    /// generator and `y` are unchanged on error.
     pub fn write_s0b(&mut self, y: &mut [Complex32]) -> Result<()> {
         if y.len() != self.symbol_len() {
             return Err(Error::Config(format!(
@@ -204,7 +242,15 @@ impl OfdmFrameGenerator {
         Ok(())
     }
 
-    /// write PLCP long sequence symbol to buffer
+    /// Writes the third preamble symbol.
+    ///
+    /// This symbol uses every pilot and data subcarrier. The synchronizer uses
+    /// it to fix symbol timing and estimate the channel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `y.len()` is not [`Self::symbol_len`]. The
+    /// generator and `y` are unchanged on error.
     pub fn write_s1(&mut self, y: &mut [Complex32]) -> Result<()> {
         if y.len() != self.symbol_len() {
             return Err(Error::Config(format!(
@@ -219,11 +265,17 @@ impl OfdmFrameGenerator {
         Ok(())
     }
 
-    /// write OFDM symbol
-    ///   x : input symbols, [size: num_subcarriers]
-    ///   y : output samples, [size: num_subcarriers + cp_len]
+    /// Writes one payload symbol.
     ///
-    /// `x` is indexed by natural fft bin; only the data subcarriers are read.
+    /// `x` holds one value per subcarrier in natural FFT-bin order. Only the
+    /// values at data subcarriers are used. Pilot subcarriers carry the next
+    /// values of the pilot sequence, and null subcarriers carry nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `x.len()` is not [`Self::num_subcarriers`] or
+    /// `y.len()` is not [`Self::symbol_len`]. The generator and `y` are
+    /// unchanged on error.
     pub fn write_symbol(&mut self, x: &[Complex32], y: &mut [Complex32]) -> Result<()> {
         if x.len() != self.num_subcarriers {
             return Err(Error::Config(format!(
@@ -266,7 +318,15 @@ impl OfdmFrameGenerator {
         Ok(())
     }
 
-    /// write tail to output, [size: taper_len]
+    /// Writes the end of the fade-out after the last symbol.
+    ///
+    /// The tail does not change the generator, so repeated calls write the
+    /// same samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `buffer.len()` is not [`Self::taper_len`]. The
+    /// generator and `buffer` are unchanged on error.
     pub fn write_tail(&mut self, buffer: &mut [Complex32]) -> Result<()> {
         if buffer.len() != self.taper_len {
             return Err(Error::Config(format!("ofdmframegen_writetail(), output must be {} samples", self.taper_len)));

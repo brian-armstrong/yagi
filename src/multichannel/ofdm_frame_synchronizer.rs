@@ -14,17 +14,31 @@ use crate::nco::{unwrap_phase, Nco, NcoBackend};
 use crate::sequence::MaximalLengthSequence;
 use num_complex::Complex32;
 
-/// channel estimator used at acquisition
+/// Method an [`OfdmFrameSynchronizer`] uses to smooth its channel estimate.
+///
+/// The synchronizer measures the channel on each pilot and data subcarrier of
+/// the third preamble symbol. The method fits a smooth response to those
+/// measurements, which reduces noise, and the fit sets the equalizer for the
+/// rest of the frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EqGainMethod {
-    /// fit |H| and arg(H) separately with a polynomial of this order.
-    /// cheap, and marginally the best option on a nearly-flat channel,
-    /// but it cannot represent more than roughly order/2 cycles of
-    /// ripple across the band
+    /// Fits the magnitude and the unwrapped phase across frequency with
+    /// separate polynomials of degree `order`.
+    ///
+    /// `order` must be at least one. An order above ten, or above one less
+    /// than the number of pilot and data subcarriers, is reduced to that
+    /// limit. A low order can miss frequency-selective fading. A high order
+    /// over pilot and data subcarriers that span a narrow band can make the
+    /// fit fail.
     Poly { order: usize },
-    /// fit this many time-domain taps by least squares. exact whenever the tap
-    /// count covers the channel's delay spread, at the cost of admitting more
-    /// noise per tap.
+    /// Fits a channel impulse response of `num_taps` taps by regularized
+    /// least squares.
+    ///
+    /// `num_taps` runs from one to the number of pilot and data subcarriers.
+    /// More taps can follow a longer delay spread but also fit more noise.
+    /// The first two taps sit before the timing estimate, so channel energy
+    /// that arrives slightly ahead of it is still fitted. With two taps only
+    /// the first does, and with one tap neither does.
     Dft { num_taps: usize },
 }
 
@@ -833,16 +847,18 @@ impl PayloadReceiver {
     }
 }
 
-/// One equalized OFDM payload symbol recovered by [`OfdmFrameSynchronizer::execute`].
+/// One equalized payload symbol returned by [`OfdmFrameSynchronizer::execute`].
 ///
-/// Both slices borrow the synchronizer's internal buffers and remain valid
-/// until its next mutable operation.
+/// The slices borrow the synchronizer.
 #[derive(Clone, Copy, Debug)]
 #[doc(alias = "OfdmFrameSyncSymbol")]
 pub struct OfdmFrameSynchronizerSymbol<'a> {
-    /// Equalized subcarrier values, indexed by natural FFT bin.
+    /// Equalized subcarrier values, in natural FFT-bin order.
+    ///
+    /// Data values come back at the scale they were given to the generator.
+    /// Null subcarriers are zero.
     pub subcarriers: &'a [Complex32],
-    /// Subcarrier allocation corresponding to [`Self::subcarriers`].
+    /// Role of each entry of [`Self::subcarriers`].
     pub allocation: &'a [SubcarrierType],
 }
 
@@ -852,7 +868,7 @@ pub struct OfdmFrameSynchronizerSymbol<'a> {
 pub struct OfdmFrameSynchronizerOutput<'a> {
     /// Number of input samples consumed. Resume with `&input[consumed..]`.
     pub consumed: usize,
-    /// Recovered payload symbol, if one became available.
+    /// Recovered payload symbol, or `None` when the input ran out first.
     pub symbol: Option<OfdmFrameSynchronizerSymbol<'a>>,
 }
 
@@ -873,14 +889,25 @@ enum FrameSyncMode {
     Receiving,
 }
 
-/// OFDM frame synchronizer
+/// Receives frames from an [`OfdmFrameGenerator`] in a stream of samples.
 ///
-/// Consumes a sample stream and returns each recovered payload symbol.
+/// The synchronizer searches the stream for the first two preamble symbols.
+/// When it finds them, it estimates the symbol timing and the carrier
+/// frequency offset, and mixes the rest of the frame down by that offset. The
+/// third preamble symbol fixes the timing and gives the channel estimate,
+/// which sets the equalizer. Each payload symbol is then equalized, and its
+/// pilots correct the remaining phase and timing drift.
 ///
-/// [`Self::execute`] stops after recovering one symbol so the caller can
-/// process it and decide whether the logical frame is complete. The caller
-/// must call [`Self::reset`] after the final symbol before feeding the next
-/// frame.
+/// The frame length is not part of the preamble, so the synchronizer cannot
+/// tell when a frame ends. [`Self::execute`] stops after each symbol so the
+/// caller can decide whether the frame is complete. Call [`Self::reset`]
+/// after the last symbol, or the synchronizer keeps returning symbols from
+/// whatever follows.
+///
+/// If the third preamble symbol is not found within 16 tries, spaced half a
+/// symbol apart, the synchronizer drops the detection and resumes the search.
+///
+/// [`OfdmFrameGenerator`]: super::OfdmFrameGenerator
 #[doc(alias = "OfdmFrameSync")]
 pub struct OfdmFrameSynchronizer {
     config: OfdmFrameConfig,
@@ -891,7 +918,16 @@ pub struct OfdmFrameSynchronizer {
 }
 
 impl OfdmFrameSynchronizer {
-    /// Create an OFDM frame synchronizer from a validated configuration.
+    /// Creates a synchronizer for the frame layout in `config`.
+    ///
+    /// The channel estimator starts as [`EqGainMethod::Dft`] with
+    /// `max(cp_len, 2)` taps, capped at the number of pilot and data
+    /// subcarriers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no pilot or data subcarrier sits at an even bin
+    /// index. The first preamble symbols use only even bins.
     pub fn new(config: &OfdmFrameConfig) -> Result<Self> {
         let mut synchronizer = Self {
             config: config.clone(),
@@ -904,26 +940,30 @@ impl OfdmFrameSynchronizer {
         Ok(synchronizer)
     }
 
-    /// number of subcarriers
+    /// Returns the number of subcarriers.
     pub fn num_subcarriers(&self) -> usize {
         self.config.num_subcarriers()
     }
 
-    /// number of null subcarriers
+    /// Returns the number of null subcarriers.
     pub fn num_null(&self) -> usize {
         self.config.counts().null
     }
 
-    /// number of pilot subcarriers
+    /// Returns the number of pilot subcarriers.
     pub fn num_pilot(&self) -> usize {
         self.config.counts().pilot
     }
 
-    /// number of data subcarriers
+    /// Returns the number of data subcarriers.
     pub fn num_data(&self) -> usize {
         self.config.counts().data
     }
 
+    /// Drops the current frame and resumes the preamble search.
+    ///
+    /// The carrier offset returns to zero. The channel estimator method and
+    /// [`Self::rssi`] are kept.
     pub fn reset(&mut self) {
         self.frontend.reset();
         self.acquisition.reset();
@@ -931,7 +971,10 @@ impl OfdmFrameSynchronizer {
         self.mode = FrameSyncMode::Acquiring;
     }
 
-    /// true once a frame has been detected and is being received
+    /// Returns whether a frame has been detected.
+    ///
+    /// This stays true through the payload until [`Self::reset`]. It returns
+    /// to false early only when the third preamble symbol is not found.
     pub fn is_frame_open(&self) -> bool {
         match self.mode {
             FrameSyncMode::Acquiring => self.acquisition.is_frame_open(),
@@ -939,44 +982,82 @@ impl OfdmFrameSynchronizer {
         }
     }
 
-    /// get receiver RSSI
+    /// Returns the received signal strength, in dB relative to unit power.
+    ///
+    /// While searching, the synchronizer measures the average input power
+    /// over one symbol every [`Self::num_subcarriers`] samples. The value is
+    /// not updated once a frame is detected, so during a frame it holds the
+    /// level at detection. A new synchronizer reports zero.
     pub fn rssi(&self) -> f32 {
         // TODO: see note in acquisition.rssi()
         self.acquisition.rssi()
     }
 
-    /// get receiver carrier frequency offset estimate
+    /// Returns the carrier frequency offset being removed, in radians per
+    /// sample.
+    ///
+    /// A positive value means the input is above its nominal frequency and is
+    /// mixed down by this amount. The value lies in `(-pi, pi]`. It is set
+    /// from the first two preamble symbols, which resolve offsets up to one
+    /// subcarrier spacing, `2 * pi / num_subcarriers`, in either direction.
+    /// Larger offsets alias. The pilots then adjust it slowly during the
+    /// payload. It is zero after [`Self::reset`].
     pub fn cfo(&self) -> f32 {
         self.frontend.nco.frequency()
     }
 
-    /// set receiver carrier frequency offset estimate
+    /// Sets the carrier frequency offset to remove, in radians per sample.
+    ///
+    /// The value wraps modulo `2 * pi`. It takes effect while a frame is open.
+    /// Detecting a frame replaces it with a new estimate, so it is useful
+    /// only for adjusting the offset during the payload.
+    ///
+    /// # Warning
+    ///
+    /// A nonzero value set before a frame is detected corrupts that frame's
+    /// offset estimate. The offset is measured on preamble samples that were
+    /// already partly mixed down by this value.
     pub fn set_cfo(&mut self, carrier_frequency_offset: f32) {
         self.frontend.nco.set_frequency(carrier_frequency_offset);
     }
 
-    /// Select the channel estimator used when the frame is acquired
+    /// Selects the method that smooths the channel estimate.
     ///
-    /// Defaults to [`EqGainMethod::Dft`] with a tap count derived from the
-    /// cyclic prefix. [`EqGainMethod::Poly`] with order 4 reproduces
-    /// liquid's behavior, and is marginally better on a nearly-flat channel
-    /// where the extra taps only admit noise. It also has a smaller computational
-    /// complexity.
+    /// A polynomial fit can suit a nearly flat channel. The tap fit can follow
+    /// a longer delay spread. The method is used for the next channel
+    /// estimate. It does not change the equalizer of a frame already being
+    /// received.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the polynomial order is zero or the tap count is
+    /// zero or more than the number of pilot and data subcarriers. The method
+    /// is unchanged on error.
     pub fn set_eqgain_method(&mut self, method: EqGainMethod) -> Result<()> {
         self.acquisition.set_eqgain_method(&self.config, method)
     }
 
-    /// the channel estimator in use
+    /// Returns the method that smooths the channel estimate.
+    ///
+    /// A polynomial order is reported as set, before any reduction.
     pub fn eqgain_method(&self) -> EqGainMethod {
         self.acquisition.eqgain_method()
     }
 
-    /// Push samples through the synchronizer until one payload symbol is
-    /// recovered or the input is exhausted.
+    /// Processes samples until one payload symbol is recovered or the input
+    /// runs out.
     ///
-    /// When a symbol is returned, resume with `&input[output.consumed..]` after the
-    /// borrowed symbol is no longer needed. If it completes the logical frame,
-    /// call [`Self::reset`] before resuming so the next preamble can be found.
+    /// When a symbol is returned, finish with it and resume with
+    /// `&input[output.consumed..]`. If it was the last symbol of the frame,
+    /// call [`Self::reset`] before resuming.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the channel fit at the third preamble symbol
+    /// fails. Nonfinite samples cause this. So can a high
+    /// [`EqGainMethod::Poly`] order when the pilot and data subcarriers span a
+    /// narrow band. Earlier samples have been consumed by then, and the count
+    /// is lost.
     pub fn execute<'a>(&'a mut self, input: &[Complex32]) -> Result<OfdmFrameSynchronizerOutput<'a>> {
         for (i, &xi) in input.iter().enumerate() {
             let mix_down = match self.mode {
@@ -1023,18 +1104,23 @@ impl OfdmFrameSynchronizer {
         Ok(OfdmFrameSynchronizerOutput { consumed: input.len(), symbol: None })
     }
 
-    /// Push samples through the synchronizer and copy as many recovered payload
-    /// symbols as will fit in `symbols`.
+    /// Processes samples and copies recovered payload symbols into
+    /// `symbols` until it is full or the input runs out.
     ///
-    /// The destination is a flat array of complete symbols and its length must
-    /// be a multiple of [`Self::num_subcarriers`]. Symbol `i` is written to
-    /// `symbols[i*M..(i+1)*M]`. Processing stops when the input is exhausted or
-    /// the destination is full. An empty destination consumes no input.
+    /// With `M` subcarriers, symbol `i` is written to
+    /// `symbols[i*M..(i+1)*M]`, so the length of `symbols` must be a multiple
+    /// of `M`. An empty `symbols` consumes no input.
     ///
-    /// The synchronizer does not know the logical frame length. Callers must
-    /// limit the destination to the number of symbols remaining in the frame
-    /// and call [`Self::reset`] after the final one; otherwise samples from the
-    /// next frame can be interpreted as additional payload symbols.
+    /// Size `symbols` to no more than the symbols left in the frame, and call
+    /// [`Self::reset`] after the last one. Otherwise samples after the frame
+    /// are returned as more payload symbols.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the length of `symbols` is not a multiple of `M`.
+    /// The synchronizer and `symbols` are unchanged in that case. Also returns
+    /// an error under the same condition as [`Self::execute`]. Earlier symbols
+    /// may have been copied by then, and the counts are lost.
     pub fn execute_symbols_into(
         &mut self,
         input: &[Complex32],

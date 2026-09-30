@@ -9,8 +9,20 @@ use crate::filter;
 
 use num_complex::{Complex32, ComplexFloat};
 
-/// Finite impulse response polyphase filterbank channelizer with rational rate
-/// (output rate Fs / P)
+/// FIR polyphase analysis channelizer with a decimation rate set apart from
+/// the channel count.
+///
+/// The channelizer splits its input into `M` channels spaced `1/M` cycles
+/// per input sample apart, where `M` is [`Self::num_channels`]. Each channel
+/// runs at `1/P` of the input rate, where `P` is [`Self::decimation_rate`].
+/// With `P` equal to `M` the channels are critically sampled. With `P` below
+/// `M` they are oversampled.
+///
+/// Call [`Self::push`] with `P` input samples, then [`Self::execute`] to read
+/// one value per channel. Channels are in natural FFT-bin order, and channel
+/// `k` is centered at `k/M` cycles per input sample. Filter history carries
+/// across calls, and [`Self::reset`] clears it. A new channelizer starts with
+/// zero-valued history.
 #[derive(Clone, Debug)]
 #[doc(alias = "FirPfbChannelizerR")]
 pub struct RationalPolyphaseChannelizer<T> {
@@ -36,15 +48,26 @@ where
     T: Clone + Copy + ComplexFloat<Real = f32> + Default + Into<Complex32> + From<Complex32>,
     [f32]: DotProd<T, Output = T>,
 {
-    /// Create rational rate resampling channelizer (firpfbchr) object by
-    /// specifying filter coefficients directly
+    /// Creates a channelizer from prototype coefficients.
     ///
-    /// # Arguments
+    /// `filter_semi_length` is the prototype span on each side of its center,
+    /// in units of `num_channels` samples. The first
+    /// `2 * num_channels * filter_semi_length` coefficients are copied in time
+    /// order and dealt out across the branches. Extra coefficients are
+    /// ignored. The coefficients are not normalized, so they set the gain and
+    /// channel width. A tone at a channel center produces an output of about
+    /// the sum of the coefficients divided by `num_channels`.
     ///
-    /// * `num_channels` - number of output channels in channelizer
-    /// * `decimation_rate` - output decimation factor (output rate is 1/P the input)
-    /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m
-    /// * `coefficients` - prototype filter coefficient array, [size: 2*M*m x 1]
+    /// # Errors
+    ///
+    /// Returns an error when `num_channels` is less than two,
+    /// `decimation_rate` or `filter_semi_length` is zero, or `coefficients` is
+    /// empty.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `coefficients` is nonempty but shorter than
+    /// `2 * num_channels * filter_semi_length`.
     pub fn new(
         num_channels: usize,
         decimation_rate: usize,
@@ -96,15 +119,22 @@ where
         Ok(q)
     }
 
-    /// Create rational rate resampling channelizer (firpfbchr) object by
-    /// specifying filter design parameters for Kaiser prototype
+    /// Creates a channelizer with a Kaiser-windowed prototype.
     ///
-    /// # Arguments
+    /// `filter_semi_length` is the prototype span on each side of its center,
+    /// in units of `num_channels` samples. `stopband_attenuation` is in dB.
     ///
-    /// * `num_channels` - number of output channels in channelizer
-    /// * `decimation_rate` - output decimation factor (output rate is 1/P the input)
-    /// * `filter_semi_length` - prototype filter semi-length, length=2*M*m
-    /// * `stopband_attenuation` - filter stop-band attenuation [dB]
+    /// The cutoff is `0.5 / decimation_rate` cycles per input sample, which
+    /// fills each channel's output band. With `decimation_rate` below
+    /// `num_channels`, neighboring channels overlap. With it above, gaps open
+    /// between them. After startup, a unit tone at a channel center produces
+    /// an output of about `sqrt(decimation_rate)` in that channel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_channels` is less than two,
+    /// `decimation_rate` or `filter_semi_length` is zero, or
+    /// `stopband_attenuation` is zero or negative.
     pub fn new_kaiser(
         num_channels: usize,
         decimation_rate: usize,
@@ -145,7 +175,9 @@ where
         Self::new(num_channels, decimation_rate, m, &h)
     }
 
-    /// Reset firpfbchr object internals
+    /// Clears the filter history to zeros.
+    ///
+    /// The channelizer then behaves like a new one.
     pub fn reset(&mut self) {
         for i in 0..self.num_channels {
             self.w[i].reset();
@@ -153,26 +185,32 @@ where
         self.base_index = self.num_channels - 1;
     }
 
-    /// Get number of output channels to channelizer
+    /// Returns the number of channels.
     pub fn num_channels(&self) -> usize {
         self.num_channels
     }
 
-    /// Get decimation rate
+    /// Returns the decimation rate, which is the number of input samples each
+    /// [`Self::push`] takes.
     pub fn decimation_rate(&self) -> usize {
         self.decim_rate
     }
 
-    /// Get semi-length to channelizer filter prototype
+    /// Returns the prototype semi-length, in units of
+    /// [`Self::num_channels`] samples.
     pub fn m(&self) -> usize {
         self.m
     }
 
-    /// Push samples into filter bank
+    /// Pushes [`Self::decimation_rate`] input samples into the filter bank.
     ///
-    /// # Arguments
+    /// Extra input is ignored. Call [`Self::execute`] afterwards to read the
+    /// channel values.
     ///
-    /// * `input` - channelizer input, [size: decimation_rate x 1]
+    /// # Panics
+    ///
+    /// Panics when `input` is shorter than [`Self::decimation_rate`]. No
+    /// samples are pushed in that case.
     pub fn push(&mut self, input: &[T]) {
         // load buffers in blocks of P in the reverse direction
         for &xi in &input[..self.decim_rate] {
@@ -184,11 +222,16 @@ where
         }
     }
 
-    /// Execute filterbank channelizer
+    /// Writes one value per channel for the samples pushed so far.
     ///
-    /// # Arguments
+    /// Writes the first [`Self::num_channels`] values of `output`, and extra
+    /// output is left unchanged. The filter history does not advance, so
+    /// repeated calls without a [`Self::push`] in between write the same
+    /// values.
     ///
-    /// * `output` - channelizer output, [size: num_channels x 1]
+    /// # Panics
+    ///
+    /// Panics when `output` is shorter than [`Self::num_channels`].
     pub fn execute(&mut self, output: &mut [T]) {
         // execute filter outputs
         for i in 0..self.num_channels {

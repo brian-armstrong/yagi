@@ -8,16 +8,27 @@ use crate::filter;
 
 use num_complex::{Complex32, ComplexFloat};
 
-/// Channelizer type
+/// Direction of a polyphase filter-bank transform.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ChannelizerType {
-    /// Analysis channelizer (time to frequency)
+    /// Converts blocks of time samples to frequency channels.
     Analyzer,
-    /// Synthesis channelizer (frequency to time)
+    /// Converts blocks of frequency channels to time samples.
     Synthesizer,
 }
 
-/// Finite impulse response polyphase filterbank channelizer
+/// Critically sampled FIR polyphase filter bank for analysis or synthesis.
+///
+/// A channelizer is built as either an analyzer or a synthesizer. For `M`
+/// channels, the analyzer turns each block of `M` time samples into one value
+/// per channel, so every channel runs at `1/M` of the input rate. The
+/// synthesizer does the reverse. Channels are in natural FFT-bin order, and
+/// channel `k` is centered at `k/M` cycles per time-domain sample.
+///
+/// Filter history carries across calls, and [`Self::reset`] clears it. A new
+/// channelizer starts with zero-valued history. Analysis gain and channel
+/// width depend on the prototype filter. The Kaiser and pulse-shaping
+/// constructors state them for their designs.
 #[derive(Clone, Debug)]
 #[doc(alias = "FirPfbChannelizer")]
 pub struct PolyphaseChannelizer<T, Coeff = f32> {
@@ -42,14 +53,23 @@ where
     Coeff: Clone + Copy + From<f32>,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create FIR polyphase filterbank channelizer object
+    /// Creates a filter bank from prototype coefficients.
     ///
-    /// # Arguments
+    /// `filter_length` is the number of taps per polyphase branch. The first
+    /// `num_channels * filter_length` coefficients are copied in time order
+    /// and dealt out across the branches. Extra coefficients are ignored. The
+    /// coefficients are not normalized, so they set the analysis gain and
+    /// channel width. For analysis, a tone at a channel center produces an
+    /// output of about the prototype's sum of coefficients.
     ///
-    /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
-    /// * `num_channels` - number of channels
-    /// * `filter_length` - filter length (symbols)
-    /// * `coefficients` - filter coefficients, [size: num_channels * filter_length x 1]
+    /// # Errors
+    ///
+    /// Returns an error when `num_channels` or `filter_length` is zero.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `coefficients` is shorter than
+    /// `num_channels * filter_length`.
     pub fn new(
         channelizer_type: ChannelizerType,
         num_channels: usize,
@@ -102,15 +122,23 @@ where
         Ok(q)
     }
 
-    /// Create FIR polyphase filterbank channelizer object with
-    /// prototype filter based on windowed Kaiser design
+    /// Creates a filter bank with a Kaiser-windowed prototype.
     ///
-    /// # Arguments
+    /// `filter_delay` is the filter span on each side of the center tap, in
+    /// channel samples, and gives `2 * filter_delay` taps per branch.
+    /// `stopband_attenuation` is in dB, and its sign is ignored.
     ///
-    /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
-    /// * `num_channels` - number of channels
-    /// * `filter_delay` - filter delay (symbols)
-    /// * `stopband_attenuation` - stop-band attenuation [dB]
+    /// The prototype cutoff is `0.5 / num_channels` cycles per time-domain
+    /// sample, half the channel spacing, so a tone at one channel center
+    /// barely reaches its neighbors. After startup, a unit tone at a channel
+    /// center produces an analyzer output of about `num_channels` in that
+    /// channel, not one. A unit value held in one synthesizer channel produces
+    /// a tone of amplitude about one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_channels` or `filter_delay` is zero, or
+    /// `stopband_attenuation` is zero.
     pub fn new_kaiser(
         channelizer_type: ChannelizerType,
         num_channels: usize,
@@ -140,16 +168,28 @@ where
         Self::new(channelizer_type, num_channels, p, &h)
     }
 
-    /// Create FIR polyphase filterbank channelizer object with
-    /// prototype root-Nyquist filter
+    /// Creates a filter bank from a pulse-shaping prototype.
     ///
-    /// # Arguments
+    /// The prototype is designed with `num_channels` samples per symbol.
+    /// `filter_delay` is its span on each side of the center tap, in symbols,
+    /// and gives `2 * filter_delay` taps per branch. `excess_bandwidth` is the
+    /// rolloff factor passed to the `filter_shape` design. An analyzer
+    /// reverses the prototype, so it acts as the matched filter.
     ///
-    /// * `channelizer_type` - channelizer type (Analyzer or Synthesizer)
-    /// * `num_channels` - number of channels
-    /// * `filter_delay` - filter delay (symbols)
-    /// * `excess_bandwidth` - filter excess bandwidth factor, in [0,1]
-    /// * `filter_shape` - filter prototype (rrcos, rkaiser, etc.)
+    /// The gain and the overlap between adjacent channels depend on the shape
+    /// and the excess bandwidth. With [`FirFilterShape::Rrcos`], each channel
+    /// extends to `(1 + excess_bandwidth) / (2 * num_channels)` cycles per
+    /// time-domain sample from its center, so a nonzero excess bandwidth
+    /// makes it overlap its neighbors. A tone at a channel center produces an
+    /// analyzer output of about `num_channels` in that channel and a small
+    /// output in each neighbor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `num_channels` or `filter_delay` is zero, or the
+    /// selected prototype rejects the configuration.
+    ///
+    /// [`FirFilterShape::Rrcos`]: filter::FirFilterShape::Rrcos
     pub fn new_rnyquist(
         channelizer_type: ChannelizerType,
         num_channels: usize,
@@ -193,7 +233,7 @@ where
         Self::new(channelizer_type, num_channels, p, &gc)
     }
 
-    /// Reset filterbank object internals
+    /// Clears the filter history to zeros.
     pub fn reset(&mut self) {
         for i in 0..self.num_channels {
             self.w[i].reset();
@@ -203,27 +243,40 @@ where
         self.filter_index = self.num_channels - 1;
     }
 
-    /// Get channelizer type
+    /// Returns whether this channelizer analyzes or synthesizes.
     pub fn channelizer_type(&self) -> ChannelizerType {
         self.channelizer_type
     }
 
-    /// Get number of channels
+    /// Returns the number of channels, which is also the number of time
+    /// samples in each block.
     pub fn num_channels(&self) -> usize {
         self.num_channels
     }
 
-    /// Get filter semi-length
+    /// Returns the filter delay, which is half the taps per branch rounded
+    /// down.
+    ///
+    /// For the Kaiser and pulse-shaping constructors this is `filter_delay`.
     pub fn m(&self) -> usize {
         self.p / 2
     }
 
-    /// Execute filterbank as synthesizer on block of samples
+    /// Synthesizes one block of time samples from one value per channel.
     ///
-    /// # Arguments
+    /// Reads the first [`Self::num_channels`] values of `input` and writes the
+    /// first [`Self::num_channels`] samples of `output`. Extra input is ignored
+    /// and extra output is left unchanged.
     ///
-    /// * `input` - channelized input, [size: num_channels x 1]
-    /// * `output` - output time series, [size: num_channels x 1]
+    /// # Errors
+    ///
+    /// Returns an error when the channelizer is an analyzer. The channelizer
+    /// and `output` are unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either slice is shorter than [`Self::num_channels`]. When
+    /// only `output` is too short, the filter history has already advanced.
     pub fn synthesizer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.channelizer_type != ChannelizerType::Synthesizer {
             return Err(Error::Config("cannot execute synthesizer on analyzer channelizer".into()));
@@ -247,12 +300,22 @@ where
         Ok(())
     }
 
-    /// Execute filterbank as analyzer on block of samples
+    /// Analyzes one block of time samples into one value per channel.
     ///
-    /// # Arguments
+    /// Reads the first [`Self::num_channels`] samples of `input` and writes the
+    /// first [`Self::num_channels`] values of `output`. Extra input is ignored
+    /// and extra output is left unchanged.
     ///
-    /// * `input` - input time series, [size: num_channels x 1]
-    /// * `output` - channelized output, [size: num_channels x 1]
+    /// # Errors
+    ///
+    /// Returns an error when the channelizer is a synthesizer. The channelizer
+    /// and `output` are unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either slice is shorter than [`Self::num_channels`]. When
+    /// only `output` is too short, the input has already entered the filter
+    /// history.
     pub fn analyzer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
         if self.channelizer_type != ChannelizerType::Analyzer {
             return Err(Error::Config("cannot execute analyzer on synthesizer channelizer".into()));
