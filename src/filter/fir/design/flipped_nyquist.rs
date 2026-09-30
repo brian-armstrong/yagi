@@ -113,9 +113,20 @@ pub fn fir_design_rfexp(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f3
 /// sample, and indices past the midpoint wrap to negative frequencies. The
 /// response is real and even, with one in the passband and zero in the
 /// stopband. The length of `h` sets the number of samples, and `_m` is
-/// ignored. This helper does not validate `k` or `beta` and never returns an
-/// error.
+/// ignored.
+///
+/// # Errors
+///
+/// Returns an error when `k` is zero or `beta` is nonfinite or outside
+/// `0.0..=1.0`. On error, `h` is unchanged.
 pub fn fir_design_fexp_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32]) -> Result<()> {
+    if k == 0 {
+        return Err(Error::Config("k must be greater than 0".into()));
+    }
+    if !(0.0..=1.0).contains(&beta) {
+        return Err(Error::Config("beta must be in [0,1]".into()));
+    }
+
     let h_len = h.len();
 
     let f0 = 0.5 * (1.0 - beta) / k as f32;
@@ -173,9 +184,17 @@ pub fn fir_design_rfsech(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<f
 /// Writes the sampled frequency response of a flipped hyperbolic-secant
 /// Nyquist pulse to `h`.
 ///
-/// The sample order and unchecked parameters are the same as in
-/// [`fir_design_fexp_freqresponse`]. Every element of `h` is overwritten.
+/// The sample order and parameter limits are the same as in
+/// [`fir_design_fexp_freqresponse`]. On success, every element of `h` is
+/// overwritten.
 pub fn fir_design_fsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32]) -> Result<()> {
+    if k == 0 {
+        return Err(Error::Config("k must be greater than 0".into()));
+    }
+    if !(0.0..=1.0).contains(&beta) {
+        return Err(Error::Config("beta must be in [0,1]".into()));
+    }
+
     let h_len = h.len();
 
     let f0 = 0.5 * (1.0 - beta) / k as f32;
@@ -246,9 +265,17 @@ fn asechf(z: f32) -> f32 {
 /// Writes the sampled frequency response of a flipped inverse
 /// hyperbolic-secant Nyquist pulse to `h`.
 ///
-/// The sample order and unchecked parameters are the same as in
-/// [`fir_design_fexp_freqresponse`]. Every element of `h` is overwritten.
+/// The sample order and parameter limits are the same as in
+/// [`fir_design_fexp_freqresponse`]. On success, every element of `h` is
+/// overwritten.
 pub fn fir_design_farcsech_freqresponse(k: usize, _m: usize, beta: f32, h: &mut [f32]) -> Result<()> {
+    if k == 0 {
+        return Err(Error::Config("k must be greater than 0".into()));
+    }
+    if !(0.0..=1.0).contains(&beta) {
+        return Err(Error::Config("beta must be in [0,1]".into()));
+    }
+
     let h_len = h.len();
 
     let f0 = 0.5 * (1.0 - beta) / k as f32;
