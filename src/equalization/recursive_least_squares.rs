@@ -3,12 +3,20 @@ use crate::dotprod::DotProd;
 use crate::error::{Error, Result};
 use crate::matrix::{FloatComplex, MatrixRef};
 
-/// A recursive least-squares adaptive equalizer.
+/// Adaptive FIR equalizer with a recursive least-squares update.
 ///
-/// Push received samples with [`Self::push`], calculate an estimate with
-/// [`Self::execute`], then update with [`Self::step`]. Use [`Self::train`] for
-/// a complete known training sequence. The exported [`Self::weights`] use FIR
-/// order, with the first weight applied to the newest input sample.
+/// Push received samples with [`Self::push`], compute an estimate with
+/// [`Self::execute`], then update the weights with [`Self::step`]. For a
+/// whole known training sequence, [`Self::train`] does all three. The
+/// equalizer keeps a `length x length` matrix, so memory and work per update
+/// grow with the square of the length.
+///
+/// The weight setters and getters use different orders.
+/// [`Self::from_coefficients`] and [`Self::set_coefficients`] take history
+/// order, with the first weight applied to the oldest sample.
+/// [`Self::weights`] and [`Self::train`] use FIR order, with the first weight
+/// applied to the newest sample. Reverse the output of `weights` before
+/// passing it to either setter.
 #[derive(Clone, Debug)]
 #[doc(alias = "Eqrls")]
 pub struct RecursiveLeastSquaresEqualizer<T> {
@@ -29,7 +37,11 @@ where
     T: Clone + Copy + From<f32> + Default + FloatComplex,
     [T]: DotProd<T, Output = T>,
 {
-    /// Create an equalizer with a unit weight for the newest input sample.
+    /// Creates an equalizer that starts by passing samples through.
+    ///
+    /// The one nonzero weight is one, applied to the newest sample. The
+    /// forgetting factor starts at 0.99. A new equalizer starts with
+    /// zero-valued history.
     ///
     /// # Errors
     ///
@@ -42,11 +54,11 @@ where
         Ok(q)
     }
 
-    /// Create an equalizer with initial weights in history order.
+    /// Creates an equalizer with initial weights in history order.
     ///
-    /// The first coefficient multiplies the oldest sample in the retained
-    /// history. Use [`Self::weights`] to retrieve weights in conventional FIR
-    /// order.
+    /// `coefficients[0]` is applied to the oldest sample. This is the reverse
+    /// of the order [`Self::weights`] returns. The forgetting factor starts at
+    /// 0.99.
     ///
     /// # Errors
     ///
@@ -81,15 +93,17 @@ where
         })
     }
 
-    /// Replace the initial and active weights in history order.
+    /// Replaces the weights with `coefficients`, in history order.
     ///
-    /// The first coefficient multiplies the oldest retained input. This keeps
-    /// the input history and RLS recursion matrix unchanged.
+    /// `coefficients[0]` is applied to the oldest sample. Reverse the output
+    /// of [`Self::weights`] before passing it here. The new weights also
+    /// become the ones [`Self::reset`] restores. The sample history and the
+    /// internal matrix are unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when `coefficients.len()` does not match the filter
-    /// length. The equalizer is unchanged on error.
+    /// Returns an error when the length of `coefficients` differs from the
+    /// equalizer length. The equalizer is unchanged on error.
     pub fn set_coefficients(&mut self, coefficients: &[T]) -> Result<()> {
         if coefficients.len() != self.p {
             return Err(Error::Config(format!(
@@ -104,9 +118,11 @@ where
         Ok(())
     }
 
-    /// Restore the initial weights and clear the input history.
+    /// Restores the initial weights, clears the sample history to zeros, and
+    /// resets the internal matrix.
     ///
-    /// This also resets the RLS recursion matrix.
+    /// The initial weights are the ones set at construction or by the last
+    /// [`Self::set_coefficients`]. The forgetting factor is unchanged.
     pub fn reset(&mut self) {
         self.n = 0;
 
@@ -119,19 +135,22 @@ where
         self.buffer.reset();
     }
 
-    /// Return the RLS forgetting factor.
+    /// Returns the forgetting factor.
     pub fn bw(&self) -> f32 {
         self.lambda
     }
 
-    /// Set the RLS forgetting factor.
+    /// Sets the forgetting factor `lambda`.
     ///
-    /// Values near one retain more past observations. The implementation
-    /// accepts values in `[0, 1]`.
+    /// The update weights a sample `k` steps in the past by `lambda^k`. Values
+    /// near one average over more past samples and track changes more
+    /// slowly. The factor must lie in `(0, 1]`. Zero is accepted, but
+    /// [`Self::step`] then divides by zero and the weights become nonfinite.
     ///
     /// # Errors
     ///
-    /// Returns an error when `forgetting_factor` is outside `[0, 1]`.
+    /// Returns an error when `forgetting_factor` is outside `[0, 1]`. The
+    /// factor is unchanged on error.
     pub fn set_bw(&mut self, forgetting_factor: f32) -> Result<()> {
         if !(0.0..=1.0).contains(&forgetting_factor) {
             return Err(Error::Config("forgetting factor must be in (0,1)".into()));
@@ -140,29 +159,26 @@ where
         Ok(())
     }
 
-    /// Append one received sample to the input history.
+    /// Pushes one received sample into the history.
     pub fn push(&mut self, input: T) {
         self.buffer.push(input)
     }
 
-    /// Compute the estimate for the current input history.
+    /// Returns the estimate for the current sample history.
     ///
-    /// This does not update the weights or recursion matrix.
+    /// The equalizer is unchanged. This never returns an error.
     pub fn execute(&self) -> Result<T> {
         let r = self.buffer.read();
         let y = self.w0.dotprod(r);
         Ok(y)
     }
 
-    /// Update the equalizer from a desired value and its estimate.
+    /// Updates the weights from the desired value `d` and the estimate
+    /// `d_hat`.
     ///
-    /// `d_hat` should be the result of [`Self::execute`] for the current input
-    /// history.
-    ///
-    /// # Warning
-    ///
-    /// The update divides by the forgetting factor. A factor of zero produces
-    /// nonfinite internal state. No numerical error is reported.
+    /// `d_hat` should be the result of [`Self::execute`] for the current
+    /// history. Unlike the LMS equalizer, updates start with the first
+    /// sample. This never returns an error.
     pub fn step(&mut self, d: T, d_hat: T) -> Result<()> {
         let alpha = d - d_hat;
         let x = self.buffer.read();
@@ -202,15 +218,15 @@ where
         Ok(())
     }
 
-    /// Copy active weights in conventional FIR order.
+    /// Writes the weights to `w` in FIR order.
     ///
-    /// `w[0]` multiplies the newest input sample. Later weights multiply
-    /// successively older samples.
+    /// `w[0]` is applied to the newest sample. Reverse `w` before passing it
+    /// to [`Self::set_coefficients`] or [`Self::from_coefficients`].
     ///
     /// # Errors
     ///
-    /// Returns an error when `w.len()` does not equal the filter length. `w` is
-    /// unchanged on error.
+    /// Returns an error when the length of `w` differs from the equalizer
+    /// length. `w` is unchanged on error.
     pub fn weights(&self, w: &mut [T]) -> Result<()> {
         if w.len() != self.p {
             return Err(Error::Config("output weights array length must match filter order".into()));
@@ -221,17 +237,19 @@ where
         Ok(())
     }
 
-    /// Train the equalizer against `n` received and desired samples.
+    /// Resets the equalizer and trains it on `n` received samples `x` and
+    /// desired samples `d`.
     ///
-    /// `w` supplies initial FIR-order weights and receives the final weights.
-    /// The first `n` elements of `x` and `d` are the received and desired
-    /// sequences. This resets the equalizer before training.
+    /// `w` gives the starting weights and receives the trained ones, both in
+    /// FIR order like [`Self::weights`]. The starting weights do not become
+    /// the ones [`Self::reset`] restores. Extra elements of `x` and `d` are
+    /// ignored.
     ///
     /// # Errors
     ///
-    /// Returns an error when `n` is shorter than the filter length, `w` has
-    /// the wrong length, or `x` or `d` has fewer than `n` elements. The
-    /// equalizer and `w` are unchanged on these input errors.
+    /// Returns an error when `n` is less than the equalizer length, the
+    /// length of `w` differs from it, or `x` or `d` holds fewer than `n`
+    /// samples. The equalizer and `w` are unchanged on error.
     pub fn train(&mut self, w: &mut [T], x: &[T], d: &[T], n: usize) -> Result<()> {
         if n < self.p {
             return Err(Error::Config("training sequence less than filter order".into()));

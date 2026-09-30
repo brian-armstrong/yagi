@@ -3,12 +3,19 @@ use crate::error::{Error, Result};
 use crate::filter;
 use num_complex::ComplexFloat;
 
-/// A normalized least-mean-squares adaptive equalizer.
+/// Adaptive FIR equalizer with a normalized least-mean-squares update.
 ///
-/// Push received samples with [`Self::push`], calculate an estimate with
-/// [`Self::execute`], then update the filter with [`Self::step`] or
-/// [`Self::step_blind`]. The exported [`Self::weights`] use FIR
-/// order, with the first weight applied to the newest input sample.
+/// Push received samples with [`Self::push`], compute an estimate with
+/// [`Self::execute`], then update the weights with [`Self::step`] or
+/// [`Self::step_blind`]. Each update is scaled by the learning rate and
+/// divided by the energy of the sample history, so its size does not depend
+/// on the input level. Updates start once the history is full.
+///
+/// Weights are in FIR order, with the first applied to the newest sample.
+/// [`Self::weights`] returns them in that order and
+/// [`Self::set_coefficients`] takes them back. [`Self::coefficients`] returns
+/// the internal form instead, which is reversed and conjugated, and is not a
+/// valid input to `set_coefficients`.
 #[derive(Clone, Debug)]
 #[doc(alias = "Eqlms")]
 pub struct LeastMeanSquaresEqualizer<T> {
@@ -36,7 +43,11 @@ where
         + std::ops::Div<f32, Output = T>,
     f32: std::ops::Mul<T, Output = T>,
 {
-    /// Create an equalizer with a unit weight at its center tap.
+    /// Creates an equalizer that starts as a pure delay.
+    ///
+    /// The one nonzero weight is one, at a delay of `(filter_length - 1) / 2`
+    /// samples, rounded down. The learning rate starts at 0.5. A new
+    /// equalizer starts with zero-valued history.
     ///
     /// # Errors
     ///
@@ -48,9 +59,10 @@ where
         Ok(q)
     }
 
-    /// Create an equalizer with initial FIR coefficients.
+    /// Creates an equalizer with initial weights in FIR order.
     ///
-    /// The first coefficient multiplies the newest input sample.
+    /// `coefficients[0]` is applied to the newest sample, the same order that
+    /// [`Self::weights`] returns. The learning rate starts at 0.5.
     ///
     /// # Errors
     ///
@@ -67,15 +79,16 @@ where
         Ok(q)
     }
 
-    /// Replace the initial and active FIR coefficients.
+    /// Replaces the weights with `coefficients`, in FIR order.
     ///
-    /// The first coefficient multiplies the newest input sample. This retains
-    /// the input history and normalized-energy state.
+    /// The output of [`Self::weights`] can be passed here unchanged. The
+    /// output of [`Self::coefficients`] cannot. The new weights also become
+    /// the ones [`Self::reset`] restores. The sample history is unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when `coefficients.len() != self.length()`. The
-    /// equalizer is unchanged on error.
+    /// Returns an error when the length of `coefficients` differs from
+    /// [`Self::length`]. The equalizer is unchanged on error.
     pub fn set_coefficients(&mut self, coefficients: &[T]) -> Result<()> {
         if coefficients.len() != self.h_len {
             return Err(Error::Config(format!(
@@ -114,16 +127,27 @@ where
         })
     }
 
-    /// Create an equalizer initialized with a root-Nyquist filter.
+    /// Creates an equalizer whose initial weights are a pulse-shaping
+    /// prototype.
     ///
-    /// `samples_per_symbol` must be at least two. `filter_delay` is measured
-    /// in symbols. `excess_bandwidth` must lie in `[0, 1]`.
-    /// `fractional_delay` is measured in samples and must lie in `[-1, 1]`.
+    /// # Arguments
+    ///
+    /// - `filter_shape`: the prototype. Shapes that are not root-Nyquist are
+    ///   also accepted.
+    /// - `samples_per_symbol`: at least two.
+    /// - `filter_delay`: filter span on each side of the center tap, in
+    ///   symbols. Must be nonzero.
+    /// - `excess_bandwidth`: rolloff factor, in `[0, 1]`.
+    /// - `fractional_delay`: shift of the impulse response, in samples, in
+    ///   `[-1, 1]`.
+    ///
+    /// The equalizer has `2 * samples_per_symbol * filter_delay + 1` taps.
+    /// The prototype is divided by `samples_per_symbol` before use.
     ///
     /// # Errors
     ///
-    /// Returns an error when these parameters are outside their supported
-    /// ranges or the requested filter design fails.
+    /// Returns an error when a parameter is outside its range or the selected
+    /// prototype rejects the configuration.
     pub fn new_rnyquist(
         filter_shape: filter::FirFilterShape,
         samples_per_symbol: usize,
@@ -156,10 +180,14 @@ where
         Self::from_coefficients(&hc)
     }
 
-    /// Create an equalizer initialized with a Kaiser low-pass filter.
+    /// Creates an equalizer whose initial weights are a Kaiser-windowed
+    /// low-pass filter.
     ///
-    /// `cutoff_frequency` is measured in cycles per sample and must lie in
-    /// `(0, 0.5]`.
+    /// `cutoff_frequency` is in cycles per sample, in `(0, 0.5]`. The design
+    /// targets 40 dB of stopband attenuation, and the taps are scaled by
+    /// `2 * cutoff_frequency` for a passband gain of about one. A short filter
+    /// meets neither. At a cutoff of 0.1, the DC gain is 0.2 for a single tap
+    /// and 0.5 for five taps, and both targets are met from about 21 taps.
     ///
     /// # Errors
     ///
@@ -179,7 +207,10 @@ where
         Self::from_coefficients(&hc)
     }
 
-    /// Restore the initial coefficients and clear the input history.
+    /// Restores the initial weights and clears the sample history to zeros.
+    ///
+    /// The initial weights are the ones set at construction or by the last
+    /// [`Self::set_coefficients`]. The learning rate is unchanged.
     pub fn reset(&mut self) {
         self.w0.copy_from_slice(&self.h0);
         self.buffer.reset();
@@ -189,18 +220,20 @@ where
         self.x2_sum = 0.0;
     }
 
-    /// Return the LMS learning rate.
+    /// Returns the learning rate.
     pub fn bw(&self) -> f32 {
         self.mu
     }
 
-    /// Set the LMS learning rate.
+    /// Sets the learning rate.
     ///
-    /// A value of zero disables adaptation. Larger values adapt more strongly.
+    /// Larger values adapt faster, and zero stops adaptation. There is no
+    /// upper limit, but a large rate can make the weights diverge.
     ///
     /// # Errors
     ///
-    /// Returns an error when `learning_rate` is negative.
+    /// Returns an error when `learning_rate` is negative. The rate is
+    /// unchanged on error.
     pub fn set_bw(&mut self, learning_rate: f32) -> Result<()> {
         if learning_rate < 0.0 {
             return Err(Error::Config("learning rate cannot be less than zero".into()));
@@ -209,61 +242,65 @@ where
         Ok(())
     }
 
-    /// Return the number of equalizer taps.
+    /// Returns the number of weights.
     pub fn length(&self) -> usize {
         self.h_len
     }
 
-    /// Return active weights in the internal oldest-to-newest orientation.
+    /// Returns the weights in internal form, which is history order and
+    /// conjugated.
     ///
-    /// Complex weights are stored conjugated. Use [`Self::weights`] for the
-    /// ordinary FIR coefficient order.
+    /// The first element applies to the oldest sample, and complex weights
+    /// are conjugated. This is not the form [`Self::set_coefficients`] takes.
+    /// Use [`Self::weights`] to save weights for restoring later.
     pub fn coefficients(&self) -> &[T] {
         &self.w0
     }
 
-    /// Return active FIR coefficients in newest-to-oldest order.
+    /// Returns a copy of the weights in FIR order.
     ///
-    /// The first returned coefficient multiplies the newest input sample.
+    /// The first weight applies to the newest sample. The result can be
+    /// passed to [`Self::set_coefficients`] unchanged.
     pub fn weights(&self) -> Vec<T> {
         self.w0.iter().rev().map(|&x| x.conj()).collect()
     }
 
-    /// Append one received sample to the input history.
+    /// Pushes one received sample into the history.
     pub fn push(&mut self, input: T) {
         self.buffer.push(input);
         self.update_sumsq(input);
         self.count += 1;
     }
 
-    /// Append every received sample in `x` to the input history.
+    /// Pushes each sample of `x` into the history, in order.
     pub fn push_block(&mut self, x: &[T]) {
         for &xi in x {
             self.push(xi);
         }
     }
 
-    /// Compute the estimate for the current input history.
+    /// Returns the estimate for the current sample history.
     ///
-    /// This does not update the coefficients.
+    /// The weights are unchanged. This never returns an error.
     pub fn execute(&self) -> Result<T> {
         let r = self.buffer.read();
         Ok(self.w0.iter().zip(r).map(|(&w, &x)| w.conj() * x).sum())
     }
 
-    /// Process one `k`-sample decimation interval.
+    /// Pushes `k` samples and returns one estimate, for decimation by `k`.
     ///
-    /// The estimate is computed after pushing `input[0]`. The remaining
-    /// `k - 1` samples are then appended to prepare for the next interval.
-    /// This method does not adapt the coefficients.
+    /// The estimate is computed right after `input[0]` is pushed. The other
+    /// `k - 1` samples are pushed afterwards. The weights are unchanged.
+    /// Extra input is ignored.
     ///
     /// # Errors
     ///
-    /// Returns an error when `k` is zero.
+    /// Returns an error when `k` is zero. The equalizer is unchanged on error.
     ///
     /// # Panics
     ///
-    /// Panics when `input.len() < k`.
+    /// Panics when `input` is shorter than `k`. When `input` is not empty,
+    /// its first sample has already been pushed.
     pub fn decim_execute(&mut self, input: &[T], k: usize) -> Result<T> {
         if k == 0 {
             return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
@@ -275,17 +312,24 @@ where
         Ok(y)
     }
 
-    /// Process a block and perform blind updates every `k` samples.
+    /// Pushes a block of samples, writing one estimate per sample and making
+    /// a blind update every `k` samples.
     ///
-    /// Every input sample produces one estimate. The first `input.len()`
-    /// elements of `output` receive those estimates. Blind updates begin with
-    /// the first sample, then recur at intervals of `k` samples once the input
-    /// history is full. Remaining output elements are unchanged.
+    /// Each estimate is computed before any update for its sample. A
+    /// [`Self::step_blind`] update follows the estimate whenever the number
+    /// of samples pushed since the last reset is one more than a multiple of
+    /// `k`. Extra output is left unchanged. Returns `input.len()`.
     ///
     /// # Errors
     ///
     /// Returns an error when `k` is zero or `output` is shorter than `input`.
-    /// No samples are processed in either case.
+    /// The equalizer and `output` are unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `k` plus the pushed-sample count overflows `usize` and
+    /// overflow checks are enabled. Without overflow checks, the sum wraps and
+    /// adaptation runs on the wrong samples.
     pub fn execute_block(&mut self, k: usize, input: &[T], output: &mut [T]) -> Result<usize> {
         if k == 0 {
             return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
@@ -306,15 +350,21 @@ where
         Ok(input.len())
     }
 
-    /// Update the equalizer from a desired value and its estimate.
+    /// Updates the weights from the desired value `d` and the estimate
+    /// `d_hat`.
     ///
-    /// The update begins only after the input history is full. `d_hat` should
-    /// be the estimate returned by [`Self::execute`] for the current history.
+    /// `d_hat` should be the result of [`Self::execute`] for the current
+    /// history. Nothing changes until [`Self::length`] samples have been
+    /// pushed since the last reset.
     ///
     /// # Warning
     ///
-    /// The normalized update divides by the input-history energy. A zero-energy
-    /// history produces nonfinite weights.
+    /// The update divides by the energy of the sample history, which is kept
+    /// as a running `f32` sum. An all-zero history gives nonfinite weights,
+    /// even with a zero learning rate. After a long run followed by a large
+    /// drop in input level, the running sum can drift far from the true
+    /// energy, or below zero. The update is then mis-scaled or reversed in
+    /// sign. Neither case is reported.
     pub fn step(&mut self, d: T, d_hat: T) {
         if !self.buf_full {
             if self.count < self.h_len {
@@ -335,15 +385,15 @@ where
         self.w0.copy_from_slice(&self.w1);
     }
 
-    /// Update the equalizer with a unit-magnitude estimate.
+    /// Updates the weights without a known desired value.
     ///
-    /// This uses `d_hat / |d_hat|` as the desired value for constant-modulus
-    /// adaptation.
+    /// The desired value is `d_hat / |d_hat|`, the estimate scaled to unit
+    /// magnitude. This suits signals with constant magnitude, such as PSK.
     ///
     /// # Warning
     ///
-    /// A zero `d_hat` cannot be normalized and produces nonfinite weights once
-    /// the input history is full.
+    /// A zero `d_hat` makes the weights nonfinite once the history is full.
+    /// This also applies to the blind updates in [`Self::execute_block`].
     pub fn step_blind(&mut self, d_hat: T) {
         let d = d_hat / d_hat.abs();
         self.step(d, d_hat)
