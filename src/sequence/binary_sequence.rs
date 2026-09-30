@@ -4,9 +4,9 @@ use crate::utility::count_ones;
 
 /// A fixed-length binary sequence.
 ///
-/// Bit index `0` is the rightmost bit. Index `length() - 1` is the leftmost
-/// bit. [`Self::push`] appends a bit at index `0` and shifts existing bits
-/// toward higher indices.
+/// Bit index `0` is the rightmost bit and index `length() - 1` is the
+/// leftmost. [`Self::push`] adds a bit at index `0` and shifts the existing
+/// bits toward higher indices, discarding the leftmost bit.
 #[derive(Debug, Clone)]
 #[doc(alias = "BSequence")]
 pub struct BinarySequence {
@@ -17,9 +17,10 @@ pub struct BinarySequence {
 }
 
 impl BinarySequence {
-    /// Create a zero-filled binary sequence with `num_bits` bits.
+    /// Creates a binary sequence of `num_bits` zero bits.
     ///
-    /// A zero-length sequence can be inspected but cannot accept pushed bits.
+    /// A zero-length sequence can be inspected, but [`Self::push`] and
+    /// [`Self::circshift`] panic on it.
     pub fn new(num_bits: usize) -> Self {
         // round up to the nearest 32 (number of bits in a u32)
         let s_len = num_bits.div_ceil(32);
@@ -31,19 +32,20 @@ impl BinarySequence {
         bs
     }
 
-    /// Initialize `qa` and `qb` with a complementary pair of binary codes.
+    /// Fills `qa` and `qb` with a complementary pair of binary codes.
     ///
-    /// Both sequences must have the same length. The length must be a power of
-    /// two and at least eight bits.
+    /// The sum of the two codes' aperiodic autocorrelations is zero at every
+    /// nonzero lag. Both sequences must have the same length, a power of two of
+    /// at least eight bits. Their earlier contents are replaced.
     ///
     /// # Errors
     ///
     /// Returns an error when the lengths differ, are shorter than eight bits,
-    /// or are not a multiple of eight.
+    /// or are not a multiple of eight. Both sequences are unchanged on error.
     ///
     /// # Panics
     ///
-    /// Panics when the matching length is a non-power-of-two multiple of eight.
+    /// Panics when the length is a multiple of eight but not a power of two.
     pub fn create_ccodes(qa: &mut BinarySequence, qb: &mut BinarySequence) -> Result<()> {
         if qa.num_bits != qb.num_bits {
             return Err(Error::Config("sequence lengths must match".into()));
@@ -91,9 +93,13 @@ impl BinarySequence {
         Ok(())
     }
 
-    /// Copy one nominal period from `ms` into a binary sequence.
+    /// Creates a binary sequence holding one nominal period of `ms`.
     ///
-    /// Bits are appended in the order returned by [`MaximalLengthSequence::advance`].
+    /// The sequence has [`MaximalLengthSequence::length`] bits, pushed in the
+    /// order [`MaximalLengthSequence::advance`] returns them from the
+    /// generator's current state. The first bit ends up leftmost. `ms` is left
+    /// advanced by one period and is not reset. At degree 31 the sequence
+    /// takes 256 MiB. This never returns an error.
     pub fn from_msequence(ms: &mut MaximalLengthSequence) -> Result<Self> {
         let mut bs = BinarySequence::new(ms.length() as usize);
         bs.reset();
@@ -103,19 +109,23 @@ impl BinarySequence {
         Ok(bs)
     }
 
-    /// Clear every bit in the sequence.
+    /// Clears every bit to zero.
+    ///
+    /// The length is unchanged.
     pub fn reset(&mut self) {
         self.s.fill(0);
     }
 
-    /// Initialize the sequence from most-significant-bit-first bytes.
+    /// Replaces the contents with bits read from bytes, most significant bit
+    /// first.
     ///
-    /// The first bit in `v` becomes the leftmost bit of the sequence. `v` must
-    /// contain at least `ceil(length() / 8)` bytes. Extra bytes are ignored.
+    /// The first bit of `v` becomes the leftmost bit of the sequence. `v` must
+    /// hold at least `ceil(length() / 8)` bytes, and extra bytes are ignored.
     ///
     /// # Panics
     ///
-    /// Panics when `v` is too short.
+    /// Panics when `v` is too short. The sequence can then be partly
+    /// overwritten.
     pub fn init(&mut self, v: &[u8]) {
         let mut k = 0;
         let mut byte = 0;
@@ -131,14 +141,18 @@ impl BinarySequence {
         }
     }
 
-    /// Print the sequence length to standard output.
+    /// Prints the sequence length to standard output.
     pub fn print(&self) {
         println!("<bsequence, bits={}>", self.num_bits);
     }
 
-    /// Append the low bit of `bit` at the right end of the sequence.
+    /// Adds the low bit of `bit` at the right end of the sequence.
     ///
-    /// Existing bits shift toward the left. The leftmost bit is discarded.
+    /// Existing bits shift toward the left, and the leftmost bit is discarded.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sequence has zero length.
     pub fn push(&mut self, bit: u32) {
         let p = 32;
         self.s[0] = (self.s[0] << 1) & self.bit_mask_msb;
@@ -153,23 +167,35 @@ impl BinarySequence {
         self.s[l - 1] |= bit & 1;
     }
 
-    /// Rotate the sequence left by one bit.
+    /// Rotates the sequence left by one bit.
     ///
     /// The leftmost bit becomes the rightmost bit.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sequence has zero length.
     pub fn circshift(&mut self) {
         let msb_mask = 1u32.checked_shl(self.num_bits_msb as u32 - 1).unwrap_or(0);
         let b = (self.s[0] & msb_mask) >> (self.num_bits_msb - 1);
         self.push(b);
     }
 
-    /// Count matching bit positions in two binary sequences.
+    /// Counts the bit positions where two sequences agree.
     ///
-    /// Convert the result to the usual bipolar correlation with
-    /// `2 * matches - length()`.
+    /// The bipolar correlation is `2 * matches - length()`. The two lengths
+    /// must be equal for the count to compare corresponding bits. Only the
+    /// number of 32-bit words each length occupies is checked.
     ///
     /// # Errors
     ///
-    /// Returns an error when the sequences use different internal word counts.
+    /// Returns an error when the lengths occupy different numbers of 32-bit
+    /// words.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the count overflows `i32` and overflow checks are enabled.
+    /// Without overflow checks, the count wraps. This takes sequences of about
+    /// `2^31` bits.
     pub fn correlate(&self, bs2: &BinarySequence) -> Result<i32> {
         if self.s.len() != bs2.s.len() {
             return Err(Error::Config("binary sequences must be the same length".into()));
@@ -185,13 +211,16 @@ impl BinarySequence {
         Ok(rxy)
     }
 
-    /// Compute the bitwise XOR of two binary sequences.
+    /// Writes the bitwise XOR of two sequences to `bs3`.
     ///
-    /// Stores the result in `bs3`.
+    /// All three lengths should be equal. Only the number of 32-bit words
+    /// each length occupies is checked. With unequal lengths, `bs3` can hold
+    /// set bits beyond its length that [`Self::accumulate`] still counts.
     ///
     /// # Errors
     ///
-    /// Returns an error when the sequences use different internal word counts.
+    /// Returns an error when the lengths occupy different numbers of 32-bit
+    /// words. `bs3` is unchanged on error.
     pub fn add(&self, bs2: &BinarySequence, bs3: &mut BinarySequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
@@ -204,13 +233,16 @@ impl BinarySequence {
         Ok(())
     }
 
-    /// Compute the bitwise AND of two binary sequences.
+    /// Writes the bitwise AND of two sequences to `bs3`.
     ///
-    /// Stores the result in `bs3`.
+    /// All three lengths should be equal. Only the number of 32-bit words
+    /// each length occupies is checked. With unequal lengths, `bs3` can hold
+    /// set bits beyond its length that [`Self::accumulate`] still counts.
     ///
     /// # Errors
     ///
-    /// Returns an error when the sequences use different internal word counts.
+    /// Returns an error when the lengths occupy different numbers of 32-bit
+    /// words. `bs3` is unchanged on error.
     pub fn mul(&self, bs2: &BinarySequence, bs3: &mut BinarySequence) -> Result<()> {
         if self.s.len() != bs2.s.len() || self.s.len() != bs3.s.len() {
             return Err(Error::Config("binary sequences must be same length".into()));
@@ -223,19 +255,17 @@ impl BinarySequence {
         Ok(())
     }
 
-    /// Count the one bits in the sequence.
+    /// Returns the number of one bits in the sequence.
     pub fn accumulate(&self) -> u32 {
         self.s.iter().map(|&x| count_ones(x)).sum()
     }
 
-    /// Return the number of bits in the sequence.
+    /// Returns the number of bits in the sequence.
     pub fn length(&self) -> usize {
         self.num_bits
     }
 
-    /// Return the bit at `index`.
-    ///
-    /// Index `0` selects the rightmost bit.
+    /// Returns the bit at `index`, where index `0` is the rightmost bit.
     ///
     /// # Errors
     ///
