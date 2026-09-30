@@ -173,10 +173,14 @@ impl FirHilbertFilter {
     ///
     /// Samples beyond the first two are ignored.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `input` has fewer than two samples.
+    /// Returns an error when `input` has fewer than two samples. The
+    /// transformer is unchanged on error.
     pub fn decim_execute(&mut self, input: &[f32]) -> Result<Complex32> {
+        if input.len() < 2 {
+            return Err(Error::Config("decimation input must hold at least two samples".into()));
+        }
         // compute quadrature component (filter branch)
         self.w1.push(input[0]);
         let r = self.w1.read();
@@ -229,10 +233,14 @@ impl FirHilbertFilter {
     /// The samples are written to the first two entries of `output`. Later
     /// entries are left unchanged.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `output` has fewer than two entries.
+    /// Returns an error when `output` has fewer than two entries. The
+    /// transformer and `output` are unchanged on error.
     pub fn interp_execute(&mut self, input: Complex32, output: &mut [f32]) -> Result<()> {
+        if output.len() < 2 {
+            return Err(Error::Config("interpolation output must hold at least two samples".into()));
+        }
         let vi = if self.toggle { -input.re } else { input.re };
         let vq = if self.toggle { -input.im } else { input.im };
 
