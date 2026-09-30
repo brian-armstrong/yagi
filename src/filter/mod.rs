@@ -140,7 +140,7 @@ pub use iir_impl::design::{IirBandType, IirFilterShape, IirFormat};
 pub use iir_impl::{IirDecimationFilter, IirFilter, IirHilbertFilter, IirInterpolationFilter, IirSecondOrderSection};
 pub use order_statistic_filter::OrderStatisticFilter;
 pub use resampler::{
-    ArbitraryResampler, HalfBandResampler, MultiStageHalfBandResampler, MultiStageResampler, RationalResampler,
+    ArbitraryResampler, HalfBandResampler, MultistageHalfBandResampler, MultistageResampler, RationalResampler,
     ResampType,
 };
 pub use sample::Sample;

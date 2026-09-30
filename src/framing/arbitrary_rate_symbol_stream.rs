@@ -1,7 +1,7 @@
 use super::symbol_stream::SymbolStream;
 use crate::error::{Error, Result};
 use crate::filter::FirFilterShape;
-use crate::filter::MultiStageResampler;
+use crate::filter::MultistageResampler;
 use crate::math::nextpow2;
 use crate::modem::ModulationScheme;
 use num_complex::Complex32;
@@ -10,7 +10,7 @@ use num_complex::Complex32;
 #[doc(alias = "SymStreamR")]
 pub struct ArbitraryRateSymbolStream {
     symstream: SymbolStream,
-    resamp: MultiStageResampler<Complex32, f32>,
+    resamp: MultistageResampler<Complex32, f32>,
     buf: Vec<Complex32>,
     buf_size: usize,
     buf_index: usize,
@@ -36,7 +36,7 @@ impl ArbitraryRateSymbolStream {
 
         let symstream = SymbolStream::new_linear(filter_shape, 2, filter_delay, excess_bandwidth, modulation_scheme)?;
         let rate = 0.5 / bandwidth;
-        let resamp = MultiStageResampler::new(rate, 60.0)?;
+        let resamp = MultistageResampler::new(rate, 60.0)?;
 
         let buf_len = 1 << nextpow2((0.5 / bandwidth).ceil() as u32)?;
         let buf = vec![Complex32::new(0.0, 0.0); buf_len];
