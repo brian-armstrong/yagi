@@ -207,8 +207,6 @@ where
     /// - `samples_per_symbol`: nominal input samples per symbol, at least two.
     /// - `filter_delay`: filter span on each side of its center, in symbols.
     ///   Must be nonzero.
-    /// - `excess_bandwidth`: must lie in `(0, 1]`, but does not change the
-    ///   filter.
     /// - `num_filters`: number of filter phases. The timing resolution is
     ///   `1 / num_filters` of an input sample. Must be nonzero.
     ///
@@ -218,28 +216,19 @@ where
     /// # Errors
     ///
     /// Returns an error when `samples_per_symbol` is less than two,
-    /// `filter_delay` or `num_filters` is zero, or `excess_bandwidth` is
-    /// nonfinite or outside its range.
+    /// `filter_delay` or `num_filters` is zero, or filter design fails.
     ///
     /// # Panics
     ///
     /// Panics when the filter length overflows `usize` and overflow checks are
     /// enabled. Without overflow checks, the length wraps and the design is
     /// invalid.
-    pub fn new_kaiser(
-        samples_per_symbol: usize,
-        filter_delay: usize,
-        excess_bandwidth: f32,
-        num_filters: usize,
-    ) -> Result<Self> {
+    pub fn new_kaiser(samples_per_symbol: usize, filter_delay: usize, num_filters: usize) -> Result<Self> {
         if samples_per_symbol < 2 {
             return Err(Error::Config("samples/symbol must be at least 2".into()));
         }
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
-        }
-        if !(excess_bandwidth > 0.0 && excess_bandwidth <= 1.0) {
-            return Err(Error::Config("excess bandwidth factor must be in (0,1]".into()));
         }
         if num_filters == 0 {
             return Err(Error::Config("number of filters must be greater than 0".into()));
@@ -573,13 +562,12 @@ mod tests {
         assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 12, 7.2, 48).is_err()); // beta is too large
         assert!(SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, 2, 12, 0.2, 0).is_err()); // M is too small
 
-        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(0, 12, 0.2, 48).is_err()); // k is too small
-        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 0, 0.2, 48).is_err()); // m is too small
-        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 7.2, 48).is_err()); // beta is too large
-        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 0.2, 0).is_err()); // M is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(0, 12, 48).is_err()); // k is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 0, 48).is_err()); // m is too small
+        assert!(SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 0).is_err()); // M is too small
 
         // create valid object
-        let mut q = SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 0.2, 48).unwrap();
+        let mut q = SymbolSynchronizer::<Complex32>::new_kaiser(2, 12, 48).unwrap();
         // assert!(q.print().is_ok());
 
         // check lock state
@@ -681,7 +669,7 @@ mod tests {
         let mut sync = if method == "rnyquist" {
             SymbolSynchronizer::<Complex32>::new_rnyquist(ftype_tx, k, m, beta, num_filters).unwrap()
         } else {
-            SymbolSynchronizer::<Complex32>::new_kaiser(k, m, beta, num_filters).unwrap()
+            SymbolSynchronizer::<Complex32>::new_kaiser(k, m, num_filters).unwrap()
         };
 
         // set loop filter bandwidth
@@ -855,7 +843,7 @@ mod tests {
         let mut sync = if method == "rnyquist" {
             SymbolSynchronizer::<f32>::new_rnyquist(ftype_tx, k, m, beta, num_filters).unwrap()
         } else {
-            SymbolSynchronizer::<f32>::new_kaiser(k, m, beta, num_filters).unwrap()
+            SymbolSynchronizer::<f32>::new_kaiser(k, m, num_filters).unwrap()
         };
 
         // set loop filter bandwidth
@@ -985,7 +973,7 @@ mod tests {
     // error if the output buffer is too small, rather than panicking.
     #[test]
     fn test_symsync_output_buffer_full() {
-        let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 0.3, 32).unwrap();
+        let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
 
         // Set rate to 0.5 - this means ~2 outputs per input
         sync.set_fractional_rate(0.5).unwrap();
