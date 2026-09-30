@@ -116,6 +116,29 @@ where
         self.iirfilt.reset();
     }
 
+    /// Returns the decimation factor.
+    pub fn decim_rate(&self) -> usize {
+        self.decimation_factor
+    }
+
+    /// Sets the factor applied to every output sample.
+    pub fn set_scale(&mut self, scale: Coeff) {
+        self.iirfilt.set_scale(scale);
+    }
+
+    /// Returns the factor applied to every output sample.
+    pub fn scale(&self) -> Coeff {
+        self.iirfilt.scale()
+    }
+
+    /// Evaluates the frequency response at `fc` cycles per input sample.
+    ///
+    /// The response includes the output scale. `fc` is not range-checked, and
+    /// the response repeats with a period of one.
+    pub fn freqresp(&self, fc: f32) -> Complex32 {
+        self.iirfilt.freqresponse(fc)
+    }
+
     /// Consumes one group of input samples and returns one output sample.
     ///
     /// A group should hold `decimation_factor` samples, but the length is not
@@ -227,5 +250,21 @@ mod tests {
         assert_eq!(q.execute_block(&x, &mut y).unwrap(), 4);
         assert_eq!(y[4], Complex32::new(-9.0, -9.0));
         assert_eq!(y[7], Complex32::new(-9.0, -9.0));
+    }
+
+    #[test]
+    fn test_iirdecim_rate_freqresp() {
+        let mut q = IirDecimationFilter::<f32>::new(3, &[1.0], &[1.0, -0.5]).unwrap();
+        let mut reference = q.clone();
+        assert_eq!(q.decim_rate(), 3);
+        assert_eq!(q.scale(), 1.0);
+        q.set_scale(2.0);
+        reference.set_scale(2.0);
+        assert_eq!(q.scale(), 2.0);
+        assert_eq!(q.freqresp(0.0), Complex32::new(4.0, 0.0));
+
+        assert!(matches!(q.execute(&[1.0, 2.0]), Err(Error::Config(_))));
+        assert_eq!(q.execute(&[1.0, 2.0, 3.0, 99.0]).unwrap(), reference.execute(&[1.0, 2.0, 3.0]).unwrap());
+        assert_eq!(q.execute(&[4.0, 5.0, 6.0]).unwrap(), reference.execute(&[4.0, 5.0, 6.0]).unwrap());
     }
 }
