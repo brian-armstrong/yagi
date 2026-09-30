@@ -1,11 +1,26 @@
 use crate::error::{Error, Result};
 
+/// Whether a search looks for the smallest or the largest utility.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OptimDirection {
+    /// Prefer smaller utility values.
     Minimize,
+    /// Prefer larger utility values.
     Maximize,
 }
 
+/// Search for an extremum of a function of one `f32`, by repeatedly
+/// narrowing an interval around it.
+///
+/// The search holds three points: the two ends of an interval and a current
+/// estimate inside it. Set them with [`Self::init`] or [`Self::init_bounds`],
+/// then call [`Self::step`] as often as needed. Each step evaluates the
+/// midpoints on either side of the estimate and keeps the best of the three
+/// inner points, with its two neighbors as the new ends. After
+/// [`Self::init_bounds`], every step halves the interval.
+///
+/// When the interval brackets a single extremum, the estimate converges on
+/// it. There is no stopping test, so the caller chooses the number of steps.
 #[derive(Debug)]
 #[doc(alias = "Qs1dSearch")]
 pub struct QuadSectionSearch<F> {
@@ -36,6 +51,7 @@ impl<F> QuadSectionSearch<F>
 where
     F: FnMut(f32) -> f32,
 {
+    /// Creates a search for `utility`, which still needs an initial interval.
     pub fn new(utility: F, direction: OptimDirection) -> Self {
         Self {
             vn: 0.0,
@@ -55,6 +71,10 @@ where
         }
     }
 
+    /// Clears the interval, the estimate and the step count.
+    ///
+    /// The utility and direction are kept. Initialize the search again before
+    /// the next [`Self::step`].
     pub fn reset(&mut self) {
         self.init = false;
         self.num_steps = 0;
@@ -70,6 +90,23 @@ where
         self.up = 0.0;
     }
 
+    /// Sets the interval by searching outward from `v` for an extremum.
+    ///
+    /// The search moves away from `v` in growing steps, first upward and then
+    /// downward, until the utility turns. Steps start near `1e-16` and grow by
+    /// a factor of 1.5, for up to 180 steps in each direction. A direction is
+    /// abandoned as soon as the utility moves the wrong way.
+    ///
+    /// Starting exactly at the extremum usually fails. Both directions are
+    /// then abandoned, and the fallback check at `v +/- 1e-16` rounds to `v`
+    /// itself unless `v` is very small. The step count is not reset.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NoConvergence`] when neither direction finds a turn.
+    /// A failed call still moves the estimate to `v`, and a search that was
+    /// initialized before stays marked as initialized. Call [`Self::reset`]
+    /// before an unrelated search.
     pub fn init(&mut self, v: f32) -> Result<()> {
         // specify initial step size
         let step = 1e-16;
@@ -146,6 +183,12 @@ where
         Err(Error::NoConvergence("Failed to initialize search direction".into()))
     }
 
+    /// Sets the interval to run between `vn` and `vp`, with the midpoint as
+    /// the estimate.
+    ///
+    /// The ends may be given in either order. Whether they bracket an
+    /// extremum is not checked. The utility is called at both ends and the
+    /// midpoint. The step count is not reset. This never returns an error.
     pub fn init_bounds(&mut self, vn: f32, vp: f32) -> Result<()> {
         // set bounds appropriately
         self.vn = vn.min(vp);
@@ -162,6 +205,12 @@ where
         Ok(())
     }
 
+    /// Narrows the interval once, calling the utility twice.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the search has not been initialized. The utility
+    /// is not called and the search is unchanged in that case.
     pub fn step(&mut self) -> Result<()> {
         if !self.init {
             return Err(Error::Config("Object has not been properly initialized".into()));
@@ -209,18 +258,29 @@ where
         Ok(())
     }
 
+    /// Does nothing. Call [`Self::step`] to advance the search.
+    ///
+    /// This never returns an error.
     pub fn execute(&mut self) -> Result<()> {
         Ok(())
     }
 
+    /// Returns the number of steps taken since creation or the last
+    /// [`Self::reset`].
     pub fn num_steps(&self) -> usize {
         self.num_steps
     }
 
+    /// Returns the current estimate of the extremum's position.
+    ///
+    /// Returns `0.0` on a new or reset search.
     pub fn opt_v(&self) -> f32 {
         self.v0
     }
 
+    /// Returns the utility at the current estimate.
+    ///
+    /// Returns `0.0` on a new or reset search.
     pub fn opt_u(&self) -> f32 {
         self.u0
     }
