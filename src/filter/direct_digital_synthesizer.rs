@@ -211,11 +211,14 @@ impl DirectDigitalSynthesizer {
     ///
     /// With zero stages, `input[0]` is mixed down and scaled directly.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `input` is shorter than [`Self::rate`]. The filter history
-    /// may already have changed.
+    /// Returns an error when `input` is shorter than [`Self::rate`]. The
+    /// oscillator and filter history are unchanged on error.
     pub fn decim_execute(&mut self, input: &[Complex32]) -> Result<Complex32> {
+        if input.len() < self.rate {
+            return Err(Error::Config("decimation input length too small for synthesizer rate".into()));
+        }
         let mut b0 = &mut self.buffer0;
         let mut b1 = &mut self.buffer1;
 
@@ -250,11 +253,14 @@ impl DirectDigitalSynthesizer {
     /// The input is multiplied by the scale before mixing. `output` must hold
     /// at least [`Self::rate`] samples, and extra output is left unchanged.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `output` is shorter than [`Self::rate`]. The oscillator
-    /// phase and filter history have already changed by then.
+    /// Returns an error when `output` is shorter than [`Self::rate`]. The
+    /// oscillator, filter history and `output` are unchanged on error.
     pub fn interp_execute(&mut self, input: Complex32, output: &mut [Complex32]) -> Result<()> {
+        if output.len() < self.rate {
+            return Err(Error::Config("interpolation output length too small for synthesizer rate".into()));
+        }
         // increment NCO
         let input = input * self.scale;
         let input = self.ncox.mix_up(input);
