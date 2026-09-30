@@ -1,9 +1,11 @@
 use core::f32;
 
-/// Hold a recent peak value over a rolling sample history.
+/// Running maximum over the most recent `hold + 1` samples.
 ///
-/// This helper is used by [`super::Limiter`] to sustain gain reduction after a
-/// detected peak.
+/// Each call records one sample and returns the largest of it and the
+/// previous `hold` samples. A peak therefore persists in the output for
+/// `hold` calls after it arrives. [`super::Limiter`] uses it to hold gain
+/// reduction after a peak.
 pub struct PeakHold {
     hold: usize,
     current: Vec<f32>,
@@ -12,24 +14,33 @@ pub struct PeakHold {
 }
 
 impl PeakHold {
-    /// Create a peak hold with `hold` samples per internal history block.
+    /// Creates a peak hold over `hold + 1` samples.
     ///
-    /// # Panics
-    ///
-    /// `hold` must be nonzero. The constructor does not validate this and a
-    /// later [`Self::execute`] will panic otherwise.
+    /// `hold` must be nonzero. Zero is accepted here, but the first
+    /// [`Self::execute`] call then panics.
     pub fn new(hold: usize) -> Self {
         Self { hold, current: vec![], current_max: f32::MIN, previous: vec![f32::MIN; hold] }
     }
 
-    /// Clear the peak history.
+    /// Clears the sample history.
+    ///
+    /// Later calls return the maximum over the samples recorded since the
+    /// reset, until `hold + 1` samples have arrived.
     pub fn reset(&mut self) {
         self.current.clear();
         self.current_max = f32::MIN;
         self.previous = vec![f32::MIN; self.hold];
     }
 
-    /// Record `input` and return the held peak.
+    /// Records `input` and returns the maximum over the most recent
+    /// `hold + 1` samples.
+    ///
+    /// Before `hold + 1` samples have arrived, the maximum is over the
+    /// samples recorded so far.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the peak hold was created with `hold` zero.
     pub fn execute(&mut self, input: f32) -> f32 {
         self.current.push(input);
         self.current_max = self.current_max.max(input);

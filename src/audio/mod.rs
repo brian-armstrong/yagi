@@ -1,7 +1,7 @@
 //! Stateful audio-sample processors and a CVSD codec.
 //!
-//! The processors operate on scalar `f32` samples. They do not store a sample
-//! rate, so time-related constructor parameters are measured in samples.
+//! These types operate on scalar `f32` samples. They do not store a sample
+//! rate, so delay and hold lengths are measured in samples.
 
 mod cvsd_codec;
 mod limiter;
