@@ -1,9 +1,15 @@
-//! Slice-based vector operations.
+//! Elementwise arithmetic, norms, and phase operations on slices.
 //!
-//! These functions operate on caller-provided slices, with separate in-place
-//! variants where appropriate. Elementwise arithmetic is generic over its
-//! required scalar operations. Norm, magnitude, and phase operations support
-//! `f32` and `Complex32` samples.
+//! Functions that produce a slice write it to a caller-provided one, and the
+//! arithmetic and normalize functions also have an `_in_place` form. Slices
+//! passed together must have the same length, or the function panics before
+//! writing anything.
+//!
+//! The arithmetic functions work on any type with the needed operator, and
+//! the norm, magnitude, and phase functions work on `f32` and `Complex32`.
+//! Integer overflow follows the build's overflow-check setting. It panics
+//! when checks are enabled and wraps when they are disabled. A panic partway
+//! through leaves the earlier elements updated.
 
 use num_complex::{Complex32, ComplexFloat};
 use std::f32::consts::PI;
@@ -18,17 +24,28 @@ mod private {
     impl Sealed for Complex32 {}
 }
 
-/// Element type supported by vector phase and magnitude operations.
+/// Element type for the phase and magnitude functions.
 ///
-/// This sealed trait is implemented for `f32` and `Complex32`.
+/// This sealed trait is implemented for `f32` and `Complex32`. For `f32`, the
+/// phase functions work on signs. A positive value has phase zero and any
+/// other value has phase `pi`. A positive angle maps to one and any other
+/// angle maps to minus one.
+///
+/// # Warning
+///
+/// The real phase functions do not agree with each other or with the complex
+/// ones. `expj(arg(x))` returns -1 for positive `x` and 1 for negative `x`.
+/// The real `expj` is also not the real part of the complex exponential. For
+/// example, an angle of zero gives -1. Generic code gets different signs for
+/// `f32` and `Complex32`.
 pub trait VectorElement: Copy + private::Sealed {
-    /// Construct one element from an angle in radians.
+    /// Returns the unit value for an angle in radians.
     fn expj(theta: f32) -> Self;
 
-    /// Return the phase angle in radians.
+    /// Returns the phase angle in radians.
     fn arg(self) -> f32;
 
-    /// Return the magnitude.
+    /// Returns the magnitude.
     fn abs(self) -> f32;
 }
 
@@ -68,7 +85,7 @@ impl VectorElement for f32 {
     }
 }
 
-/// Fill every element of `values` with `value`.
+/// Sets every element of `values` to `value`.
 pub fn fill<T>(value: T, values: &mut [T])
 where
     T: Copy,
@@ -78,13 +95,12 @@ where
     }
 }
 
-/// Add vectors elementwise.
-///
 /// Stores `left[i] + right[i]` in `output[i]`.
 ///
 /// # Panics
 ///
-/// Panics if the vectors do not all have the same length.
+/// Panics when the three slices differ in length, or on integer overflow when
+/// overflow checks are enabled.
 pub fn add<T>(left: &[T], right: &[T], output: &mut [T])
 where
     T: Copy + Add<Output = T>,
@@ -97,11 +113,12 @@ where
     }
 }
 
-/// Add `addend` to `values` elementwise in place.
+/// Adds `addend[i]` to `values[i]` in place.
 ///
 /// # Panics
 ///
-/// Panics if `values` and `addend` do not have the same length.
+/// Panics when `values` and `addend` differ in length, or on integer overflow
+/// when overflow checks are enabled.
 pub fn add_in_place<T>(values: &mut [T], addend: &[T])
 where
     T: Copy + Add<Output = T>,
@@ -113,13 +130,12 @@ where
     }
 }
 
-/// Add `value` to each element of `input`.
-///
-/// Stores the result in `output`.
+/// Stores `input[i] + value` in `output[i]`.
 ///
 /// # Panics
 ///
-/// Panics if `input` and `output` do not have the same length.
+/// Panics when `input` and `output` differ in length, or on integer overflow
+/// when overflow checks are enabled.
 pub fn add_scalar<T>(input: &[T], value: T, output: &mut [T])
 where
     T: Copy + Add<Output = T>,
@@ -131,7 +147,11 @@ where
     }
 }
 
-/// Add `value` to every element of `values` in place.
+/// Adds `value` to every element of `values` in place.
+///
+/// # Panics
+///
+/// Panics on integer overflow when overflow checks are enabled.
 pub fn add_scalar_in_place<T>(values: &mut [T], value: T)
 where
     T: Copy + Add<Output = T>,
@@ -141,13 +161,12 @@ where
     }
 }
 
-/// Multiply vectors elementwise.
-///
 /// Stores `left[i] * right[i]` in `output[i]`.
 ///
 /// # Panics
 ///
-/// Panics if the vectors do not all have the same length.
+/// Panics when the three slices differ in length, or on integer overflow when
+/// overflow checks are enabled.
 pub fn multiply<T>(left: &[T], right: &[T], output: &mut [T])
 where
     T: Copy + Mul<Output = T>,
@@ -160,11 +179,12 @@ where
     }
 }
 
-/// Multiply `values` by `factor` elementwise in place.
+/// Multiplies `values[i]` by `factor[i]` in place.
 ///
 /// # Panics
 ///
-/// Panics if `values` and `factor` do not have the same length.
+/// Panics when `values` and `factor` differ in length, or on integer overflow
+/// when overflow checks are enabled.
 pub fn multiply_in_place<T>(values: &mut [T], factor: &[T])
 where
     T: Copy + Mul<Output = T>,
@@ -176,13 +196,12 @@ where
     }
 }
 
-/// Multiply each element of `input` by `value`.
-///
-/// Stores the result in `output`.
+/// Stores `input[i] * value` in `output[i]`.
 ///
 /// # Panics
 ///
-/// Panics if `input` and `output` do not have the same length.
+/// Panics when `input` and `output` differ in length, or on integer overflow
+/// when overflow checks are enabled.
 pub fn multiply_scalar<T>(input: &[T], value: T, output: &mut [T])
 where
     T: Copy + Mul<Output = T>,
@@ -194,7 +213,11 @@ where
     }
 }
 
-/// Multiply every element of `values` by `value` in place.
+/// Multiplies every element of `values` by `value` in place.
+///
+/// # Panics
+///
+/// Panics on integer overflow when overflow checks are enabled.
 pub fn multiply_scalar_in_place<T>(values: &mut [T], value: T)
 where
     T: Copy + Mul<Output = T>,
@@ -204,14 +227,11 @@ where
     }
 }
 
-/// Compute the Euclidean norm of `values`.
+/// Returns the Euclidean norm `sqrt(sum(|values[i]|^2))`.
 ///
-/// Returns `sqrt(sum(|values[i]|^2))`. An empty slice has norm zero.
-///
-/// # Warning
-///
-/// This uses a direct `f32` sum of squares. Very large or small values can
-/// overflow or underflow before the square root.
+/// An empty slice has norm zero. The squares are summed directly in `f32`,
+/// so very large values overflow to infinity and very small ones underflow
+/// to zero, even when the norm itself is representable.
 pub fn norm<T>(values: &[T]) -> f32
 where
     T: Copy + ComplexFloat<Real = f32>,
@@ -227,16 +247,14 @@ where
     norm.sqrt()
 }
 
-/// Scale `input` to unit Euclidean norm.
+/// Stores `input[i] / norm(input)` in `output[i]`, scaling to unit norm.
 ///
-/// Stores `input[i] / norm(input)` in `output[i]`.
-///
-/// `input` must have a finite, nonzero norm. Zero or non-finite input can
-/// produce non-finite output values.
+/// An all-zero input, or one whose [`norm`] underflows to zero, gives
+/// non-finite output. An input whose norm overflows gives all zeros.
 ///
 /// # Panics
 ///
-/// Panics if `input` and `output` do not have the same length.
+/// Panics when `input` and `output` differ in length.
 pub fn normalize<T>(input: &[T], output: &mut [T])
 where
     T: Copy + ComplexFloat<Real = f32> + From<f32>,
@@ -255,10 +273,10 @@ where
     }
 }
 
-/// Scale `values` to unit Euclidean norm in place.
+/// Scales `values` to unit Euclidean norm in place.
 ///
-/// `values` must have a finite, nonzero norm. Zero or non-finite input can
-/// produce non-finite values.
+/// An all-zero slice, or one whose [`norm`] underflows to zero, becomes
+/// non-finite. A slice whose norm overflows becomes all zeros.
 pub fn normalize_in_place<T>(values: &mut [T])
 where
     T: Copy + ComplexFloat<Real = f32> + From<f32>,
@@ -270,14 +288,10 @@ where
     }
 }
 
-/// Compute the sum of squared magnitudes of `values`.
+/// Returns the sum of the squared magnitudes of `values`.
 ///
-/// An empty slice returns zero.
-///
-/// # Warning
-///
-/// This uses a direct `f32` accumulation and can overflow or underflow for
-/// large or small values.
+/// An empty slice returns zero. The sum is accumulated directly in `f32`, so
+/// it overflows or underflows for very large or small values.
 pub fn sum_squares<T>(values: &[T]) -> f32
 where
     T: Copy + ComplexFloat<Real = f32>,
@@ -291,18 +305,18 @@ where
     sum
 }
 
-/// Compute the Lp norm of `values`.
+/// Returns the Lp norm `sum(|values[i]|^order)^(1 / order)`.
 ///
-/// `order` must be finite and positive. An empty slice returns zero.
+/// An `order` below one does not give a true norm, because the result breaks
+/// the triangle inequality. At an order of 0.5, `[1, 0]` and `[0, 1]` each
+/// return one, while `[1, 1]` returns four.
+///
+/// An empty slice returns zero. The powers are summed directly in `f32`, so
+/// large values or orders overflow and small ones underflow.
 ///
 /// # Panics
 ///
-/// Panics if `order` is not finite and positive.
-///
-/// # Warning
-///
-/// This direct power sum can overflow or underflow for extreme values or
-/// orders.
+/// Panics when `order` is zero, negative, or not finite.
 pub fn p_norm<T>(values: &[T], order: f32) -> f32
 where
     T: Copy + ComplexFloat<Real = f32>,
@@ -318,14 +332,16 @@ where
     sum.powf(1.0 / order)
 }
 
-/// Convert angles in radians to unit phase values.
+/// Converts angles in radians to unit values.
 ///
-/// For `Complex32`, stores `exp(j * angles[i])`. For `f32`, stores `1` for a
-/// positive angle and `-1` otherwise.
+/// For `Complex32`, this stores `exp(j * angles[i])`. For `f32`, it stores
+/// one for a positive angle and minus one otherwise, including zero. The real
+/// rule is not `cos(angles[i])`, and it does not undo [`arg`]. See
+/// [`VectorElement`].
 ///
 /// # Panics
 ///
-/// Panics if `angles` and `output` do not have the same length.
+/// Panics when `angles` and `output` differ in length.
 pub fn expj<T: VectorElement>(angles: &[f32], output: &mut [T]) {
     assert_eq!(angles.len(), output.len());
 
@@ -334,14 +350,16 @@ pub fn expj<T: VectorElement>(angles: &[f32], output: &mut [T]) {
     }
 }
 
-/// Extract phase angles in radians.
+/// Stores the phase angle of each element of `input`, in radians.
 ///
-/// For `Complex32`, outputs principal arguments. For `f32`, outputs `0` for a
-/// positive input and `pi` otherwise.
+/// For `Complex32`, this is the principal argument, in `[-pi, pi]`. For
+/// `f32`, it is zero for a positive input and `pi` otherwise, including zero.
+/// Passing the real angles to [`expj`] flips the sign of every nonzero input.
+/// See [`VectorElement`].
 ///
 /// # Panics
 ///
-/// Panics if `input` and `angles` do not have the same length.
+/// Panics when `input` and `angles` differ in length.
 pub fn arg<T: VectorElement>(input: &[T], angles: &mut [f32]) {
     assert_eq!(input.len(), angles.len());
 
@@ -350,11 +368,11 @@ pub fn arg<T: VectorElement>(input: &[T], angles: &mut [f32]) {
     }
 }
 
-/// Compute magnitudes of `input`.
+/// Stores the magnitude of each element of `input`.
 ///
 /// # Panics
 ///
-/// Panics if `input` and `output` do not have the same length.
+/// Panics when `input` and `output` differ in length.
 pub fn abs<T: VectorElement>(input: &[T], output: &mut [f32]) {
     assert_eq!(input.len(), output.len());
 
