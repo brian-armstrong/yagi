@@ -16,7 +16,20 @@ enum QdetectorState {
     Align,
 }
 
-/// Frame detector using FFT-based cross-correlation
+/// Detects a known sample sequence, such as a preamble, in a sample stream.
+///
+/// Push samples one at a time with [`Self::execute`]. The detector
+/// cross-correlates overlapping blocks of [`Self::buf_len`] samples with the
+/// sequence, searching a range of carrier offsets. A peak above the threshold
+/// starts a detection. When enough samples follow, `execute` returns a buffer
+/// that starts at the detected sequence. At the same time the detector
+/// estimates the fractional timing offset, channel gain, carrier frequency
+/// offset, and carrier phase. It then resumes searching.
+///
+/// The threshold applies to the correlation normalized by signal and sequence
+/// energy. The default threshold is 0.5 and the default carrier search range
+/// is 0.3 radians per sample. A detection is only a correlation decision. It
+/// does not check the integrity of whatever follows.
 #[derive(Clone)]
 #[doc(alias = "Qdetector")]
 pub struct FrameDetector {
@@ -53,11 +66,18 @@ pub struct FrameDetector {
 }
 
 impl FrameDetector {
-    /// Create detector with generic sequence
+    /// Creates a detector for a sequence of complex samples.
     ///
-    /// # Arguments
+    /// The sequence is used exactly as given, at the received sample rate. An
+    /// all-zero sequence is accepted but never detects.
     ///
-    /// * `sequence` - sample sequence
+    /// # Errors
+    ///
+    /// Returns an error when `sequence` is empty.
+    ///
+    /// # Panics
+    ///
+    /// Can panic when `sequence` has `2^31` or more samples.
     pub fn new(sequence: &[Complex32]) -> Result<Self> {
         if sequence.is_empty() {
             return Err(Error::Config("sequence length cannot be zero".into()));
@@ -118,15 +138,30 @@ impl FrameDetector {
         Ok(q)
     }
 
-    /// Create detector from sequence of symbols using internal linear interpolator
+    /// Creates a detector for symbols shaped by an interpolation filter.
     ///
     /// # Arguments
     ///
-    /// * `sequence` - symbol sequence
-    /// * `filter_shape` - filter prototype
-    /// * `samples_per_symbol` - samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - excess bandwidth factor
+    /// - `sequence`: symbols in transmission order.
+    /// - `samples_per_symbol`: in `2..=80`.
+    /// - `filter_delay`: filter semi-length in symbols, in `1..=100`.
+    /// - `excess_bandwidth`: rolloff factor, in `[0, 1]`.
+    ///
+    /// The detector's sample sequence is the filter output for `sequence`
+    /// followed by `2 * filter_delay` zero symbols, which flush the filter. It
+    /// has `samples_per_symbol * (sequence.len() + 2 * filter_delay)` samples.
+    /// In the aligned buffer, the first symbol's pulse peaks
+    /// `samples_per_symbol * filter_delay` samples after the start.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `sequence` is empty, a parameter is outside its
+    /// range, or the selected prototype rejects the configuration.
+    ///
+    /// # Panics
+    ///
+    /// Can panic when the sample sequence has `2^31` or more samples, as for
+    /// [`Self::new`].
     pub fn new_linear(
         sequence: &[Complex32],
         filter_shape: FirFilterShape,
@@ -167,14 +202,30 @@ impl FrameDetector {
         Self::new(&s)
     }
 
-    /// Create detector from sequence of symbols using GMSK modulation
+    /// Creates a detector for a GMSK-modulated bit sequence.
     ///
     /// # Arguments
     ///
-    /// * `sequence` - bit sequence
-    /// * `samples_per_symbol` - samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - excess bandwidth factor
+    /// - `sequence`: bits in transmission order. Zero is one bit value and any
+    ///   nonzero byte is the other.
+    /// - `samples_per_symbol`: in `2..=80`.
+    /// - `filter_delay`: filter semi-length in symbols, in `1..=100`.
+    /// - `excess_bandwidth`: bandwidth-time product of the Gaussian filter, in
+    ///   `(0, 1)`.
+    ///
+    /// The detector's sample sequence is the modulator output for `sequence`
+    /// followed by `2 * filter_delay` zero bits. It has
+    /// `samples_per_symbol * (sequence.len() + 2 * filter_delay)` samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `sequence` is empty or a parameter is outside its
+    /// range.
+    ///
+    /// # Panics
+    ///
+    /// Can panic when the sample sequence has `2^31` or more samples, as for
+    /// [`Self::new`].
     pub fn new_gmsk(
         sequence: &[u8],
         samples_per_symbol: usize,
@@ -208,17 +259,33 @@ impl FrameDetector {
         Self::new(&s)
     }
 
-    /// Create detector from sequence of CP-FSK symbols
+    /// Creates a detector for a CPFSK-modulated symbol sequence.
     ///
     /// # Arguments
     ///
-    /// * `sequence` - symbol sequence
-    /// * `bits_per_symbol` - bits per symbol
-    /// * `modulation_index` - modulation index
-    /// * `samples_per_symbol` - samples/symbol
-    /// * `filter_delay` - filter delay
-    /// * `excess_bandwidth` - filter bandwidth parameter
-    /// * `filter_type` - filter type
+    /// - `sequence`: symbol indices in transmission order, each below
+    ///   `2^bits_per_symbol`.
+    /// - `bits_per_symbol`: nonzero.
+    /// - `modulation_index`: positive.
+    /// - `samples_per_symbol`: even, in `2..=80`.
+    /// - `filter_delay`: filter semi-length in symbols, in `1..=100`.
+    /// - `excess_bandwidth`: pulse-shape parameter, in `(0, 1]`.
+    ///
+    /// The parameters must match the transmitting
+    /// [`CpfskModulator`](crate::modem::CpfskModulator). The detector's
+    /// sample sequence is the modulator output for `sequence` followed by
+    /// `2 * filter_delay` zero symbols. It has
+    /// `samples_per_symbol * (sequence.len() + 2 * filter_delay)` samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `sequence` is empty, a symbol is out of range, or
+    /// a parameter is outside its range.
+    ///
+    /// # Panics
+    ///
+    /// Can panic when the sample sequence has `2^31` or more samples, as for
+    /// [`Self::new`].
     pub fn new_cpfsk(
         sequence: &[u8],
         bits_per_symbol: usize,
@@ -262,7 +329,10 @@ impl FrameDetector {
         Self::new(&s)
     }
 
-    /// Reset state
+    /// Clears buffered input and any detection in progress.
+    ///
+    /// The threshold and search range are kept. The getters keep reporting the
+    /// last detection until the next one replaces it.
     pub fn reset(&mut self) {
         self.counter = self.nfft / 2;
         self.x2_sum_0 = 0.0;
@@ -272,12 +342,20 @@ impl FrameDetector {
         self.buf_time_0.fill(Complex32::new(0.0, 0.0));
     }
 
-    /// Get detection threshold
+    /// Returns the detection threshold for the normalized correlation peak.
     pub fn threshold(&self) -> f32 {
         self.threshold
     }
 
-    /// Set detection threshold (should be between 0 and 1, good starting point is 0.5)
+    /// Sets the detection threshold for the normalized correlation peak.
+    ///
+    /// The default of 0.5 is a useful starting point. A lower threshold
+    /// detects weaker signals and raises the false-detection rate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `threshold` is outside `(0, 2]`. The threshold is
+    /// unchanged on error.
     pub fn set_threshold(&mut self, threshold: f32) -> Result<()> {
         if threshold <= 0.0 || threshold > 2.0 {
             return Err(Error::Config(format!("threshold ({}) out of range", threshold)));
@@ -286,12 +364,22 @@ impl FrameDetector {
         Ok(())
     }
 
-    /// Get carrier offset search range
+    /// Returns the carrier frequency search range in radians per sample.
     pub fn range(&self) -> f32 {
         self.dphi_max
     }
 
-    /// Set carrier offset search range
+    /// Sets the carrier frequency search range in radians per sample.
+    ///
+    /// The detector searches offsets up to this magnitude in steps of
+    /// `2 * pi / buf_len()`. A range below one step searches only zero offset.
+    /// Each block costs one inverse FFT per offset searched, so a wider range
+    /// costs more.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `carrier_offset_range` is outside `[0, 0.5]`.
+    /// The range is unchanged on error.
     pub fn set_range(&mut self, carrier_offset_range: f32) -> Result<()> {
         if carrier_offset_range < 0.0 || carrier_offset_range > 0.5 {
             return Err(Error::Config(format!("carrier offset search range ({}) out of range", carrier_offset_range)));
@@ -304,49 +392,81 @@ impl FrameDetector {
         Ok(())
     }
 
-    /// Get sequence length
+    /// Returns the length of the sample sequence being detected.
     pub fn sequence_len(&self) -> usize {
         self.s_len
     }
 
-    /// Get pointer to sequence
+    /// Returns the sample sequence being detected.
+    ///
+    /// For the shaped constructors, this is the modulated sequence including
+    /// the filter flush.
     pub fn sequence(&self) -> &[Complex32] {
         &self.s
     }
 
-    /// Get buffer length
+    /// Returns the length of the buffer returned on detection.
+    ///
+    /// This is the correlation block size, the smallest power of two that is
+    /// at least twice [`Self::sequence_len`].
     pub fn buf_len(&self) -> usize {
         self.nfft
     }
 
-    /// Get correlator output
+    /// Returns the normalized correlation peak of the last detection.
+    ///
+    /// The peak is normalized by the average input power over the correlation
+    /// window, so it can exceed one when the signal fills only part of that
+    /// window. It is zero before the first detection.
     pub fn rxy(&self) -> f32 {
         self.rxy
     }
 
-    /// Get fractional timing offset estimate
+    /// Returns the fractional timing offset of the last detection, in samples.
+    ///
+    /// This is where the sequence starts relative to the first sample of the
+    /// aligned buffer. For a clean correlation peak it lies in `[-0.5, 0.5]`.
     pub fn tau(&self) -> f32 {
         self.tau_hat
     }
 
-    /// Get channel gain
+    /// Returns the channel gain of the last detection, as a linear amplitude
+    /// factor.
     pub fn gamma(&self) -> f32 {
         self.gamma_hat
     }
 
-    /// Get carrier frequency offset estimate
+    /// Returns the carrier frequency offset of the last detection, in radians
+    /// per sample.
     pub fn dphi(&self) -> f32 {
         self.dphi_hat
     }
 
-    /// Get carrier phase offset estimate
+    /// Returns the carrier phase of the last detection at the first sample of
+    /// the aligned buffer, in radians.
     pub fn phi(&self) -> f32 {
         self.phi_hat
     }
 
-    /// Execute detector on single sample
+    /// Pushes one sample and returns the aligned buffer when a detection
+    /// completes.
     ///
-    /// Returns Some(&[Complex32]) when frame is detected, pointing to the aligned buffer
+    /// The buffer holds [`Self::buf_len`] samples and starts at the detected
+    /// sequence, to within [`Self::tau`]. The samples after the sequence are
+    /// the input that followed it. They are not a complete frame unless the
+    /// frame is short enough to fit. The getters report the new estimates as
+    /// soon as the buffer is returned.
+    ///
+    /// Detection completes some time after the sequence has been pushed. The
+    /// last sample of the buffer is the one just pushed, so the next pushed
+    /// sample continues from the end of the buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the correlation peak found by the search falls exactly on
+    /// the first sample of the search block. The panic comes on the next
+    /// pushed sample, before a buffer is returned. This can happen with
+    /// ordinary input.
     pub fn execute(&mut self, input: Complex32) -> Option<&[Complex32]> {
         match self.state {
             QdetectorState::Seek => self.execute_seek(input),

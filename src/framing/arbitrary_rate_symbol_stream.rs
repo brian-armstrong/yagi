@@ -6,6 +6,13 @@ use crate::math::nextpow2;
 use crate::modem::ModulationScheme;
 use num_complex::Complex32;
 
+/// Generates random linearly modulated symbols at an arbitrary symbol rate.
+///
+/// A [`SymbolStream`] at two samples per symbol is resampled to the requested
+/// symbol rate. The realized rate can differ slightly from the request,
+/// because the resampler rounds its phase step. The symbols follow a fixed
+/// pseudo-random sequence, so two new streams with the same settings produce
+/// the same samples.
 #[derive(Clone, Debug)]
 #[doc(alias = "SymStreamR")]
 pub struct ArbitraryRateSymbolStream {
@@ -17,10 +24,28 @@ pub struct ArbitraryRateSymbolStream {
 }
 
 impl ArbitraryRateSymbolStream {
+    /// Creates a QPSK stream at 0.5 symbols per sample.
+    ///
+    /// The shaping filter is [`FirFilterShape::Arkaiser`] with a delay of 7
+    /// symbols and an excess bandwidth of 0.3. This never returns an error.
     pub fn new() -> Result<Self> {
         Self::new_linear(FirFilterShape::Arkaiser, 0.5, 7, 0.3, ModulationScheme::Qpsk)
     }
 
+    /// Creates a stream with symbol rate `bandwidth`.
+    ///
+    /// `bandwidth` is in symbols per output sample and must be in
+    /// `[0.001, 1]`. `filter_delay` is the filter semi-length in symbols, and
+    /// `excess_bandwidth` is the rolloff factor. The gain starts at one.
+    ///
+    /// With a Nyquist or root-Nyquist shape, the signal occupies about
+    /// `bandwidth * (1 + excess_bandwidth)` cycles per sample. A `bandwidth`
+    /// above `1 / (1 + excess_bandwidth)` is accepted but aliases.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bandwidth` is outside its range or
+    /// [`SymbolStream::new_linear`] rejects the other parameters.
     pub fn new_linear(
         filter_shape: FirFilterShape,
         bandwidth: f32,
@@ -47,6 +72,10 @@ impl ArbitraryRateSymbolStream {
         Ok(q)
     }
 
+    /// Clears the filter and resampler history and discards buffered samples.
+    ///
+    /// The scheme and gain are unchanged. The random symbol sequence continues
+    /// where it left off.
     pub fn reset(&mut self) {
         self.symstream.reset();
         self.resamp.reset();
@@ -54,38 +83,64 @@ impl ArbitraryRateSymbolStream {
         self.buf_index = 0;
     }
 
+    /// Returns the pulse-shaping filter shape.
     pub fn filter_shape(&self) -> FirFilterShape {
         self.symstream.filter_shape()
     }
 
+    /// Returns the requested symbol rate in symbols per output sample.
+    ///
+    /// The value is recomputed from the resampler rate, so it can differ from
+    /// the constructor argument by rounding.
     pub fn bw(&self) -> f32 {
         1.0 / (self.resamp.rate() * self.symstream.k() as f32)
     }
 
+    /// Returns the shaping filter semi-length in symbols.
     pub fn m(&self) -> usize {
         self.symstream.m()
     }
 
+    /// Returns the rolloff factor of the shaping filter.
     pub fn beta(&self) -> f32 {
         self.symstream.beta()
     }
 
+    /// Changes the modulation scheme.
+    ///
+    /// Filter and resampler history and buffered samples are kept, so pulses
+    /// of old and new symbols overlap. The random symbol sequence restarts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `modulation_scheme` has no built-in
+    /// constellation. The stream is unchanged on error.
     pub fn set_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
         self.symstream.set_scheme(modulation_scheme)
     }
 
+    /// Returns the modulation scheme.
     pub fn modulation_scheme(&self) -> ModulationScheme {
         self.symstream.modulation_scheme()
     }
 
+    /// Sets the linear amplitude factor applied to each new symbol.
+    ///
+    /// Samples already in the filter history keep the previous gain.
     pub fn set_gain(&mut self, gain: f32) {
         self.symstream.set_gain(gain);
     }
 
+    /// Returns the linear amplitude factor applied to each symbol.
     pub fn gain(&self) -> f32 {
         self.symstream.gain()
     }
 
+    /// Returns the delay of the shaping filter and resampler together, in
+    /// output samples.
+    ///
+    /// This is the time from a symbol entering the shaping filter to the peak
+    /// of its pulse at the output. It is usually fractional.
     pub fn delay(&self) -> f32 {
         let p = self.symstream.delay() as f32;
         let d = self.resamp.delay();
@@ -110,6 +165,10 @@ impl ArbitraryRateSymbolStream {
         Ok(())
     }
 
+    /// Fills `buf` with the next samples of the stream.
+    ///
+    /// The stream continues across calls, so any block size works. It never
+    /// returns an error.
     pub fn write_samples(&mut self, buf: &mut [Complex32]) -> Result<()> {
         for sample in buf.iter_mut() {
             if self.buf_index == self.buf_size {

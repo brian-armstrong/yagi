@@ -10,7 +10,23 @@ use crate::modem::{Modem, ModulationScheme};
 
 use super::packet_symbolizer::PacketSymbolizer;
 
-/// packet encoder/decoder with modulation
+/// Packet encoder and decoder that maps coded packets onto a constellation.
+///
+/// Encoding adds a CRC and up to two FEC stages to a byte payload, then maps
+/// the coded bits onto complex constellation symbols. Decoding reverses this
+/// with either hard or soft symbol decisions. For symbols that arrive one at
+/// a time, use [`Self::push_soft_symbol`] and [`Self::finish_soft_decode`].
+/// The object does no synchronization, so its input must already be corrected
+/// for timing, carrier, and gain.
+///
+/// A decode returns `true` when the CRC passes. On `false`, the payload is
+/// still written and is likely corrupt. With [`CrcScheme::None`] a decode
+/// always returns `true`, which says nothing about the payload.
+///
+/// Both peers must use the same packet format. A [`FecScheme::RsM8`] stage
+/// interleaves whole bytes by default. Enable the `liquid-quirks` feature to
+/// use liquid-dsp's depth-4 interleaving and exchange RS8 packets with a
+/// liquid-dsp peer. See [`Packetizer`](crate::fec::Packetizer).
 #[derive(Debug, Clone)]
 #[doc(alias = "QPacketModem")]
 pub struct PacketModem {
@@ -29,13 +45,16 @@ pub struct PacketModem {
 }
 
 impl PacketModem {
-    /// create packet encoder with a particular configuration
+    /// Creates a packet modem for a payload of `payload_len` bytes.
     ///
-    ///  payload_len :   length of payload message [bytes]
-    ///  crc_scheme        :   data integrity check, e.g CrcScheme::Crc32
-    ///  outer_fec         :   outer forward error-correction scheme
-    ///  inner_fec         :   inner forward error-correction scheme
-    ///  modulation_scheme :   modulation scheme, e.g. ModulationScheme::Psk4
+    /// `outer_fec` is applied first and `inner_fec` second, next to the
+    /// channel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `modulation_scheme` has no built-in constellation
+    /// or [`Packetizer::new`](crate::fec::Packetizer::new) rejects the schemes
+    /// for this payload length.
     pub fn new(
         payload_len: usize,
         crc_scheme: CrcScheme,
@@ -60,13 +79,14 @@ impl PacketModem {
         })
     }
 
-    /// reconfigure object with particular parameters
+    /// Replaces the configuration, as if newly created with [`Self::new`].
     ///
-    ///  payload_len :   length of payload message [bytes]
-    ///  crc_scheme        :   data integrity check, e.g CrcScheme::Crc32
-    ///  outer_fec         :   outer forward error-correction scheme
-    ///  inner_fec         :   inner forward error-correction scheme
-    ///  modulation_scheme :   modulation scheme, e.g. ModulationScheme::Psk4
+    /// This discards any partly pushed frame and the EVM estimate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error under the same conditions as [`Self::new`]. The modem
+    /// is unchanged on error.
     pub fn reconfigure(
         &mut self,
         payload_len: usize,
@@ -79,65 +99,81 @@ impl PacketModem {
         Ok(())
     }
 
-    /// reset internal state of modem object
+    /// Discards any partly pushed frame and sets the EVM estimate to zero.
     pub fn reset(&mut self) {
         self.n = 0;
         self.evm = 0.0;
     }
 
-    /// get length of encoded frame in symbols
+    /// Returns the encoded frame length in constellation symbols.
     pub fn frame_len(&self) -> usize {
         self.sym.symbol_len()
     }
 
-    /// get unencoded/decoded payload length (bytes)
+    /// Returns the payload length in bytes.
     pub fn payload_len(&self) -> usize {
         self.sym.payload_len()
     }
 
-    /// get data integrity check
+    /// Returns the CRC scheme.
     pub fn crc_scheme(&self) -> CrcScheme {
         self.sym.crc_scheme()
     }
 
-    /// get the outer forward error-correction scheme
+    /// Returns the FEC scheme applied first during encoding.
     pub fn outer_fec(&self) -> FecScheme {
         self.sym.outer_fec()
     }
 
-    /// get the inner forward error-correction scheme
+    /// Returns the channel-facing FEC scheme, applied second during encoding.
     pub fn inner_fec(&self) -> FecScheme {
         self.sym.inner_fec()
     }
 
-    /// get modulation scheme
+    /// Returns the modulation scheme.
     pub fn modulation_scheme(&self) -> ModulationScheme {
         self.mod_payload.scheme()
     }
 
-    /// get demodulator phase error (instantaneous) [radians]
+    /// Returns the demodulator phase error for the last symbol demodulated, in
+    /// radians.
     pub fn demodulator_phase_error(&self) -> f32 {
         self.mod_payload.demodulator_phase_error()
     }
 
-    /// get demodulator error-vector magnitude after frame was received
+    /// Returns the error vector magnitude of the last decoded frame, in dB.
+    ///
+    /// This averages the squared demodulator error over the frame.
+    /// [`Self::decode`] and [`Self::decode_soft`] update it, but incremental
+    /// decoding does not. It is zero before the first frame and after
+    /// [`Self::reset`].
     pub fn demodulator_evm(&self) -> f32 {
         self.evm
     }
 
-    /// encode and modulate packet into modulated frame samples
+    /// Encodes a payload into a frame of constellation symbols.
     ///
-    /// liquid: qpacketmodem_encode
+    /// `payload` must hold exactly [`Self::payload_len`] bytes. The first
+    /// [`Self::frame_len`] symbols of `frame` are written, and the rest are
+    /// unchanged.
     ///
-    ///  payload :   unencoded payload bytes
-    ///  frame   :   encoded/modulated payload symbols
+    /// # Errors
+    ///
+    /// Returns an error when `payload` has the wrong length or `frame` is
+    /// shorter than [`Self::frame_len`]. `frame` is unchanged on error.
     pub fn encode(&mut self, payload: &[u8], frame: &mut [Complex32]) -> Result<()> {
         self.encode_inner(Some(payload), frame)
     }
 
-    /// encode and modulate an all-zero packet into modulated frame samples
+    /// Encodes an all-zero payload into a frame of constellation symbols.
     ///
-    ///  frame   :   encoded/modulated payload symbols
+    /// The first [`Self::frame_len`] symbols of `frame` are written, and the
+    /// rest are unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `frame` is shorter than [`Self::frame_len`].
+    /// `frame` is unchanged on error.
     pub fn encode_zero(&mut self, frame: &mut [Complex32]) -> Result<()> {
         self.encode_inner(None, frame)
     }
@@ -159,13 +195,19 @@ impl PacketModem {
         Ok(())
     }
 
-    /// decode packet from modulated frame samples using hard-decision decoding,
-    /// returning whether the data integrity check passed
+    /// Decodes a frame using hard symbol decisions.
     ///
-    /// liquid: qpacketmodem_decode
+    /// Only the first [`Self::frame_len`] symbols of `frame` are read. The
+    /// first [`Self::payload_len`] bytes of `payload` are written. Returns
+    /// `true` when the CRC passes. On `false`, `payload` still receives the
+    /// recovered bytes, which are likely corrupt.
     ///
-    ///  frame   :   encoded/modulated payload symbols
-    ///  payload :   recovered decoded payload bytes
+    /// # Errors
+    ///
+    /// Returns an error when `frame` is shorter than [`Self::frame_len`] or
+    /// `payload` is shorter than [`Self::payload_len`]. `payload` is unchanged
+    /// on error. A short `payload` is found after demodulation, so
+    /// [`Self::demodulator_evm`] then describes the rejected frame.
     pub fn decode(&mut self, frame: &[Complex32], payload: &mut [u8]) -> Result<bool> {
         self.check_frame_len(frame.len())?;
 
@@ -180,13 +222,19 @@ impl PacketModem {
         self.sym.decode(&self.payload_mod, payload)
     }
 
-    /// decode packet from modulated frame samples using soft-decision decoding,
-    /// returning whether the data integrity check passed
+    /// Decodes a frame using soft symbol decisions.
     ///
-    /// liquid: qpacketmodem_decode_soft
+    /// This behaves like [`Self::decode`], but the inner FEC stage decodes
+    /// from soft bit values. It uses the same storage as
+    /// [`Self::push_soft_symbol`], so it corrupts a partly pushed frame. Call
+    /// [`Self::reset`] before resuming incremental decoding.
     ///
-    ///  frame   :   encoded/modulated payload symbols
-    ///  payload :   recovered decoded payload bytes
+    /// # Errors
+    ///
+    /// Returns an error when `frame` is shorter than [`Self::frame_len`] or
+    /// `payload` is shorter than [`Self::payload_len`]. `payload` is unchanged
+    /// on error. A short `payload` is found after demodulation, so
+    /// [`Self::demodulator_evm`] then describes the rejected frame.
     pub fn decode_soft(&mut self, frame: &[Complex32], payload: &mut [u8]) -> Result<bool> {
         self.check_frame_len(frame.len())?;
 
@@ -202,11 +250,20 @@ impl PacketModem {
         self.decode_soft_buffered(payload)
     }
 
-    /// accumulate one received symbol, returning whether the frame is complete
+    /// Demodulates one symbol and stores its soft bit values for incremental
+    /// decoding.
     ///
-    /// pairs with [`Self::finish_soft_decode`]; liquid: qpacketmodem_decode_soft_sym
+    /// Returns `true` once [`Self::frame_len`] symbols have been pushed. Then
+    /// call [`Self::finish_soft_decode`] before pushing another symbol. This
+    /// path does not update [`Self::demodulator_evm`]. This never returns an
+    /// error.
     ///
-    ///  symbol  :   input received symbol before demodulation
+    /// # Panics
+    ///
+    /// Panics when a complete frame is already held, because
+    /// [`Self::finish_soft_decode`] or [`Self::reset`] was not called after
+    /// the previous frame. A configuration whose frame has zero symbols
+    /// panics on the first push.
     pub fn push_soft_symbol(&mut self, symbol: Complex32) -> Result<bool> {
         let bps = self.sym.bits_per_symbol();
         self.mod_payload.demodulate_soft(symbol, &mut self.payload_soft[self.n..self.n + bps])?;
@@ -214,12 +271,19 @@ impl PacketModem {
         Ok(self.n == self.sym.soft_bit_len())
     }
 
-    /// decode the accumulated frame, after [`Self::push_soft_symbol`] reports it
-    /// is complete
+    /// Decodes the frame collected by [`Self::push_soft_symbol`].
     ///
-    /// liquid: qpacketmodem_decode_soft_payload
+    /// The first [`Self::payload_len`] bytes of `payload` are written. Returns
+    /// `true` when the CRC passes. On `false`, `payload` still receives the
+    /// recovered bytes, which are likely corrupt. The collected frame is
+    /// discarded, so the next push starts a new frame.
     ///
-    ///  payload :   output payload [bytes]
+    /// # Errors
+    ///
+    /// Returns an error when fewer than [`Self::frame_len`] symbols have been
+    /// pushed, which keeps them for further pushes. Also returns an error when
+    /// `payload` is shorter than [`Self::payload_len`]. In that case the
+    /// frame is already discarded and `payload` is unchanged.
     pub fn finish_soft_decode(&mut self, payload: &mut [u8]) -> Result<bool> {
         if self.n != self.sym.soft_bit_len() {
             return Err(Error::Config(

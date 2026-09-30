@@ -3,6 +3,14 @@ use crate::filter::{FirFilterShape, FirInterpolationFilter};
 use crate::modem::{Modem, ModulationScheme};
 use num_complex::Complex32;
 
+/// Generates a pulse-shaped stream of random linearly modulated symbols.
+///
+/// Each symbol is drawn from the modem's fixed pseudo-random sequence, scaled
+/// by the gain, and shaped by an interpolation filter at an integer number of
+/// samples per symbol. Two new streams with the same settings produce the same
+/// samples. A new stream starts with zero-valued filter history, so the first
+/// symbol peaks after [`Self::delay`] samples. For a non-integer rate, use
+/// [`ArbitraryRateSymbolStream`](crate::framing::ArbitraryRateSymbolStream).
 #[derive(Clone, Debug)]
 #[doc(alias = "SymStream")]
 pub struct SymbolStream {
@@ -18,10 +26,25 @@ pub struct SymbolStream {
 }
 
 impl SymbolStream {
+    /// Creates a QPSK stream at two samples per symbol.
+    ///
+    /// The shaping filter is [`FirFilterShape::Arkaiser`] with a delay of 7
+    /// symbols and an excess bandwidth of 0.3. This never returns an error.
     pub fn new() -> Result<Self> {
         Self::new_linear(FirFilterShape::Arkaiser, 2, 7, 0.3, ModulationScheme::Qpsk)
     }
 
+    /// Creates a stream with a chosen pulse shape and modulation scheme.
+    ///
+    /// `filter_delay` is the filter semi-length in symbols, and
+    /// `excess_bandwidth` is the rolloff factor. The gain starts at one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `samples_per_symbol` is less than two,
+    /// `filter_delay` is zero, `excess_bandwidth` is outside `[0, 1]`,
+    /// `modulation_scheme` has no built-in constellation, or the selected
+    /// prototype rejects the configuration.
     pub fn new_linear(
         filter_shape: FirFilterShape,
         samples_per_symbol: usize,
@@ -65,45 +88,72 @@ impl SymbolStream {
         Ok(q)
     }
 
+    /// Clears the filter history and discards buffered samples.
+    ///
+    /// The scheme and gain are unchanged. The random symbol sequence continues
+    /// where it left off, so the output does not repeat a new stream's.
     pub fn reset(&mut self) {
         self.modem.reset();
         self.interp.reset();
         self.buf_index = 0;
     }
 
+    /// Returns the pulse-shaping filter shape.
     pub fn filter_shape(&self) -> FirFilterShape {
         self.filter_shape
     }
 
+    /// Returns the number of output samples per symbol.
     pub fn k(&self) -> usize {
         self.k
     }
 
+    /// Returns the filter semi-length in symbols.
     pub fn m(&self) -> usize {
         self.m
     }
 
+    /// Returns the rolloff factor of the shaping filter.
     pub fn beta(&self) -> f32 {
         self.beta
     }
 
+    /// Changes the modulation scheme.
+    ///
+    /// The filter history is kept, so pulses of old and new symbols overlap.
+    /// Samples of the current symbol already buffered keep the old scheme. The
+    /// random symbol sequence restarts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `modulation_scheme` has no built-in
+    /// constellation. The stream is unchanged on error.
     pub fn set_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
         self.modem = Modem::new(modulation_scheme)?;
         Ok(())
     }
 
+    /// Returns the modulation scheme.
     pub fn modulation_scheme(&self) -> ModulationScheme {
         self.modem.scheme()
     }
 
+    /// Sets the linear amplitude factor applied to each new symbol.
+    ///
+    /// Samples already in the filter history keep the previous gain.
     pub fn set_gain(&mut self, gain: f32) {
         self.gain = gain;
     }
 
+    /// Returns the linear amplitude factor applied to each symbol.
     pub fn gain(&self) -> f32 {
         self.gain
     }
 
+    /// Returns the shaping-filter delay in output samples.
+    ///
+    /// This is `k() * m()`, the delay from a symbol entering the filter to the
+    /// peak of its pulse.
     pub fn delay(&self) -> usize {
         self.k * self.m
     }
@@ -115,6 +165,10 @@ impl SymbolStream {
         Ok(())
     }
 
+    /// Fills `buf` with the next samples of the stream.
+    ///
+    /// The stream continues across calls, so any block size works. It never
+    /// returns an error.
     pub fn write_samples(&mut self, buf: &mut [Complex32]) -> Result<()> {
         for sample in buf.iter_mut() {
             if self.buf_index == 0 {

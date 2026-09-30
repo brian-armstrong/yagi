@@ -9,7 +9,22 @@ use crate::error::{Error, Result};
 use crate::fec::{CrcScheme, FecScheme, Packetizer};
 use crate::utility::repack_bytes;
 
-/// packet encoder/decoder producing symbol indices
+/// Packet encoder and decoder that works in symbol indices.
+///
+/// A [`Packetizer`] adds a CRC and up to two FEC stages to the payload. The
+/// encoded bytes are then split into symbols of `bits_per_symbol` bits, most
+/// significant bit first. When the encoded bit count is not a multiple of the
+/// symbol width, the last symbol is padded with zero bits. Use
+/// [`PacketModem`](crate::framing::PacketModem) to map the symbols onto a
+/// constellation.
+///
+/// A decode returns `true` when the CRC passes. With [`CrcScheme::None`] it
+/// always returns `true`, which says nothing about the payload.
+///
+/// Both peers must use the same packet format. A [`FecScheme::RsM8`] stage
+/// interleaves whole bytes by default. Enable the `liquid-quirks` feature to
+/// use liquid-dsp's depth-4 interleaving and exchange RS8 packets with a
+/// liquid-dsp peer. See [`Packetizer`].
 #[derive(Debug, Clone)]
 #[doc(alias = "QPacketSymbolizer")]
 pub struct PacketSymbolizer {
@@ -28,13 +43,20 @@ pub struct PacketSymbolizer {
 }
 
 impl PacketSymbolizer {
-    /// create packet encoder/decoder with a particular configuration
+    /// Creates a symbolizer for a payload of `payload_len` bytes.
     ///
-    ///  payload_len     :   length of payload message [bytes]
-    ///  crc_scheme      :   data integrity check, e.g CrcScheme::Crc32
-    ///  outer_fec       :   outer forward error-correction scheme
-    ///  inner_fec       :   inner forward error-correction scheme
-    ///  bits_per_symbol :   bits per output symbol
+    /// `outer_fec` is applied first and `inner_fec` second, next to the
+    /// channel. `bits_per_symbol` must be in `1..=8`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bits_per_symbol` is outside `1..=8` or
+    /// [`Packetizer::new`] rejects the schemes for this payload length.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a derived length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and is wrong.
     pub fn new(
         payload_len: usize,
         crc_scheme: CrcScheme,
@@ -67,13 +89,12 @@ impl PacketSymbolizer {
         })
     }
 
-    /// reconfigure object with particular parameters
+    /// Replaces the configuration, as if newly created with [`Self::new`].
     ///
-    ///  payload_len     :   length of payload message [bytes]
-    ///  crc_scheme      :   data integrity check, e.g CrcScheme::Crc32
-    ///  outer_fec       :   outer forward error-correction scheme
-    ///  inner_fec       :   inner forward error-correction scheme
-    ///  bits_per_symbol :   bits per output symbol
+    /// # Errors
+    ///
+    /// Returns an error under the same conditions as [`Self::new`]. The
+    /// symbolizer is unchanged on error.
     pub fn reconfigure(
         &mut self,
         payload_len: usize,
@@ -86,48 +107,55 @@ impl PacketSymbolizer {
         Ok(())
     }
 
-    /// bits per symbol
+    /// Returns the number of bits in each symbol index.
     pub fn bits_per_symbol(&self) -> usize {
         self.bits_per_symbol
     }
 
-    /// number of symbols the encoded payload occupies
+    /// Returns the number of symbols in an encoded packet.
     pub fn symbol_len(&self) -> usize {
         self.symbol_len
     }
 
-    /// unencoded/decoded payload length (bytes)
+    /// Returns the decoded payload length in bytes.
     pub fn payload_len(&self) -> usize {
         self.payload_dec_len
     }
 
-    /// encoded payload length (bytes)
+    /// Returns the encoded packet length in bytes, before it is split into
+    /// symbols.
     pub fn byte_len(&self) -> usize {
         self.byte_len
     }
 
-    /// number of soft values the encoded payload occupies, one per bit
+    /// Returns the number of soft bit values [`Self::decode_soft`] takes.
+    ///
+    /// This is `8 * byte_len()`. It excludes the padding bits of the last
+    /// symbol.
     pub fn soft_len(&self) -> usize {
         8 * self.byte_len
     }
 
-    /// total soft values a demodulator writes for the whole frame, `bps` per
-    /// symbol; exceeds [`Self::soft_len`] when the last symbol is partial
+    /// Returns the number of soft bit values in a whole packet of symbols.
+    ///
+    /// This is `symbol_len() * bits_per_symbol()`, which includes the padding
+    /// bits of the last symbol. Pass only the first [`Self::soft_len`] values
+    /// to [`Self::decode_soft`].
     pub fn soft_bit_len(&self) -> usize {
         self.symbol_len * self.bits_per_symbol
     }
 
-    /// data integrity check
+    /// Returns the CRC scheme.
     pub fn crc_scheme(&self) -> CrcScheme {
         self.packetizer.crc_scheme()
     }
 
-    /// outer forward error-correction scheme
+    /// Returns the FEC scheme applied first during encoding.
     pub fn outer_fec(&self) -> FecScheme {
         self.packetizer.outer_fec()
     }
 
-    /// inner forward error-correction scheme
+    /// Returns the channel-facing FEC scheme, applied second during encoding.
     pub fn inner_fec(&self) -> FecScheme {
         self.packetizer.inner_fec()
     }
@@ -142,23 +170,34 @@ impl PacketSymbolizer {
         self.soft_bit_len().div_ceil(8)
     }
 
-    /// encode packet into symbol indices
+    /// Encodes a payload into symbols.
     ///
-    /// liquid: qpacketmodem_encode_syms
+    /// `payload` must hold exactly [`Self::payload_len`] bytes. The first
+    /// [`Self::symbol_len`] entries of `symbols` are written, and the rest are
+    /// unchanged.
     ///
-    ///  payload :   unencoded payload bytes
-    ///  symbols :   encoded payload symbol indices [size: symbol_len]
+    /// # Errors
+    ///
+    /// Returns an error when `payload` has the wrong length. `symbols` is
+    /// unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `symbols` is shorter than [`Self::symbol_len`].
     pub fn encode(&mut self, payload: &[u8], symbols: &mut [u8]) -> Result<()> {
         self.packetizer.encode(payload, &mut self.payload_enc[..self.byte_len])?;
 
         self.to_symbols(symbols)
     }
 
-    /// encode an all-zero packet into symbol indices
+    /// Encodes an all-zero payload into symbols.
     ///
-    /// liquid: qpacketmodem_encode_syms with a NULL payload
+    /// The first [`Self::symbol_len`] entries of `symbols` are written. It
+    /// never returns an error.
     ///
-    ///  symbols :   encoded payload symbol indices [size: symbol_len]
+    /// # Panics
+    ///
+    /// Panics when `symbols` is shorter than [`Self::symbol_len`].
     pub fn encode_zero(&mut self, symbols: &mut [u8]) -> Result<()> {
         self.packetizer.encode_zero(&mut self.payload_enc[..self.byte_len])?;
 
@@ -179,13 +218,23 @@ impl PacketSymbolizer {
         Ok(())
     }
 
-    /// decode packet from symbol indices (hard-decision decoding), returning
-    /// whether the data integrity check passed
+    /// Decodes hard-decision symbols into a payload.
     ///
-    /// liquid: qpacketmodem_decode_syms
+    /// Only the first [`Self::symbol_len`] entries of `symbols` are read, and
+    /// only the low `bits_per_symbol` bits of each. The first
+    /// [`Self::payload_len`] bytes of `payload` are written.
     ///
-    ///  symbols :   received hard-decision symbol indices [size: symbol_len]
-    ///  payload :   recovered decoded payload bytes
+    /// Returns `true` when the CRC passes. On `false`, `payload` still receives
+    /// the recovered bytes, which are likely corrupt.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `payload` is shorter than [`Self::payload_len`].
+    /// `payload` is unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `symbols` is shorter than [`Self::symbol_len`].
     pub fn decode(&mut self, symbols: &[u8], payload: &mut [u8]) -> Result<bool> {
         // unpack symbols into the encoded payload
         let packed_len = self.packed_len();
@@ -202,12 +251,22 @@ impl PacketSymbolizer {
         self.packetizer.decode(&self.payload_enc[..self.byte_len], payload)
     }
 
-    /// decode packet from soft-decision bits
+    /// Decodes soft bit decisions into a payload.
     ///
-    /// liquid: qpacketmodem_decode_bits
+    /// `bits` holds one value per encoded bit, most significant bit of each
+    /// byte first. Zero is a confident zero bit and 255 a confident one. It
+    /// must hold exactly [`Self::soft_len`] values, so drop the padding values
+    /// of the last symbol. The first [`Self::payload_len`] bytes of `payload`
+    /// are written.
     ///
-    ///  bits    :   received soft-decision bits [size: soft_len]
-    ///  payload :   recovered decoded payload bytes
+    /// Returns `true` when the CRC passes. On `false`, `payload` still receives
+    /// the recovered bytes, which are likely corrupt.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `bits` does not hold exactly [`Self::soft_len`]
+    /// values or `payload` is shorter than [`Self::payload_len`]. `payload` is
+    /// unchanged on error.
     pub fn decode_soft(&mut self, bits: &[u8], payload: &mut [u8]) -> Result<bool> {
         self.packetizer.decode_soft(bits, payload)
     }
