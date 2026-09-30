@@ -27,7 +27,7 @@ const S8: u32 = 0x00ff; // .000 0000 1111 1111
 
 /// Encodes an 11-bit symbol with the Hamming (15,11) code.
 ///
-/// The returned codeword occupies the low 15 bits.
+/// The codeword occupies the low 15 bits of the result.
 ///
 /// # Panics
 ///
@@ -57,7 +57,8 @@ pub fn hamming1511_encode_symbol(sym_dec: u16) -> u16 {
 
 /// Decodes a 15-bit Hamming (15,11) codeword.
 ///
-/// The returned symbol occupies the low 11 bits.
+/// Returns the recovered 11-bit symbol. A single bit error is corrected.
+/// With more, the result can be wrong, and nothing reports it.
 ///
 /// # Panics
 ///

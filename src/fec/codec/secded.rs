@@ -6,14 +6,20 @@
 //      Coding," Prentice Hall, New Jersey, 2nd edition, 2004.
 //
 
-/// Result of decoding a single-error-correcting, double-error-detecting symbol.
+/// What a SEC-DED symbol decoder found in its input.
+///
+/// SEC-DED codes correct any single bit error and detect any double bit
+/// error. Three or more errors can look like no error or a single error, so
+/// [`Self::NoErrors`] and [`Self::SingleErrorCorrected`] do not prove the data
+/// is correct.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecdedResult {
-    /// The symbol's syndrome indicates no errors.
+    /// The input is a valid codeword and the data is returned as received.
     NoErrors,
-    /// A single-bit error was located and corrected.
+    /// One bit error was found and corrected. The bit may have been a parity
+    /// bit, which leaves the data unchanged.
     SingleErrorCorrected,
-    /// The syndrome does not match a correctable single-bit error.
+    /// Two or more bit errors were found. The data is returned as received.
     MultipleErrors,
 }
 
@@ -286,8 +292,9 @@ const SECDED7264: SecdedCode = SecdedCode {
 
 /// Encodes one SEC-DED (22,16) symbol.
 ///
-/// Reads the first two bytes of `sym_dec`. Writes a parity byte followed by
-/// those two encoded data bytes to the first three bytes of `sym_enc`.
+/// Writes a parity byte followed by a copy of the first two bytes of
+/// `sym_dec` to the first three bytes of `sym_enc`. The parity byte uses
+/// its low six bits. The rest are zero.
 ///
 /// # Panics
 ///
@@ -299,8 +306,9 @@ pub fn secded2216_encode_symbol(sym_dec: &[u8], sym_enc: &mut [u8]) {
 
 /// Decodes one SEC-DED (22,16) symbol.
 ///
-/// Reads the first three bytes of `sym_enc` and writes two recovered bytes to
-/// `sym_dec`. The return value reports the error condition.
+/// Reads the first three bytes of `sym_enc`, laid out as the encoder writes
+/// them, and writes two data bytes to `sym_dec`. Returns what the decoder
+/// found. See [`SecdedResult`] for what it does and does not guarantee.
 ///
 /// # Panics
 ///
@@ -324,8 +332,9 @@ pub fn secded2216_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8])
 
 /// Encodes one SEC-DED (39,32) symbol.
 ///
-/// Reads the first four bytes of `sym_dec`. Writes a parity byte followed by
-/// four encoded data bytes to the first five bytes of `sym_enc`.
+/// Writes a parity byte followed by a copy of the first four bytes of
+/// `sym_dec` to the first five bytes of `sym_enc`. The parity byte uses
+/// its low seven bits. The rest are zero.
 ///
 /// # Panics
 ///
@@ -337,8 +346,9 @@ pub fn secded3932_encode_symbol(sym_dec: &[u8], sym_enc: &mut [u8]) {
 
 /// Decodes one SEC-DED (39,32) symbol.
 ///
-/// Reads the first five bytes of `sym_enc` and writes four recovered bytes to
-/// `sym_dec`. The return value reports the error condition.
+/// Reads the first five bytes of `sym_enc`, laid out as the encoder writes
+/// them, and writes four data bytes to `sym_dec`. Returns what the decoder
+/// found. See [`SecdedResult`] for what it does and does not guarantee.
 ///
 /// # Panics
 ///
@@ -362,8 +372,9 @@ pub fn secded3932_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8])
 
 /// Encodes one SEC-DED (72,64) symbol.
 ///
-/// Reads the first eight bytes of `sym_dec`. Writes a parity byte followed by
-/// eight encoded data bytes to the first nine bytes of `sym_enc`.
+/// Writes a parity byte followed by a copy of the first eight bytes of
+/// `sym_dec` to the first nine bytes of `sym_enc`. The parity byte uses
+/// all eight bits.
 ///
 /// # Panics
 ///
@@ -375,8 +386,9 @@ pub fn secded7264_encode_symbol(sym_dec: &[u8], sym_enc: &mut [u8]) {
 
 /// Decodes one SEC-DED (72,64) symbol.
 ///
-/// Reads the first nine bytes of `sym_enc` and writes eight recovered bytes to
-/// `sym_dec`. The return value reports the error condition.
+/// Reads the first nine bytes of `sym_enc`, laid out as the encoder writes
+/// them, and writes eight data bytes to `sym_dec`. Returns what the decoder
+/// found. See [`SecdedResult`] for what it does and does not guarantee.
 ///
 /// # Panics
 ///

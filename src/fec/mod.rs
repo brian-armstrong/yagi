@@ -1,9 +1,22 @@
 //! Forward error correction, error detection, and packet coding.
 //!
-//! [`Fec`] encodes and decodes one block with a selected [`FecScheme`].
-//! [`Packetizer`] adds a CRC, whitening, two FEC stages, and interleaving for
-//! fixed-size packets. Soft-decision input contains one `u8` reliability value
-//! per bit: zero favors a zero bit and 255 favors a one bit.
+//! [`Fec`] encodes and decodes blocks with one [`FecScheme`]. The CRC
+//! functions compute and check error-detection keys for a [`CrcScheme`].
+//! [`Packetizer`] combines them into a fixed-length packet with a CRC,
+//! whitening, and two FEC stages, each followed by an [`Interleaver`].
+//!
+//! Lengths are in bytes. A decoded message is the data before coding and an
+//! encoded message is the coded result. Soft-decision input holds one `u8`
+//! value per encoded bit, eight per byte, from the most significant bit to
+//! the least. Zero favors a zero bit and 255 favors a one bit.
+//!
+//! [`Fec`] decoding corrects what it can and does not report whether it
+//! succeeded. Check the result with a CRC, directly or through
+//! [`Packetizer`].
+//!
+//! A [`FecScheme::RsM8`] stage in a [`Packetizer`] interleaves whole bytes by
+//! default. Enable the `liquid-quirks` feature to use liquid-dsp's depth-4
+//! interleaving and exchange RS8 packets with a liquid-dsp peer.
 
 mod codec;
 mod crc;

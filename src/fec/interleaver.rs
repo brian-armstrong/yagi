@@ -4,10 +4,20 @@
 // Create and initialize interleaver objects
 //
 
-/// Deterministic byte interleaver.
+/// Fixed permutation of the bits in a message of known length.
 ///
-/// The same instance reverses its own permutation through [`Self::decode`].
-/// It does not add redundancy or change the message length.
+/// Interleaving spreads a burst of channel errors across a message so that a
+/// decoder sees them as scattered errors. [`Self::encode`] applies the
+/// permutation and [`Self::decode`] reverses it. The message length is
+/// unchanged.
+///
+/// The permutation depends only on the message length and the depth, so both
+/// ends must use the same values. Depth 1 moves whole bytes. Depths 2 through
+/// 4 add passes that also swap groups of bits between bytes, so a byte is not
+/// kept intact. A new interleaver has depth 4.
+///
+/// The soft-decision methods apply the same permutation to eight values per
+/// byte, from the most significant bit to the least.
 #[derive(Clone, Debug)]
 pub struct Interleaver {
     n: usize,     // number of bytes
@@ -17,7 +27,8 @@ pub struct Interleaver {
 }
 
 impl Interleaver {
-    /// Creates an interleaver for `message_length` bytes.
+    /// Creates an interleaver for messages of `message_length` bytes, at
+    /// depth 4.
     pub fn new(message_length: usize) -> Self {
         // set internal properties
         let depth = 4; // default depth to maximum
@@ -33,27 +44,30 @@ impl Interleaver {
         Self { n: message_length, rows, cols, depth }
     }
 
-    /// Sets the interleaving depth.
+    /// Sets the number of permutation passes.
     ///
-    /// A depth of zero disables permutation. Values greater than four have the
-    /// same effect as four.
+    /// Depth 0 leaves messages unchanged. Depth 1 moves whole bytes, which
+    /// suits a code such as Reed-Solomon that corrects whole bytes. Depths 2
+    /// through 4 also swap groups of bits between bytes. Depths above 4 act
+    /// as 4.
     pub fn set_depth(&mut self, depth: usize) {
         self.depth = depth;
     }
 
-    /// Returns the interleaved message length in bytes.
+    /// Returns the message length in bytes.
     pub fn len(&self) -> usize {
         self.n
     }
 
-    /// Returns whether this interleaver has zero length.
+    /// Returns whether the message length is zero.
     pub fn is_empty(&self) -> bool {
         self.n == 0
     }
 
-    /// Interleaves one hard-decision message.
+    /// Interleaves a message of bytes.
     ///
-    /// Writes `len()` bytes to `msg_enc`.
+    /// Reads `len()` bytes from `msg_dec` and writes `len()` bytes to
+    /// `msg_enc`. Extra input is ignored and extra output is left unchanged.
     ///
     /// # Panics
     ///
@@ -76,10 +90,10 @@ impl Interleaver {
         }
     }
 
-    /// Interleaves soft-bit decisions.
+    /// Interleaves a message of soft-decision values.
     ///
-    /// Each hard byte occupies eight consecutive values. Writes `8 * len()`
-    /// values to `msg_enc`.
+    /// Reads `8 * len()` values from `msg_dec` and writes `8 * len()` values to
+    /// `msg_enc`. Extra input is ignored and extra output is left unchanged.
     ///
     /// # Panics
     ///
@@ -102,9 +116,10 @@ impl Interleaver {
         }
     }
 
-    /// Deinterleaves one hard-decision message.
+    /// Reverses [`Self::encode`].
     ///
-    /// Writes `len()` bytes to `msg_dec`.
+    /// Reads `len()` bytes from `msg_enc` and writes `len()` bytes to
+    /// `msg_dec`. Extra input is ignored and extra output is left unchanged.
     ///
     /// # Panics
     ///
@@ -127,10 +142,10 @@ impl Interleaver {
         }
     }
 
-    /// Deinterleaves soft-bit decisions.
+    /// Reverses [`Self::encode_soft`].
     ///
-    /// Each hard byte occupies eight consecutive values. Writes `8 * len()`
-    /// values to `msg_dec`.
+    /// Reads `8 * len()` values from `msg_enc` and writes `8 * len()` values to
+    /// `msg_dec`. Extra input is ignored and extra output is left unchanged.
     ///
     /// # Panics
     ///

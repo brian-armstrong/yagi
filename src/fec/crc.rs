@@ -5,20 +5,26 @@ use crate::error::{Error, Result};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Error-detection scheme for a byte message.
+///
+/// A scheme computes a key of [`Self::key_len`] bytes from a message. The
+/// receiver recomputes the key and compares. Schemes parse from their
+/// [short names](Self::short_name) with [`str::parse`], and [`Self::ALL`]
+/// lists every usable scheme.
 pub enum CrcScheme {
-    /// unknown/unavailable CRC scheme
+    /// Placeholder for an unrecognized scheme. Validation with it always
+    /// fails.
     Unknown,
-    /// no error-detection
+    /// No error detection. Validation always succeeds.
     None,
-    /// 8-bit checksum
+    /// 8-bit two's-complement checksum. See [`checksum_generate_key`].
     Checksum,
-    /// 8-bit CRC
+    /// 8-bit CRC. See [`crc8_generate_key`].
     Crc8,
-    /// 16-bit CRC
+    /// 16-bit CRC. See [`crc16_generate_key`].
     Crc16,
-    /// 24-bit CRC
+    /// 24-bit CRC. See [`crc24_generate_key`].
     Crc24,
-    /// 32-bit CRC
+    /// 32-bit CRC. See [`crc32_generate_key`].
     Crc32,
 }
 
@@ -28,7 +34,7 @@ pub const NUM_CRC_SCHEMES: usize = CrcScheme::Crc32 as usize + 1;
 impl CrcScheme {
     /// Every usable CRC scheme, in declaration order.
     ///
-    /// Excludes `Unknown`, which is not a scheme.
+    /// Excludes [`Self::Unknown`], which is not a scheme.
     pub const ALL: [CrcScheme; NUM_CRC_SCHEMES - 1] = [
         CrcScheme::None,
         CrcScheme::Checksum,
@@ -38,7 +44,9 @@ impl CrcScheme {
         CrcScheme::Crc32,
     ];
 
-    /// Returns the stable short name for this scheme.
+    /// Returns the short name that [`str::parse`] accepts, such as `"crc32"`.
+    ///
+    /// The name of [`Self::Unknown`] is `"unknown"`, which does not parse.
     pub fn short_name(&self) -> &'static str {
         match self {
             CrcScheme::Unknown => "unknown",
@@ -63,7 +71,7 @@ impl CrcScheme {
         })
     }
 
-    /// Returns a human-readable name for this scheme.
+    /// Returns a descriptive name for display, such as `"CRC (32-bit)"`.
     pub fn long_name(&self) -> &'static str {
         match self {
             CrcScheme::Unknown => "unknown",
@@ -76,7 +84,9 @@ impl CrcScheme {
         }
     }
 
-    /// Returns the appended key length in bytes.
+    /// Returns the key length in bytes.
+    ///
+    /// The length is zero for [`Self::None`] and [`Self::Unknown`].
     pub fn key_len(&self) -> usize {
         match self {
             CrcScheme::Unknown => 0,
@@ -175,8 +185,13 @@ const CRC32_TABLE: [u32; 256] = {
 
 /// Generates the error-detection key for a message.
 ///
-/// The returned value uses the low `scheme.key_len() * 8` bits. [`CrcScheme::None`]
-/// produces zero.
+/// The key occupies the low `8 * scheme.key_len()` bits of the result.
+/// [`CrcScheme::None`] and [`CrcScheme::Unknown`] give zero.
+///
+/// # Panics
+///
+/// Panics under the same condition as [`checksum_generate_key`] when
+/// `scheme` is [`CrcScheme::Checksum`].
 pub fn generate_key(scheme: CrcScheme, msg: &[u8]) -> u32 {
     match scheme {
         CrcScheme::Unknown => 0,
@@ -189,14 +204,17 @@ pub fn generate_key(scheme: CrcScheme, msg: &[u8]) -> u32 {
     }
 }
 
-/// Generates and appends a key to a message buffer.
+/// Generates a key and writes it after the message.
 ///
-/// The first `msg_len` bytes are the message. The key is written immediately
-/// after them in big-endian byte order.
+/// The first `msg_len` bytes of `msg` are the message. The key is written
+/// immediately after them, most significant byte first. Bytes beyond the key
+/// are unchanged.
 ///
 /// # Panics
 ///
-/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
+/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`, or under the
+/// same condition as [`checksum_generate_key`] when `scheme` is
+/// [`CrcScheme::Checksum`].
 pub fn append_key(scheme: CrcScheme, msg: &mut [u8], msg_len: usize) {
     let key_len = scheme.key_len();
     let key = generate_key(scheme, &msg[..msg_len]);
@@ -206,7 +224,16 @@ pub fn append_key(scheme: CrcScheme, msg: &mut [u8], msg_len: usize) {
     }
 }
 
-/// Validates a message against an error-detection key.
+/// Returns whether `key` matches the key generated for `msg`.
+///
+/// [`CrcScheme::None`] always returns `true` and [`CrcScheme::Unknown`]
+/// always returns `false`. A match does not prove the message is error-free,
+/// because different messages can share a key.
+///
+/// # Panics
+///
+/// Panics under the same condition as [`checksum_generate_key`] when
+/// `scheme` is [`CrcScheme::Checksum`].
 pub fn validate_message(scheme: CrcScheme, msg: &[u8], key: u32) -> bool {
     match scheme {
         CrcScheme::Unknown => false,
@@ -215,14 +242,18 @@ pub fn validate_message(scheme: CrcScheme, msg: &[u8], key: u32) -> bool {
     }
 }
 
-/// Validates a message with an appended key.
+/// Returns whether the key written after a message matches it.
 ///
-/// The first `msg_len` bytes are the message. The following
-/// `scheme.key_len()` bytes are the big-endian key.
+/// The first `msg_len` bytes of `msg` are the message and the following
+/// `scheme.key_len()` bytes are the key, most significant byte first, as
+/// [`append_key`] writes it. See [`validate_message`] for how the key is
+/// compared.
 ///
 /// # Panics
 ///
-/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
+/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`, or under the
+/// same condition as [`checksum_generate_key`] when `scheme` is
+/// [`CrcScheme::Checksum`].
 pub fn check_key(scheme: CrcScheme, msg: &[u8], msg_len: usize) -> bool {
     let key_len = scheme.key_len();
 
@@ -239,7 +270,16 @@ pub fn check_key(scheme: CrcScheme, msg: &[u8], msg_len: usize) -> bool {
 // Checksum
 //
 
-/// Generates the 8-bit additive checksum for `data`.
+/// Generates the 8-bit checksum for `data`.
+///
+/// The checksum is the two's complement of the byte sum modulo 256, so the
+/// bytes and the checksum sum to zero modulo 256.
+///
+/// # Panics
+///
+/// Panics when the byte sum exceeds `u32::MAX` and overflow checks are
+/// enabled. That takes more than 16 MiB of input. Without overflow checks,
+/// the checksum is still correct.
 pub fn checksum_generate_key(data: &[u8]) -> u8 {
     let sum: u32 = data.iter().map(|&b| b as u32).sum();
     // mask and convert to 2's complement
@@ -251,6 +291,9 @@ pub fn checksum_generate_key(data: &[u8]) -> u8 {
 //
 
 /// Generates the 8-bit CRC for `msg`.
+///
+/// The CRC uses polynomial `0x07`, processes bits least significant first,
+/// starts from all ones, and inverts the result.
 pub fn crc8_generate_key(msg: &[u8]) -> u8 {
     let mut crc = 0xffu8;
     for &b in msg {
@@ -264,6 +307,10 @@ pub fn crc8_generate_key(msg: &[u8]) -> u8 {
 //
 
 /// Generates the 16-bit CRC for `msg`.
+///
+/// The CRC uses polynomial `0x8005`, processes bits least significant first,
+/// starts from all ones, and inverts the result. These are the CRC-16/USB
+/// parameters.
 pub fn crc16_generate_key(msg: &[u8]) -> u16 {
     let mut crc = 0xffffu16;
     for &b in msg {
@@ -277,6 +324,9 @@ pub fn crc16_generate_key(msg: &[u8]) -> u16 {
 //
 
 /// Generates the 24-bit CRC for `msg` in the low 24 bits.
+///
+/// The CRC uses polynomial `0x5D6DCB`, processes bits least significant
+/// first, starts from all ones, and inverts the result.
 pub fn crc24_generate_key(msg: &[u8]) -> u32 {
     let mut crc = 0xffffffu32;
     for &b in msg {
@@ -290,6 +340,10 @@ pub fn crc24_generate_key(msg: &[u8]) -> u32 {
 //
 
 /// Generates the 32-bit CRC for `msg`.
+///
+/// The CRC uses polynomial `0x04C11DB7`, processes bits least significant
+/// first, starts from all ones, and inverts the result. This is the CRC-32
+/// used by zlib.
 pub fn crc32_generate_key(msg: &[u8]) -> u32 {
     let mut crc = 0xffffffffu32;
     for &b in msg {

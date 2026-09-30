@@ -40,7 +40,7 @@ const S16: u32 = 0x0000ffff; //  .000 0000 0000 0000 1111 1111 1111 1111
 
 /// Encodes a 26-bit symbol with the Hamming (31,26) code.
 ///
-/// The returned codeword occupies the low 31 bits.
+/// The codeword occupies the low 31 bits of the result.
 ///
 /// # Panics
 ///
@@ -71,7 +71,8 @@ pub fn hamming3126_encode_symbol(sym_dec: u32) -> u32 {
 
 /// Decodes a 31-bit Hamming (31,26) codeword.
 ///
-/// The returned symbol occupies the low 26 bits.
+/// Returns the recovered 26-bit symbol. A single bit error is corrected.
+/// With more, the result can be wrong, and nothing reports it.
 ///
 /// # Panics
 ///

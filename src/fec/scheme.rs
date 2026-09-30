@@ -2,69 +2,81 @@
 // forward error-correction scheme
 //
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Forward error-correction code family.
+/// Forward error-correction code.
 ///
-/// Each variant defines its encoded length and nominal rate. Construct a
-/// [`crate::fec::Fec`] to encode and decode with the scheme.
+/// Each scheme fixes a nominal code rate and the encoded length for each
+/// message length. Create a [`Fec`](crate::fec::Fec) to encode and decode with
+/// a scheme. Schemes parse from their [short names](Self::short_name) with
+/// [`str::parse`], and [`Self::ALL`] lists every usable scheme.
+///
+/// Rates below are decoded bits over encoded bits. `K` is the constraint
+/// length of a convolutional code and `dfree` its free distance.
 pub enum FecScheme {
-    /// unknown/unsupported scheme
+    /// Placeholder for an unrecognized scheme. It cannot encode or decode.
     Unknown,
-    /// no error-correction
+    /// No error correction. Data passes through unchanged.
     None,
-    /// simple repeat code, r1/3
+    /// Repetition code, rate 1/3.
     Rep3,
-    /// simple repeat code, r1/5
+    /// Repetition code, rate 1/5.
     Rep5,
-    /// Hamming (7,4) block code, r1/2 (really 4/7)
+    /// Hamming (7,4) code, rate 4/7.
     Hamming74,
-    /// Hamming (7,4) with extra parity bit, r1/2
+    /// Hamming (8,4) code, which adds a parity bit to Hamming (7,4), rate 1/2.
     Hamming84,
-    /// Hamming (12,8) block code, r2/3
+    /// Hamming (12,8) code, rate 2/3.
     Hamming128,
-    /// Golay (24,12) block code, r1/2
+    /// Golay (24,12) code, rate 1/2. Corrects up to three bit errors in each
+    /// 24-bit codeword.
     Golay2412,
-    /// SEC-DED (22,16) block code, r8/11
+    /// SEC-DED (22,16) code. Each 16-bit block carries its six parity bits in
+    /// a whole byte, so the rate is 2/3.
     Secded2216,
-    /// SEC-DED (39,32) block code
+    /// SEC-DED (39,32) code. Each 32-bit block carries its seven parity bits
+    /// in a whole byte, so the rate is 4/5.
     Secded3932,
-    /// SEC-DED (72,64) block code, r8/9
+    /// SEC-DED (72,64) code, rate 8/9.
     Secded7264,
     // codecs not defined internally (see http://www.ka9q.net/code/fec/)
-    /// r1/2, K=7, dfree=10
+    /// Convolutional code, rate 1/2, K=7, dfree=10.
     ConvV27,
-    /// r1/2, K=9, dfree=12
+    /// Convolutional code, rate 1/2, K=9, dfree=12.
     ConvV29,
-    /// r1/3, K=9, dfree=18
+    /// Convolutional code, rate 1/3, K=9, dfree=18.
     ConvV39,
-    /// r1/6, K=15, dfree<=57 (Heller 1968)
+    /// Convolutional code, rate 1/6, K=15, dfree<=57 (Heller 1968).
     ConvV615,
     // punctured (perforated) codes
-    /// r2/3, K=7, dfree=6
+    /// Punctured convolutional code, rate 2/3, K=7, dfree=6.
     ConvV27P23,
-    /// r3/4, K=7, dfree=5
+    /// Punctured convolutional code, rate 3/4, K=7, dfree=5.
     ConvV27P34,
-    /// r4/5, K=7, dfree=4
+    /// Punctured convolutional code, rate 4/5, K=7, dfree=4.
     ConvV27P45,
-    /// r5/6, K=7, dfree=4
+    /// Punctured convolutional code, rate 5/6, K=7, dfree=4.
     ConvV27P56,
-    /// r6/7, K=7, dfree=3
+    /// Punctured convolutional code, rate 6/7, K=7, dfree=3.
     ConvV27P67,
-    /// r7/8, K=7, dfree=3
+    /// Punctured convolutional code, rate 7/8, K=7, dfree=3.
     ConvV27P78,
-    /// r2/3, K=9, dfree=7
+    /// Punctured convolutional code, rate 2/3, K=9, dfree=7.
     ConvV29P23,
-    /// r3/4, K=9, dfree=6
+    /// Punctured convolutional code, rate 3/4, K=9, dfree=5.
     ConvV29P34,
-    /// r4/5, K=9, dfree=5
+    /// Punctured convolutional code, rate 4/5, K=9, dfree=4.
     ConvV29P45,
-    /// r5/6, K=9, dfree=5
+    /// Punctured convolutional code, rate 5/6, K=9, dfree=3.
     ConvV29P56,
-    /// r6/7, K=9, dfree=4
+    /// Punctured convolutional code, rate 6/7, K=9, dfree=4.
     ConvV29P67,
-    /// r7/8, K=9, dfree=4
+    /// Punctured convolutional code, rate 7/8, K=9, dfree=3.
     ConvV29P78,
     // Reed-Solomon codes
-    /// m=8, n=255, k=223
+    /// Reed-Solomon (255,223) code over bytes, rate 223/255.
+    ///
+    /// Each block carries 32 parity bytes and corrects up to 16 byte errors.
+    /// A message longer than 223 bytes is split into blocks of nearly equal
+    /// size.
     RsM8,
 }
 
@@ -74,7 +86,7 @@ pub const NUM_FEC_SCHEMES: usize = FecScheme::RsM8 as usize + 1;
 impl FecScheme {
     /// Every usable FEC scheme, in declaration order.
     ///
-    /// Excludes `Unknown`, which is not a scheme
+    /// Excludes [`Self::Unknown`], which is not a scheme.
     pub const ALL: [FecScheme; NUM_FEC_SCHEMES - 1] = [
         FecScheme::None,
         FecScheme::Rep3,
@@ -105,7 +117,9 @@ impl FecScheme {
         FecScheme::RsM8,
     ];
 
-    /// Returns the stable short name for this scheme.
+    /// Returns the short name that [`str::parse`] accepts, such as `"v27p34"`.
+    ///
+    /// The name of [`Self::Unknown`] is `"unknown"`, which does not parse.
     pub fn short_name(&self) -> &'static str {
         match self {
             FecScheme::Unknown => "unknown",
@@ -172,7 +186,7 @@ impl FecScheme {
         })
     }
 
-    /// Returns a human-readable name for this scheme.
+    /// Returns a descriptive name for display, such as `"Hamming(7,4)"`.
     pub fn long_name(&self) -> &'static str {
         match self {
             FecScheme::Unknown => "unknown",
@@ -206,7 +220,7 @@ impl FecScheme {
         }
     }
 
-    /// Returns whether this is a convolutional code.
+    /// Returns whether this is a convolutional code, punctured or not.
     pub fn is_convolutional(&self) -> bool {
         matches!(
             self,
@@ -263,10 +277,11 @@ impl FecScheme {
         matches!(self, FecScheme::Rep3 | FecScheme::Rep5)
     }
 
-    /// Returns the encoded symbol width in bits.
+    /// Returns the width, in bits, of the symbols that interleaving should
+    /// keep intact.
     ///
-    /// Reed-Solomon operates on bytes. All other current schemes operate on
-    /// individual bits.
+    /// The width is 8 for Reed-Solomon, which corrects whole bytes, and 1 for
+    /// every other scheme.
     pub fn symbol_bits(&self) -> usize {
         if self.is_reedsolomon() {
             8
@@ -275,10 +290,11 @@ impl FecScheme {
         }
     }
 
-    /// Returns the nominal encoded-to-decoded rate.
+    /// Returns the nominal code rate, decoded bits over encoded bits.
     ///
-    /// Some byte-oriented block implementations round their final symbol. The
-    /// actual rate for a particular message length can therefore differ.
+    /// Padding, parity bytes, and convolutional tail bits make the actual rate
+    /// for a given message length differ. [`Self::enc_msg_len`] gives the
+    /// exact encoded length. The rate of [`Self::Unknown`] is zero.
     pub fn rate(&self) -> f32 {
         match self {
             FecScheme::Unknown => 0.0,
@@ -310,7 +326,15 @@ impl FecScheme {
         }
     }
 
-    /// Returns the encoded length for a decoded message length in bytes.
+    /// Returns the encoded length in bytes for a message of `dec_msg_len`
+    /// bytes.
+    ///
+    /// The length of [`Self::Unknown`] is zero.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and is wrong.
     pub fn enc_msg_len(&self, dec_msg_len: usize) -> usize {
         match self {
             FecScheme::Unknown => 0,

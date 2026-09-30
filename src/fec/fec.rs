@@ -19,13 +19,16 @@ enum FecData {
     ReedSolomon(Box<ReedSolomon>),
 }
 
-/// Forward error-correction encoder and decoder.
+/// Forward error-correction encoder and decoder for one [`FecScheme`].
 ///
-/// An instance holds the state required by its selected [`FecScheme`]. Use
-/// [`Self::enc_msg_len`] to size output buffers before encoding or decoding.
-/// Decoding is best effort and does not report whether corruption was
-/// correctable. Pair it with a CRC or use [`crate::fec::Packetizer`] when data
-/// integrity must be checked.
+/// One instance both encodes and decodes. Messages can have any length the
+/// scheme accepts, and [`Self::enc_msg_len`] gives the encoded length for
+/// sizing buffers.
+///
+/// Decoding corrects what it can and does not report whether it succeeded.
+/// When there are more errors than the scheme is sure to correct, the output
+/// may be wrong with no indication. Check the result with a CRC, or use
+/// [`Packetizer`](crate::fec::Packetizer), which adds one.
 #[derive(Debug, Clone)]
 pub struct Fec {
     scheme: FecScheme,
@@ -64,17 +67,25 @@ impl Fec {
         Ok(Self { scheme, rate: scheme.rate(), data })
     }
 
-    /// Returns the selected FEC scheme.
+    /// Returns the FEC scheme.
     pub fn scheme(&self) -> FecScheme {
         self.scheme
     }
 
-    /// Returns the nominal code rate.
+    /// Returns the nominal code rate, decoded bits over encoded bits.
+    ///
+    /// See [`FecScheme::rate`].
     pub fn rate(&self) -> f32 {
         self.rate
     }
 
-    /// Returns the encoded length for a decoded message length in bytes.
+    /// Returns the encoded length in bytes for a message of `dec_msg_len`
+    /// bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the length overflows `usize` and overflow checks are
+    /// enabled. Without overflow checks, the length wraps and is wrong.
     pub fn enc_msg_len(&self, dec_msg_len: usize) -> usize {
         self.scheme.enc_msg_len(dec_msg_len)
     }
@@ -89,15 +100,21 @@ impl Fec {
         }
     }
 
-    /// Encodes one block of bytes.
+    /// Encodes a message.
     ///
     /// Writes `enc_msg_len(msg_dec.len())` bytes at the start of `msg_enc`.
+    /// Extra output is left unchanged.
     ///
     /// # Errors
     ///
     /// Returns an error when `msg_enc` is too short, a convolutional message is
-    /// shorter than its constraint-length-dependent minimum, or a Reed-Solomon
-    /// message is empty.
+    /// shorter than its minimum, or a Reed-Solomon message is empty. The
+    /// minimum is 2 bytes for `K=7`, 3 bytes for `K=9`, and 4 bytes for
+    /// `K=15`. `msg_enc` is unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same condition as [`Self::enc_msg_len`].
     pub fn encode(&mut self, msg_dec: &[u8], msg_enc: &mut [u8]) -> Result<()> {
         let dec_len = msg_dec.len();
         let enc_len = self.enc_msg_len(dec_len);
@@ -133,16 +150,21 @@ impl Fec {
         Ok(())
     }
 
-    /// Decodes one hard-decision block of bytes.
+    /// Decodes a message of `dec_msg_len` bytes from hard-decision input.
     ///
-    /// `msg_enc` must contain at least `enc_msg_len(dec_msg_len)` bytes. The
-    /// first `dec_msg_len` bytes of `msg_dec` receive the result.
+    /// Reads `enc_msg_len(dec_msg_len)` bytes from `msg_enc` and writes
+    /// `dec_msg_len` bytes at the start of `msg_dec`. Extra input is ignored
+    /// and extra output is left unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when either buffer is too short, a convolutional message
-    /// length is below its constraint-length-dependent minimum, or a
-    /// Reed-Solomon message length is zero.
+    /// Returns an error when either buffer is too short, or `dec_msg_len` is
+    /// below the convolutional minimum or zero for Reed-Solomon, as for
+    /// [`Self::encode`]. `msg_dec` is unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics under the same condition as [`Self::enc_msg_len`].
     pub fn decode(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         let enc_len = self.enc_msg_len(dec_msg_len);
 
@@ -198,20 +220,27 @@ impl Fec {
         Ok(())
     }
 
-    /// Decodes one block from soft bit decisions.
+    /// Decodes a message of `dec_msg_len` bytes from soft-decision input.
     ///
-    /// `msg_enc` contains eight values per encoded byte, ordered from the most
-    /// significant bit to the least. Zero favors a zero bit and 255 favors a
-    /// one bit. The required length is `8 * enc_msg_len(dec_msg_len)`.
+    /// `msg_enc` holds eight values per encoded byte, from the most
+    /// significant bit to the least, so it needs `8 * enc_msg_len(dec_msg_len)`
+    /// values. Zero favors a zero bit and 255 favors a one bit. The result is
+    /// written as for [`Self::decode`].
     ///
-    /// Some schemes use a native soft decoder. Others threshold the input at
-    /// 128 and use their hard decoder.
+    /// The repetition, Hamming, and convolutional schemes decode the soft
+    /// values directly. The others treat values of 128 and above as one bits
+    /// and decode those hard decisions.
     ///
     /// # Errors
     ///
-    /// Returns an error when either buffer is too short, a convolutional message
-    /// length is below its constraint-length-dependent minimum, or a
-    /// Reed-Solomon message length is zero.
+    /// Returns an error under the same conditions as [`Self::decode`].
+    /// `msg_dec` is unchanged on error.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `8 * enc_msg_len(dec_msg_len)` overflows `usize` and
+    /// overflow checks are enabled. Without overflow checks, the length wraps
+    /// and is wrong.
     pub fn decode_soft(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
         let enc_len = self.enc_msg_len(dec_msg_len);
         let soft_len = enc_len * 8;

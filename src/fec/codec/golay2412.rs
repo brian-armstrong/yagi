@@ -34,7 +34,9 @@ fn matrix_mul(v: u32, a: &[u32]) -> u32 {
 
 /// Encodes a 12-bit symbol with the Golay (24,12) code.
 ///
-/// The returned value occupies the low 24 bits.
+/// The codeword occupies the low 24 bits of the result. The code is
+/// systematic: the low 12 bits of the codeword are the symbol and the 12 bits
+/// above them are parity.
 ///
 /// # Panics
 ///
@@ -53,7 +55,8 @@ fn parity_search(v: u32) -> Option<usize> {
 
 /// Decodes a 24-bit Golay (24,12) codeword.
 ///
-/// The returned recovered symbol occupies the low 12 bits.
+/// Returns the recovered 12-bit symbol. Up to three bit errors are corrected.
+/// With more, the result can be wrong, and nothing reports it.
 ///
 /// # Panics
 ///
