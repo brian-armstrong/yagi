@@ -34,7 +34,7 @@ where
     ///
     /// Returns an error when `num_filters` is zero or `coefficients` is empty.
     pub fn new(num_filters: usize, coefficients: &[Coeff]) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new(num_filters, coefficients)?)
+        Ok(Self::from_bank(FirPolyphaseFilterBank::new(num_filters, coefficients)?))
     }
 
     /// Creates a Kaiser-windowed polyphase filter with typical settings.
@@ -45,7 +45,7 @@ where
     ///
     /// Returns an error when `num_filters` or `filter_delay` is zero.
     pub fn new_kaiser_simple(num_filters: usize, filter_delay: usize) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_kaiser_simple(num_filters, filter_delay)?)
+        Ok(Self::from_bank(FirPolyphaseFilterBank::new_kaiser_simple(num_filters, filter_delay)?))
     }
 
     /// Creates a Kaiser-windowed polyphase filter.
@@ -62,12 +62,12 @@ where
         cutoff_frequency: f32,
         stopband_attenuation: f32,
     ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_kaiser(
+        Ok(Self::from_bank(FirPolyphaseFilterBank::new_kaiser(
             num_filters,
             filter_delay,
             cutoff_frequency,
             stopband_attenuation,
-        )?)
+        )?))
     }
 
     /// Creates a polyphase filter from a pulse-shaping prototype.
@@ -85,13 +85,13 @@ where
         filter_delay: usize,
         excess_bandwidth: f32,
     ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_rnyquist(
+        Ok(Self::from_bank(FirPolyphaseFilterBank::new_rnyquist(
             filter_shape,
             num_filters,
             samples_per_symbol,
             filter_delay,
             excess_bandwidth,
-        )?)
+        )?))
     }
 
     /// Creates a polyphase filter from the derivative of a pulse-shaping prototype.
@@ -109,21 +109,21 @@ where
         filter_delay: usize,
         excess_bandwidth: f32,
     ) -> Result<Self> {
-        Self::from_bank(FirPolyphaseFilterBank::new_drnyquist(
+        Ok(Self::from_bank(FirPolyphaseFilterBank::new_drnyquist(
             filter_shape,
             num_filters,
             samples_per_symbol,
             filter_delay,
             excess_bandwidth,
-        )?)
+        )?))
     }
 
     /// Creates a polyphase filter from an existing bank.
     ///
     /// The filter starts with zero-valued history and keeps the bank's scale.
-    pub fn from_bank(bank: FirPolyphaseFilterBank<T, Coeff>) -> Result<Self> {
-        let w = Window::new(bank.filter_len())?;
-        Ok(Self { w, bank })
+    pub fn from_bank(bank: FirPolyphaseFilterBank<T, Coeff>) -> Self {
+        let w = Window::new(bank.filter_len()).expect("a polyphase bank has a nonzero phase length");
+        Self { w, bank }
     }
 
     /// Clears the sample history to zeros.

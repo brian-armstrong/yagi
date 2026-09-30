@@ -590,7 +590,7 @@ mod tests {
         assert_eq!(bank.num_filters(), num_filters);
         assert_eq!(bank.filter_len(), filter_len);
 
-        let mut filter = FirPolyphaseFilter::from_bank(bank.clone()).unwrap();
+        let mut filter = FirPolyphaseFilter::from_bank(bank.clone());
         let mut history = Window::new(filter_len).unwrap();
 
         for i in 0..37 {
