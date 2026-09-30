@@ -258,13 +258,6 @@ where
         Ok(())
     }
 
-    /// Does nothing. Call [`Self::step`] to advance the search.
-    ///
-    /// This never returns an error.
-    pub fn execute(&mut self) -> Result<()> {
-        Ok(())
-    }
-
     /// Returns the number of steps taken since creation or the last
     /// [`Self::reset`].
     pub fn num_steps(&self) -> usize {
@@ -478,8 +471,6 @@ mod tests {
         // test configurations
         assert!(q.step().is_err()); // object not yet initialized
         q.init(20.0).unwrap();
-
-        assert!(q.execute().is_ok());
 
         // run a few steps
         assert_eq!(0, q.num_steps());
