@@ -13,12 +13,17 @@ pub(crate) struct DotProductPlan<T, Coeff> {
     block: Option<DotProdBlockPlan<[T], Coeff, T>>,
 }
 
-/// A reusable dot product with a fixed, nonempty coefficient sequence.
+/// A reusable dot product with an owned, nonempty coefficient sequence.
 ///
 /// [`Self::execute`] applies each coefficient at the matching input index.
 /// [`Self::execute_block`] applies the same operation across overlapping input
-/// windows. Use [`Self::new_rev`] or [`Self::set_coefficients_rev`] when the
-/// supplied coefficients are in reverse application order.
+/// windows. Coefficients and their length can be changed after construction.
+/// Use [`Self::new_rev`] or [`Self::set_coefficients_rev`] when the supplied
+/// coefficients are in reverse application order.
+///
+/// `f32` accumulation order depends on the selected kernel. Results can differ
+/// slightly from [`DotProd::dotprod`] and across CPUs, even for the same input
+/// and coefficients.
 #[derive(Clone, Debug)]
 pub struct DotProduct<T, Coeff> {
     h: Vec<Coeff>, // coefficients array
@@ -98,9 +103,10 @@ where
     Coeff: Copy,
     [T]: DotProd<Coeff, Output = T>,
 {
-    /// Create a dot product from coefficients in application order.
+    /// Creates a dot product from coefficients in application order.
     ///
-    /// `coefficients[i]` multiplies `input[i]` in [`Self::execute`].
+    /// Copies the coefficients. `coefficients[i]` multiplies `input[i]` in
+    /// [`Self::execute`].
     ///
     /// # Errors
     ///
@@ -110,9 +116,10 @@ where
         Ok(Self::from_coefficients(coefficients.to_vec()))
     }
 
-    /// Create a dot product from coefficients in reverse application order.
+    /// Creates a dot product from coefficients in reverse application order.
     ///
-    /// The last element of `coefficients` multiplies the first input sample.
+    /// Copies the coefficients in reverse order. The last element of
+    /// `coefficients` multiplies the first input sample.
     ///
     /// # Errors
     ///
@@ -130,9 +137,10 @@ where
         Self { h, block_h, plan, _input: PhantomData }
     }
 
-    /// Replace coefficients in application order.
+    /// Replaces the coefficients, given in application order.
     ///
-    /// `coefficients[i]` multiplies `input[i]` in [`Self::execute`].
+    /// `coefficients[i]` multiplies `input[i]` in [`Self::execute`]. This may
+    /// change [`Self::len`] and the input length required by that method.
     ///
     /// # Errors
     ///
@@ -151,9 +159,11 @@ where
         Ok(())
     }
 
-    /// Replace coefficients in reverse application order.
+    /// Replaces the coefficients, given in reverse application order.
     ///
     /// The last element of `coefficients` multiplies the first input sample.
+    /// This may change [`Self::len`] and the input length required by
+    /// [`Self::execute`].
     ///
     /// # Errors
     ///
@@ -172,27 +182,31 @@ where
         Ok(())
     }
 
-    /// Return coefficients in application order.
+    /// Returns the coefficients in application order.
     pub fn coefficients(&self) -> &[Coeff] {
         &self.h
     }
 
-    /// Return the number of coefficients.
+    /// Returns the number of coefficients, which is also the input length
+    /// [`Self::execute`] requires.
     pub fn len(&self) -> usize {
         self.h.len()
     }
 
-    /// Return `false`.
+    /// Returns `false`.
     ///
-    /// Construction and coefficient replacement reject empty sequences.
+    /// Construction and coefficient replacement reject empty sequences, so a
+    /// dot product is never empty.
     pub fn is_empty(&self) -> bool {
         self.h.is_empty()
     }
 
-    /// Compute the dot product for one input window.
+    /// Computes the dot product for one input window.
     ///
     /// The result is `sum(input[i] * coefficients()[i])`. Complex products do
-    /// not conjugate either operand.
+    /// not conjugate either operand. It may round differently from calling
+    /// [`DotProd::dotprod`] on the same slices or from execution on another
+    /// CPU. Use a numerical tolerance when comparing results.
     ///
     /// # Panics
     ///
@@ -203,11 +217,12 @@ where
         unsafe { self.plan.execute_unchecked(input, &self.h) }
     }
 
-    /// Compute dot products across overlapping input windows.
+    /// Computes dot products across overlapping input windows.
     ///
-    /// Writes `output[i] = self.execute(&input[i..i + self.len()])` for each
-    /// complete window, limited by `output.len()`. It leaves the unwritten tail
-    /// of `output` unchanged.
+    /// Writes the dot product of `input[i..i + self.len()]` to `output[i]` for
+    /// each complete window, limited by `output.len()`. Extra input is ignored
+    /// and extra output is left unchanged. SIMD block execution may sum in a different
+    /// order from [`Self::execute`], so results can differ slightly in `f32`.
     ///
     /// Returns the number of output elements written. It returns zero when
     /// `input` is shorter than the coefficient sequence or `output` is empty.

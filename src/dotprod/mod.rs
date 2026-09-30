@@ -1,8 +1,13 @@
 //! Dot products and sum-of-squares operations for real and complex samples.
 //!
 //! [`DotProd`] computes `sum(x[i] * h[i])` over equal-length inputs. Complex
-//! products are bilinear. Neither operand is conjugated. [`DotProduct`] stores
-//! a fixed coefficient sequence for repeated singular or sliding operations.
+//! products are bilinear: neither operand is conjugated. [`DotProduct`] owns
+//! coefficients for repeated single-window or sliding operations.
+//! Built-in kernels accumulate in `f32`. Rounding can vary with input length,
+//! the entry point ([`DotProd::dotprod`], [`DotProduct::execute`], or
+//! [`DotProduct::execute_block`]), and the SIMD features available on the CPU.
+//! Compare results with a numerical tolerance rather than exact equality.
+//! Large products or sums can overflow to infinity.
 
 mod complex_complex;
 mod complex_real;
@@ -35,37 +40,48 @@ pub(crate) use dot_product::DotProductPlan;
 /// indexing or instructions selected for the current CPU.
 pub type DotProdKernel<Inputs, Rhs, Out> = unsafe fn(&Inputs, &[Rhs]) -> Out;
 
-/// Compute a dot product between two sample sequences.
+/// Computes a dot product between two sample sequences.
 ///
 /// The result is `sum(self[i] * other[i])`. Implementations cover `f32` and
 /// `Complex32` slices, with real and complex coefficient combinations. Complex
-/// multiplication does not conjugate either input.
+/// multiplication does not conjugate either input. Implementations also accept
+/// supported sample types in a [`std::collections::VecDeque`] as the first
+/// operand.
+///
+/// The built-in implementations can accumulate in a different order from
+/// [`DotProduct::execute`] and can select different SIMD kernels on different
+/// CPUs. Results for the same inputs need not match bit for bit.
 pub trait DotProd<Rhs> {
     type Output;
 
-    /// Compute the dot product of two equal-length sequences.
+    /// Computes the dot product of two equal-length sequences.
+    ///
+    /// The built-in implementations return zero for two empty sequences.
     ///
     /// # Panics
     ///
-    /// Panics if the slices have different lengths.
+    /// The built-in implementations panic if the operands have different
+    /// lengths.
     fn dotprod(&self, other: &[Rhs]) -> Self::Output;
 
-    /// Resolve a kernel for dot products with `len` elements.
+    /// Resolves a kernel for dot products with `len` elements.
     ///
-    /// This avoids repeated runtime dispatch when the coefficient length is
-    /// fixed. The returned function is valid for the life of the process and
-    /// is tied to CPU features detected on this machine.
+    /// This avoids repeated runtime dispatch when the length is fixed. The
+    /// returned function remains valid for the life of the process. SIMD
+    /// implementations may select it using CPU features detected on this
+    /// machine.
     ///
     /// # Safety
     ///
-    /// The returned kernel must receive two slices of exactly `len` elements.
+    /// The returned kernel must receive a first operand and a coefficient
+    /// slice of exactly `len` elements each.
     fn plan(len: usize) -> DotProdKernel<Self, Rhs, Self::Output> {
         // default impl
         let _ = len;
         |x, h| x.dotprod(h)
     }
 
-    /// Resolve a packed sliding-dot-product strategy when one is available.
+    /// Resolves a packed sliding-dot-product strategy when one is available.
     ///
     /// This is an internal extension point used by [`DotProduct`].
     #[doc(hidden)]

@@ -3,9 +3,9 @@
 use super::DotProd;
 use num_complex::Complex32;
 
-/// Return the sum of squares of real samples.
+/// Returns the sum of squares of real samples.
 ///
-/// This computes `sum(v[i] * v[i])` and returns zero for an empty slice.
+/// The result is `sum(v[i] * v[i])`, and it is zero for an empty slice.
 /// Accumulation uses `f32`, so a large dynamic range can lose precision or
 /// overflow.
 pub fn sumsqf(v: &[f32]) -> f32 {
@@ -14,11 +14,13 @@ pub fn sumsqf(v: &[f32]) -> f32 {
     v.dotprod(v)
 }
 
-/// Return the sum of squared magnitudes of complex samples.
+/// Returns the sum of squared magnitudes of complex samples.
 ///
-/// This computes `sum(v[i].norm_sqr())` and returns zero for an empty slice.
-/// Accumulation uses `f32`, so a large dynamic range can lose precision or
-/// overflow.
+/// The result sums the squares of the real and imaginary components, which is
+/// mathematically `sum(v[i].norm_sqr())`. It is zero for an empty slice. Component-wise
+/// accumulation may round differently from summing one `norm_sqr()` per
+/// sample. Accumulation uses `f32`, so a large dynamic range can lose
+/// precision or overflow.
 pub fn sumsqcf(v: &[Complex32]) -> f32 {
     // `|a + bi|^2 = a^2 + b^2`
     // reinterpret the &[Complex32] as a &[f32] that's twice as long
