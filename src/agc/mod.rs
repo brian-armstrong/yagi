@@ -1,8 +1,8 @@
 //! Automatic gain control for real and complex sample streams.
 //!
-//! [`Agc`] tracks the input magnitude toward unity, then
-//! applies an optional output scale. It also provides an optional RSSI-based
-//! squelch state machine.
+//! [`Agc`] adjusts gain to bring the output magnitude toward one, then applies
+//! a configurable output scale. Its optional RSSI-based squelch reports signal
+//! state but does not mute output samples.
 
 mod agc;
 
