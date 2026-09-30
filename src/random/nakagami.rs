@@ -2,14 +2,17 @@ use crate::error::{Error, Result};
 use crate::math::{lngammaf, lnlowergammaf};
 use crate::random::randgammaf;
 
-/// Generate a Nakagami-m random sample.
+/// Returns a Nakagami-m random sample.
 ///
-/// `m` is the shape and must be at least `0.5`. `omega` is the positive
-/// spread parameter.
+/// `m` is the shape and `omega` is the spread, the mean-square value of the
+/// distribution. The sample is the square root of a gamma sample from
+/// [`randgammaf`], with the same cost and the same rare infinite result. A NaN
+/// `m` never returns.
 ///
 /// # Errors
 ///
-/// Returns an error when `m < 0.5` or `omega <= 0`.
+/// Returns an error when `m` is less than `0.5`, `omega` is zero or negative,
+/// or `omega / m` is zero, as it is for an infinite `m`.
 pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
     // validate input
     if m < 0.5 {
@@ -27,13 +30,16 @@ pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
     Ok(x.sqrt())
 }
 
-/// Evaluate the probability density of a Nakagami-m distribution.
+/// Returns the probability density of a Nakagami-m distribution.
 ///
-/// `m` is the shape and `omega` is the spread. Returns `0` when `x <= 0`.
+/// The parameters are as for [`randnakmf`]. The density is zero for `x` at or
+/// below zero, including at zero itself where the true density is positive
+/// for `m` of `0.5`.
 ///
 /// # Errors
 ///
-/// Returns an error when `m < 0.5` or `omega <= 0`.
+/// Returns an error when `m` is less than `0.5` or `omega` is zero or
+/// negative.
 pub fn randnakmf_pdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     // validate input
     if m < 0.5 {
@@ -54,14 +60,17 @@ pub fn randnakmf_pdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     Ok(2.0 * (-t0 + t1 + t2 + t3).exp())
 }
 
-/// Evaluate the cumulative distribution of a Nakagami-m distribution.
+/// Returns the cumulative distribution of a Nakagami-m distribution.
 ///
-/// `m` is the shape and `omega` is the spread. Returns `0` when `x <= 0`.
+/// The parameters are as for [`randnakmf`]. The result is zero for `x` at or
+/// below zero. It is computed from the lower incomplete gamma function, which
+/// loses accuracy for large arguments, so a result within `[0, 1]` is not
+/// proof of accuracy.
 ///
 /// # Errors
 ///
-/// Returns an error when `m < 0.5`, `omega <= 0`, or the calculation is not
-/// representable as `f32`.
+/// Returns an error when `m` is less than `0.5`, `omega` is zero or negative,
+/// or the calculation overflows or leaves `[0, 1]`.
 pub fn randnakmf_cdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     // validate input
     if m < 0.5 {

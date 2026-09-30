@@ -4,14 +4,15 @@ use crate::math::marcumq1f;
 use crate::random::crandnf;
 use num_complex::Complex;
 
-/// Generate a Rice-K random sample.
+/// Returns a Rice-K random sample.
 ///
-/// `k` is the non-negative shape parameter. `omega` is the positive spread
-/// parameter.
+/// `k` is the ratio of line-of-sight power to scattered power, and `omega`
+/// is the mean-square value of the distribution. A `k` of zero gives a
+/// Rayleigh distribution.
 ///
 /// # Errors
 ///
-/// Returns an error when `k < 0` or `omega <= 0`.
+/// Returns an error when `k` is negative or `omega` is zero or negative.
 pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
     // validate input
     if k < 0.0 {
@@ -29,19 +30,22 @@ pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
     Ok(y.norm())
 }
 
-/// Evaluate the probability density of a Rice-K distribution.
+/// Returns the probability density of a Rice-K distribution.
 ///
-/// `k` is the non-negative shape parameter. `omega` is the positive spread
-/// parameter. Returns `0` when `x < 0`.
-///
-/// # Warning
-///
-/// The modified Bessel calculation is truncated for a large scaled argument.
-/// The function returns `0` in that tail rather than a small nonzero density.
+/// The parameters are as for [`randricekf`]. The density is zero for
+/// negative `x`.
 ///
 /// # Errors
 ///
-/// Returns an error when `k < 0` or `omega <= 0`.
+/// Returns an error when `k` is negative or `omega` is zero or negative.
+///
+/// # Warning
+///
+/// The result is zero whenever `x * s / sigma^2` exceeds 80, where
+/// `s = sqrt(omega * k / (k + 1))` and `sigma^2 = omega / (2 * (k + 1))`.
+/// Near the peak that ratio is about `2 * (k + 1)`, so from `k` of about 39
+/// the zero region covers the peak itself. With `k = 40`, `omega = 1` and
+/// `x = 1`, the result is zero although the true density is about 3.6.
 pub fn randricekf_pdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // validate input
     if k < 0.0 {
@@ -73,20 +77,25 @@ pub fn randricekf_pdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // Ok((x / sig2) * (-t / (2.0 * sig2)).exp() * lnbesselif(0.0, x * s / sig2))
 }
 
-/// Evaluate the cumulative distribution of a Rice-K distribution.
+/// Returns the cumulative distribution of a Rice-K distribution.
 ///
-/// `x`, `k`, and `omega` must be finite. `k` is non-negative and `omega` is
-/// positive. Returns `0` when `x <= 0`. At `k == 0`, this uses the Rayleigh
-/// CDF.
-///
-/// # Warning
-///
-/// The Marcum-Q evaluation uses ratio shortcuts and can saturate to `0` or
-/// `1` before the mathematical CDF reaches either endpoint.
+/// The parameters are as for [`randricekf`]. The result is zero for `x` at or
+/// below zero. A `k` of zero uses the closed-form Rayleigh distribution.
+/// Otherwise the result comes from the Marcum Q function, and it is set to
+/// exactly zero or one once `x` is a factor of three below or above the
+/// line-of-sight amplitude `sqrt(omega * k / (k + 1))`.
 ///
 /// # Errors
 ///
-/// Returns an error for non-finite inputs, `k < 0`, or `omega <= 0`.
+/// Returns an error when `x`, `k` or `omega` is not finite, `k` is negative,
+/// or `omega` is zero or negative.
+///
+/// # Warning
+///
+/// The Marcum Q evaluation overflows at moderate `k`. The result is then a
+/// wrong zero or one, or NaN, with no error. With `k = 40`, `omega = 1` and
+/// `x = 1.2`, the result is zero although the true value is about 0.97. With
+/// `k = 100` and `omega = 1`, it is NaN between the two cutoffs.
 pub fn randricekf_cdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // validate input
     if !k.is_finite() || k < 0.0 {

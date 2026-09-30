@@ -2,19 +2,21 @@ use crate::error::{Error, Result};
 use crate::math::{gammaf, lowergammaf};
 use crate::random::randf;
 
-/// Generate a gamma random sample.
+/// Returns a gamma random sample.
 ///
-/// `alpha` is the shape and `beta` is the scale. The sample has mean
-/// `alpha * beta`.
-///
-/// # Warning
-///
-/// This rejection sampler expects finite parameters. A non-finite `alpha` can
-/// make the integer component take an impractical time to generate.
+/// `alpha` is the shape and `beta` is the scale. The distribution has mean
+/// `alpha * beta`. Each sample takes `floor(alpha)` uniform draws plus a
+/// rejection loop for the fractional part of `alpha`, so the cost grows with
+/// `alpha`. An infinite or NaN `alpha` never returns.
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha <= 0` or `beta <= 0`.
+/// Returns an error when `alpha` or `beta` is zero or negative.
+///
+/// # Warning
+///
+/// Some uniform draws of exactly zero are not rejected, and the sample is
+/// then infinite. Each draw is zero with probability `2^-24`.
 pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {
@@ -39,13 +41,15 @@ pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {
     Ok(beta * (x_delta + x_n))
 }
 
-/// Evaluate the probability density of a gamma distribution.
+/// Returns the probability density of a gamma distribution.
 ///
-/// `alpha` is the shape and `beta` is the scale. Returns `0` when `x <= 0`.
+/// `alpha` is the shape and `beta` is the scale. The density is zero for `x`
+/// at or below zero, including at zero itself where the true density is
+/// positive or unbounded for `alpha` of one or less.
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha <= 0` or `beta <= 0`.
+/// Returns an error when `alpha` or `beta` is zero or negative.
 pub fn randgammaf_pdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     // validate input
     if alpha <= 0.0 {
@@ -66,15 +70,18 @@ pub fn randgammaf_pdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     Ok((t0 * t1) / (t2 * t3))
 }
 
-/// Evaluate the cumulative distribution of a gamma distribution.
+/// Returns the cumulative distribution of a gamma distribution.
 ///
-/// `alpha` is the finite positive shape and `beta` is the finite positive
-/// scale. Returns `0` when `x <= 0`.
+/// `alpha` is the shape and `beta` is the scale. The result is zero for `x`
+/// at or below zero. It is computed as the lower incomplete gamma function
+/// over `Gamma(alpha)`, which loses accuracy as either grows large, so a
+/// result within `[0, 1]` is not proof of accuracy.
 ///
 /// # Errors
 ///
-/// Returns an error for non-finite or non-positive parameters, a non-finite
-/// positive `x`, or values that cannot be represented by the calculation.
+/// Returns an error when `alpha` or `beta` is zero, negative or not finite,
+/// when `x` is NaN or positive infinity, or when the calculation overflows or
+/// leaves `[0, 1]`.
 pub fn randgammaf_cdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     // validate input
     if !alpha.is_finite() || alpha <= 0.0 {

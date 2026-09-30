@@ -1,8 +1,13 @@
 //! Random samples, probability distributions, and packet scramblers.
 //!
-//! The sample generators use the thread-local random-number generator. They
-//! are useful for DSP simulation and stochastic algorithms. They do not expose
-//! a reproducible seed or stream.
+//! The sample generators draw from the thread-local random-number generator.
+//! They suit simulation and stochastic algorithms, but offer no way to seed
+//! them, so their output cannot be reproduced.
+//!
+//! Each distribution has a sample generator and density and distribution
+//! functions that share its parameters. These functions return an error for
+//! parameters out of range. The density and distribution functions return
+//! zero below the distribution's support.
 
 mod exponential;
 mod gamma;

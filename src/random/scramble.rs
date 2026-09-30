@@ -1,4 +1,6 @@
 //! Byte and soft-bit scrambling with a fixed repeating mask.
+//!
+//! The mask is deterministic and provides no secrecy.
 
 // Define the scramble masks as constants
 const SCRAMBLE_MASK0: u8 = 0xCA;
@@ -6,7 +8,10 @@ const SCRAMBLE_MASK1: u8 = 0xCC;
 const SCRAMBLE_MASK2: u8 = 0x53;
 const SCRAMBLE_MASK3: u8 = 0x5F;
 
-/// Scramble bytes in place with the fixed four-byte mask.
+/// Scrambles bytes in place with a fixed four-byte mask.
+///
+/// The mask bytes are `CA CC 53 5F` in hexadecimal, repeating from the first
+/// byte of each call. Each input byte is XORed with its mask byte.
 ///
 /// Applying [`unscramble_data`] to the result recovers the original bytes.
 pub fn scramble_data(x: &mut [u8]) {
@@ -33,19 +38,20 @@ pub fn scramble_data(x: &mut [u8]) {
     }
 }
 
-/// Recover bytes scrambled by [`scramble_data`].
+/// Recovers bytes scrambled by [`scramble_data`].
 ///
-/// This applies the same fixed mask a second time.
+/// Scrambling is an XOR, so this applies the same mask again.
 pub fn unscramble_data(x: &mut [u8]) {
     // for now apply simple static mask (re-run scramble)
     scramble_data(x);
 }
 
-/// Recover soft bits scrambled by [`scramble_data`].
+/// Recovers soft bits from bytes scrambled by [`scramble_data`].
 ///
 /// `x` contains one soft decision per bit in most-significant-bit-first order.
-/// Values near `0` favor a zero bit. Values near `255` favor a one bit. The
-/// function inverts the likelihood for mask bits set to one.
+/// Values near 0 favor a zero bit and values near 255 favor a one bit. Each
+/// value whose mask bit is one becomes `255 - value`. Eight soft bits match
+/// one byte of the mask, so the mask repeats every 32 values.
 ///
 /// Only complete groups of eight soft bits are processed. A trailing group
 /// shorter than eight elements is left unchanged.

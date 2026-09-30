@@ -1,13 +1,13 @@
 use crate::error::{Error, Result};
 use crate::random::randf;
 
-/// Generate an exponential random sample with rate `lambda`.
+/// Returns an exponential random sample with rate `lambda`.
 ///
-/// The sample has mean `1 / lambda`.
+/// The distribution has mean `1 / lambda`.
 ///
 /// # Errors
 ///
-/// Returns an error when `lambda <= 0`.
+/// Returns an error when `lambda` is zero or negative.
 pub fn randexpf(lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {
@@ -26,13 +26,14 @@ pub fn randexpf(lambda: f32) -> Result<f32> {
     Ok(-u.ln() / lambda)
 }
 
-/// Evaluate the probability density of an exponential distribution.
+/// Returns the probability density of an exponential distribution with rate
+/// `lambda`.
 ///
-/// Returns `0` when `x < 0`.
+/// The density is zero for negative `x`.
 ///
 /// # Errors
 ///
-/// Returns an error when `lambda <= 0`.
+/// Returns an error when `lambda` is zero or negative.
 pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {
@@ -46,13 +47,14 @@ pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
     }
 }
 
-/// Evaluate the cumulative distribution of an exponential distribution.
+/// Returns the cumulative distribution of an exponential distribution with
+/// rate `lambda`.
 ///
-/// Returns `0` when `x < 0`.
+/// The result is zero for negative `x`.
 ///
 /// # Errors
 ///
-/// Returns an error when `lambda <= 0`.
+/// Returns an error when `lambda` is zero or negative.
 pub fn randexpf_cdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
     if lambda <= 0.0 {

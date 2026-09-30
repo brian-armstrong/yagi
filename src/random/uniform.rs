@@ -1,15 +1,15 @@
 use crate::error::{Error, Result};
 use rand::Rng;
 
-/// Generate a uniform random sample in `[0, 1)`.
+/// Returns a uniform random sample in `[0, 1)`.
 pub fn randf() -> f32 {
     let mut rng = rand::thread_rng();
     rng.gen::<f32>()
 }
 
-/// Evaluate the probability density of the unit uniform distribution.
+/// Returns the probability density of the uniform distribution on `[0, 1]`.
 ///
-/// Returns `1` for `x` in `[0, 1]` and `0` outside that interval.
+/// The density is one for `x` in `[0, 1]` and zero outside it.
 pub fn randf_pdf(x: f32) -> f32 {
     if x < 0.0 || x > 1.0 {
         0.0
@@ -18,16 +18,21 @@ pub fn randf_pdf(x: f32) -> f32 {
     }
 }
 
-/// Evaluate the cumulative distribution of the unit uniform distribution.
+/// Returns the cumulative distribution of the uniform distribution on `[0, 1]`.
+///
+/// The result is `x` clamped to `[0, 1]`.
 pub fn randf_cdf(x: f32) -> f32 {
     x.clamp(0.0, 1.0)
 }
 
-/// Generate a uniform random sample in `[a, b)`.
+/// Returns a uniform random sample in `[a, b)`.
+///
+/// Rounding can occasionally return `b` itself. The width `b - a` must not
+/// overflow `f32`.
 ///
 /// # Errors
 ///
-/// Returns an error when `a >= b`.
+/// Returns an error when `a` is not less than `b`.
 pub fn randuf(a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf({},{}) has invalid range", a, b)));
@@ -36,11 +41,15 @@ pub fn randuf(a: f32, b: f32) -> Result<f32> {
     Ok(a + (b - a) * randf())
 }
 
-/// Evaluate the probability density of a uniform distribution on `[a, b]`.
+/// Returns the probability density of the uniform distribution on `[a, b]`.
+///
+/// The density is `1 / (b - a)` inside the interval and zero outside it. The
+/// width `b - a` must not overflow `f32`. A wider interval, such as
+/// `[-f32::MAX, f32::MAX]`, gives a density of zero throughout.
 ///
 /// # Errors
 ///
-/// Returns an error when `a >= b`.
+/// Returns an error when `a` is not less than `b`.
 pub fn randuf_pdf(x: f32, a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf_pdf({},{},{}) has invalid range", x, a, b)));
@@ -49,11 +58,15 @@ pub fn randuf_pdf(x: f32, a: f32, b: f32) -> Result<f32> {
     Ok(if x < a || x > b { 0.0 } else { 1.0 / (b - a) })
 }
 
-/// Evaluate the cumulative distribution of a uniform distribution on `[a, b]`.
+/// Returns the cumulative distribution of the uniform distribution on
+/// `[a, b]`.
+///
+/// The width `b - a` must not overflow `f32`. A wider interval, such as
+/// `[-f32::MAX, f32::MAX]`, gives zero below about its midpoint and NaN above.
 ///
 /// # Errors
 ///
-/// Returns an error when `a >= b`.
+/// Returns an error when `a` is not less than `b`.
 pub fn randuf_cdf(x: f32, a: f32, b: f32) -> Result<f32> {
     if a >= b {
         return Err(Error::Range(format!("randuf_cdf({},{},{}) has invalid range", x, a, b)));

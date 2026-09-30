@@ -6,7 +6,7 @@ use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
 use crate::error::{Error, Result};
 
-/// Generate a standard normal sample with mean `0` and variance `1`.
+/// Returns a normal random sample with mean zero and unit variance.
 pub fn randnf() -> f32 {
     let mut rng = rand::thread_rng();
 
@@ -22,16 +22,16 @@ pub fn randnf() -> f32 {
     (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).sin()
 }
 
-/// Add real Gaussian noise to `x`.
-///
-/// The added noise has standard deviation `abs(nstd)`.
+/// Adds Gaussian noise with standard deviation `abs(nstd)` to `x`.
 pub fn awgn(x: &mut f32, nstd: f32) {
     *x += randnf() * nstd;
 }
 
-/// Generate a circular complex Gaussian sample.
+/// Returns a circular complex Gaussian random sample.
 ///
-/// The real and imaginary components each have mean `0` and variance `1`.
+/// The real and imaginary parts are independent, each with mean zero and unit
+/// variance, so the mean-square magnitude is two. Scale by `1 / sqrt(2)` for
+/// unit power, as [`cawgn`] does.
 pub fn crandnf() -> Complex<f32> {
     let mut rng = rand::thread_rng();
 
@@ -49,20 +49,21 @@ pub fn crandnf() -> Complex<f32> {
     Complex::from_polar(r, theta)
 }
 
-/// Add circular complex Gaussian noise to `x`.
+/// Adds circular complex Gaussian noise to `x`.
 ///
-/// The added noise has total mean-square value `nstd^2`.
+/// The noise has a mean-square magnitude of `nstd^2`, split equally between
+/// the real and imaginary parts.
 pub fn cawgn(x: &mut Complex<f32>, nstd: f32) {
     *x += crandnf() * nstd * FRAC_1_SQRT_2;
 }
 
-/// Evaluate the probability density of a normal distribution.
+/// Returns the probability density of a normal distribution.
 ///
-/// `eta` is the mean. `sig` is the positive standard deviation.
+/// `eta` is the mean and `sig` is the standard deviation.
 ///
 /// # Errors
 ///
-/// Returns an error when `sig <= 0`.
+/// Returns an error when `sig` is zero or negative.
 pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     if sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));
@@ -73,13 +74,13 @@ pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     Ok((-t * t / (2.0 * s2)).exp() / (2.0 * PI * s2).sqrt())
 }
 
-/// Evaluate the cumulative distribution of a normal distribution.
+/// Returns the cumulative distribution of a normal distribution.
 ///
-/// `eta` is the mean. `sig` is the positive standard deviation.
+/// `eta` is the mean and `sig` is the standard deviation.
 ///
 /// # Errors
 ///
-/// Returns an error when `sig <= 0`.
+/// Returns an error when `sig` is zero or negative.
 pub fn randnf_cdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
     if sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));
