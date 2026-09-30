@@ -12,8 +12,8 @@ use crate::filter::{HalfBandResampler, Sample};
 ///
 /// Use [`Self::execute_block`] for streaming. It checks buffer lengths before
 /// changing any state. [`Self::execute`] runs a single step with the same
-/// checks. The direction-specific methods skip some of them. With zero
-/// stages, the checked methods copy input to output unchanged.
+/// checks. The direction-specific methods also check their buffer lengths.
+/// With zero stages, the methods copy input to output unchanged.
 #[derive(Clone, Debug)]
 #[doc(alias = "MsResamp2")]
 pub struct MultiStageHalfBandResampler<T, Coeff = T> {
@@ -222,14 +222,16 @@ where
     /// Consumes one input sample and writes `2^num_stages` output samples.
     ///
     /// Extra output is left unchanged. With zero stages, this copies `input`
-    /// to `output[0]`. Prefer [`Self::execute`], which checks the output length
-    /// first.
+    /// to `output[0]`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `output` holds fewer than `2^num_stages` samples. The
-    /// history has already changed when that happens.
+    /// Returns an error when `output` holds fewer than `2^num_stages` samples.
+    /// The cascade and `output` are unchanged on error.
     pub fn interp_execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
+        if output.len() < self.rate {
+            return Err(Error::Config("output length too small for half-band interpolation step".into()));
+        }
         let mut b0 = self.buffer0.as_mut_slice();
         let mut b1 = self.buffer1.as_mut_slice();
 
@@ -254,13 +256,15 @@ where
     /// Consumes `2^num_stages` input samples and returns one output sample.
     ///
     /// Extra input is ignored. With zero stages, this returns `input[0]`.
-    /// Prefer [`Self::execute`], which checks the input length first.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `input` holds fewer than `2^num_stages` samples. Some
-    /// stages may already have changed when that happens.
+    /// Returns an error when `input` holds fewer than `2^num_stages` samples.
+    /// The cascade is unchanged on error.
     pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
+        if input.len() < self.rate {
+            return Err(Error::Config("input length too small for half-band decimation step".into()));
+        }
         if self.num_stages == 0 {
             return Ok(input[0] * self.zeta);
         }
@@ -410,22 +414,24 @@ where
     ///
     /// Returns the number of samples written, `input.len() * 2^num_stages`.
     /// With zero stages, this copies `input` to `output`. Extra output is
-    /// left unchanged. Prefer [`Self::execute_block`], which checks the
-    /// output length first.
+    /// left unchanged.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `output` is shorter than `input.len() * 2^num_stages`.
-    /// Earlier stages may already have changed when that happens. The length
-    /// calculation can also overflow, which panics when overflow checks are
-    /// enabled and wraps otherwise.
+    /// Returns an error when `input.len() * 2^num_stages` overflows or
+    /// `output` is too short. The cascade and `output` are unchanged on error.
     pub fn interp_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n = input.len();
+        let n_out = n
+            .checked_mul(self.rate)
+            .ok_or_else(|| Error::Range("interpolation output length overflow".into()))?;
+        if output.len() < n_out {
+            return Err(Error::Config("output length too small for half-band interpolation block".into()));
+        }
         if self.num_stages == 0 {
             output[..n].copy_from_slice(input);
             return Ok(n);
         }
-        let n_out = n << self.num_stages;
 
         let (cap0, cap1) = self.interp_block_caps(n);
         self.grow_block_scratch(cap0, cap1);
@@ -457,25 +463,26 @@ where
     ///
     /// Returns the number of samples written, `input.len() / 2^num_stages`.
     /// With zero stages, this copies `input` to `output`. Extra output is
-    /// left unchanged. Prefer [`Self::execute_block`], which checks both
-    /// lengths first.
+    /// left unchanged.
     ///
     /// # Errors
     ///
     /// Returns an error when `input.len()` is not a multiple of
-    /// `2^num_stages`. The cascade and `output` may already have changed.
-    ///
-    /// # Panics
-    ///
-    /// Panics when `output` is shorter than `input.len() / 2^num_stages`.
-    /// Earlier stages may already have changed when that happens.
+    /// `2^num_stages` or `output` is too short. The cascade and `output` are
+    /// unchanged on error.
     pub fn decim_execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let n_in = input.len();
+        if !n_in.is_multiple_of(self.rate) {
+            return Err(Error::Config("decimation input length must be a multiple of the rate".into()));
+        }
+        let n_out = n_in / self.rate;
+        if output.len() < n_out {
+            return Err(Error::Config("output length too small for half-band decimation block".into()));
+        }
         if self.num_stages == 0 {
             output[..n_in].copy_from_slice(input);
             return Ok(n_in);
         }
-        let n_out = n_in >> self.num_stages;
 
         let (cap0, cap1) = self.decim_block_caps(n_in);
         self.grow_block_scratch(cap0, cap1);
