@@ -6,13 +6,16 @@
 
 use crate::error::{Error, Result};
 
-/// Shift a big-endian byte array left by `b` bits.
+/// Shifts a byte slice left by `b` bits in place.
 ///
-/// Vacated low-order bits are zero-filled. An empty slice is unchanged.
+/// The slice is one bit string, starting from the most significant bit of
+/// `src[0]`. Bits move toward that start, and the vacated bits at the end of
+/// the last byte are zero. An empty slice is unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error when `b >= 8`.
+/// Returns an error when `b` is eight or more. The slice is unchanged on
+/// error.
 pub fn lbshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
@@ -28,13 +31,16 @@ pub fn lbshift(src: &mut [u8], b: usize) -> Result<()> {
     Ok(())
 }
 
-/// Shift a big-endian byte array right by `b` bits.
+/// Shifts a byte slice right by `b` bits in place.
 ///
-/// Vacated high-order bits are zero-filled. An empty slice is unchanged.
+/// The slice is one bit string, starting from the most significant bit of
+/// `src[0]`. Bits move away from that start, and the vacated high bits of the
+/// first byte are zero. An empty slice is unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error when `b >= 8`.
+/// Returns an error when `b` is eight or more. The slice is unchanged on
+/// error.
 pub fn rbshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
@@ -50,13 +56,16 @@ pub fn rbshift(src: &mut [u8], b: usize) -> Result<()> {
     Ok(())
 }
 
-/// Rotate a big-endian byte array left by `b` bits.
+/// Rotates a byte slice left by `b` bits in place.
 ///
-/// An empty slice is unchanged.
+/// The slice is treated as for [`lbshift`]. Bits that leave the first byte
+/// wrap into the low bits of the last byte. An empty slice is
+/// unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error when `b >= 8`.
+/// Returns an error when `b` is eight or more. The slice is unchanged on
+/// error.
 pub fn lbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {
@@ -87,13 +96,16 @@ pub fn lbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     Ok(())
 }
 
-/// Rotate a big-endian byte array right by `b` bits.
+/// Rotates a byte slice right by `b` bits in place.
 ///
-/// An empty slice is unchanged.
+/// The slice is treated as for [`rbshift`]. Bits that leave the last byte
+/// wrap into the high bits of the first byte. An empty slice is
+/// unchanged.
 ///
 /// # Errors
 ///
-/// Returns an error when `b >= 8`.
+/// Returns an error when `b` is eight or more. The slice is unchanged on
+/// error.
 pub fn rbcircshift(src: &mut [u8], b: usize) -> Result<()> {
     // validate input
     if b >= 8 {

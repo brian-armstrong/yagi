@@ -4,7 +4,7 @@
 // byte-wise array shifting
 //
 
-/// Shift `src` left by `b` bytes in place.
+/// Shifts `src` left by `b` bytes in place.
 ///
 /// Bytes move toward index `0`. Vacated positions are filled with zero. When
 /// `b >= src.len()`, the entire slice is zero-filled.
@@ -24,7 +24,7 @@ pub fn lshift(src: &mut [u8], b: usize) {
     src[n - b..].fill(0x00);
 }
 
-/// Shift `src` right by `b` bytes in place.
+/// Shifts `src` right by `b` bytes in place.
 ///
 /// Bytes move away from index `0`. Vacated positions are filled with zero.
 /// When `b >= src.len()`, the entire slice is zero-filled.
@@ -44,7 +44,9 @@ pub fn rshift(src: &mut [u8], b: usize) {
     src[..b].fill(0x00);
 }
 
-/// Rotate `src` left by `b` bytes in place.
+/// Rotates `src` left by `b` bytes in place.
+///
+/// Bytes move toward index `0`, and those leaving the start wrap to the end.
 ///
 /// The shift amount is reduced modulo `src.len()`. An empty slice is
 /// unchanged.
@@ -58,7 +60,10 @@ pub fn lcircshift(src: &mut [u8], b: usize) {
     src.rotate_left(b % src.len());
 }
 
-/// Rotate `src` right by `b` bytes in place.
+/// Rotates `src` right by `b` bytes in place.
+///
+/// Bytes move away from index `0`, and those leaving the end wrap to the
+/// start.
 ///
 /// The shift amount is reduced modulo `src.len()`. An empty slice is
 /// unchanged.

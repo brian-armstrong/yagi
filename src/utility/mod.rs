@@ -1,9 +1,14 @@
 //! Bit packing, bit counting, and byte-array shift operations.
 //!
-//! These low-level helpers operate directly on caller-provided byte slices.
-//! Bit shifts are limited to fewer than eight positions. Non-circular byte
-//! shifts accept any amount and fill vacated elements with zero.
-//! Bit packing uses most-significant-bit-first order within each byte.
+//! Packing and shift operations work on caller-provided byte slices, and
+//! shifts modify the slice in place. A byte slice is read as one bit string,
+//! starting from the most significant bit of the first byte. Bitwise shifts
+//! accept amounts in `0..8`, and bytewise shifts accept any amount.
+//!
+//! [`pack_bytes`] puts a partial final byte in the low bits, while
+//! [`unpack_bytes`] always reads from the high bit, so the two are inverses
+//! only for whole bytes. Use [`repack_bytes`] for a partial byte aligned to
+//! the high bit.
 
 mod bits;
 mod bshift_array;

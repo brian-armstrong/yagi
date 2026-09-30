@@ -1,18 +1,21 @@
 use crate::error::{Error, Result};
 
-/// Pack the low `b` bits of `sym_in` into `src` at bit offset `k`.
+/// Writes the low `b` bits of `sym_in` into `src` at bit offset `k`.
 ///
-/// Bit offset `0` selects the most significant bit of `src[0]`. A field that
-/// crosses the end of `src` writes its remaining high bits and discards the
-/// rest.
+/// Bit offset `0` is the most significant bit of `src[0]`, and the field is
+/// written most significant bit first. A field that crosses the end of `src`
+/// writes only the bits that fit. Other bits of `src` are unchanged. `b`
+/// should be in `1..=8`.
 ///
 /// # Errors
 ///
-/// Returns an error when `k` is outside `src` or `b > 8`.
+/// Returns an error when `k` is `8 * src.len()` or more, or `b` exceeds
+/// eight. `src` is unchanged on error.
 ///
 /// # Panics
 ///
-/// A zero width is unsupported and can panic. Use a width in `1..=8`.
+/// Panics when `b` is zero and overflow checks are enabled. Without overflow
+/// checks, a zero width can overwrite bits of `src`.
 pub fn pack_array(src: &mut [u8], k: usize, b: usize, sym_in: u8) -> Result<()> {
     let n = src.len();
 
@@ -63,18 +66,21 @@ pub fn pack_array(src: &mut [u8], k: usize, b: usize, sym_in: u8) -> Result<()> 
     Ok(())
 }
 
-/// Unpack `b` bits from `src` at bit offset `k`.
+/// Reads `b` bits from `src` at bit offset `k`.
 ///
-/// Bit offset `0` selects the most significant bit of `src[0]`. Missing bits
-/// beyond the end of `src` read as zero.
+/// Bit offset `0` is the most significant bit of `src[0]`. The field is
+/// returned in the low bits of the result, and bits beyond the end of `src`
+/// read as zero. `b` should be in `1..=8`.
 ///
 /// # Errors
 ///
-/// Returns an error when `k` is outside `src` or `b > 8`.
+/// Returns an error when `k` is `8 * src.len()` or more, or `b` exceeds
+/// eight.
 ///
 /// # Panics
 ///
-/// A zero width is unsupported and can panic. Use a width in `1..=8`.
+/// Panics when `b` is zero, `k` is a multiple of eight, and overflow checks
+/// are enabled. Otherwise a zero width returns zero.
 pub fn unpack_array(src: &[u8], k: usize, b: usize) -> Result<u8> {
     let n = src.len();
 
@@ -117,16 +123,22 @@ pub fn unpack_array(src: &[u8], k: usize, b: usize) -> Result<u8> {
     Ok(sym_out)
 }
 
-/// Pack one-bit symbols into most-significant-bit-first bytes.
+/// Packs one-bit symbols into bytes, most significant bit first.
 ///
-/// The low bit of each element in `sym_in` is used. If its length is not a
-/// multiple of eight, the final byte is padded with zero bits at the right.
-/// The return value is the number of output bytes written.
+/// The low bit of each element of `sym_in` is used. When the length is not a
+/// multiple of eight, the final byte holds the remaining bits in its low
+/// positions, with zero bits above them. Returns the number of bytes written.
+///
+/// [`unpack_bytes`] reads every byte from the high bit, so it does not
+/// reverse a partial final byte. To round-trip any bit count, pack with
+/// [`repack_bytes`] from width 1 to width 8, which aligns a partial byte to
+/// the high bit, and drop the padding bits after unpacking.
 ///
 /// # Errors
 ///
 /// Returns an error when `sym_out` has fewer than `ceil(sym_in.len() / 8)`
-/// elements. Elements beyond the written output are unchanged.
+/// elements. The output is unchanged on error. Elements beyond the written
+/// output are unchanged on success.
 pub fn pack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
     let sym_in_len = sym_in.len();
     let sym_out_len = sym_out.len();
@@ -159,14 +171,19 @@ pub fn pack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
     Ok(n)
 }
 
-/// Unpack bytes into most-significant-bit-first one-bit symbols.
+/// Unpacks bytes into one-bit symbols, most significant bit first.
 ///
-/// The return value is `8 * sym_in.len()`.
+/// Writes `8 * sym_in.len()` symbols, each zero or one, and returns that
+/// count. Every byte is read from the high bit, including the last. A partial
+/// final byte from [`pack_bytes`] sits in the low bits, so packing then
+/// unpacking restores the bits only when their count is a multiple of eight.
+/// See [`pack_bytes`] for a round trip that handles any count.
 ///
 /// # Errors
 ///
 /// Returns an error when `sym_out` has fewer than `8 * sym_in.len()`
-/// elements. Elements beyond the written output are unchanged.
+/// elements. The output is unchanged on error. Elements beyond the written
+/// output are unchanged on success.
 pub fn unpack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
     let sym_in_len = sym_in.len();
     let sym_out_len = sym_out.len();
@@ -193,21 +210,26 @@ pub fn unpack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
     Ok(n)
 }
 
-/// Repack fixed-width, most-significant-bit-first symbols.
+/// Repacks a stream of fixed-width symbols into symbols of another width.
 ///
-/// The low `sym_in_bps` bits of each input symbol form a bitstream. Output
-/// symbols receive that stream in groups of `sym_out_bps` bits. The final
-/// output symbol is padded with zero bits at the right when necessary.
+/// The low `sym_in_bps` bits of each input symbol, most significant first,
+/// form a bit stream. Each output symbol takes the next `sym_out_bps` bits of
+/// the stream in its low bits. A final partial output symbol is padded with
+/// zero bits on the right. Both widths must be in `1..=8`. Returns the number
+/// of output symbols written.
 ///
 /// # Errors
 ///
 /// Returns an error when `sym_out` cannot hold
-/// `ceil(sym_in.len() * sym_in_bps / sym_out_bps)` symbols.
+/// `ceil(sym_in.len() * sym_in_bps / sym_out_bps)` symbols. The output is
+/// unchanged on error. Elements beyond the written output are unchanged on
+/// success.
 ///
 /// # Panics
 ///
-/// Both symbol widths must be in `1..=8`. The function does not validate this
-/// precondition and can panic for other widths.
+/// Panics when `sym_out_bps` is zero. The widths are not otherwise checked.
+/// A zero `sym_in_bps` writes nothing, and a width above eight can panic or
+/// silently drop bits.
 pub fn repack_bytes(sym_in: &[u8], sym_in_bps: usize, sym_out: &mut [u8], sym_out_bps: usize) -> Result<usize> {
     let sym_in_len = sym_in.len();
     let sym_out_len = sym_out.len();
@@ -308,53 +330,64 @@ const REVERSE_BYTE_GENTAB: [u8; 256] = [
     0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff,
 ];
 
-/// Count the one bits in `x`.
+/// Returns the number of one bits in `x`.
 pub fn count_ones(x: u32) -> u32 {
     x.count_ones()
 }
 
-/// Return the parity of the one bits in `x`.
+/// Returns the parity of `x`, one when it has an odd number of one bits.
 pub fn count_ones_mod2(x: u32) -> u32 {
     x.count_ones() & 1
 }
 
-/// Compute the binary dot product of `x` and `y` over GF(2).
+/// Returns the binary dot product of `x` and `y` over GF(2).
 ///
-/// This is the parity of the one bits in `x & y`.
+/// The result is the parity of `x & y`.
 pub fn bdotprod(x: u32, y: u32) -> u32 {
     (x & y).count_ones() & 1_u32
 }
 
-/// Count the differing bits between two `u32` values.
+/// Returns the number of bits that differ between two `u32` values.
 pub fn count_bit_errors(s1: u32, s2: u32) -> u32 {
     (s1 ^ s2).count_ones()
 }
 
-/// Count differing bits in corresponding bytes of two slices.
+/// Returns the number of bits that differ between corresponding bytes of two
+/// slices.
 ///
-/// If the slices have different lengths, trailing bytes in the longer slice
-/// are ignored.
+/// When the slices differ in length, the extra bytes of the longer one are
+/// ignored.
+///
+/// # Panics
+///
+/// Panics when the count overflows `u32` and overflow checks are enabled.
+/// Without overflow checks, the count wraps. This takes more than 512 MiB of
+/// differing input.
 pub fn count_bit_errors_array(msg0: &[u8], msg1: &[u8]) -> u32 {
     msg0.iter().zip(msg1.iter()).map(|(&a, &b)| (a ^ b).count_ones()).sum()
 }
 
-/// Print the low `n` bits of `x` in most-significant-bit-first order.
+/// Prints the low `n` bits of `x` to standard output, most significant bit
+/// first.
+///
+/// No newline is printed.
 ///
 /// # Panics
 ///
-/// Panics when `n > 32`.
+/// Panics when `n` exceeds 32 and overflow checks are enabled. Without
+/// overflow checks, the digits beyond the 32nd are wrong.
 pub fn print_bitstring(x: u32, n: u32) {
     for i in (0..n).rev() {
         print!("{}", (x >> i) & 1);
     }
 }
 
-/// Reverse the bit order of a byte.
+/// Reverses the bit order of a byte.
 pub fn reverse_byte(x: u8) -> u8 {
     REVERSE_BYTE_GENTAB[x as usize]
 }
 
-/// Reverse the bit order of the low eight bits of `x`.
+/// Reverses the bit order of an eight-bit value held in a `u32`.
 ///
 /// # Panics
 ///
@@ -363,19 +396,25 @@ pub fn reverse_8(x: u32) -> u32 {
     REVERSE_BYTE_GENTAB[x as usize] as u32
 }
 
-/// Reverse the bit order of the low 16 bits of `x`.
+/// Reverses the bit order of a 16-bit value held in a `u32`.
+///
+/// # Panics
+///
+/// Panics when bits above bit 15 are set.
 pub fn reverse_16(x: u32) -> u32 {
     ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 8) | (REVERSE_BYTE_GENTAB[(x >> 8) as usize] as u32)
 }
 
-/// Reverse the bit order of the low 24 bits of `x`.
+/// Reverses the bit order of the low 24 bits of `x`.
+///
+/// The upper eight bits are ignored, and are zero in the result.
 pub fn reverse_24(x: u32) -> u32 {
     ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 16)
         | ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 8)
         | (REVERSE_BYTE_GENTAB[((x >> 16) & 0xff) as usize] as u32)
 }
 
-/// Reverse the bit order of `x`.
+/// Reverses the bit order of `x`.
 pub fn reverse_32(x: u32) -> u32 {
     ((REVERSE_BYTE_GENTAB[(x & 0xff) as usize] as u32) << 24)
         | ((REVERSE_BYTE_GENTAB[((x >> 8) & 0xff) as usize] as u32) << 16)
@@ -383,14 +422,17 @@ pub fn reverse_32(x: u32) -> u32 {
         | (REVERSE_BYTE_GENTAB[(x >> 24) as usize] as u32)
 }
 
-/// Count the zero bits before the most significant one bit in `x`.
+/// Returns the number of zero bits above the most significant one bit in `x`.
+///
+/// The result is 32 when `x` is zero.
 pub fn count_leading_zeros(x: u32) -> u32 {
     x.leading_zeros()
 }
 
-/// Return the one-based index of the most significant one bit in `x`.
+/// Returns the one-based index of the most significant one bit in `x`.
 ///
-/// Returns `0` when `x == 0`.
+/// This is the number of bits needed to hold `x`, and is zero when `x` is
+/// zero.
 pub fn msb_index(x: u32) -> u32 {
     32 - x.leading_zeros()
 }
