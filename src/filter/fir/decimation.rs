@@ -194,10 +194,14 @@ where
     /// A group is [`Self::decim_rate`] samples. Samples beyond the first group
     /// are ignored.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `input` is shorter than [`Self::decim_rate`].
+    /// Returns an error when `input` is shorter than [`Self::decim_rate`].
+    /// The filter is unchanged on error.
     pub fn execute(&mut self, input: &[T]) -> Result<T> {
+        if input.len() < self.decimation_factor {
+            return Err(Error::Config("input length must be at least the decimation factor".into()));
+        }
         let mut y = T::zero();
         for i in 0..self.decimation_factor {
             self.w.push(input[i]);
