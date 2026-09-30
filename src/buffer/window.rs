@@ -1,10 +1,16 @@
 use crate::error::{Error, Result};
 use std::ops::Range;
 
-/// A fixed-length history of the most recent samples.
+/// Fixed-length history of the most recent samples.
 ///
-/// [`Self::read`] returns exactly `len()` elements in oldest-to-newest order.
-/// A new window is filled with `T::default()` values.
+/// Each [`Self::push`] appends one sample and drops the oldest.
+/// [`Self::read`] borrows the whole history as one contiguous slice of
+/// [`Self::len`] samples, oldest first. A new window holds `T::default()`
+/// values.
+///
+/// The derived `PartialEq` compares internal storage, not just the history.
+/// Two windows with the same [`Self::read`] contents can compare unequal, so
+/// compare their `read()` slices instead.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Window<T> {
     v: Vec<T>,
@@ -15,7 +21,7 @@ pub struct Window<T> {
 }
 
 impl<T: Default + Clone + Copy> Window<T> {
-    /// Create a window history with `capacity` samples.
+    /// Creates a window that holds `capacity` samples.
     ///
     /// # Errors
     ///
@@ -36,14 +42,14 @@ impl<T: Default + Clone + Copy> Window<T> {
         Ok(window)
     }
 
-    /// Change the history length while retaining recent samples.
+    /// Changes the history length to `n` samples, keeping the newest ones.
     ///
-    /// Shrinking retains the newest samples. Growing adds `T::default()` samples
-    /// at the old end of the history.
+    /// Shrinking drops the oldest samples. Growing adds `T::default()` values
+    /// before the existing history.
     ///
     /// # Errors
     ///
-    /// Returns an error when `n` is zero.
+    /// Returns an error when `n` is zero. The window is unchanged on error.
     pub fn resize(&mut self, n: usize) -> Result<()> {
         if n == self.len {
             return Ok(());
@@ -70,36 +76,33 @@ impl<T: Default + Clone + Copy> Window<T> {
         Ok(())
     }
 
-    /// Reset the history to `T::default()` values.
+    /// Fills the history with `T::default()` values.
     pub fn reset(&mut self) {
         self.read_index = 0;
         self.v.fill(T::default());
     }
 
-    /// Return the sample history in oldest-to-newest order.
+    /// Returns the history, oldest sample first.
     pub fn read(&self) -> &[T] {
         &self.v[self.read_index..self.read_index + self.len]
     }
 
-    /// Return the fixed history length.
+    /// Returns the number of samples in the history.
     pub fn len(&self) -> usize {
         self.len
     }
 
-    /// Return `false`.
-    ///
-    /// A window always has a nonzero fixed length and represents its history with
-    /// default values before enough samples have been pushed.
+    /// Returns `false`, because a window always holds [`Self::len`] samples.
     pub fn is_empty(&self) -> bool {
         // guaranteed to be nonzero by new
         false
     }
 
-    /// Return the sample at `index` in oldest-to-newest order.
+    /// Returns the sample at `index`, where zero is the oldest.
     ///
     /// # Errors
     ///
-    /// Returns an error when `index >= len()`.
+    /// Returns an error when `index` is `len()` or more.
     pub fn index(&self, index: usize) -> Result<T> {
         if index >= self.len {
             return Err(Error::Range("index value out of range".to_string()));
@@ -107,16 +110,16 @@ impl<T: Default + Clone + Copy> Window<T> {
         Ok(self.v[self.read_index + index])
     }
 
-    /// Replace the sample at `index` in the current history.
+    /// Replaces the sample at `index`, where zero is the oldest.
     ///
-    /// # Panics
-    ///
-    /// Panics when `index >= len()`.
+    /// `index` must be less than [`Self::len`]. Unlike [`Self::index`], this
+    /// is not checked. A larger index either panics or writes to storage
+    /// outside the history, in which case the value is silently lost.
     pub fn set(&mut self, index: usize, value: T) {
         self.v[self.read_index + index] = value;
     }
 
-    /// Append one sample and discard the oldest history element.
+    /// Appends one sample and drops the oldest.
     pub fn push(&mut self, value: T) {
         self.read_index = (self.read_index + 1) & self.mask;
 
@@ -127,21 +130,24 @@ impl<T: Default + Clone + Copy> Window<T> {
         self.v[self.read_index + self.len - 1] = value;
     }
 
-    /// Append every element of `values` in order.
+    /// Appends each sample of `values` in order.
     pub fn write(&mut self, values: &[T]) {
         for value in values {
             self.push(*value);
         }
     }
 
-    /// Visits each history produced by pushing `input`.
+    /// Pushes each sample of `input` and visits the history after each push.
     ///
-    /// This is equivalent to calling `window.push(value)` and then calling
-    /// `visit(i, window.read())` for each `(i, element)` in `input`. For long
-    /// inputs, this method can bypass [`Window::push`] for samples in the middle
-    /// of the input slice, lending better efficiency for long block lengths. The
-    /// contents of the window will be the same after the call as they would have
-    /// if the window had been executed on each sample individually.
+    /// Calls `visit(i, history)` once per input sample, in order, where
+    /// `history` is what [`Self::read`] would return after pushing
+    /// `input[i]`. The window ends with the same [`Self::read`] history as
+    /// after pushing every sample.
+    ///
+    /// If `visit` panics, the window may keep only part of `input`. When
+    /// `input` holds at least [`Self::len`] samples, everything past the
+    /// first `len - 1` is visited before any of it is pushed, so a panic
+    /// there leaves only those first `len - 1` samples.
     #[inline]
     pub fn execute_block<F>(&mut self, input: &[T], mut visit: F)
     where
@@ -155,16 +161,20 @@ impl<T: Default + Clone + Copy> Window<T> {
         });
     }
 
-    /// Visits the histories produced by pushing `input`, grouping histories
-    /// that can be read from one contiguous slice into a single call.
+    /// Pushes each sample of `input` and visits the histories in contiguous
+    /// runs.
     ///
-    /// This is a further optimization on [`Window::execute_block`]. Unlike
-    /// that method, the `visit` function here may be passed longer contiguous
-    /// spans on samples than would be returned by [`Window::read`]. This may
-    /// enable better efficiency for `visit` functions that can benefit from
-    /// batched execution. The `visit` function must be able to be called
-    /// multiple times and will be called with spans as short as [`Window::len`]
-    /// but never shorter.
+    /// This is [`Self::execute_block`] with fewer copies. Each call
+    /// `visit(indices, samples)` covers the input positions in `indices`.
+    /// `samples` holds `indices.len() + self.len() - 1` values, and
+    /// `samples.windows(self.len())` yields the history for each position in
+    /// order. `visit` may be called more than once. The window ends with the
+    /// same [`Self::read`] history as after pushing every sample.
+    ///
+    /// If `visit` panics, the window may keep only part of `input`. When
+    /// `input` holds at least [`Self::len`] samples, the run past the first
+    /// `len - 1` is visited before it is pushed, so a panic there leaves only
+    /// those first `len - 1` samples.
     #[inline]
     pub fn execute_block_contiguous<F>(&mut self, input: &[T], mut visit: F)
     where

@@ -1,10 +1,9 @@
 //! Fixed-length sample histories, scalar delays, and FIFO ring buffers.
 //!
 //! [`Window`] exposes a fixed-size history in oldest-to-newest order.
-//! [`WindowedDelay`]
-//! returns one delayed sample at a time.
-//! [`CircularBuffer`] holds a variable-length
-//! FIFO queue and supports zero-copy reads and writes.
+//! [`WindowedDelay`] returns one delayed sample at a time. [`CircularBuffer`]
+//! holds a variable-length FIFO queue with borrowed reads and write
+//! reservations.
 
 mod circular_buffer;
 mod window;
