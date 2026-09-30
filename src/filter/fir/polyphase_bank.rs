@@ -119,8 +119,8 @@ where
     /// # Errors
     ///
     /// Returns an error when `num_filters` or `filter_delay` is zero,
-    /// `cutoff_frequency` is outside its range, or `stopband_attenuation` is
-    /// zero or negative.
+    /// `cutoff_frequency` is nonfinite or outside its range, or
+    /// `stopband_attenuation` is nonfinite, zero or negative.
     ///
     /// # Panics
     ///
@@ -139,11 +139,11 @@ where
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if cutoff_frequency <= 0.0 || cutoff_frequency > 0.5 {
+        if !(cutoff_frequency > 0.0 && cutoff_frequency <= 0.5) {
             return Err(Error::Config("filter cut-off frequency must be in (0,0.5]".into()));
         }
-        if stopband_attenuation < 0.0 {
-            return Err(Error::Config("stop-band attenuation must be greater than zero".into()));
+        if !stopband_attenuation.is_finite() || stopband_attenuation <= 0.0 {
+            return Err(Error::Config("stop-band attenuation must be finite and greater than zero".into()));
         }
 
         let h_len = 2 * num_filters * filter_delay + 1;
@@ -180,8 +180,8 @@ where
     /// # Errors
     ///
     /// Returns an error when `num_filters` or `filter_delay` is zero,
-    /// `samples_per_symbol` is less than two, `excess_bandwidth` is outside its
-    /// range, or the selected prototype rejects the configuration.
+    /// `samples_per_symbol` is less than two, `excess_bandwidth` is nonfinite
+    /// or outside its range, or the selected prototype rejects the configuration.
     ///
     /// # Panics
     ///
@@ -204,7 +204,7 @@ where
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
 
@@ -233,8 +233,8 @@ where
     /// # Errors
     ///
     /// Returns an error when `num_filters` or `filter_delay` is zero,
-    /// `samples_per_symbol` is less than two, `excess_bandwidth` is outside
-    /// `[0, 1]`, or the selected prototype rejects the configuration.
+    /// `samples_per_symbol` is less than two, `excess_bandwidth` is nonfinite
+    /// or outside `[0, 1]`, or the selected prototype rejects the configuration.
     ///
     /// # Panics
     ///
@@ -257,7 +257,7 @@ where
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("filter excess bandwidth factor must be in [0,1]".into()));
         }
 
