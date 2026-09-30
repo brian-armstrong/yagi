@@ -182,11 +182,14 @@ where
     /// The low-band sample goes to `output[0]` and the high-band sample to
     /// `output[1]`. Extra input is ignored and extra output is left unchanged.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `input` or `output` holds fewer than two samples. When
-    /// `output` is the short one, the history has already changed.
+    /// Returns an error when `input` or `output` holds fewer than two samples.
+    /// The history and `output` are unchanged on error.
     pub fn analyzer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        if input.len() < 2 || output.len() < 2 {
+            return Err(Error::Config("analyzer input and output must hold at least two samples".into()));
+        }
         self.w1.push(Into::<T>::into(0.5) * input[0]);
         let r = self.w1.read();
         let y1 = self.dp.execute(r);
@@ -211,11 +214,14 @@ where
     /// is attenuated. With a semi-length of 12 and 60 dB of attenuation, a tone
     /// at 0.24 loses about 6.4 dB and a tone at 0.25 is removed.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `input` or `output` holds fewer than two samples. When
-    /// `output` is the short one, the history has already changed.
+    /// Returns an error when `input` or `output` holds fewer than two samples.
+    /// The history and `output` are unchanged on error.
     pub fn synthesizer_execute(&mut self, input: &[T], output: &mut [T]) -> Result<()> {
+        if input.len() < 2 || output.len() < 2 {
+            return Err(Error::Config("synthesizer input and output must hold at least two samples".into()));
+        }
         let x0 = input[0] + input[1];
         let x1 = input[0] - input[1];
 
@@ -233,11 +239,14 @@ where
     ///
     /// Extra input is ignored.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `input` holds fewer than two samples. The history has
-    /// already changed when `input` holds exactly one.
+    /// Returns an error when `input` holds fewer than two samples. The history
+    /// is unchanged on error.
     pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
+        if input.len() < 2 {
+            return Err(Error::Config("decimation input must hold at least two samples".into()));
+        }
         self.w1.push(input[0]);
         let r = self.w1.read();
         let y1 = self.dp.execute(r);
@@ -253,11 +262,14 @@ where
     ///
     /// Extra output is left unchanged.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when `output` holds fewer than two samples. The history and
-    /// `output[0]` may already have changed.
+    /// Returns an error when `output` holds fewer than two samples. The
+    /// history and `output` are unchanged on error.
     pub fn interp_execute(&mut self, input: T, output: &mut [T]) -> Result<()> {
+        if output.len() < 2 {
+            return Err(Error::Config("interpolation output must hold at least two samples".into()));
+        }
         self.w0.push(input);
         output[0] = self.w0.index(self.m - 1)? * self.scale;
 
