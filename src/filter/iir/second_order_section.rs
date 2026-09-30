@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::filter::iir::design::iir_group_delay;
 use crate::filter::Sample;
 
@@ -31,9 +31,13 @@ where
 {
     /// Creates a section from numerator and denominator coefficients.
     ///
-    /// Both are normalized by the first denominator coefficient. A zero there
-    /// is not rejected and makes every coefficient nonfinite. A new section
+    /// Both are normalized by the first denominator coefficient. A new section
     /// starts with zero-valued history.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a coefficient is nonfinite, the first denominator
+    /// coefficient is zero, or normalization produces a nonfinite coefficient.
     pub fn new(numerator_coefficients: &[Coeff; 3], denominator_coefficients: &[Coeff; 3]) -> Result<Self> {
         let mut filter = IirSecondOrderSection {
             b: [Coeff::default(); 3],
@@ -53,8 +57,13 @@ where
 
     /// Replaces the coefficients without clearing the section history.
     ///
-    /// Both are normalized by the first denominator coefficient. A zero there
-    /// is not rejected and makes every coefficient nonfinite.
+    /// Both are normalized by the first denominator coefficient.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a coefficient is nonfinite, the first denominator
+    /// coefficient is zero, or normalization produces a nonfinite coefficient.
+    /// The section and its history are unchanged on error.
     pub fn set_coefficients(
         &mut self,
         numerator_coefficients: &[Coeff; 3],
@@ -63,18 +72,24 @@ where
         let b = numerator_coefficients;
         let a = denominator_coefficients;
 
+        if b.iter().chain(a.iter()).any(|coefficient| !coefficient.abs().is_finite()) || a[0].abs() == 0.0 {
+            return Err(Error::Config("IIR section coefficients must be finite with nonzero a0".into()));
+        }
+
         // retain a0 coefficient for normalization
         let a0 = a[0];
 
+        let normalized_b = [b[0] / a0, b[1] / a0, b[2] / a0];
+        let normalized_a = [a[0] / a0, a[1] / a0, a[2] / a0];
+        if normalized_b.iter().chain(normalized_a.iter()).any(|coefficient| !coefficient.abs().is_finite()) {
+            return Err(Error::Config("normalized IIR section coefficients must be finite".into()));
+        }
+
         // copy feed-forward coefficients (numerator)
-        self.b[0] = b[0] / a0;
-        self.b[1] = b[1] / a0;
-        self.b[2] = b[2] / a0;
+        self.b = normalized_b;
 
         // copy feed-back coefficients (denominator)
-        self.a[0] = a[0] / a0; // unity
-        self.a[1] = a[1] / a0;
-        self.a[2] = a[2] / a0;
+        self.a = normalized_a;
 
         Ok(())
     }
