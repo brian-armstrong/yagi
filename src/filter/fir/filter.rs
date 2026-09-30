@@ -168,7 +168,7 @@ where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
     Complex32: From<Coeff>,
 {
-    let h_fc = filter::fir::design::freqresponse(h, fc).unwrap();
+    let h_fc = filter::fir::design::freqresponse(h, fc);
     h_fc * Complex32::from(scale)
 }
 

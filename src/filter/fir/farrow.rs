@@ -239,7 +239,7 @@ where
     /// The response is for the current delay. `fc` is not range-checked.
     pub fn freqresponse(&self, fc: f32) -> Complex32 {
         let h: Vec<f32> = self.h.iter().map(|&h_i| h_i.re()).collect();
-        freqresponse(&h, fc).unwrap()
+        freqresponse(&h, fc)
     }
 
     /// Estimates the group delay in samples at `fc` cycles per sample.

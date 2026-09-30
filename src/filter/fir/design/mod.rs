@@ -710,7 +710,7 @@ pub fn filter_energy(h: &[f32], fc: f32, nfft: usize) -> Result<f32> {
 /// sample.
 ///
 /// This is [`freqresponse`] for `f32` taps.
-pub fn freqrespf(h: &[f32], fc: f32) -> Result<Complex32> {
+pub fn freqrespf(h: &[f32], fc: f32) -> Complex32 {
     freqresponse(h, fc)
 }
 
@@ -718,7 +718,7 @@ pub fn freqrespf(h: &[f32], fc: f32) -> Result<Complex32> {
 /// sample.
 ///
 /// This is [`freqresponse`] for `Complex32` taps.
-pub fn freqrespcf(h: &[Complex32], fc: f32) -> Result<Complex32> {
+pub fn freqrespcf(h: &[Complex32], fc: f32) -> Complex32 {
     freqresponse(h, fc)
 }
 
@@ -726,8 +726,8 @@ pub fn freqrespcf(h: &[Complex32], fc: f32) -> Result<Complex32> {
 ///
 /// The response is `sum(h[i] * exp(-j * 2*pi*fc*i))`, and an empty `h`
 /// returns zero. `fc` is not range-checked, and the response repeats with a
-/// period of one. This never returns an error.
-pub fn freqresponse<T: ComplexFloat>(h: &[T], fc: f32) -> Result<Complex32>
+/// period of one.
+pub fn freqresponse<T: ComplexFloat>(h: &[T], fc: f32) -> Complex32
 where
     Complex32: From<T>,
 {
@@ -738,7 +738,7 @@ where
         let product = Complex32::from(hi) * Complex32::new(expjwt.re as f32, expjwt.im as f32);
         h_res += product;
     }
-    Ok(h_res)
+    h_res
 }
 
 /// Computes the group delay of `h` in samples at `fc` cycles per sample.
@@ -1169,7 +1169,7 @@ mod tests {
         let tol = 1e-5;
         for i in 0..nfft {
             let fc = (i as f32) / (nfft as f32) + if i >= nfft / 2 { -1.0 } else { 0.0 };
-            let h_freq = freqrespf(&h, fc).unwrap();
+            let h_freq = freqrespf(&h, fc);
 
             assert_abs_diff_eq!(buf_freq[i].re, h_freq.re, epsilon = tol);
             assert_abs_diff_eq!(buf_freq[i].im, h_freq.im, epsilon = tol);
@@ -1201,7 +1201,7 @@ mod tests {
         let tol = 1e-5;
         for i in 0..nfft {
             let fc = (i as f32) / (nfft as f32) + if i >= nfft / 2 { -1.0 } else { 0.0 };
-            let h_freq = freqrespcf(&h, fc).unwrap();
+            let h_freq = freqrespcf(&h, fc);
 
             println!(
                 "i: {}, buf_freq[i]: {:?} + {:?}j, H: {:?} + {:?}j",

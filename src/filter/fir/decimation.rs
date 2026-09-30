@@ -183,10 +183,10 @@ where
     ///
     /// The response includes the output scale. `fc` is not range-checked, and
     /// the response repeats with a period of one.
-    pub fn freqresp(&self, fc: f32) -> Result<Complex32> {
-        let mut h_freq = design::freqresponse(&self.h, fc)?;
+    pub fn freqresp(&self, fc: f32) -> Complex32 {
+        let mut h_freq = design::freqresponse(&self.h, fc);
         h_freq *= Complex32::from(self.scale);
-        Ok(h_freq)
+        h_freq
     }
 
     /// Consumes one group of input samples and returns one output sample.
@@ -302,7 +302,7 @@ mod tests {
 
         for k in -8..=8 {
             let fc = k as f32 / 20.0;
-            let y = q.freqresp(fc).unwrap();
+            let y = q.freqresp(fc);
             let y_test = r.freqresponse(fc);
 
             assert_abs_diff_eq!(y.re, y_test.re, epsilon = 1e-5);
