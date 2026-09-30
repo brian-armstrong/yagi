@@ -141,20 +141,26 @@ where
 
     /// Consumes one group of input samples and returns one output sample.
     ///
-    /// A group should hold `decimation_factor` samples, but the length is not
-    /// checked. Every sample in `input` passes through the filter, and the
-    /// result is the response to the first one. Empty input returns zero and
-    /// leaves the filter unchanged. Use [`Self::execute_block`] when groups
-    /// must be complete.
-    pub fn execute(&mut self, input: &[T]) -> T {
+    /// A group is [`Self::decim_rate`] samples. Samples beyond the first group
+    /// are ignored. The result is the response to the first sample; the rest
+    /// of the group affects later outputs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input` is shorter than [`Self::decim_rate`].
+    /// The filter is unchanged on error.
+    pub fn execute(&mut self, input: &[T]) -> Result<T> {
+        if input.len() < self.decimation_factor {
+            return Err(Error::Config("input length must be at least the decimation factor".into()));
+        }
         let mut y = T::default();
-        for (i, &xi) in input.iter().enumerate() {
+        for (i, &xi) in input[..self.decimation_factor].iter().enumerate() {
             let v = self.iirfilt.execute(xi);
             if i == 0 {
                 y = v;
             }
         }
-        y
+        Ok(y)
     }
 
     /// Consumes complete groups of input samples and writes one output per
@@ -178,7 +184,7 @@ where
             return Err(Error::Config("output length must be at least the number of output samples".into()));
         }
         for (i, xi) in input.chunks(self.decimation_factor).enumerate() {
-            output[i] = self.execute(xi);
+            output[i] = self.execute(xi)?;
         }
         Ok(n)
     }
@@ -214,7 +220,7 @@ mod tests {
             for j in 0..3 {
                 buf[j] = Complex32::new(randnf(), randnf());
             }
-            let _y0 = q0.execute(&buf);
+            let _y0 = q0.execute(&buf).unwrap();
         }
 
         // copy object
@@ -225,8 +231,8 @@ mod tests {
             for j in 0..3 {
                 buf[j] = Complex32::new(randnf(), randnf());
             }
-            let y0 = q0.execute(&buf);
-            let y1 = q1.execute(&buf);
+            let y0 = q0.execute(&buf).unwrap();
+            let y1 = q1.execute(&buf).unwrap();
 
             assert_eq!(y0, y1);
         }
