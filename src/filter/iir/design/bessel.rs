@@ -22,17 +22,24 @@ use std::f32::consts::LN_2;
 /// The poles are scaled so the 3 dB frequency lands near one. The scaling uses
 /// an approximation of the 3 dB frequency, so the cutoff is not exact.
 ///
-/// # Panics
+/// # Errors
 ///
-/// `n` is not validated. Panics when `n` is zero, or large enough to overflow
-/// the order arithmetic, and overflow checks are enabled. Without overflow
-/// checks, the arithmetic wraps and the design is invalid.
+/// Returns an error when `n` is zero or its order arithmetic overflows.
+/// The outputs are unchanged for either invalid order.
 pub fn iir_design_bessel_analog(
     n: usize,
     za: &mut Vec<Complex32>,
     pa: &mut Vec<Complex32>,
     ka: &mut Complex32,
 ) -> Result<()> {
+    if n == 0 {
+        return Err(Error::Config("Bessel prototype order must be greater than zero".into()));
+    }
+    let twice_n_minus_one = n
+        .checked_mul(2)
+        .and_then(|value| value.checked_sub(1))
+        .ok_or_else(|| Error::Range("Bessel prototype order overflow".into()))?;
+
     // roots are computed with order n+1 so we must use a longer array to
     // prevent out-of-bounds write on the provided pa array
     let mut tmp_pa = vec![Complex32::new(0.0, 0.0); n + 1];
@@ -51,7 +58,7 @@ pub fn iir_design_bessel_analog(
     // non-linear function of its order.  This frequency can
     // be approximated from [Bianchi:2007] (1.67), pp. 33.
     // Re-normalize poles by (approximated) 3-dB frequency.
-    let w3db = ((2 * n - 1) as f32 * 2.0f32.ln()).sqrt();
+    let w3db = (twice_n_minus_one as f32 * 2.0f32.ln()).sqrt();
     for p in pa.iter_mut().take(n) {
         *p /= w3db;
     }
