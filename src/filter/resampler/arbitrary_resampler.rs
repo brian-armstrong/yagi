@@ -62,9 +62,9 @@ where
     /// # Errors
     ///
     /// Returns an error when `rate` is nonfinite or outside `[0.004, 250]`,
-    /// `filter_semi_length` is zero, `cutoff_frequency` is outside its range,
-    /// `stopband_attenuation` is zero or negative, or `num_filters` is outside
-    /// its range.
+    /// `filter_semi_length` is zero, `cutoff_frequency` is nonfinite or outside
+    /// its range, `stopband_attenuation` is nonfinite, zero or negative, or
+    /// `num_filters` is outside its range.
     ///
     /// # Panics
     ///
@@ -84,11 +84,11 @@ where
         if filter_semi_length == 0 {
             return Err(Error::Config("filter semi-length must be greater than zero".into()));
         }
-        if cutoff_frequency <= 0.0 || cutoff_frequency >= 0.5 {
+        if !(cutoff_frequency > 0.0 && cutoff_frequency < 0.5) {
             return Err(Error::Config("filter cutoff must be in (0,0.5)".into()));
         }
-        if stopband_attenuation <= 0.0 {
-            return Err(Error::Config("filter stop-band suppression must be greater than zero".into()));
+        if !stopband_attenuation.is_finite() || stopband_attenuation <= 0.0 {
+            return Err(Error::Config("filter stop-band suppression must be finite and greater than zero".into()));
         }
 
         let bits = nextpow2(num_filters as u32)? as usize;
@@ -368,6 +368,16 @@ mod tests {
                 assert_eq!(q.rate(), rate);
                 assert_eq!(q.num_output(1), if rate == 250.0 { 250 } else { 1 });
             }
+        }
+    }
+
+    #[test]
+    fn test_resamp_rejects_nonfinite_filter_parameters() {
+        for cutoff in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, 0.5] {
+            assert!(matches!(ArbitraryResampler::<f32>::new(1.0, 7, cutoff, 60.0, 64), Err(Error::Config(_))));
+        }
+        for attenuation in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -f32::EPSILON] {
+            assert!(matches!(ArbitraryResampler::<f32>::new(1.0, 7, 0.25, attenuation, 64), Err(Error::Config(_))));
         }
     }
 
