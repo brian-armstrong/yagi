@@ -37,7 +37,7 @@ pub fn fir_design_hm3(k: usize, m: usize, beta: f32) -> Result<Vec<f32>> {
     if m < 1 {
         return Err(Error::Config("m must be greater than 0".into()));
     }
-    if beta < 0.0 || beta > 1.0 {
+    if !(0.0..=1.0).contains(&beta) {
         return Err(Error::Config("beta must be in [0,1]".into()));
     }
 
