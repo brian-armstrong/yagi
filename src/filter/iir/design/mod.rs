@@ -547,18 +547,18 @@ pub fn iir_design_lp2hp(
 /// Transforms digital low-pass zeros and poles to band-pass.
 ///
 /// `f0` is the center frequency in cycles per sample, in `[0, 0.5]`.
+/// `zd` and `pd` must have equal lengths.
 /// Each input root becomes two output roots, so `zdt` and `pdt` each receive
-/// `2 * n` roots.
+/// twice as many roots as their respective inputs.
 ///
 /// # Errors
 ///
-/// Returns an error when `f0` is nonfinite or out of range, `2 * n` overflows,
-/// `zd` or `pd` is shorter than `n`, or `zdt` or `pdt` is shorter than `2 * n`.
-/// Outputs are unchanged on error.
+/// Returns an error when `f0` is nonfinite or out of range, the input slices
+/// have different lengths, the doubled root count overflows, or either output
+/// slice is too short. Outputs are unchanged on error.
 pub fn iir_design_lp2bp(
     zd: &[Complex32],
     pd: &[Complex32],
-    n: usize,
     f0: f32,
     zdt: &mut [Complex32],
     pdt: &mut [Complex32],
@@ -566,8 +566,12 @@ pub fn iir_design_lp2bp(
     if !(0.0..=0.5).contains(&f0) {
         return Err(Error::Config("center frequency must be in [0,0.5]".into()));
     }
+    if zd.len() != pd.len() {
+        return Err(Error::Config("zero and pole slices must have the same length".into()));
+    }
+    let n = zd.len();
     let output_len = n.checked_mul(2).ok_or_else(|| Error::Range("band-pass root count overflow".into()))?;
-    if zd.len() < n || pd.len() < n || zdt.len() < output_len || pdt.len() < output_len {
+    if zdt.len() < output_len || pdt.len() < output_len {
         return Err(Error::Config("low-pass to band-pass root slices are too short".into()));
     }
     let c0 = (2.0 * PI * f0).cos();
@@ -771,7 +775,7 @@ pub fn iir_design(
         let mut pd1 = vec![Complex32::new(0.0, 0.0); 2 * n];
 
         // run zeros, poles low-pass -> band-pass transform
-        if iir_design_lp2bp(&zd, &pd, order, f0, &mut zd1, &mut pd1).is_err() {
+        if iir_design_lp2bp(&zd[..order], &pd[..order], f0, &mut zd1, &mut pd1).is_err() {
             return Err(Error::Internal("could not perform band-pass transformation".into()));
         }
 
@@ -808,22 +812,21 @@ pub fn iir_design(
 
 /// Checks whether an IIR denominator has no poles outside the unit circle.
 ///
-/// `a[..n]` holds the denominator in ascending powers of `z^-1`, so its order
-/// is `n - 1`. Stability depends only on the denominator.
+/// `a` holds the denominator in ascending powers of `z^-1`, so its order is
+/// `a.len() - 1`. Stability depends only on the denominator. Pass a subslice
+/// to test a prefix of a larger coefficient array.
 ///
 /// This is not a strict stability test. A pole on the unit circle counts as
 /// stable, so `true` does not rule out a marginally stable filter.
 ///
 /// # Errors
 ///
-/// Returns an error when `n < 2`, `a` is shorter than `n`, or root finding
+/// Returns an error when `a` has fewer than two coefficients or root finding
 /// fails.
-pub fn iir_design_is_stable(a: &[f32], n: usize) -> Result<bool> {
+pub fn iir_design_is_stable(a: &[f32]) -> Result<bool> {
+    let n = a.len();
     if n < 2 {
         return Err(Error::Config("filter order too low".into()));
-    }
-    if a.len() < n {
-        return Err(Error::Config("denominator slice is shorter than filter order".into()));
     }
 
     let mut a_hat = vec![0.0; n];
@@ -1183,7 +1186,7 @@ mod tests {
         // for 2^nd-order low-pass Butterworth filter
         // with cutoff frequency 0.25
         let a = [1.0f32, 0.0f32, 0.171572875253810f32];
-        let stable = iir_design_is_stable(&a, 3).unwrap();
+        let stable = iir_design_is_stable(&a).unwrap();
         assert!(stable);
     }
 
@@ -1192,14 +1195,14 @@ mod tests {
     fn test_iirdes_isstable_n2_no() {
         // initialize unstable filter
         let a = [1.0f32, 0.0f32, 1.171572875253810f32];
-        let stable = iir_design_is_stable(&a, 3).unwrap();
+        let stable = iir_design_is_stable(&a).unwrap();
         assert!(!stable);
     }
 
     #[test]
     fn test_iirdes_isstable_n1() {
-        assert!(iir_design_is_stable(&[1.0, -0.5], 2).unwrap());
-        assert!(!iir_design_is_stable(&[1.0, -1.5], 2).unwrap());
+        assert!(iir_design_is_stable(&[1.0, -0.5]).unwrap());
+        assert!(!iir_design_is_stable(&[1.0, -1.5]).unwrap());
     }
 
     #[test]
