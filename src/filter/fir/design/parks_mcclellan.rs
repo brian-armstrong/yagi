@@ -714,13 +714,14 @@ pub fn fir_design_pm(
 ///
 /// # Errors
 ///
-/// Returns an error when `n` is zero, `fc` is outside `0.0..=0.5`, `as_` is
-/// zero or negative, or the resulting band specification is invalid. A `fc`
-/// near either end of its range can place a band edge outside `0.0..=0.5`.
-/// It also returns an error when the design does not converge.
+/// Returns an error when `n` is zero, `fc` is nonfinite or outside
+/// `0.0..=0.5`, `as_` is nonfinite, zero or negative, or the resulting band
+/// specification is invalid. A `fc` near either end of its range can place a
+/// band edge outside `0.0..=0.5`. It also returns an error when the design
+/// does not converge.
 pub fn fir_design_pm_lowpass(n: usize, fc: f32, as_: f32) -> Result<Vec<f32>> {
-    if fc < 0.0 || fc > 0.5 {
-        return Err(Error::Config("firdespm_lowpass(), cutoff frequency (%12.4e) out of range (0, 0.5)".to_string()));
+    if !(0.0..=0.5).contains(&fc) {
+        return Err(Error::Config(format!("cutoff frequency ({fc}) must be in [0, 0.5]")));
     }
     if n == 0 {
         return Err(Error::Config("firdespm_lowpass(), filter length must be greater than zero".to_string()));
