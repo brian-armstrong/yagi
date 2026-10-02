@@ -76,7 +76,8 @@ where
     /// # Errors
     ///
     /// Returns an error when `decimation_factor` is less than two,
-    /// `filter_delay` is zero, or `stopband_attenuation` is zero or negative.
+    /// `filter_delay` is zero, or `stopband_attenuation` is nonfinite, zero or
+    /// negative.
     ///
     /// # Panics
     ///
@@ -90,8 +91,8 @@ where
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than 0".into()));
         }
-        if stopband_attenuation < 0.0 {
-            return Err(Error::Config("stop-band attenuation must be positive".into()));
+        if !stopband_attenuation.is_finite() || stopband_attenuation <= 0.0 {
+            return Err(Error::Config("stop-band attenuation must be finite and greater than zero".into()));
         }
 
         let h_len = 2 * decimation_factor * filter_delay + 1;
