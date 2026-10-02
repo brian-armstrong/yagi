@@ -367,26 +367,23 @@ pub fn iir_design_bilinear_z(
 
 /// Converts digital zeros, poles, and gain to a transfer function.
 ///
-/// `zd` and `pd` supply `n` zeros and poles. `b` and `a` receive `n + 1`
-/// coefficients each, in ascending powers of `z^-1`. Only the real part of
-/// each expanded coefficient is kept, so the zeros and poles should be real
-/// or come in conjugate pairs. With `n` zero, both outputs are set to zero.
+/// `zd` and `pd` supply equal numbers of zeros and poles. `b` and `a` receive
+/// one more coefficient than the number of roots, in ascending powers of
+/// `z^-1`. Only the real part of each expanded coefficient is kept, so the
+/// zeros and poles should be real
+/// or come in conjugate pairs. With no roots, both outputs are set to zero.
 ///
 /// # Errors
 ///
-/// Returns an error when `n + 1` overflows, `zd` or `pd` is shorter than `n`,
-/// or `b` or `a` is shorter than `n + 1`. The outputs are unchanged on error.
-pub fn iir_design_d2tf(
-    zd: &[Complex32],
-    pd: &[Complex32],
-    n: usize,
-    k: Complex32,
-    b: &mut [f32],
-    a: &mut [f32],
-) -> Result<()> {
+/// Returns an error when the root slices have different lengths, the
+/// coefficient count overflows, or `b` or `a` is too short. The outputs are
+/// unchanged on these errors.
+pub fn iir_design_d2tf(zd: &[Complex32], pd: &[Complex32], k: Complex32, b: &mut [f32], a: &mut [f32]) -> Result<()> {
+    if zd.len() != pd.len() {
+        return Err(Error::Config("zero and pole slices must have the same length".into()));
+    }
+    let n = zd.len();
     let roots = n.checked_add(1).ok_or_else(|| Error::Range("filter order overflows".into()))?;
-    let zd = zd.get(..n).ok_or_else(|| Error::Range("zero slice is shorter than filter order".into()))?;
-    let pd = pd.get(..n).ok_or_else(|| Error::Range("pole slice is shorter than filter order".into()))?;
     let b = b
         .get_mut(..roots)
         .ok_or_else(|| Error::Range("numerator slice is shorter than filter order plus one".into()))?;
@@ -412,9 +409,10 @@ pub fn iir_design_d2tf(
 
 /// Converts digital zeros, poles, and gain to second-order sections.
 ///
-/// `zd` and `pd` supply `n` zeros and poles. The result has `(n + 1) / 2`
-/// sections, and `b` and `a` receive three coefficients per section in
-/// ascending powers of `z^-1`. An odd order ends with a first-order section,
+/// `zd` and `pd` supply equal numbers of zeros and poles. The result has
+/// `(n + 1) / 2` sections for `n` roots. `b` and `a` receive three
+/// coefficients per section in ascending powers of `z^-1`. An odd order
+/// ends with a first-order section,
 /// whose last numerator and denominator coefficients are zero.
 ///
 /// The zeros and poles should be real or come in conjugate pairs, matched
@@ -427,23 +425,21 @@ pub fn iir_design_d2tf(
 ///
 /// # Errors
 ///
-/// Returns an error when `n` is zero, the section count overflows, or any
-/// input or output slice is too short. Outputs are unchanged for these errors.
-pub fn iir_design_d2sos(
-    zd: &[Complex32],
-    pd: &[Complex32],
-    n: usize,
-    k: Complex32,
-    b: &mut [f32],
-    a: &mut [f32],
-) -> Result<()> {
+/// Returns an error when the root slices have different lengths or are empty,
+/// the section count overflows, or either output slice is too short. Outputs
+/// are unchanged for these errors.
+pub fn iir_design_d2sos(zd: &[Complex32], pd: &[Complex32], k: Complex32, b: &mut [f32], a: &mut [f32]) -> Result<()> {
+    if zd.len() != pd.len() {
+        return Err(Error::Config("zero and pole slices must have the same length".into()));
+    }
+    let n = zd.len();
     if n == 0 {
         return Err(Error::Config("filter order must be greater than zero".into()));
     }
     let sections = n / 2 + n % 2;
     let output_len =
         sections.checked_mul(3).ok_or_else(|| Error::Range("section coefficient count overflow".into()))?;
-    if zd.len() < n || pd.len() < n || b.len() < output_len || a.len() < output_len {
+    if b.len() < output_len || a.len() < output_len {
         return Err(Error::Config("second-order section slices are too short".into()));
     }
     let tol = 1e-6f32;
@@ -520,21 +516,24 @@ pub fn iir_design_d2sos(
 
 /// Transforms digital low-pass zeros and poles to high-pass.
 ///
-/// The transform negates each root. `zdt` and `pdt` each receive `n`
-/// transformed roots.
+/// The transform negates each root. `zd` and `pd` must have equal lengths;
+/// `zdt` and `pdt` each receive one transformed root per input root.
 ///
 /// # Errors
 ///
-/// Returns an error when any input or output slice is shorter than `n`.
-/// Outputs are unchanged on error.
+/// Returns an error when the input slices have different lengths or either
+/// output slice is too short. Outputs are unchanged on error.
 pub fn iir_design_lp2hp(
     zd: &[Complex32],
     pd: &[Complex32],
-    n: usize,
     zdt: &mut [Complex32],
     pdt: &mut [Complex32],
 ) -> Result<()> {
-    if zd.len() < n || pd.len() < n || zdt.len() < n || pdt.len() < n {
+    if zd.len() != pd.len() {
+        return Err(Error::Config("zero and pole slices must have the same length".into()));
+    }
+    let n = zd.len();
+    if zdt.len() < n || pdt.len() < n {
         return Err(Error::Config("low-pass to high-pass root slices are too short".into()));
     }
     for i in 0..n {
@@ -757,7 +756,7 @@ pub fn iir_design(
         let mut pd_tmp = vec![Complex32::new(0.0, 0.0); 2 * order];
         let mut zd_tmp = vec![Complex32::new(0.0, 0.0); 2 * order];
 
-        if iir_design_lp2hp(&zd, &pd, order, &mut zd_tmp, &mut pd_tmp).is_err() {
+        if iir_design_lp2hp(&zd[..order], &pd[..order], &mut zd_tmp, &mut pd_tmp).is_err() {
             return Err(Error::Internal("could not perform high-pass transformation".into()));
         }
 
@@ -790,7 +789,7 @@ pub fn iir_design(
         // convert complex digital poles/zeros/gain into transfer
         // function : H(z) = B(z) / A(z)
         // where length(B,A) = low/high-pass ? _n + 1 : 2*_n + 1
-        if iir_design_d2tf(&zd, &pd, order, kd, b, a).is_err() {
+        if iir_design_d2tf(&zd[..order], &pd[..order], kd, b, a).is_err() {
             return Err(Error::Internal("could not perform transfer function expansion".into()));
         }
     } else {
@@ -799,7 +798,7 @@ pub fn iir_design(
         // H(z) = prod { (b0 + b1*z^-1 + b2*z^-2) / (a0 + a1*z^-1 + a2*z^-2) }
         // where size(B,A) = low|high-pass  : [3]x[L+r]
         //                   band-pass|stop : [3]x[2*L]
-        if iir_design_d2sos(&zd, &pd, order, kd, b, a).is_err() {
+        if iir_design_d2sos(&zd[..order], &pd[..order], kd, b, a).is_err() {
             return Err(Error::Internal("could not perform second-order sections expansion".into()));
         }
     }
@@ -1029,7 +1028,7 @@ mod tests {
                 iir_design_bilinear_a2d(&za, &pa, ka, m, &mut zd, &mut pd, &mut kd).unwrap();
                 let mut b_ref = vec![0.0; n + 1];
                 let mut a_ref = b_ref.clone();
-                iir_design_d2tf(&zd, &pd, n, kd, &mut b_ref, &mut a_ref).unwrap();
+                iir_design_d2tf(&zd, &pd, kd, &mut b_ref, &mut a_ref).unwrap();
 
                 for i in 0..=n {
                     assert_abs_diff_eq!(bd[i].re, b_ref[i], epsilon = 1e-5);
@@ -1172,7 +1171,7 @@ mod tests {
         let mut b = vec![0.0f32; 3 * l];
         let mut a = vec![0.0f32; 3 * l];
 
-        iir_design_d2sos(&zd, &pd, N, kd, &mut b, &mut a).unwrap();
+        iir_design_d2sos(&zd, &pd, kd, &mut b, &mut a).unwrap();
 
         // TODO there are no tests here
     }

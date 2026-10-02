@@ -174,7 +174,7 @@ where
     // second-order sections
     let mut b = vec![0.0; 12];
     let mut a = vec![0.0; 12];
-    design::iir_design_d2sos(&zdi, &pdi, 8, kdi, &mut b, &mut a)
+    design::iir_design_d2sos(&zdi, &pdi, kdi, &mut b, &mut a)
         .expect("built-in integrator roots form four second-order sections");
 
     let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
@@ -224,7 +224,7 @@ where
     // second-order sections
     let mut b = vec![0.0; 12];
     let mut a = vec![0.0; 12];
-    design::iir_design_d2sos(&zdd, &pdd, 8, kdd, &mut b, &mut a)
+    design::iir_design_d2sos(&zdd, &pdd, kdd, &mut b, &mut a)
         .expect("built-in differentiator roots form four second-order sections");
 
     let b = b.iter().map(|&x| x.into()).collect::<Vec<Coeff>>();
