@@ -20,13 +20,8 @@ use crate::nco::{Nco, NcoBackend};
 /// reverse. Both directions share the oscillator phase and filter history, so
 /// use one direction per synthesizer.
 ///
-/// The half-band stages have real coefficients, so each one also passes a
-/// mirror band at the negative of its center frequency. At most nonzero center
-/// frequencies this lets an interpolation image through at about the same
-/// level as the wanted signal. With two stages and a center frequency of 0.2,
-/// a constant input comes out at both 0.2 and -0.3, and down-conversion
-/// accepts a tone at either. The level of the wanted signal also varies with
-/// the center frequency.
+/// The half-band stages use complex coefficients to select the shifted band
+/// without passing its negative-frequency image.
 #[derive(Clone, Debug)]
 #[doc(alias = "Dds")]
 pub struct DirectDigitalSynthesizer {
@@ -37,7 +32,7 @@ pub struct DirectDigitalSynthesizer {
     rate: usize,
 
     // halfband decimation/interpolation stages
-    halfband_resamp: Vec<HalfBandResampler<Complex32, f32>>,
+    halfband_resamp: Vec<HalfBandResampler<Complex32, Complex32>>,
 
     m: Vec<usize>,
 
@@ -339,6 +334,50 @@ mod tests {
                     approx::assert_abs_diff_eq!(output.im, expected.im, epsilon = 1e-4);
                 }
                 q.reset();
+            }
+        }
+    }
+
+    #[test]
+    fn test_dds_nonzero_center_rejects_image() {
+        let rate = 4;
+        let num_input = 512;
+        let mut output = vec![Complex32::new(0.0, 0.0); rate * num_input];
+
+        for center in [0.2f32, -0.2] {
+            let mut q = DirectDigitalSynthesizer::new(2, center, 0.1, 60.0).unwrap();
+            for chunk in output.chunks_exact_mut(rate) {
+                q.interp_execute(Complex32::new(1.0, 0.0), chunk).unwrap();
+            }
+
+            let measure = |frequency: f32| {
+                let settled = &output[output.len() / 2..];
+                settled
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &sample)| sample * Complex32::from_polar(1.0, -2.0 * PI * frequency * i as f32))
+                    .sum::<Complex32>()
+                    / settled.len() as f32
+            };
+
+            let image = if center > 0.0 { center - 0.5 } else { center + 0.5 };
+            assert!((measure(center).norm() - 1.0).abs() < 0.05);
+            assert!(measure(image).norm() < 0.02);
+
+            for (frequency, expected_magnitude) in [(center, 1.0), (image, 0.0)] {
+                let mut down = DirectDigitalSynthesizer::new(2, center, 0.1, 60.0).unwrap();
+                let mut sum = Complex32::new(0.0, 0.0);
+                for i in 0..num_input {
+                    let input: [Complex32; 4] = std::array::from_fn(|j| {
+                        Complex32::from_polar(1.0, 2.0 * PI * frequency * (rate * i + j) as f32)
+                    });
+                    let sample = down.decim_execute(&input).unwrap();
+                    if i >= num_input / 2 {
+                        sum += sample;
+                    }
+                }
+                let magnitude = (sum / (num_input / 2) as f32).norm();
+                assert!((magnitude - expected_magnitude).abs() < 0.05);
             }
         }
     }
