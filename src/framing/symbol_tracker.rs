@@ -50,8 +50,7 @@ pub struct SymbolTracker {
 
     // symbol timing recovery
     symsync: SymbolSynchronizer<Complex32>,
-    symsync_buf: [Complex32; 8], // symsync output buffer
-    symsync_index: usize,        // symsync output sample index
+    symsync_index: usize, // symsync output sample index
 
     // equalizer/decimator
     eq: LeastMeanSquaresEqualizer<Complex32>,
@@ -135,7 +134,6 @@ impl SymbolTracker {
             bw: 0.0,
             agc,
             symsync,
-            symsync_buf: [Complex32::new(0.0, 0.0); 8],
             symsync_index: 0,
             eq,
             eq_strategy: EqStrategy::ConstantModulus,
@@ -340,13 +338,13 @@ impl SymbolTracker {
         let v = self.agc.execute(input)?;
 
         // symbol synchronizer
-        let nw = self.symsync.execute(&[v], &mut self.symsync_buf)?;
+        let symsync_output = self.symsync.execute(&[v])?;
 
         // process each output sample
-        for i in 0..nw {
+        for &sample in symsync_output {
             // update phase-locked loop
             self.nco.step();
-            let v = self.nco.mix_down(self.symsync_buf[i]);
+            let v = self.nco.mix_down(sample);
 
             // equalizer/decimator
             self.eq.push(v);

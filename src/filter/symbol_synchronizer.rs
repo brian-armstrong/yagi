@@ -37,6 +37,7 @@ pub struct SymbolSynchronizer<T> {
     pll: IirSecondOrderSection<f32>, // loop filter
     rate_adjustment: f32,            // rate adjustment factor
     is_locked: bool,                 // synchronizer locked flag
+    output: Vec<T>,                  // outputs from the most recent execution
 }
 
 impl<T> SymbolSynchronizer<T>
@@ -135,6 +136,7 @@ where
             pll,
             rate_adjustment: 0.0f32,
             is_locked: false,
+            output: Vec::new(),
         };
 
         q.reset();
@@ -271,6 +273,7 @@ where
         self.q_hat = 0.0;
         self.decim_counter = 0;
         self.pll.reset();
+        self.output.clear();
     }
 
     /// Freezes the timing loop at its current rate and phase.
@@ -389,43 +392,32 @@ where
         self.q_hat
     }
 
-    /// Synchronizes a block of input samples and returns the number of outputs.
+    /// Synchronizes a block of input samples and returns the outputs.
     ///
-    /// The count depends on the timing state and is roughly
-    /// `input.len() / rate()`, so leave some room in `output` beyond that.
-    /// Only the returned number of samples is written.
+    /// The count depends on the timing state and is roughly `input.len() / rate()`.
+    /// The returned slice is valid until the next mutable call on the synchronizer.
     ///
     /// # Errors
     ///
-    /// Returns an error when `output` fills before all input is consumed. By
-    /// then the synchronizer has consumed part of the input and written part of
-    /// `output`, and the number of samples written is lost.
-    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
-        let mut ny = 0;
-
-        for &xi in input.iter() {
-            let k = self.step(xi, &mut output[ny..])?;
-            ny += k;
+    /// Returns an error if a matched-filter phase cannot be evaluated.
+    pub fn execute(&mut self, input: &[T]) -> Result<&[T]> {
+        self.output.clear();
+        for &xi in input {
+            self.step(xi)?;
         }
-
-        Ok(ny)
+        Ok(&self.output)
     }
 
-    fn step(&mut self, x: T, y: &mut [T]) -> Result<usize> {
+    fn step(&mut self, x: T) -> Result<()> {
         self.mf.push(x);
         self.dmf.push(x);
 
         let mut mf: T;
         let mut dmf: T;
-        let mut ny = 0;
 
         while self.b < self.npfb {
-            if ny >= y.len() {
-                return Err(Error::Range("symsync output buffer full".into()));
-            }
-
             mf = self.mf.execute(self.b)?;
-            y[ny] = mf / (self.k as f32).into();
+            self.output.push(mf / (self.k as f32).into());
 
             if self.decim_counter == self.k_out {
                 self.decim_counter = 0;
@@ -443,14 +435,13 @@ where
             self.tau += self.del;
             self.bf = self.tau * self.npfb as f32;
             self.b = self.bf.round() as usize;
-            ny += 1;
         }
 
         self.tau -= 1.0;
         self.bf -= self.npfb as f32;
         self.b -= self.npfb;
 
-        Ok(ny)
+        Ok(())
     }
 
     fn advance_internal_loop(&mut self, mf: T, dmf: T) {
@@ -486,14 +477,12 @@ mod tests {
         //       produce the same output
         let buf_len = 640;
         let mut buf = vec![Complex32::new(0.0, 0.0); buf_len];
-        let mut buf_0 = vec![Complex32::new(0.0, 0.0); buf_len];
-        let mut buf_1 = vec![Complex32::new(0.0, 0.0); buf_len];
 
         for i in 0..buf_len {
             buf[i] = Complex32::new(randnf(), randnf());
         }
 
-        let _nw_0 = q0.execute(&buf, &mut buf_0).unwrap();
+        q0.execute(&buf).unwrap();
 
         // copy object
         let mut q1 = q0.clone();
@@ -503,14 +492,14 @@ mod tests {
             buf[i] = Complex32::new(randnf(), randnf());
         }
 
-        let nw_0 = q0.execute(&buf, &mut buf_0).unwrap();
-        let nw_1 = q1.execute(&buf, &mut buf_1).unwrap();
+        let buf_0 = q0.execute(&buf).unwrap();
+        let buf_1 = q1.execute(&buf).unwrap();
 
         // check that the same number of samples were written
-        assert_eq!(nw_0, nw_1);
+        assert_eq!(buf_0.len(), buf_1.len());
 
         // check output sample values
-        assert_eq!(buf_0[..nw_0], buf_1[..nw_1]);
+        assert_eq!(buf_0, buf_1);
 
         // check other internal properties
         assert_eq!(q0.tau(), q1.tau());
@@ -526,22 +515,18 @@ mod tests {
         };
 
         let buf_len = 640;
-        let mut buf_0 = vec![Complex32::new(0.0, 0.0); buf_len];
-        let mut buf_1 = vec![Complex32::new(0.0, 0.0); buf_len];
-
         let mut q0 = new();
         let warmup: Vec<_> = (0..buf_len).map(|_| Complex32::new(randnf(), randnf())).collect();
-        q0.execute(&warmup, &mut buf_0).unwrap();
+        q0.execute(&warmup).unwrap();
         q0.reset();
 
         let mut q1 = new();
 
         let buf: Vec<_> = (0..buf_len).map(|_| Complex32::new(randnf(), randnf())).collect();
-        let nw_0 = q0.execute(&buf, &mut buf_0).unwrap();
-        let nw_1 = q1.execute(&buf, &mut buf_1).unwrap();
+        let buf_0 = q0.execute(&buf).unwrap();
+        let buf_1 = q1.execute(&buf).unwrap();
 
-        assert_eq!(nw_0, nw_1);
-        assert_eq!(buf_0[..nw_0], buf_1[..nw_1]);
+        assert_eq!(buf_0, buf_1);
         assert_eq!(q0.tau(), q1.tau());
     }
 
@@ -621,7 +606,6 @@ mod tests {
         let mut s = vec![Complex32::new(0.0, 0.0); num_symbols as usize]; // data symbols
         let mut x = vec![Complex32::new(0.0, 0.0); num_samples as usize]; // interpolated samples
         let mut y = vec![Complex32::new(0.0, 0.0); num_samples_resamp as usize]; // resampled data (resamp_crcf)
-        let mut z = vec![Complex32::new(0.0, 0.0); num_symbols as usize + 64]; // synchronized symbols
 
         // generate pseudo-random QPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
@@ -676,7 +660,8 @@ mod tests {
         sync.set_lf_bw(bt).unwrap();
 
         // execute on entire block of samples
-        let nz = sync.execute(&y[..ny], &mut z).unwrap();
+        let z = sync.execute(&y[..ny]).unwrap();
+        let nz = z.len();
 
         // compute total delay through system
         // (initial filter + resampler + matched filter)
@@ -801,7 +786,6 @@ mod tests {
         let mut s = vec![0.0f32; num_symbols]; // data symbols
         let mut x = vec![0.0f32; num_samples]; // interpolated samples
         let mut y = vec![0.0f32; num_samples_resamp]; // resampled data (resamp_rrrf)
-        let mut z = vec![0.0f32; num_symbols + 64]; // synchronized symbols
 
         // generate pseudo-random BPSK symbols
         // NOTE: by using an m-sequence generator this sequence will be identical
@@ -853,7 +837,8 @@ mod tests {
         sync.set_fractional_rate(expected_rate).unwrap();
 
         // execute on entire block of samples
-        let nz = sync.execute(&y[..ny], &mut z).unwrap();
+        let z = sync.execute(&y[..ny]).unwrap();
+        let nz = z.len();
 
         // compute total delay through system
         // (initial filter + resampler + matched filter)
@@ -969,27 +954,22 @@ mod tests {
         symsync_rrrf_test_rms("nyquist", 2, 7, 0.35, -0.25, 0.98, 1.958);
     }
 
-    // Test that when rate < 1.0 (more outputs than inputs), execute returns an
-    // error if the output buffer is too small, rather than panicking.
     #[test]
-    fn test_symsync_output_buffer_full() {
+    fn test_symsync_buffers_multiple_outputs_per_input() {
         let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
 
-        // Set rate to 0.5 - this means ~2 outputs per input
         sync.set_fractional_rate(0.5).unwrap();
-        assert!(sync.rate() < 1.0);
-
-        // Input buffer with 100 samples
         let x: Vec<Complex32> = (0..100).map(|i| Complex32::new(i as f32 * 0.1, 0.0)).collect();
+        let buffered = sync.execute(&x).unwrap().to_vec();
+        assert!(buffered.len() > x.len());
 
-        // Output buffer sized for normal decimation (1 output per 2 inputs = 50)
-        // With rate=0.5, we'd get ~2 outputs per input, so 100 inputs -> ~200 outputs
-        // but we only have space for 50
-        let mut y = vec![Complex32::new(0.0, 0.0); 50];
-
-        // This should return an error because the output buffer is too small
-        let result = sync.execute(&x, &mut y);
-        assert!(result.is_err(), "expected error, got Ok with {} outputs", result.unwrap());
-        assert!(result.unwrap_err().to_string().contains("output buffer full"));
+        let mut one_at_a_time = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
+        one_at_a_time.set_fractional_rate(0.5).unwrap();
+        let mut expected = Vec::new();
+        for &sample in &x {
+            expected.extend_from_slice(one_at_a_time.execute(&[sample]).unwrap());
+        }
+        assert_eq!(buffered, expected);
+        assert!(sync.execute(&[]).unwrap().is_empty());
     }
 }
