@@ -460,13 +460,6 @@ impl FrameDetector {
     /// Detection completes some time after the sequence has been pushed. The
     /// last sample of the buffer is the one just pushed, so the next pushed
     /// sample continues from the end of the buffer.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the correlation peak found by the search falls exactly on
-    /// the first sample of the search block. The panic comes on the next
-    /// pushed sample, before a buffer is returned. This can happen with
-    /// ordinary input.
     pub fn execute(&mut self, input: Complex32) -> Option<&[Complex32]> {
         match self.state {
             QdetectorState::Seek => self.execute_seek(input),
@@ -563,6 +556,14 @@ impl FrameDetector {
                 self.buf_time_0[i] = self.buf_time_0[rxy_index + i];
             }
             self.counter = remaining;
+
+            // edge case: the peak landed on the first sample of the search
+            // block, so the buffer already holds a full aligned window. process
+            // it now rather than waiting for another sample, which would write
+            // past the end of buf_time_0
+            if self.counter == self.nfft {
+                self.process_align();
+            }
             return;
         }
 
@@ -585,6 +586,10 @@ impl FrameDetector {
             return;
         }
 
+        self.process_align();
+    }
+
+    fn process_align(&mut self) {
         // estimate timing offset
         self.fft.run(&self.buf_time_0, &mut self.buf_freq_0);
 
@@ -773,6 +778,37 @@ mod tests {
 
         // check carrier phase offset estimate
         assert_abs_diff_eq!(phi_hat, phi, epsilon = 0.1);
+    }
+
+    #[test]
+    fn test_qdetector_peak_at_index_zero() {
+        let s_len = 64;
+        let mut rng = rand::thread_rng();
+        let sequence: Vec<Complex32> = (0..s_len)
+            .map(|_| {
+                let re = if rng.gen::<bool>() { 1.0 } else { -1.0 } * std::f32::consts::FRAC_1_SQRT_2;
+                let im = if rng.gen::<bool>() { 1.0 } else { -1.0 } * std::f32::consts::FRAC_1_SQRT_2;
+                Complex32::new(re, im)
+            })
+            .collect();
+
+        let nfft = FrameDetector::new(&sequence).unwrap().buf_len();
+
+        let lead = nfft / 2;
+
+        let mut q = FrameDetector::new(&sequence).unwrap();
+        let mut detected = false;
+        for i in 0..(lead + 2 * nfft + s_len) {
+            let s = if (lead..lead + s_len).contains(&i) { sequence[i - lead] } else { Complex32::new(0.0, 0.0) };
+            if q.execute(s).is_some() {
+                detected = true;
+                break;
+            }
+        }
+
+        assert!(detected, "frame not detected when peak lands at index 0");
+        assert_abs_diff_eq!(q.tau(), 0.0, epsilon = 0.05);
+        assert_abs_diff_eq!(q.dphi(), 0.0, epsilon = 0.01);
     }
 
     // linear tests
