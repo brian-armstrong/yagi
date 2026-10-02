@@ -367,18 +367,18 @@ where
         Ok(())
     }
 
-    /// Consumes `n` execution blocks and writes their output.
+    /// Consumes complete execution blocks and writes their output.
     ///
-    /// `input` must hold at least `n * q()` samples and `output` at least
-    /// `n * p()`. Extra input is ignored and extra output is left unchanged.
-    /// Returns the number of samples written, `n * p()`.
+    /// `input.len()` must be a multiple of [`Self::q`], and `output` must hold
+    /// at least `input.len() / q() * p()` samples. Extra output is left
+    /// unchanged. Returns the number of samples written.
     ///
     /// # Errors
     ///
-    /// Returns an error when a required length overflows `usize`, `input` is
-    /// too short, or `output` is too short. The resampler and `output` are
-    /// unchanged on error.
-    pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<usize> {
+    /// Returns an error when a block size or output length overflows `usize`,
+    /// `input` contains a partial block, or `output` is too short. The
+    /// resampler and `output` are unchanged for these errors.
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
         let input_block_size = self
             .block_len
             .checked_mul(self.q)
@@ -387,15 +387,13 @@ where
             .block_len
             .checked_mul(self.p)
             .ok_or_else(|| Error::Range("resampler output block length overflow".into()))?;
-        let required_input = n
-            .checked_mul(input_block_size)
-            .ok_or_else(|| Error::Range("resampler input length overflow".into()))?;
+        if !input.len().is_multiple_of(input_block_size) {
+            return Err(Error::Config("input length must be a multiple of q()".into()));
+        }
+        let n = input.len() / input_block_size;
         let required_output = n
             .checked_mul(output_block_size)
             .ok_or_else(|| Error::Range("resampler output length overflow".into()))?;
-        if input.len() < required_input {
-            return Err(Error::Config("input length must be at least n * q()".into()));
-        }
         if output.len() < required_output {
             return Err(Error::Config("output length must be at least n * p()".into()));
         }
@@ -466,18 +464,18 @@ mod tests {
         }
 
         // run resampler normally in one large block (2*q*n inputs, 2*p*n outputs)
-        q0.execute_block(&buf_in, 2 * n, &mut buf_out_0).unwrap();
+        q0.execute_block(&buf_in, &mut buf_out_0).unwrap();
 
         // reset and run with separate resamplers (e.g. in two threads)
         q0.reset();
         // first block runs as normal
-        q0.execute_block(&buf_in, n, &mut buf_out_1[..p * n]).unwrap();
+        q0.execute_block(&buf_in[..q * n], &mut buf_out_1[..p * n]).unwrap();
         // initialize second block with q*m samples to account for delay
         for i in 0..m {
             q1.write(&buf_in[q * n - (m - i) * q..q * n - (m - i - 1) * q]);
         }
         // run remainder of second block as normal
-        q1.execute_block(&buf_in[q * n..], n, &mut buf_out_1[p * n..]).unwrap();
+        q1.execute_block(&buf_in[q * n..], &mut buf_out_1[p * n..]).unwrap();
 
         // compare output buffers between normal and partitioned operation
         for i in 0..(2 * p * n) {
@@ -692,7 +690,7 @@ mod tests {
             assert_eq!(resamp.num_output(num_input), expected_output);
 
             // actually run the resampler to verify
-            resamp.execute_block(&buf_in[..num_input], num_blocks, &mut buf_out[..expected_output]).unwrap();
+            resamp.execute_block(&buf_in[..num_input], &mut buf_out[..expected_output]).unwrap();
         }
     }
 
@@ -780,7 +778,7 @@ mod tests {
         let mut input = vec![0.0f32; num_blocks * resamp.q()];
         let mut output = vec![0.0f32; num_blocks * resamp.p()];
         input[0] = 1.0;
-        resamp.execute_block(&input, num_blocks, &mut output).unwrap();
+        resamp.execute_block(&input, &mut output).unwrap();
 
         let mut energy = 0.0f64;
         let mut weighted_index = 0.0f64;
@@ -839,16 +837,18 @@ mod tests {
         let mut q = RationalResampler::<f32, f32>::new_kaiser_simple(6, 4).unwrap();
         let mut q_ref = q.clone();
 
-        assert!(q.execute_block(&input[..3], 1, &mut [0.0; 6]).is_err());
-        assert!(q.execute_block(&input, 1, &mut [0.0; 5]).is_err());
+        let mut rejected = [-9.0; 6];
+        assert!(matches!(q.execute_block(&input[..3], &mut rejected), Err(Error::Config(_))));
+        assert_eq!(rejected, [-9.0; 6]);
+        assert!(matches!(q.execute_block(&input, &mut rejected[..5]), Err(Error::Config(_))));
+        assert_eq!(rejected, [-9.0; 6]);
 
         let mut actual = [-9.0; 8];
         let mut expected = [0.0; 6];
-        assert_eq!(q.execute_block(&input, 1, &mut actual).unwrap(), 6);
-        q_ref.execute_block(&input, 1, &mut expected).unwrap();
+        assert_eq!(q.execute_block(&input, &mut actual).unwrap(), 6);
+        q_ref.execute_block(&input, &mut expected).unwrap();
         assert_eq!(&actual[..6], &expected);
         assert_eq!(&actual[6..], &[-9.0, -9.0]);
-        assert_eq!(q.execute_block(&[], 0, &mut actual).unwrap(), 0);
-        assert!(q.execute_block(&[], usize::MAX, &mut []).is_err());
+        assert_eq!(q.execute_block(&[], &mut actual).unwrap(), 0);
     }
 }
