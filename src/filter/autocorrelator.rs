@@ -110,6 +110,10 @@ where
         self.e2_sum += e2;
         self.we2[self.ie2] = e2;
         self.ie2 = (self.ie2 + 1) % self.window_size;
+        if self.ie2 == 0 {
+            // recompute sum fresh in each window
+            self.e2_sum = self.we2.iter().sum();
+        }
     }
 
     /// Adds a block of samples to the history without computing a
@@ -161,12 +165,8 @@ where
     /// The energy is `sum(|x[n - i]|^2)` over the same samples as the
     /// undelayed side of the correlation.
     ///
-    /// The value is a running sum that adds each new sample and subtracts the
-    /// one leaving the window. Roundoff accumulates over long runs, especially
-    /// after a large drop in input level. The result can then differ
-    /// substantially from a fresh sum, or even become zero or negative. No
-    /// error is reported. Call [`Self::reset`] after a level change when an
-    /// accurate normalization is required.
+    /// The value is updated as a running sum and recomputed from the energy
+    /// buffer once per window to bound accumulated roundoff.
     pub fn energy(&self) -> f32 {
         // value is already computed; simply return value
         self.e2_sum
@@ -309,6 +309,27 @@ mod tests {
             q.push(Complex32::new(0.0, 0.0));
             assert_abs_diff_eq!(q.energy(), i as f32, epsilon = 1e-5);
         }
+    }
+
+    #[test]
+    fn test_autocorr_energy_recovers_after_level_drop() {
+        let window_size = 64;
+        let mut q = Autocorrelator::<Complex32>::new(window_size, 3).unwrap();
+
+        for _ in 0..window_size {
+            q.push(Complex32::new(1000.0, 0.0));
+        }
+        assert_eq!(q.energy(), 64_000_000.0);
+
+        for _ in 0..window_size {
+            q.push(Complex32::new(1.0, 0.0));
+        }
+        assert_eq!(q.energy(), 64.0);
+
+        for _ in 0..window_size {
+            q.push(Complex32::new(0.0, 0.0));
+        }
+        assert_eq!(q.energy(), 0.0);
     }
 
     #[test]
