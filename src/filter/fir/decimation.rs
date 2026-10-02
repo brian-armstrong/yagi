@@ -215,24 +215,23 @@ where
         Ok(y)
     }
 
-    /// Consumes `n` groups of input samples and writes `n` outputs.
+    /// Consumes complete groups of input samples and writes one output per
+    /// group.
     ///
-    /// `input` must hold at least `n * decim_rate()` samples and `output` at
-    /// least `n`. Extra input is ignored and extra output is left unchanged.
-    /// The results match `n` calls to [`Self::execute`]. Returns `n`.
+    /// `input.len()` must be a multiple of [`Self::decim_rate`], and `output`
+    /// must hold at least `input.len() / decim_rate()` samples. Extra output is
+    /// left unchanged. The results match one [`Self::execute`] call per group.
+    /// Returns the number of outputs written.
     ///
     /// # Errors
     ///
-    /// Returns an error when `n * decim_rate()` overflows `usize`, `input` is
-    /// too short, or `output` is too short. The filter and `output` are
-    /// unchanged on error.
-    pub fn execute_block(&mut self, input: &[T], n: usize, output: &mut [T]) -> Result<usize> {
-        let input_len = n
-            .checked_mul(self.decimation_factor)
-            .ok_or_else(|| Error::Range("decimator input length overflow".into()))?;
-        if input.len() < input_len {
-            return Err(Error::Config(format!("input length ({}) must be at least {}", input.len(), input_len,)));
+    /// Returns an error when `input` does not hold a whole number of groups
+    /// or `output` is too short. The filter and `output` are unchanged on error.
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
+        if !input.len().is_multiple_of(self.decimation_factor) {
+            return Err(Error::Config("input length must be a multiple of the decimation factor".into()));
         }
+        let n = input.len() / self.decimation_factor;
         if output.len() < n {
             return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), n,)));
         }
@@ -240,7 +239,7 @@ where
         let decimation_factor = self.decimation_factor;
         let filter_len = self.dp.len();
         let dp = &self.dp;
-        self.w.execute_block_contiguous(&input[..input_len], |indices, samples| {
+        self.w.execute_block_contiguous(input, |indices, samples| {
             // execute() produces an output after the first sample in each
             // decimation group, then retains the rest for the next group
             let offset = (decimation_factor - indices.start % decimation_factor) % decimation_factor;
@@ -373,7 +372,7 @@ mod tests {
 
         // block execute
         decim.reset();
-        decim.execute_block(&buf_0, num_blocks, &mut buf_2).unwrap();
+        decim.execute_block(&buf_0, &mut buf_2).unwrap();
 
         // check results
         assert_eq!(buf_1, buf_2);
@@ -401,8 +400,7 @@ mod tests {
         for &len in &[1, 7, 31, 3, 64, 151] {
             let input_start = decimation_factor * offset;
             let input_end = decimation_factor * (offset + len);
-            let written =
-                block.execute_block(&x[input_start..input_end], len, &mut actual[offset..offset + len]).unwrap();
+            let written = block.execute_block(&x[input_start..input_end], &mut actual[offset..offset + len]).unwrap();
             assert_eq!(written, len);
             offset += len;
         }
@@ -415,9 +413,22 @@ mod tests {
 
     #[test]
     fn test_firdecim_execute_block_rejects_short_buffers() {
-        let mut decim = FirDecimationFilter::<f32, f32>::new_kaiser(3, 4, 60.0).unwrap();
-        assert!(decim.execute_block(&[0.0; 5], 2, &mut [0.0; 2]).is_err());
-        assert!(decim.execute_block(&[0.0; 6], 2, &mut [0.0; 1]).is_err());
+        let mut decim = FirDecimationFilter::<f32, f32>::new(3, &[1.0, 0.5, 0.25]).unwrap();
+        let mut reference = decim.clone();
+        let mut output = [7.0; 3];
+
+        assert!(matches!(decim.execute_block(&[1.0; 5], &mut output), Err(Error::Config(_))));
+        assert_eq!(output, [7.0; 3]);
+        assert!(matches!(decim.execute_block(&[1.0; 6], &mut output[..1]), Err(Error::Config(_))));
+        assert_eq!(output, [7.0; 3]);
+
+        let input = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let expected = [reference.execute(&input[..3]).unwrap(), reference.execute(&input[3..]).unwrap()];
+        assert_eq!(decim.execute_block(&input, &mut output).unwrap(), 2);
+        assert_eq!(&output[..2], &expected);
+        assert_eq!(output[2], 7.0);
+        assert_eq!(decim.execute_block(&[], &mut output).unwrap(), 0);
+        assert_eq!(output[2], 7.0);
     }
 
     #[test]
