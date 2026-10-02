@@ -39,10 +39,10 @@ pub fn fir_design_rkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec<
     if m < 1 {
         return Err(Error::Config("m must be at least 1".into()));
     }
-    if beta <= 0.0 || beta >= 1.0 {
+    if !(beta > 0.0 && beta < 1.0) {
         return Err(Error::Config("beta must be in (0,1)".into()));
     }
-    if dt < -1.0 || dt > 1.0 {
+    if !(-1.0..=1.0).contains(&dt) {
         return Err(Error::Config("dt must be in [-1,1]".into()));
     }
 
@@ -81,10 +81,10 @@ pub fn fir_design_arkaiser(k: usize, m: usize, beta: f32, dt: f32) -> Result<Vec
     if m < 1 {
         return Err(Error::Config("m must be at least 1".into()));
     }
-    if beta <= 0.0 || beta >= 1.0 {
+    if !(beta > 0.0 && beta < 1.0) {
         return Err(Error::Config("beta must be in (0,1)".into()));
     }
-    if dt < -1.0 || dt > 1.0 {
+    if !(-1.0..=1.0).contains(&dt) {
         return Err(Error::Config("dt must be in [-1,1]".into()));
     }
 
