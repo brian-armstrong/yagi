@@ -122,13 +122,16 @@ pub fn fir_design_pm_halfband_ft(m: usize, ft: f32) -> Result<Vec<f32>> {
 
     // create and run search
     let gamma = {
-        let mut optim =
-            QuadSectionSearch::new(|gamma| firdespm_halfband_utility(gamma, &mut q), OptimDirection::Minimize);
-        optim.init_bounds(1.0, 0.9)?;
+        let mut optim = QuadSectionSearch::new_with_bounds(
+            |gamma| firdespm_halfband_utility(gamma, &mut q),
+            OptimDirection::Minimize,
+            1.0,
+            0.9,
+        )?;
         for _ in 0..32 {
             optim.step()?;
         }
-        optim.opt_v()
+        optim.estimate()
     };
 
     if let Some(error) = q.utility_error.take() {
