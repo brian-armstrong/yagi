@@ -173,8 +173,6 @@ pub enum ModulationScheme {
     Arb256Opt,
     /// 64-point Virginia Tech logo constellation.
     Arb64Vt,
-    /// 64-point University of Illinois logo constellation.
-    Arb64Ui,
     /// Pi/4 differential quadrature phase-shift keying.
     ///
     /// Symbols 0, 1, 2 and 3 advance the phase by `pi/4`, `3*pi/4`, `-pi/4`
@@ -184,12 +182,15 @@ pub enum ModulationScheme {
     /// Constellation from a table.
     ///
     /// [`Modem::from_table`] creates one. Modems built from the preset tables
-    /// above use the same table code but report their own scheme.
+    /// use the same table code but report their own scheme.
     Arb,
+
+    /// 64-point University of Illinois logo constellation.
+    Arb64Ui,
 }
 
 /// Number of modulation-scheme variants, including [`ModulationScheme::Unknown`].
-pub const NUM_MODULATION_SCHEMES: usize = ModulationScheme::Arb as usize + 1;
+pub const NUM_MODULATION_SCHEMES: usize = ModulationScheme::Arb64Ui as usize + 1;
 
 impl ModulationScheme {
     /// Every scheme that [`Modem::new`] accepts, in declaration order.
@@ -247,9 +248,20 @@ impl ModulationScheme {
         ModulationScheme::Arb128Opt,
         ModulationScheme::Arb256Opt,
         ModulationScheme::Arb64Vt,
-        ModulationScheme::Arb64Ui,
         ModulationScheme::Pi4Dqpsk,
+        ModulationScheme::Arb64Ui,
     ];
+
+    /// Returns the scheme whose integer index is `index`, or `None` when
+    /// `index` names no usable scheme.
+    ///
+    /// This turns a scheme stored as a number, such as in a frame header,
+    /// back into the scheme. [`Self::Unknown`] and [`Self::Arb`] have
+    /// indices, but this returns `None` for them, since [`Modem::new`]
+    /// does not accept them.
+    pub fn from_index(index: usize) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| *s as usize == index)
+    }
 
     fn from_short_name(s: &str) -> Result<Self> {
         Ok(match s {
