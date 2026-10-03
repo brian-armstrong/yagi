@@ -2,15 +2,15 @@
 //!
 //! The mask is deterministic and provides no secrecy.
 
-// Define the scramble masks as constants
-const SCRAMBLE_MASK0: u8 = 0xCA;
-const SCRAMBLE_MASK1: u8 = 0xCC;
-const SCRAMBLE_MASK2: u8 = 0x53;
-const SCRAMBLE_MASK3: u8 = 0x5F;
+// Define the scramble masks as constants.
+const SCRAMBLE_MASK0: u8 = 0xB4;
+const SCRAMBLE_MASK1: u8 = 0x6A;
+const SCRAMBLE_MASK2: u8 = 0x8B;
+const SCRAMBLE_MASK3: u8 = 0xC5;
 
 /// Scrambles bytes in place with a fixed four-byte mask.
 ///
-/// The mask bytes are `CA CC 53 5F` in hexadecimal, repeating from the first
+/// The mask bytes are `B4 6A 8B C5` in hexadecimal, repeating from the first
 /// byte of each call. Each input byte is XORed with its mask byte.
 ///
 /// Applying [`unscramble_data`] to the result recovers the original bytes.
