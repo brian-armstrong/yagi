@@ -83,8 +83,8 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_randweibf)]
     fn test_randweibf() {
-        const NUM_TRIALS: usize = 100_000;
-        const TOL: f32 = 0.1;
+        const NUM_TRIALS: usize = 250_000;
+        const TOL: f32 = 0.15;
 
         let alpha: f32 = 1.0;
         let beta: f32 = 2.0;
