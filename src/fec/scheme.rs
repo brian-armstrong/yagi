@@ -117,6 +117,16 @@ impl FecScheme {
         FecScheme::RsM8,
     ];
 
+    /// Returns the scheme whose integer index is `index`, or `None` when
+    /// `index` names no scheme.
+    ///
+    /// This turns a scheme stored as a number, such as in a frame header,
+    /// back into the scheme. `index` 0 is [`Self::Unknown`], which this
+    /// rejects as not a usable scheme.
+    pub fn from_index(index: usize) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| *s as usize == index)
+    }
+
     /// Returns the short name that [`str::parse`] accepts, such as `"v27p34"`.
     ///
     /// The name of [`Self::Unknown`] is `"unknown"`, which does not parse.

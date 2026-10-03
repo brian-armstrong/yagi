@@ -44,6 +44,16 @@ impl CrcScheme {
         CrcScheme::Crc32,
     ];
 
+    /// Returns the scheme whose integer index is `index`, or `None` when
+    /// `index` names no scheme.
+    ///
+    /// This turns a scheme stored as a number, such as in a frame header,
+    /// back into the scheme. `index` 0 is [`Self::Unknown`], which this
+    /// rejects as not a usable scheme.
+    pub fn from_index(index: usize) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| *s as usize == index)
+    }
+
     /// Returns the short name that [`str::parse`] accepts, such as `"crc32"`.
     ///
     /// The name of [`Self::Unknown`] is `"unknown"`, which does not parse.
@@ -293,13 +303,21 @@ pub fn checksum_generate_key(data: &[u8]) -> u8 {
 /// Generates the 8-bit CRC for `msg`.
 ///
 /// The CRC uses polynomial `0x07`, processes bits least significant first,
-/// starts from all ones, and inverts the result.
+/// starts from all ones, and inverts the result. The check value for
+/// `"123456789"` is `0x2F`.
+///
+/// With the `liquid-quirks` feature, the register starts as 32 bits of ones
+/// to match liquid-dsp. The extra ones shift into the CRC over the first
+/// three bytes, and the check value becomes `0x23`.
 pub fn crc8_generate_key(msg: &[u8]) -> u8 {
-    let mut crc = 0xffu8;
+    #[cfg(feature = "liquid-quirks")]
+    let mut crc = 0xffff_ffffu32;
+    #[cfg(not(feature = "liquid-quirks"))]
+    let mut crc = 0xffu32;
     for &b in msg {
-        crc = CRC8_TABLE[(crc ^ b) as usize];
+        crc = CRC8_TABLE[((crc ^ b as u32) & 0xff) as usize] as u32 ^ (crc >> 8);
     }
-    !crc
+    !crc as u8
 }
 
 //
@@ -310,13 +328,21 @@ pub fn crc8_generate_key(msg: &[u8]) -> u8 {
 ///
 /// The CRC uses polynomial `0x8005`, processes bits least significant first,
 /// starts from all ones, and inverts the result. These are the CRC-16/USB
-/// parameters.
+/// parameters, with check value `0xB4C8` for `"123456789"`.
+///
+/// With the `liquid-quirks` feature, the register starts as 32 bits of ones
+/// to match liquid-dsp. The extra ones shift into the CRC over the first two
+/// bytes, so the result differs from CRC-16/USB for any nonempty message,
+/// and the check value becomes `0xB4D3`.
 pub fn crc16_generate_key(msg: &[u8]) -> u16 {
-    let mut crc = 0xffffu16;
+    #[cfg(feature = "liquid-quirks")]
+    let mut crc = 0xffff_ffffu32;
+    #[cfg(not(feature = "liquid-quirks"))]
+    let mut crc = 0xffffu32;
     for &b in msg {
-        crc = CRC16_TABLE[((crc ^ b as u16) & 0xff) as usize] ^ (crc >> 8);
+        crc = CRC16_TABLE[((crc ^ b as u32) & 0xff) as usize] as u32 ^ (crc >> 8);
     }
-    !crc
+    !crc as u16
 }
 
 //
@@ -326,9 +352,17 @@ pub fn crc16_generate_key(msg: &[u8]) -> u16 {
 /// Generates the 24-bit CRC for `msg` in the low 24 bits.
 ///
 /// The CRC uses polynomial `0x5D6DCB`, processes bits least significant
-/// first, starts from all ones, and inverts the result.
+/// first, starts from all ones, and inverts the result. The check value for
+/// `"123456789"` is `0x2F27EE`.
+///
+/// With the `liquid-quirks` feature, the register starts as 32 bits of ones
+/// to match liquid-dsp. The extra ones shift into the CRC on the first byte,
+/// and the check value becomes `0x062BB3`.
 pub fn crc24_generate_key(msg: &[u8]) -> u32 {
-    let mut crc = 0xffffffu32;
+    #[cfg(feature = "liquid-quirks")]
+    let mut crc = 0xffff_ffffu32;
+    #[cfg(not(feature = "liquid-quirks"))]
+    let mut crc = 0xff_ffffu32;
     for &b in msg {
         crc = CRC24_TABLE[((crc ^ b as u32) & 0xff) as usize] ^ (crc >> 8);
     }

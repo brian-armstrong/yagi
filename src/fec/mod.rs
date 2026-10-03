@@ -37,5 +37,5 @@ pub use crc::{
 };
 pub use fec::Fec;
 pub use interleaver::Interleaver;
-pub use packetizer::{packetizer_compute_dec_msg_len, packetizer_compute_enc_msg_len, Packetizer};
+pub use packetizer::{packetizer_compute_dec_msg_len, packetizer_compute_enc_msg_len, Packetizer, PACKETIZER_VERSION};
 pub use scheme::FecScheme;

@@ -16,6 +16,13 @@ use super::scheme::FecScheme;
 /// number of fec/interleaver stages
 const PLAN_LEN: usize = 2;
 
+/// Version of the packet format.
+///
+/// Each framing header carries a protocol byte derived from this value, as
+/// in liquid-dsp. Changing it breaks compatibility with peers that use the
+/// current value, including liquid-dsp.
+pub const PACKETIZER_VERSION: u8 = 1;
+
 /// one fec/interleaver stage
 #[derive(Debug, Clone)]
 struct PacketizerPlan {
