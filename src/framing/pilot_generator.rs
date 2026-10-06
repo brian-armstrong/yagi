@@ -65,6 +65,7 @@ pub(super) fn generate_pilots(num_pilots: usize) -> Result<Vec<Complex32>> {
 ///
 /// [`PilotSynchronizer`]: crate::framing::PilotSynchronizer
 #[doc(alias = "qpilotgen")]
+#[derive(Clone)]
 pub struct PilotGenerator {
     payload_len: usize,     // number of symbols in payload
     pilot_spacing: usize,   // spacing between pilot symbols
@@ -219,5 +220,14 @@ mod tests {
         let mut frame = vec![Complex32::new(0.0, 0.0); gen.frame_len()];
         // wrong payload length
         assert!(gen.execute(&[Complex32::new(0.0, 0.0); 39], &mut frame).is_err());
+    }
+
+    #[test]
+    #[test_macro::autotest_annotate(autotest_qpilotgen_config)]
+    fn qpilotgen_config() {
+        assert!(PilotGenerator::new(0, 100).is_err(), "invalid payload length");
+        assert!(PilotGenerator::new(512, 0).is_err(), "invalid pilot spacing");
+        // a valid configuration still constructs
+        assert!(PilotGenerator::new(512, 16).is_ok());
     }
 }
