@@ -45,4 +45,4 @@ pub use quadrature_synchronizer::{
 };
 pub use signal_source::{SignalSource, SignalSourceCallback, SignalSourceConfig, SignalSourceType, SourceId};
 pub use symbol_stream::SymbolStream;
-pub use symbol_tracker::SymbolTracker;
+pub use symbol_tracker::{SymbolTracker, SymbolTrackerBlockOutput};

@@ -27,7 +27,8 @@
 //! - Rate changers take one unit of input per `execute` call. An
 //!   interpolator takes one sample and writes a fixed number of outputs, a
 //!   decimator takes one group of samples and returns one output, and
-//!   [`ArbitraryResampler`] writes as many outputs as the sample produces.
+//!   variable-rate objects such as [`ArbitraryResampler`] and
+//!   [`SymbolSynchronizer`] give as many outputs as the sample produces.
 //! - `execute_block` processes a whole slice and writes the outputs to
 //!   another slice. It returns the number of outputs written. Size the
 //!   output from the object's rate or the count the method documents.
@@ -36,9 +37,8 @@
 //!   Hilbert transforms add `r2c_execute` and `c2r_execute`. Most of these
 //!   also have a `_block` form.
 //!
-//! A few objects differ. [`FftFilter`] processes one fixed-size block per
-//! call, and the `execute` of [`SymbolSynchronizer`] takes a whole slice.
-//! Each object's docs give its exact calls.
+//! [`FftFilter`] does not fit these patterns, since it processes one
+//! fixed-size block per call. Each object's docs give its exact calls.
 //!
 //! Frequencies are normalized to the relevant sample rate and given in cycles
 //! per sample, unless an item states another unit. FIR coefficients are in
@@ -144,4 +144,4 @@ pub use resampler::{
     ResampType,
 };
 pub use sample::Sample;
-pub use symbol_synchronizer::SymbolSynchronizer;
+pub use symbol_synchronizer::{SymbolSynchronizer, SymbolSynchronizerBlockOutput};

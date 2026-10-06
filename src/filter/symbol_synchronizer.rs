@@ -3,6 +3,15 @@ use crate::error::{Error, Result};
 use crate::filter::IirSecondOrderSection;
 use crate::filter::{self, FirFilterShape, FirPolyphaseFilter, Sample};
 
+/// Progress from [`SymbolSynchronizer::execute_block`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SymbolSynchronizerBlockOutput {
+    /// Number of input samples consumed.
+    pub consumed: usize,
+    /// Number of output samples written.
+    pub written: usize,
+}
+
 /// Symbol timing recovery for a stream with a known nominal symbol rate.
 ///
 /// The synchronizer runs the input through a polyphase matched filter and
@@ -11,8 +20,9 @@ use crate::filter::{self, FirFilterShape, FirPolyphaseFilter, Sample};
 /// a timing-error estimate, which a loop filter smooths once per symbol to
 /// steer the sampling phase and rate.
 ///
-/// [`Self::execute`] consumes input samples and produces output at the rate
-/// set with [`Self::set_output_rate`], one sample per symbol by default. Each
+/// [`Self::execute`] consumes one input sample and returns the outputs it
+/// produces, at the rate set with [`Self::set_output_rate`], one sample per
+/// symbol by default. [`Self::execute_block`] does the same for a slice. Each
 /// output is the matched-filter output divided by `samples_per_symbol`.
 #[derive(Clone, Debug)]
 #[doc(alias = "Symsync")]
@@ -38,6 +48,7 @@ pub struct SymbolSynchronizer<T> {
     rate_adjustment: f32,            // rate adjustment factor
     is_locked: bool,                 // synchronizer locked flag
     output: Vec<T>,                  // outputs from the most recent execution
+    pending: Vec<T>,                 // block outputs awaiting delivery
 }
 
 impl<T> SymbolSynchronizer<T>
@@ -137,6 +148,7 @@ where
             rate_adjustment: 0.0f32,
             is_locked: false,
             output: Vec::new(),
+            pending: Vec::new(),
         };
 
         q.reset();
@@ -254,8 +266,8 @@ where
         Self::new(samples_per_symbol, num_filters, &h)
     }
 
-    /// Clears the timing and loop state and the history of both matched
-    /// filters.
+    /// Clears the timing and loop state, the history of both matched filters,
+    /// and any outputs pending from [`Self::execute_block`].
     ///
     /// The timing increment returns to its nominal value for the current output
     /// rate, which discards any [`Self::set_fractional_rate`] setting. The lock
@@ -274,6 +286,7 @@ where
         self.decim_counter = 0;
         self.pll.reset();
         self.output.clear();
+        self.pending.clear();
     }
 
     /// Freezes the timing loop at its current rate and phase.
@@ -392,20 +405,86 @@ where
         self.q_hat
     }
 
-    /// Synchronizes a block of input samples and returns the outputs.
+    /// Synchronizes one input sample and returns the outputs it produces,
+    /// which may be none or several.
     ///
-    /// The count depends on the timing state and is roughly `input.len() / rate()`.
-    /// The returned slice is valid until the next mutable call on the synchronizer.
+    /// Outputs left pending by [`Self::execute_block`] are returned first.
+    ///
+    /// This never returns an error. While the timing loop is unlocked, a NaN
+    /// input sample, or an infinite one, can make the call never return.
+    pub fn execute(&mut self, input: T) -> Result<&[T]> {
+        self.output.clear();
+        self.output.append(&mut self.pending);
+        self.step(input)?;
+        Ok(&self.output)
+    }
+
+    /// Synchronizes a slice of input samples and writes the outputs to
+    /// `output`.
+    ///
+    /// Outputs left pending by an earlier call are written first. Processing
+    /// stops when `input` runs out or `output` is full, and the result gives
+    /// the number of samples consumed and written. Continue with
+    /// `&input[consumed..]`. No input is consumed while pending outputs remain,
+    /// so an empty `output` consumes nothing.
+    ///
+    /// One input sample can produce more outputs than `output` has room for.
+    /// The rest stay pending and come first from the next call to this method
+    /// or [`Self::execute`]. At the end of a stream, collect them with
+    /// [`Self::flush`]. When all of `input` is consumed, the output count is
+    /// about `input.len() / rate()`.
+    ///
+    /// This never returns an error. While the timing loop is unlocked, a NaN
+    /// input sample, or an infinite one, can make the call never return.
+    pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<SymbolSynchronizerBlockOutput> {
+        let mut result = SymbolSynchronizerBlockOutput::default();
+
+        let from_pending = self.pending.len().min(output.len());
+        output[..from_pending].copy_from_slice(&self.pending[..from_pending]);
+        self.pending.drain(..from_pending);
+        result.written = from_pending;
+
+        self.output.clear();
+        for &xi in input {
+            if result.written == output.len() || !self.pending.is_empty() {
+                break;
+            }
+
+            self.step(xi)?;
+            result.consumed += 1;
+
+            let available = output.len() - result.written;
+            let copied = self.output.len().min(available);
+            output[result.written..result.written + copied].copy_from_slice(&self.output[..copied]);
+            result.written += copied;
+            self.pending.extend_from_slice(&self.output[copied..]);
+            self.output.clear();
+        }
+
+        Ok(result)
+    }
+
+    /// Writes the outputs left pending by [`Self::execute_block`] to `output`
+    /// and returns their count.
+    ///
+    /// This does not consume input or advance the timing loop, and it does not
+    /// produce outputs from samples still held in the matched filter. A second
+    /// call returns zero. Extra output is left unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error if a matched-filter phase cannot be evaluated.
-    pub fn execute(&mut self, input: &[T]) -> Result<&[T]> {
-        self.output.clear();
-        for &xi in input {
-            self.step(xi)?;
+    /// Returns an error when `output` is shorter than the pending outputs. The
+    /// synchronizer and `output` are unchanged on error.
+    pub fn flush(&mut self, output: &mut [T]) -> Result<usize> {
+        let count = self.pending.len();
+        if output.len() < count {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), count)));
         }
-        Ok(&self.output)
+
+        self.output.clear();
+        output[..count].copy_from_slice(&self.pending);
+        self.pending.clear();
+        Ok(count)
     }
 
     fn step(&mut self, x: T) -> Result<()> {
@@ -482,7 +561,8 @@ mod tests {
             buf[i] = Complex32::new(randnf(), randnf());
         }
 
-        q0.execute(&buf).unwrap();
+        let mut warmup_output = vec![Complex32::default(); buf_len];
+        assert_eq!(q0.execute_block(&buf, &mut warmup_output).unwrap().consumed, buf_len);
 
         // copy object
         let mut q1 = q0.clone();
@@ -492,14 +572,18 @@ mod tests {
             buf[i] = Complex32::new(randnf(), randnf());
         }
 
-        let buf_0 = q0.execute(&buf).unwrap();
-        let buf_1 = q1.execute(&buf).unwrap();
+        let mut buf_0 = vec![Complex32::default(); buf_len];
+        let mut buf_1 = vec![Complex32::default(); buf_len];
+        let out_0 = q0.execute_block(&buf, &mut buf_0).unwrap();
+        let out_1 = q1.execute_block(&buf, &mut buf_1).unwrap();
+        assert_eq!(out_0.consumed, buf_len);
+        assert_eq!(out_1.consumed, buf_len);
 
         // check that the same number of samples were written
-        assert_eq!(buf_0.len(), buf_1.len());
+        assert_eq!(out_0.written, out_1.written);
 
         // check output sample values
-        assert_eq!(buf_0, buf_1);
+        assert_eq!(buf_0[..out_0.written], buf_1[..out_1.written]);
 
         // check other internal properties
         assert_eq!(q0.tau(), q1.tau());
@@ -517,16 +601,22 @@ mod tests {
         let buf_len = 640;
         let mut q0 = new();
         let warmup: Vec<_> = (0..buf_len).map(|_| Complex32::new(randnf(), randnf())).collect();
-        q0.execute(&warmup).unwrap();
+        let mut warmup_output = vec![Complex32::default(); buf_len];
+        assert_eq!(q0.execute_block(&warmup, &mut warmup_output).unwrap().consumed, buf_len);
         q0.reset();
 
         let mut q1 = new();
 
         let buf: Vec<_> = (0..buf_len).map(|_| Complex32::new(randnf(), randnf())).collect();
-        let buf_0 = q0.execute(&buf).unwrap();
-        let buf_1 = q1.execute(&buf).unwrap();
+        let mut buf_0 = vec![Complex32::default(); buf_len];
+        let mut buf_1 = vec![Complex32::default(); buf_len];
+        let out_0 = q0.execute_block(&buf, &mut buf_0).unwrap();
+        let out_1 = q1.execute_block(&buf, &mut buf_1).unwrap();
 
-        assert_eq!(buf_0, buf_1);
+        assert_eq!(out_0.consumed, buf_len);
+        assert_eq!(out_1.consumed, buf_len);
+        assert_eq!(out_0.written, out_1.written);
+        assert_eq!(buf_0[..out_0.written], buf_1[..out_1.written]);
         assert_eq!(q0.tau(), q1.tau());
     }
 
@@ -660,8 +750,10 @@ mod tests {
         sync.set_lf_bw(bt).unwrap();
 
         // execute on entire block of samples
-        let z = sync.execute(&y[..ny]).unwrap();
-        let nz = z.len();
+        let mut z = vec![Complex32::default(); num_symbols as usize + 64];
+        let progress = sync.execute_block(&y[..ny], &mut z).unwrap();
+        assert_eq!(progress.consumed, ny);
+        let nz = progress.written;
 
         // compute total delay through system
         // (initial filter + resampler + matched filter)
@@ -837,8 +929,10 @@ mod tests {
         sync.set_fractional_rate(expected_rate).unwrap();
 
         // execute on entire block of samples
-        let z = sync.execute(&y[..ny]).unwrap();
-        let nz = z.len();
+        let mut z = vec![0.0f32; num_symbols + 64];
+        let progress = sync.execute_block(&y[..ny], &mut z).unwrap();
+        assert_eq!(progress.consumed, ny);
+        let nz = progress.written;
 
         // compute total delay through system
         // (initial filter + resampler + matched filter)
@@ -955,21 +1049,111 @@ mod tests {
     }
 
     #[test]
-    fn test_symsync_buffers_multiple_outputs_per_input() {
+    fn test_symsync_block_handles_multiple_outputs_per_input() {
         let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
 
         sync.set_fractional_rate(0.5).unwrap();
         let x: Vec<Complex32> = (0..100).map(|i| Complex32::new(i as f32 * 0.1, 0.0)).collect();
-        let buffered = sync.execute(&x).unwrap().to_vec();
-        assert!(buffered.len() > x.len());
+        let mut block_output = vec![Complex32::default(); 256];
+        let progress = sync.execute_block(&x, &mut block_output).unwrap();
+        assert_eq!(progress.consumed, x.len());
+        assert!(progress.written > x.len());
 
         let mut one_at_a_time = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
         one_at_a_time.set_fractional_rate(0.5).unwrap();
         let mut expected = Vec::new();
         for &sample in &x {
-            expected.extend_from_slice(one_at_a_time.execute(&[sample]).unwrap());
+            expected.extend_from_slice(one_at_a_time.execute(sample).unwrap());
         }
-        assert_eq!(buffered, expected);
-        assert!(sync.execute(&[]).unwrap().is_empty());
+        assert_eq!(block_output[..progress.written], expected);
+        assert_eq!(
+            sync.execute_block(&[], &mut block_output).unwrap(),
+            SymbolSynchronizerBlockOutput { consumed: 0, written: 0 }
+        );
+    }
+
+    #[test]
+    fn test_symsync_block_resumes_after_output_fills() {
+        let new = || {
+            let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
+            sync.set_fractional_rate(0.5).unwrap();
+            sync
+        };
+        let input: Vec<_> = (0..16).map(|i| Complex32::new(i as f32 * 0.1, 0.0)).collect();
+        let mut oracle = new();
+        let mut expected = Vec::new();
+        for &sample in &input {
+            expected.extend_from_slice(oracle.execute(sample).unwrap());
+        }
+
+        let mut sync = new();
+        assert_eq!(
+            sync.execute_block(&input, &mut []).unwrap(),
+            SymbolSynchronizerBlockOutput { consumed: 0, written: 0 }
+        );
+
+        let mut consumed = 0;
+        let mut actual = Vec::new();
+        loop {
+            let mut output = [Complex32::default(); 1];
+            let progress = sync.execute_block(&input[consumed..], &mut output).unwrap();
+            consumed += progress.consumed;
+            actual.extend_from_slice(&output[..progress.written]);
+            if consumed == input.len() && progress.written == 0 {
+                break;
+            }
+            assert!(progress.consumed > 0 || progress.written > 0);
+        }
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_symsync_pending_outputs_survive_mixed_calls() {
+        let new = || {
+            let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
+            sync.set_fractional_rate(0.25).unwrap();
+            sync
+        };
+        let input = [Complex32::new(1.0, 0.0), Complex32::new(2.0, 0.0)];
+        let mut oracle = new();
+        let mut expected = oracle.execute(input[0]).unwrap().to_vec();
+        let pending_count = expected.len() - 1;
+        assert!(pending_count > 1);
+        expected.extend_from_slice(oracle.execute(input[1]).unwrap());
+
+        let mut sync = new();
+        let mut first = [Complex32::default(); 1];
+        let progress = sync.execute_block(&input[..1], &mut first).unwrap();
+        assert_eq!(progress, SymbolSynchronizerBlockOutput { consumed: 1, written: 1 });
+        let mut actual = first.to_vec();
+        actual.extend_from_slice(sync.execute(input[1]).unwrap());
+        assert_eq!(actual, expected);
+
+        let mut sync = new();
+        sync.execute_block(&input[..1], &mut first).unwrap();
+        let mut actual = first.to_vec();
+        let sentinel = Complex32::new(-9.0, -9.0);
+        let mut short = vec![sentinel; pending_count - 1];
+        assert!(matches!(sync.flush(&mut short), Err(Error::Config(_))));
+        assert!(short.iter().all(|&sample| sample == sentinel));
+
+        let mut drained = vec![sentinel; pending_count + 1];
+        let written = sync.flush(&mut drained).unwrap();
+        assert_eq!(written, pending_count);
+        assert_eq!(drained[written], sentinel);
+        actual.extend_from_slice(&drained[..written]);
+        assert_eq!(sync.flush(&mut drained).unwrap(), 0);
+        actual.extend_from_slice(sync.execute(input[1]).unwrap());
+        assert_eq!(actual, expected);
+
+        let mut sync = new();
+        sync.execute_block(&input[..1], &mut first).unwrap();
+        sync.reset();
+        assert_eq!(sync.flush(&mut drained).unwrap(), 0);
+        assert_eq!(
+            sync.execute_block(&[], &mut first).unwrap(),
+            SymbolSynchronizerBlockOutput { consumed: 0, written: 0 }
+        );
     }
 }

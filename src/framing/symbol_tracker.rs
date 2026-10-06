@@ -11,6 +11,15 @@ use num_complex::{Complex32, ComplexFloat};
 // number of symbols to receive before enabling the equalizer update
 const SYMTRACK_EQ_WARMUP: usize = 200;
 
+/// Progress from [`SymbolTracker::execute_block`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SymbolTrackerBlockOutput {
+    /// Number of input samples consumed.
+    pub consumed: usize,
+    /// Number of recovered symbols written to `output`.
+    pub written: usize,
+}
+
 /// Equalizer strategy used by [`SymbolTracker`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum EqStrategy {
@@ -63,7 +72,9 @@ pub struct SymbolTracker {
     demod: Modem,
 
     // state and counters
-    num_syms_rx: usize, // number of symbols recovered
+    num_syms_rx: usize,      // number of symbols recovered
+    output: Vec<Complex32>,  // symbols from the most recent execution
+    pending: Vec<Complex32>, // block symbols awaiting delivery
 }
 
 impl SymbolTracker {
@@ -140,6 +151,8 @@ impl SymbolTracker {
             nco,
             demod,
             num_syms_rx: 0,
+            output: Vec::new(),
+            pending: Vec::new(),
         };
 
         // set default bandwidth
@@ -180,6 +193,8 @@ impl SymbolTracker {
         // reset internal counters
         self.symsync_index = 0;
         self.num_syms_rx = 0;
+        self.output.clear();
+        self.pending.clear();
     }
 
     /// Returns the matched-filter shape, or `None` for the fixed Kaiser
@@ -317,11 +332,11 @@ impl SymbolTracker {
         self.eq_strategy = EqStrategy::Off;
     }
 
-    /// Processes one input sample and appends any recovered symbols to
-    /// `output`.
+    /// Processes one input sample and returns the symbols it completes.
     ///
-    /// Returns the number of symbols appended. This is usually zero or one,
-    /// averaging one per `k` input samples. This never returns an error.
+    /// Symbols left pending by [`Self::execute_block`] come first. A sample
+    /// usually completes zero or one new symbol, one per `samples_per_symbol`
+    /// samples on average. This never returns an error.
     ///
     /// # Warning
     ///
@@ -331,14 +346,81 @@ impl SymbolTracker {
     /// can. Every later output is then NaN until [`Self::reset`]. Disable
     /// adaptation with [`Self::disable_equalizer_adaptation`] across gaps in
     /// the signal.
-    pub fn execute(&mut self, input: Complex32, output: &mut Vec<Complex32>) -> Result<usize> {
-        let mut num_outputs = 0;
+    pub fn execute(&mut self, input: Complex32) -> Result<&[Complex32]> {
+        self.output.clear();
+        self.output.append(&mut self.pending);
+        self.process_sample(input)?;
+        Ok(&self.output)
+    }
 
+    /// Processes `input` and writes the recovered symbols to `output`.
+    ///
+    /// Symbols pending from an earlier call are written first. Processing
+    /// stops when `output` is full, and the result reports how much input was
+    /// consumed, so resume with `&input[result.consumed..]`. A sample can
+    /// complete more symbols than fit. The extra symbols are kept and come
+    /// first from the next call to this method, [`Self::execute`] or
+    /// [`Self::flush`]. At the end of a stream, collect them with `flush`.
+    ///
+    /// With an empty `output`, no input is consumed. This never returns an
+    /// error.
+    pub fn execute_block(&mut self, input: &[Complex32], output: &mut [Complex32]) -> Result<SymbolTrackerBlockOutput> {
+        let mut result = SymbolTrackerBlockOutput::default();
+
+        let from_pending = self.pending.len().min(output.len());
+        output[..from_pending].copy_from_slice(&self.pending[..from_pending]);
+        self.pending.drain(..from_pending);
+        result.written = from_pending;
+
+        self.output.clear();
+        for &sample in input {
+            if result.written == output.len() || !self.pending.is_empty() {
+                break;
+            }
+
+            self.process_sample(sample)?;
+            result.consumed += 1;
+
+            let available = output.len() - result.written;
+            let copied = self.output.len().min(available);
+            output[result.written..result.written + copied].copy_from_slice(&self.output[..copied]);
+            result.written += copied;
+            self.pending.extend_from_slice(&self.output[copied..]);
+            self.output.clear();
+        }
+
+        Ok(result)
+    }
+
+    /// Writes the symbols left pending by [`Self::execute_block`] to `output`
+    /// and returns their count.
+    ///
+    /// No input is consumed and the tracking loops do not advance. Only that
+    /// many entries of `output` are written, and a second call returns zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `output` is shorter than the pending symbols. The
+    /// tracker and `output` are unchanged on error.
+    pub fn flush(&mut self, output: &mut [Complex32]) -> Result<usize> {
+        let count = self.pending.len();
+        if output.len() < count {
+            return Err(Error::Config(format!("output length ({}) must be at least {}", output.len(), count)));
+        }
+
+        self.output.clear();
+        output[..count].copy_from_slice(&self.pending);
+        self.pending.clear();
+        Ok(count)
+    }
+
+
+    fn process_sample(&mut self, input: Complex32) -> Result<()> {
         // run sample through automatic gain control
         let v = self.agc.execute(input)?;
 
         // symbol synchronizer
-        let symsync_output = self.symsync.execute(&[v])?;
+        let symsync_output = self.symsync.execute(v)?;
 
         // process each output sample
         for &sample in symsync_output {
@@ -383,24 +465,10 @@ impl SymbolTracker {
             }
 
             // save result to output
-            output.push(d_hat);
-            num_outputs += 1;
+            self.output.push(d_hat);
         }
 
-        Ok(num_outputs)
-    }
-
-    /// Processes a block of input samples and appends the recovered symbols to
-    /// `output`.
-    ///
-    /// Returns the number of symbols appended. The result matches calling
-    /// [`Self::execute`] for each sample. This never returns an error.
-    pub fn execute_block(&mut self, input: &[Complex32], output: &mut Vec<Complex32>) -> Result<usize> {
-        let mut num_written = 0;
-        for &xi in input {
-            num_written += self.execute(xi, output)?;
-        }
-        Ok(num_written)
+        Ok(())
     }
 }
 
@@ -439,7 +507,7 @@ mod tests {
         let mut demod = Modem::new(ms).unwrap(); // for checking output EVM
 
         let mut buf_0 = vec![Complex32::new(0.0, 0.0); buf_len];
-        let mut buf_1: Vec<Complex32> = Vec::new();
+        let mut buf_1 = vec![Complex32::default(); buf_len];
         while total_samples < num_symbols * k {
             // write samples to buffer
             gen.write_samples(&mut buf_0).unwrap();
@@ -449,8 +517,9 @@ mod tests {
             chan.execute_block(&input, &mut buf_0).unwrap();
 
             // run resulting stream through synchronizer
-            buf_1.clear();
-            let num_symbols_sync = symtrack.execute_block(&buf_0, &mut buf_1).unwrap();
+            let progress = symtrack.execute_block(&buf_0, &mut buf_1).unwrap();
+            assert_eq!(progress.consumed, buf_0.len());
+            let num_symbols_sync = progress.written;
             total_samples += buf_len;
 
             // check output EVM over the last 20% of the run
@@ -521,5 +590,87 @@ mod tests {
         // test setting modulation scheme
         q.set_modulation_scheme(ModulationScheme::Apsk16).unwrap();
         assert_eq!(q.modulation_scheme(), ModulationScheme::Apsk16);
+    }
+
+    fn tracker_with_multiple_outputs_per_input() -> SymbolTracker {
+        let mut tracker = SymbolTracker::new_default().unwrap();
+        tracker.set_bandwidth(0.0).unwrap();
+        tracker.disable_equalizer_adaptation();
+        tracker.symsync.set_fractional_rate(0.25).unwrap();
+        tracker
+    }
+
+    #[test]
+    fn test_symtrack_block_resumes_after_output_fills() {
+        let input: Vec<_> = (0..8).map(|i| Complex32::new(1.0 + i as f32 * 0.1, 0.3)).collect();
+        let mut oracle = tracker_with_multiple_outputs_per_input();
+        let mut expected = Vec::new();
+        for &sample in &input {
+            expected.extend_from_slice(oracle.execute(sample).unwrap());
+        }
+        assert!(expected.len() > input.len());
+
+        let mut tracker = tracker_with_multiple_outputs_per_input();
+        assert_eq!(
+            tracker.execute_block(&input, &mut []).unwrap(),
+            SymbolTrackerBlockOutput { consumed: 0, written: 0 }
+        );
+
+        let mut consumed = 0;
+        let mut actual = Vec::new();
+        loop {
+            let mut output = [Complex32::default(); 1];
+            let progress = tracker.execute_block(&input[consumed..], &mut output).unwrap();
+            consumed += progress.consumed;
+            actual.extend_from_slice(&output[..progress.written]);
+            if consumed == input.len() && progress.written == 0 {
+                break;
+            }
+            assert!(progress.consumed > 0 || progress.written > 0);
+        }
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_symtrack_pending_symbols_survive_mixed_calls() {
+        let input = [Complex32::new(1.0, 0.3), Complex32::new(1.2, 0.4)];
+        let mut oracle = tracker_with_multiple_outputs_per_input();
+        let mut expected = oracle.execute(input[0]).unwrap().to_vec();
+        let pending_count = expected.len() - 1;
+        assert!(pending_count > 0);
+        expected.extend_from_slice(oracle.execute(input[1]).unwrap());
+
+        let mut tracker = tracker_with_multiple_outputs_per_input();
+        let mut first = [Complex32::default(); 1];
+        assert_eq!(
+            tracker.execute_block(&input[..1], &mut first).unwrap(),
+            SymbolTrackerBlockOutput { consumed: 1, written: 1 }
+        );
+        let mut actual = first.to_vec();
+        actual.extend_from_slice(tracker.execute(input[1]).unwrap());
+        assert_eq!(actual, expected);
+
+        let mut tracker = tracker_with_multiple_outputs_per_input();
+        tracker.execute_block(&input[..1], &mut first).unwrap();
+        let sentinel = Complex32::new(-9.0, -9.0);
+        let mut short = vec![sentinel; pending_count - 1];
+        assert!(matches!(tracker.flush(&mut short), Err(Error::Config(_))));
+        assert!(short.iter().all(|&sample| sample == sentinel));
+
+        let mut drained = vec![sentinel; pending_count + 1];
+        let written = tracker.flush(&mut drained).unwrap();
+        assert_eq!(written, pending_count);
+        assert_eq!(drained[written], sentinel);
+        let mut actual = first.to_vec();
+        actual.extend_from_slice(&drained[..written]);
+        assert_eq!(tracker.flush(&mut drained).unwrap(), 0);
+        actual.extend_from_slice(tracker.execute(input[1]).unwrap());
+        assert_eq!(actual, expected);
+
+        let mut tracker = tracker_with_multiple_outputs_per_input();
+        tracker.execute_block(&input[..1], &mut first).unwrap();
+        tracker.reset();
+        assert_eq!(tracker.flush(&mut drained).unwrap(), 0);
     }
 }
