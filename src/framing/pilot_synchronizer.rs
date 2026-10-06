@@ -27,6 +27,7 @@ use std::f32::consts::PI;
 ///
 /// [`PilotGenerator`]: crate::framing::PilotGenerator
 #[doc(alias = "qpilotsync")]
+#[derive(Clone)]
 pub struct PilotSynchronizer {
     payload_len: usize,     // number of symbols in payload
     pilot_spacing: usize,   // spacing between pilot symbols
