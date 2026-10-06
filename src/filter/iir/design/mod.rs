@@ -852,12 +852,11 @@ pub fn iir_design_is_stable(a: &[f32]) -> Result<bool> {
 /// Estimates the group delay of an IIR filter, in samples, at `fc` cycles per
 /// sample.
 ///
-/// `b` and `a` are in ascending powers of `z^-1`. The calculation divides by a
-/// term that scales with `b` and `a` and falls near zero close to a null in the
-/// response. When its magnitude is below `1e-5`, the function returns zero
-/// instead. That zero is a fallback, not the true delay. The threshold is
-/// absolute, so scaling the coefficients down also trips it. A one-sample delay
-/// reports 1, but the same filter with `b` scaled by `1e-6` reports 0.
+/// `b` and `a` are in ascending powers of `z^-1`. Near a null in the response,
+/// the calculation divides by a term close to zero. When that term is at most
+/// `1e-5` of the coefficient scale, the function returns zero instead. The
+/// threshold scales with `b` and `a`, so changing the gain alone does not
+/// change the result. The zero is a fallback, not the true delay at the null.
 ///
 /// # Errors
 ///
@@ -899,9 +898,9 @@ pub fn iir_group_delay(b: &[f32], a: &[f32], fc: f32) -> Result<f32> {
         t1 += c0;
     }
 
-    // prevent divide-by-zero (check magnitude for tolerance range)
-    let tol = 1e-5;
-    if t1.norm() < tol {
+    // sum in f64 to avoid overflow.
+    let scale: f64 = c.iter().map(|&ci| f64::from(ci.abs())).sum();
+    if f64::from(t1.norm()) <= 1e-5 * scale {
         return Ok(0.0);
     }
 
@@ -1647,5 +1646,16 @@ mod tests {
         ];
 
         assert!(validate_psd_iirfilt(&q, nfft, &regions).unwrap());
+    }
+
+    #[test]
+    fn test_iir_group_delay_null_check_is_gain_invariant() {
+        for gain in [1.0, 1e-6, 1e-12] {
+            for fc in [0.0, 0.125, -0.25] {
+                assert_abs_diff_eq!(iir_group_delay(&[0.0, gain], &[1.0], fc).unwrap(), 1.0, epsilon = 1e-6);
+            }
+            assert_eq!(iir_group_delay(&[gain, -gain], &[1.0], 0.0).unwrap(), 0.0);
+        }
+        assert_eq!(iir_group_delay(&[0.0], &[1.0], 0.0).unwrap(), 0.0);
     }
 }
