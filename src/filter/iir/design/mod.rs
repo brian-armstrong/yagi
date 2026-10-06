@@ -717,7 +717,8 @@ pub fn iir_design(
         }
         IirFilterShape::Cheby2 => {
             // Cheby-II filter design : n-r zeros, n poles, stop-band ripple
-            let epsilon = 10.0f32.powf(-as_ / 20.0);
+            let attenuation = f64::from(as_) * std::f64::consts::LN_10 / 10.0;
+            let epsilon = ((-0.5 * attenuation).exp() / (-(-attenuation).exp_m1()).sqrt()) as f32;
             k0 = Complex32::new(1.0, 0.0);
             if iir_design_cheby2_analog(order, epsilon, &mut za, &mut pa, &mut ka).is_err() {
                 return Err(Error::Internal("could not design analog filter (cheby2)".into()));
@@ -1432,6 +1433,26 @@ mod tests {
     #[autotest_annotate(autotest_iirdes_cheby2_lowpass_4)]
     fn test_iirdes_cheby2_lowpass_4() {
         test_iirdes_cheby2_lowpass(15, 0.30, 0.35, 70.0);
+    }
+
+    #[test]
+    fn test_iirdes_cheby2_stopband_edge_matches_requested_attenuation() {
+        let fc = 0.2;
+        for as_ in [1.0, 3.0, 10.0] {
+            let q = IirFilter::<f32>::new_prototype(
+                IirFilterShape::Cheby2,
+                IirBandType::Lowpass,
+                IirFormat::SecondOrderSections,
+                5,
+                fc,
+                0.0,
+                0.1,
+                as_,
+            )
+            .unwrap();
+            let measured_db = -20.0 * q.freqresponse(fc).norm().log10();
+            assert_abs_diff_eq!(measured_db, as_, epsilon = 0.02);
+        }
     }
 
     fn test_iirdes_butter_lowpass(n: usize, fc: f32, fs: f32) {

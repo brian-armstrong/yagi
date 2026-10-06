@@ -9,10 +9,8 @@ use libm::{pow, sqrt};
 /// `es` is the stopband ripple factor, a linear value rather than decibels.
 /// The response at the stopband edge is `1 / sqrt(1 + 1 / es^2)`, so an
 /// attenuation of exactly `as_` dB needs `es = 1 / sqrt(10^(as_ / 10) - 1)`.
-/// [`super::iir_design`] passes `es = 10^(-as_ / 20)` instead. The two agree
-/// for large `as_`, but a small request overshoots. A request for 1 dB gives
-/// about 3.54 dB, and 3 dB gives about 4.76 dB. Unit analog frequency is the
-/// stopband edge, not the passband edge.
+/// [`super::iir_design`] derives `es` from the requested attenuation. Unit
+/// analog frequency is the stopband edge, not the passband edge.
 ///
 /// `pa` receives `n` poles in conjugate pairs, and an odd order puts its one
 /// real pole last. `za` receives `n - n % 2` zeros in conjugate pairs. `ka`
