@@ -147,8 +147,8 @@ where
     ///
     /// The count depends on the current phase and on any input held back for
     /// an incomplete half-band step, so compute it immediately before each
-    /// call. It is the output length that [`Self::execute`] and
-    /// [`Self::execute_block`] require for that input.
+    /// call. Use `num_output(1)` for [`Self::execute`] and
+    /// `num_output(input.len())` for [`Self::execute_block`].
     ///
     /// # Panics
     ///
@@ -197,23 +197,17 @@ where
         }
     }
 
-    /// Consumes a block of input samples and writes the outputs they produce.
+    /// Consumes one input sample and writes the outputs it produces.
     ///
-    /// This runs the stages one sample at a time. `output` must hold at least
-    /// `num_output(input.len())` samples. Returns the number of samples
-    /// written. The rest of `output` is left unchanged.
+    /// `output` must hold at least `num_output(1)` samples. Returns the number
+    /// of samples written. Extra output is left unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when `output` is too short, which leaves the resampler
-    /// and `output` unchanged. A stage can also report an error part way
-    /// through, which leaves both partly updated.
-    ///
-    /// # Panics
-    ///
-    /// Panics under the same conditions as [`Self::num_output`].
-    pub fn execute(&mut self, input: &[T], output: &mut [T]) -> Result<usize> {
-        let required_output = self.num_output(input.len());
+    /// Returns an error when `output` is shorter than `num_output(1)`. The
+    /// resampler and `output` are unchanged on error.
+    pub fn execute(&mut self, input: T, output: &mut [T]) -> Result<usize> {
+        let required_output = self.num_output(1);
         if output.len() < required_output {
             return Err(Error::Config(format!(
                 "output length ({}) must be at least {}",
@@ -227,41 +221,34 @@ where
         }
     }
 
-    fn interp_execute(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
+    fn interp_execute(&mut self, x: T, y: &mut [T]) -> Result<usize> {
         let mut ny = 0;
+        let nw = self.arbitrary_resamp.execute(x, &mut self.buffer[..])?;
 
-        for &xi in x {
-            let nw = self.arbitrary_resamp.execute(xi, &mut self.buffer[..])?;
-
-            for k in 0..nw {
-                self.halfband_resamp.execute(&[self.buffer[k]], &mut y[ny..])?;
-                ny += 1 << self.num_halfband_stages;
-            }
+        for k in 0..nw {
+            self.halfband_resamp.execute(&[self.buffer[k]], &mut y[ny..])?;
+            ny += 1 << self.num_halfband_stages;
         }
 
         Ok(ny)
     }
 
-    fn decim_execute(&mut self, x: &[T], y: &mut [T]) -> Result<usize> {
-        let mut ny = 0;
+    fn decim_execute(&mut self, x: T, y: &mut [T]) -> Result<usize> {
         let m = 1 << self.num_halfband_stages;
 
-        for &xi in x {
-            self.buffer[self.buffer_index] = xi;
-            self.buffer_index += 1;
+        self.buffer[self.buffer_index] = x;
+        self.buffer_index += 1;
 
-            if self.buffer_index == m {
-                let mut halfband_output = T::default();
-                self.halfband_resamp.execute(&self.buffer[..m], std::slice::from_mut(&mut halfband_output))?;
+        if self.buffer_index == m {
+            let mut halfband_output = T::default();
+            self.halfband_resamp.execute(&self.buffer[..m], std::slice::from_mut(&mut halfband_output))?;
 
-                let nw = self.arbitrary_resamp.execute(halfband_output, &mut y[ny..])?;
-                ny += nw;
-
-                self.buffer_index = 0;
-            }
+            let nw = self.arbitrary_resamp.execute(halfband_output, y)?;
+            self.buffer_index = 0;
+            Ok(nw)
+        } else {
+            Ok(0)
         }
-
-        Ok(ny)
     }
 
     /// Grows the workspace used by [`Self::execute_block`].
@@ -308,9 +295,9 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `output` is too short, which leaves the resampler
-    /// and `output` unchanged. A stage can also report an error part way
-    /// through, which leaves both partly updated.
+    /// Returns an error when `output` is shorter than
+    /// `num_output(input.len())`. The resampler and `output` are unchanged on
+    /// error.
     ///
     /// # Panics
     ///
@@ -413,6 +400,18 @@ mod tests {
     use num_complex::Complex32;
     use test_macro::autotest_annotate;
 
+    fn execute_samples(
+        resampler: &mut MultistageResampler<Complex32, f32>,
+        input: &[Complex32],
+        output: &mut [Complex32],
+    ) -> Result<usize> {
+        let mut written = 0;
+        for &sample in input {
+            written += resampler.execute(sample, &mut output[written..])?;
+        }
+        Ok(written)
+    }
+
     #[test]
     fn test_msresamp_rejects_invalid_rate() {
         for rate in [f32::INFINITY, f32::NEG_INFINITY, f32::NAN, 0.0, -0.0, -1.0] {
@@ -466,7 +465,7 @@ mod tests {
             gen.write_samples(&mut buf_0).unwrap();
 
             // resample
-            let nw = resamp.execute(&buf_0, &mut buf_1).unwrap();
+            let nw = execute_samples(&mut resamp, &buf_0, &mut buf_1).unwrap();
 
             // run samples through the spgram object
             q.write(&buf_1[..nw]);
@@ -525,7 +524,7 @@ mod tests {
             for (_i, &size) in sizes.iter().enumerate() {
                 let num_input = size;
                 let num_output = q.num_output(num_input);
-                let num_written = q.execute(&buf_0[..num_input], &mut buf_1[..]).unwrap();
+                let num_written = execute_samples(&mut q, &buf_0[..num_input], &mut buf_1).unwrap();
                 assert_eq!(num_output, num_written);
             }
         }
@@ -617,7 +616,7 @@ mod tests {
             );
 
             // actually run the resampler to verify
-            let num_written = q.execute(&buf_0[..num_input], &mut buf_1).unwrap();
+            let num_written = execute_samples(&mut q, &buf_0[..num_input], &mut buf_1).unwrap();
             assert_eq!(num_output, num_written);
         }
     }
@@ -669,7 +668,7 @@ mod tests {
             buf[i] = Complex32::new(randnf(), randnf());
         }
 
-        let _nw_0 = q0.execute(&buf, &mut buf_0).unwrap();
+        execute_samples(&mut q0, &buf, &mut buf_0).unwrap();
 
         // copy object
         let mut q1 = q0.clone();
@@ -679,8 +678,8 @@ mod tests {
             buf[i] = Complex32::new(randnf(), randnf());
         }
 
-        let nw_0 = q0.execute(&buf, &mut buf_0).unwrap();
-        let nw_1 = q1.execute(&buf, &mut buf_1).unwrap();
+        let nw_0 = execute_samples(&mut q0, &buf, &mut buf_0).unwrap();
+        let nw_1 = execute_samples(&mut q1, &buf, &mut buf_1).unwrap();
 
         // check that the same number of samples were written
         assert_eq!(nw_0, nw_1);
@@ -710,7 +709,7 @@ mod tests {
         let mut y_ref = vec![Complex32::new(0.0, 0.0); cap];
         let mut y_block = vec![Complex32::new(0.0, 0.0); cap];
 
-        let n_ref = q_sample.execute(&x, &mut y_ref).unwrap();
+        let n_ref = execute_samples(&mut q_sample, &x, &mut y_ref).unwrap();
         let n_block = q_block.execute_block(&x, &mut y_block).unwrap();
 
         assert_eq!(n_block, n_ref, "rate={}", rate);
@@ -745,7 +744,7 @@ mod tests {
         let mut y_ref = vec![Complex32::new(0.0, 0.0); cap];
         let mut y_block = vec![Complex32::new(0.0, 0.0); cap];
 
-        let n_ref = q_sample.execute(&x, &mut y_ref).unwrap();
+        let n_ref = execute_samples(&mut q_sample, &x, &mut y_ref).unwrap();
 
         let mut off_in = 0;
         let mut n_block = 0;
@@ -776,23 +775,30 @@ mod tests {
     fn test_msresamp_block_rejects_short_output() {
         for &rate in &[5.3f32, 0.19] {
             let mut q = MultistageResampler::<Complex32, f32>::new(rate, 60.0).unwrap();
-            let mut q_ref = q.clone();
             let x: Vec<Complex32> = (0..100).map(|_| Complex32::new(randnf(), randnf())).collect();
-            let n_out = q.num_output(x.len());
+            while q.num_output(1) == 0 {
+                assert_eq!(q.execute(x[0], &mut []).unwrap(), 0);
+            }
 
-            let mut short = vec![Complex32::default(); n_out - 1];
-            assert!(q.execute(&x, &mut short).is_err());
-            let mut y = vec![Complex32::default(); n_out];
-            let mut y_ref = vec![Complex32::default(); n_out];
-            q.execute(&x, &mut y).unwrap();
-            q_ref.execute(&x, &mut y_ref).unwrap();
-            assert_eq!(y, y_ref);
+            let mut q_ref = q.clone();
+            let required = q.num_output(1);
+            let sentinel = Complex32::new(-9.0, -9.0);
+            let mut short = vec![sentinel; required - 1];
+            assert!(q.execute(x[1], &mut short).is_err());
+            assert!(short.iter().all(|&sample| sample == sentinel));
+            let mut y = vec![sentinel; required + 2];
+            let mut y_ref = vec![Complex32::default(); required];
+            assert_eq!(q.execute(x[1], &mut y).unwrap(), required);
+            assert_eq!(q_ref.execute(x[1], &mut y_ref).unwrap(), required);
+            assert_eq!(&y[..required], &y_ref);
+            assert_eq!(&y[required..], &[sentinel; 2]);
 
             let mut q = MultistageResampler::<Complex32, f32>::new(rate, 60.0).unwrap();
             let mut q_ref = q.clone();
+            let n_out = q.num_output(x.len());
+            let mut short = vec![sentinel; n_out - 1];
             assert!(q.execute_block(&x, &mut short).is_err());
 
-            let sentinel = Complex32::new(-9.0, -9.0);
             let mut y = vec![sentinel; n_out + 2];
             let mut y_ref = vec![Complex32::default(); n_out];
             q.execute_block(&x, &mut y).unwrap();

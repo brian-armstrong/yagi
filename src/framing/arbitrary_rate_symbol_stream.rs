@@ -160,7 +160,7 @@ impl ArbitraryRateSymbolStream {
             let mut sample = [Complex32::new(0.0, 0.0)];
             self.symstream.write_samples(&mut sample)?;
 
-            self.buf_size = self.resamp.execute(&sample, &mut self.buf)?;
+            self.buf_size = self.resamp.execute(sample[0], &mut self.buf)?;
         }
         Ok(())
     }
