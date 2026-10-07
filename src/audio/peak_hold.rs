@@ -16,8 +16,7 @@ pub struct PeakHold {
 impl PeakHold {
     /// Creates a peak hold over `hold + 1` samples.
     ///
-    /// `hold` must be nonzero. Zero is accepted here, but the first
-    /// [`Self::execute`] call then panics.
+    /// With zero hold, [`Self::execute`] returns the current sample.
     pub fn new(hold: usize) -> Self {
         Self { hold, current: vec![], current_max: f32::MIN, previous: vec![f32::MIN; hold] }
     }
@@ -38,10 +37,10 @@ impl PeakHold {
     /// Before `hold + 1` samples have arrived, the maximum is over the
     /// samples recorded so far.
     ///
-    /// # Panics
-    ///
-    /// Panics when the peak hold was created with `hold` zero.
     pub fn execute(&mut self, input: f32) -> f32 {
+        if self.hold == 0 {
+            return input;
+        }
         self.current.push(input);
         self.current_max = self.current_max.max(input);
 
@@ -84,6 +83,16 @@ mod tests {
         for (&x, &exp_y) in input.iter().zip(expected.iter()) {
             assert_eq!(peak_hold.execute(x), exp_y);
         }
+    }
+
+    #[test]
+    fn test_zero_hold() {
+        let mut peak_hold = PeakHold::new(0);
+        for sample in [0.0, 2.0, -1.0, 3.0] {
+            assert_eq!(peak_hold.execute(sample), sample);
+        }
+        peak_hold.reset();
+        assert_eq!(peak_hold.execute(4.0), 4.0);
     }
 
     #[test]
