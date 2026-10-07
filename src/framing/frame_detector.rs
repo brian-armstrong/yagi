@@ -178,7 +178,7 @@ impl FrameDetector {
         if !(1..=100).contains(&filter_delay) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
-        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
 
@@ -241,7 +241,7 @@ impl FrameDetector {
         if !(1..=100).contains(&filter_delay) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
-        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
 
@@ -304,7 +304,7 @@ impl FrameDetector {
         if !(1..=100).contains(&filter_delay) {
             return Err(Error::Config("filter delay must be in [1,100]".into()));
         }
-        if excess_bandwidth < 0.0 || excess_bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&excess_bandwidth) {
             return Err(Error::Config("excess bandwidth factor must be in [0,1]".into()));
         }
 
@@ -357,7 +357,7 @@ impl FrameDetector {
     /// Returns an error when `threshold` is outside `(0, 2]`. The threshold is
     /// unchanged on error.
     pub fn set_threshold(&mut self, threshold: f32) -> Result<()> {
-        if threshold <= 0.0 || threshold > 2.0 {
+        if !(threshold > 0.0 && threshold <= 2.0) {
             return Err(Error::Config(format!("threshold ({}) out of range", threshold)));
         }
         self.threshold = threshold;
@@ -381,7 +381,7 @@ impl FrameDetector {
     /// Returns an error when `carrier_offset_range` is outside `[0, 0.5]`.
     /// The range is unchanged on error.
     pub fn set_range(&mut self, carrier_offset_range: f32) -> Result<()> {
-        if carrier_offset_range < 0.0 || carrier_offset_range > 0.5 {
+        if !(0.0..=0.5).contains(&carrier_offset_range) {
             return Err(Error::Config(format!("carrier offset search range ({}) out of range", carrier_offset_range)));
         }
         self.dphi_max = carrier_offset_range;
@@ -689,6 +689,16 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use rand::Rng;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn frame_detector_rejects_nan_configuration() {
+        let sequence = [Complex32::new(1.0, 0.0); 8];
+        let mut detector = FrameDetector::new(&sequence).unwrap();
+        assert!(detector.set_threshold(f32::NAN).is_err());
+        assert_eq!(detector.threshold(), 0.5);
+        assert!(detector.set_range(f32::NAN).is_err());
+        assert!(FrameDetector::new_linear(&sequence, FirFilterShape::Arkaiser, 2, 7, f32::NAN).is_err());
+    }
 
     fn qdetector_runtest_linear(sequence_len: usize) {
         let k = 2;
