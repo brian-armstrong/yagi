@@ -41,11 +41,7 @@ impl BinarySequence {
     /// # Errors
     ///
     /// Returns an error when the lengths differ, are shorter than eight bits,
-    /// or are not a multiple of eight. Both sequences are unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics when the length is a multiple of eight but not a power of two.
+    /// or are not a power of two. Both sequences are unchanged on error.
     pub fn create_ccodes(qa: &mut BinarySequence, qb: &mut BinarySequence) -> Result<()> {
         if qa.num_bits != qb.num_bits {
             return Err(Error::Config("sequence lengths must match".into()));
@@ -55,6 +51,9 @@ impl BinarySequence {
         }
         if !qa.num_bits.is_multiple_of(8) {
             return Err(Error::Config("sequence must be multiple of 8".into()));
+        }
+        if !qa.num_bits.is_power_of_two() {
+            return Err(Error::Config("sequence length must be a power of two".into()));
         }
 
         let num_bytes = qa.num_bits / 8;
@@ -470,6 +469,15 @@ mod tests {
             ax.circshift();
             bx.circshift();
         }
+    }
+
+    #[test]
+    fn test_create_ccodes_rejects_non_power_of_two_length() {
+        let mut a = BinarySequence::new(24);
+        let mut b = BinarySequence::new(24);
+        assert!(BinarySequence::create_ccodes(&mut a, &mut b).is_err());
+        assert_eq!(a.accumulate(), 0);
+        assert_eq!(b.accumulate(), 0);
     }
 
     #[test]
