@@ -82,6 +82,9 @@ impl Modem {
         let symbol_map = self.symbol_map.as_mut().unwrap();
 
         let energy = symbol_map.iter().map(|x| x.norm_sqr()).sum::<f32>();
+        if !energy.is_finite() || energy <= 0.0 {
+            return Err(Error::Config("constellation energy must be finite and positive".into()));
+        }
         let scale = (energy / symbol_map.len() as f32).sqrt();
         for symbol in symbol_map.iter_mut() {
             *symbol /= scale;

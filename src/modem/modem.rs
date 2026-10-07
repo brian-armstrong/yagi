@@ -725,7 +725,8 @@ impl Modem {
     /// # Errors
     ///
     /// Returns an error when the length of `table` is not a power of two
-    /// from 2 to 256.
+    /// from 2 to 256, contains nonfinite points, or has zero energy after
+    /// centering.
     pub fn from_table(table: &[Complex32]) -> Result<Self> {
         let bits_per_symbol = crate::math::nextpow2(table.len() as u32)? as usize;
         if (1 << bits_per_symbol) != table.len() {
@@ -2807,6 +2808,8 @@ mod tests {
 
         // an arbitrary table must be a power of two long
         assert!(Modem::from_table(&[Complex32::new(0.0, 0.0); 3]).is_err());
+        assert!(Modem::from_table(&[Complex32::new(1.0, -2.0); 2]).is_err());
+        assert!(Modem::from_table(&[Complex32::new(f32::NAN, 0.0), Complex32::new(1.0, 0.0)]).is_err());
 
         let mut q = Modem::new(ModulationScheme::Qam64).unwrap();
         let m = 1 << q.bps();
