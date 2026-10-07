@@ -1,29 +1,9 @@
 // Gauss minimum-shift keying demodulator
-//
-// Two implementations are available:
-// 1. Fixed matched filter (default) - uses FirFilter with GMSK receive filter
-// 2. Adaptive equalizer - uses LeastMeanSquaresEqualizer for decision-directed equalization
-//
-// The equalizer variant can be enabled by setting GMSKDEM_USE_EQUALIZER to true.
 
-use crate::equalization::LeastMeanSquaresEqualizer;
 use crate::error::{Error, Result};
 use crate::filter::fir::design::fir_design_prototype;
 use crate::filter::{FirFilter, FirFilterShape};
 use num_complex::Complex32;
-
-// Set to true to use adaptive equalizer instead of fixed matched filter.
-// This matches liquid-dsp's GMSKDEM_USE_EQUALIZER preprocessor flag.
-const GMSKDEM_USE_EQUALIZER: bool = false;
-
-/// Internal filter state - either fixed FIR or adaptive equalizer
-#[derive(Clone, Debug)]
-enum FilterState {
-    /// Fixed matched filter
-    Fir(FirFilter<f32, f32>),
-    /// Adaptive equalizer
-    Equalizer(LeastMeanSquaresEqualizer<f32>),
-}
 
 /// Gaussian minimum-shift keying demodulator.
 ///
@@ -39,11 +19,10 @@ enum FilterState {
 #[derive(Clone, Debug)]
 #[doc(alias = "GmskDem")]
 pub struct GmskDemodulator {
-    k: usize,   // samples/symbol
-    m: usize,   // symbol delay
-    bt: f32,    // bandwidth/time product
-    k_inv: f32, // 1/k (for equalizer training)
-    filter: FilterState,
+    k: usize, // samples/symbol
+    m: usize, // symbol delay
+    bt: f32,  // bandwidth/time product
+    filter: FirFilter<f32, f32>,
     x_prime: Complex32, // received signal state
     num_symbols_demod: u64,
 }
@@ -70,32 +49,19 @@ impl GmskDemodulator {
             return Err(Error::Config("bandwidth/time product must be in (0, 1)".into()));
         }
 
-        let filter = if GMSKDEM_USE_EQUALIZER {
-            let mut eq = LeastMeanSquaresEqualizer::<f32>::new_rnyquist(
-                FirFilterShape::Gmskrx,
-                samples_per_symbol,
-                filter_delay,
-                bandwidth_time_product,
-                0.0,
-            )?;
-            eq.set_bw(0.01)?; // default learning rate
-            FilterState::Equalizer(eq)
-        } else {
-            let h = fir_design_prototype(
-                FirFilterShape::Gmskrx,
-                samples_per_symbol,
-                filter_delay,
-                bandwidth_time_product,
-                0.0,
-            )?;
-            FilterState::Fir(FirFilter::new(&h)?)
-        };
+        let h = fir_design_prototype(
+            FirFilterShape::Gmskrx,
+            samples_per_symbol,
+            filter_delay,
+            bandwidth_time_product,
+            0.0,
+        )?;
+        let filter = FirFilter::new(&h)?;
 
         let mut q = Self {
             k: samples_per_symbol,
             m: filter_delay,
             bt: bandwidth_time_product,
-            k_inv: 1.0 / samples_per_symbol as f32,
             filter,
             x_prime: Complex32::new(0.0, 0.0),
             num_symbols_demod: 0,
@@ -110,10 +76,7 @@ impl GmskDemodulator {
         self.x_prime = Complex32::new(0.0, 0.0);
         self.num_symbols_demod = 0;
 
-        match &mut self.filter {
-            FilterState::Fir(f) => f.reset(),
-            FilterState::Equalizer(eq) => eq.reset(),
-        }
+        self.filter.reset();
     }
 
     /// Returns the number of samples per symbol.
@@ -136,43 +99,6 @@ impl GmskDemodulator {
         self.num_symbols_demod
     }
 
-    /// Sets the learning rate of the adaptive equalizer.
-    ///
-    /// The demodulator is always built with a fixed matched filter and no
-    /// equalizer, so this always returns an error.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when `learning_rate` is outside `[0, 0.5]`, and
-    /// otherwise because there is no equalizer.
-    pub fn set_eq_bw(&mut self, learning_rate: f32) -> Result<()> {
-        if learning_rate < 0.0 || learning_rate > 0.5 {
-            return Err(Error::Config("bandwidth must be in [0, 0.5]".into()));
-        }
-
-        match &mut self.filter {
-            FilterState::Equalizer(eq) => eq.set_bw(learning_rate),
-            FilterState::Fir(_) => Err(Error::Config("equalizer is disabled".into())),
-        }
-    }
-
-    /// Returns the learning rate of the adaptive equalizer.
-    ///
-    /// There is no equalizer, so this always returns `None`.
-    pub fn eq_bw(&self) -> Option<f32> {
-        match &self.filter {
-            FilterState::Equalizer(eq) => Some(eq.bw()),
-            FilterState::Fir(_) => None,
-        }
-    }
-
-    /// Returns whether this demodulator uses an adaptive equalizer.
-    ///
-    /// This always returns `false`.
-    pub fn uses_equalizer(&self) -> bool {
-        matches!(self.filter, FilterState::Equalizer(_))
-    }
-
     /// Returns the bit decided for one symbol of samples.
     ///
     /// Reads the first [`Self::k`] samples of `input` and ignores the rest.
@@ -189,50 +115,20 @@ impl GmskDemodulator {
 
         self.num_symbols_demod += 1;
 
-        let d_hat = match &mut self.filter {
-            FilterState::Fir(filter) => {
-                let mut d_hat = 0.0f32;
-                for i in 0..self.k {
-                    // compute phase difference
-                    let phi = (self.x_prime.conj() * input[i]).arg();
-                    self.x_prime = input[i];
+        let mut d_hat = 0.0f32;
+        for i in 0..self.k {
+            // compute phase difference
+            let phi = (self.x_prime.conj() * input[i]).arg();
+            self.x_prime = input[i];
 
-                    // run through matched filter
-                    filter.push(phi);
+            // run through matched filter
+            self.filter.push(phi);
 
-                    // decimate by k - only compute output at symbol boundary
-                    if i == 0 {
-                        d_hat = filter.execute();
-                    }
-                }
-                d_hat
+            // decimate by k - only compute output at symbol boundary
+            if i == 0 {
+                d_hat = self.filter.execute();
             }
-            FilterState::Equalizer(eq) => {
-                let mut d_hat = 0.0f32;
-                for i in 0..self.k {
-                    // compute phase difference
-                    let phi = (self.x_prime.conj() * input[i]).arg();
-                    self.x_prime = input[i];
-
-                    // run through equalizer
-                    eq.push(phi);
-
-                    // decimate by k - only compute output at symbol boundary
-                    if i == 0 {
-                        d_hat = eq.execute().unwrap_or(0.0);
-                    }
-                }
-
-                // update equalizer weights after appropriate delay
-                if self.num_symbols_demod >= 2 * self.m as u64 {
-                    // compute expected output, scaling by samples/symbol
-                    let d_prime = if d_hat > 0.0 { self.k_inv } else { -self.k_inv };
-                    eq.step(d_prime, d_hat);
-                }
-
-                d_hat
-            }
-        };
+        }
 
         // make decision
         Ok(if d_hat > 0.0 { 1 } else { 0 })
@@ -259,23 +155,6 @@ mod tests {
         assert_eq!(q.k(), 4);
         assert_eq!(q.m(), 3);
         assert!((q.bt() - 0.25).abs() < 1e-6);
-        // Note: uses_equalizer() depends on GMSKDEM_USE_EQUALIZER const
-        assert_eq!(q.uses_equalizer(), GMSKDEM_USE_EQUALIZER);
-    }
-
-    #[test]
-    fn test_gmskdem_eq_bw() {
-        let mut q = GmskDemodulator::new(4, 3, 0.25).unwrap();
-
-        if q.uses_equalizer() {
-            // With equalizer, set_eq_bw should succeed
-            assert!(q.set_eq_bw(0.01).is_ok());
-            assert!((q.eq_bw().unwrap() - 0.01).abs() < 1e-6);
-        } else {
-            // With FIR filter, set_eq_bw should fail
-            assert!(q.set_eq_bw(0.01).is_err());
-            assert!(q.eq_bw().is_none());
-        }
     }
 
     fn testbench_gmskmodem(k: usize, m: usize, bt: f32) {
