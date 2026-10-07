@@ -32,8 +32,7 @@ impl Limiter {
     /// samples. A zero `release` makes the gain jump back as soon as the hold
     /// ends, though the attack smoothing still applies.
     ///
-    /// If both `attack` and `hold` are zero, construction succeeds but the
-    /// first [`Self::execute`] call panics.
+    /// With zero attack and hold, each sample is limited immediately.
     pub fn new(limit: f32, attack: usize, hold: usize, release: usize) -> Self {
         let mut smoothing_window = Window::new(attack + 1).unwrap();
         for _ in 0..smoothing_window.len() {
@@ -72,9 +71,6 @@ impl Limiter {
     ///
     /// A new limiter returns zeros for its first `attack` calls.
     ///
-    /// # Panics
-    ///
-    /// Panics when the limiter was created with both `attack` and `hold` zero.
     pub fn execute(&mut self, input: f32) -> f32 {
         self.delay.push(input);
 
@@ -114,6 +110,14 @@ impl Limiter {
 mod tests {
     use super::*;
     // use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_zero_attack_and_hold() {
+        let mut limiter = Limiter::new(1.0, 0, 0, 0);
+        for (input, expected) in [(0.5, 0.5), (2.0, 1.0), (-3.0, -1.0), (0.25, 0.25)] {
+            assert_eq!(limiter.execute(input), expected);
+        }
+    }
 
     #[test]
     fn test_no_limit() {
