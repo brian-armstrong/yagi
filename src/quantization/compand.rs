@@ -7,7 +7,7 @@
 //!
 //! `mu` sets the amount of compression, and `255` is the usual value for
 //! 8-bit codes. Expansion must use the same `mu` as compression. A `mu` so
-//! small that `1 + mu` rounds to one makes the curve NaN or infinite.
+//! small that `1 + mu` rounds to one is rejected.
 
 use crate::error::{Error, Result};
 use num_complex::Complex32;
@@ -22,15 +22,20 @@ fn expand_magnitude(y: f32, mu: f32) -> f32 {
     (1.0 / mu) * ((1.0 + mu).powf(y) - 1.0)
 }
 
+fn valid_mu(mu: f32) -> bool {
+    mu.is_finite() && mu > 0.0 && 1.0 + mu > 1.0
+}
+
 /// Compresses a real sample with the mu-law curve.
 ///
 /// The result is `sign(x) * ln(1 + mu * |x|) / ln(1 + mu)`.
 ///
 /// # Errors
 ///
-/// Returns an error when `mu` is zero or negative.
+/// Returns an error when `mu` is nonfinite or too small for `1 + mu` to
+/// exceed one.
 pub fn compress_mulaw(x: f32, mu: f32) -> Result<f32> {
-    if mu <= 0.0 {
+    if !valid_mu(mu) {
         return Err(Error::Range("compress_mulaw(), mu out of range".into()));
     }
     Ok(compress_magnitude(x.abs(), mu).copysign(x))
@@ -43,9 +48,10 @@ pub fn compress_mulaw(x: f32, mu: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `mu` is zero or negative.
+/// Returns an error when `mu` is nonfinite or too small for `1 + mu` to
+/// exceed one.
 pub fn expand_mulaw(y: f32, mu: f32) -> Result<f32> {
-    if mu <= 0.0 {
+    if !valid_mu(mu) {
         return Err(Error::Range("expand_mulaw(), mu out of range".into()));
     }
     Ok(expand_magnitude(y.abs(), mu).copysign(y))
@@ -57,9 +63,10 @@ pub fn expand_mulaw(y: f32, mu: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `mu` is zero or negative.
+/// Returns an error when `mu` is nonfinite or too small for `1 + mu` to
+/// exceed one.
 pub fn compress_cf_mulaw(x: Complex32, mu: f32) -> Result<Complex32> {
-    if mu <= 0.0 {
+    if !valid_mu(mu) {
         return Err(Error::Range("compress_cf_mulaw(), mu out of range".into()));
     }
     // compress the magnitude, keep the angle
@@ -73,9 +80,10 @@ pub fn compress_cf_mulaw(x: Complex32, mu: f32) -> Result<Complex32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `mu` is zero or negative.
+/// Returns an error when `mu` is nonfinite or too small for `1 + mu` to
+/// exceed one.
 pub fn expand_cf_mulaw(y: Complex32, mu: f32) -> Result<Complex32> {
-    if mu <= 0.0 {
+    if !valid_mu(mu) {
         return Err(Error::Range("expand_cf_mulaw(), mu out of range".into()));
     }
     // expand the magnitude, keep the angle
@@ -132,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_compand_mu_range() {
-        for mu in [0.0f32, -1.0, -255.0] {
+        for mu in [0.0f32, -1.0, -255.0, f32::NAN, f32::INFINITY, f32::EPSILON / 4.0] {
             assert!(compress_mulaw(0.5, mu).is_err(), "compress mu={}", mu);
             assert!(expand_mulaw(0.5, mu).is_err(), "expand mu={}", mu);
 
