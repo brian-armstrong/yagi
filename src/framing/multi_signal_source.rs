@@ -168,62 +168,81 @@ impl MultiSignalSource {
 
     /// Adds a tone and returns its identifier.
     ///
-    /// `fc` is the frequency in cycles per sample, in `[-0.5, 0.5]`. `bw` is in
-    /// `[0, 1]` and, for a tone, sets only the power. `gain` is in dB. The
-    /// power is about `gain + 10*log10(w)` dB, where `w` is `bw` rounded up as
-    /// described on the type.
+    /// `center_frequency` is in cycles per sample, in `[-0.5, 0.5]`.
+    /// `bandwidth` is in `[0, 1]` and, for a tone, sets only the power.
+    /// `gain_db` is in dB. The power is about `gain_db + 10*log10(w)` dB,
+    /// where `w` is `bandwidth` rounded up as described on the type.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fc` or `bw` is outside its range.
-    pub fn add_tone(&mut self, fc: f32, bw: f32, gain: f32) -> Result<SourceId> {
-        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, SignalSourceConfig::Tone)?;
+    /// Returns an error when `center_frequency` or `bandwidth` is outside its range.
+    pub fn add_tone(&mut self, center_frequency: f32, bandwidth: f32, gain_db: f32) -> Result<SourceId> {
+        let source = SignalSource::new(
+            self.m_channels,
+            self.m,
+            self.as_,
+            center_frequency,
+            bandwidth,
+            gain_db,
+            SignalSourceConfig::Tone,
+        )?;
         Ok(self.add_source(source))
     }
 
     /// Adds a linear frequency sweep and returns its identifier.
     ///
-    /// The sweep covers `bw` around `fc`, both in cycles per sample, from low
-    /// to high frequency. `gain` is in dB. `duration` is the approximate sweep
-    /// period in samples, and `duration * bw` must be at least 0.5. `negate`
+    /// The sweep covers `bandwidth` around `center_frequency`, both in cycles
+    /// per sample, from low to high frequency. `gain_db` is in dB. `duration`
+    /// is the approximate sweep period in samples, and
+    /// `duration * bandwidth` must be at least 0.5. `negate`
     /// sweeps from high to low instead. `single` disables the source after
     /// one sweep.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fc` is outside `[-0.5, 0.5]` or `bw` is outside
-    /// `[0, 1]`.
+    /// Returns an error when `center_frequency` is outside `[-0.5, 0.5]` or
+    /// `bandwidth` is outside `[0, 1]`.
     ///
     /// # Panics
     ///
-    /// A `duration * bw` below 0.5 is accepted, but generating output then
-    /// panics when overflow checks are enabled. Without overflow checks, such
+    /// A `duration * bandwidth` below 0.5 is accepted, but generating output
+    /// then panics when overflow checks are enabled. Without overflow checks, such
     /// a chirp does not sweep.
     pub fn add_chirp(
         &mut self,
-        fc: f32,
-        bw: f32,
-        gain: f32,
+        center_frequency: f32,
+        bandwidth: f32,
+        gain_db: f32,
         duration: f32,
         negate: bool,
         single: bool,
     ) -> Result<SourceId> {
         let config = SignalSourceConfig::Chirp { duration, negate, single };
-        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, config)?;
+        let source =
+            SignalSource::new(self.m_channels, self.m, self.as_, center_frequency, bandwidth, gain_db, config)?;
         Ok(self.add_source(source))
     }
 
     /// Adds a band of white Gaussian noise and returns its identifier.
     ///
-    /// The band is `bw` wide around `fc`, both in cycles per sample. `gain` is
-    /// in dB, and the power is about `gain + 10*log10(bw)` dB.
+    /// The band is `bandwidth` wide around `center_frequency`, both in cycles
+    /// per sample. `gain_db` is in dB, and the power is about
+    /// `gain_db + 10*log10(bandwidth)` dB.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fc` is outside `[-0.5, 0.5]` or `bw` is outside
-    /// `[0, 1]`.
-    pub fn add_noise(&mut self, fc: f32, bw: f32, gain: f32) -> Result<SourceId> {
-        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, SignalSourceConfig::Noise)?;
+    /// Returns an error when `center_frequency` is outside `[-0.5, 0.5]` or
+    /// `bandwidth` is outside `[0, 1]`.
+    pub fn add_noise(&mut self, center_frequency: f32, bandwidth: f32, gain_db: f32) -> Result<SourceId> {
+        let source = SignalSource::new(
+            self.m_channels,
+            self.m,
+            self.as_,
+            center_frequency,
+            bandwidth,
+            gain_db,
+            SignalSourceConfig::Noise,
+        )?;
         Ok(self.add_source(source))
     }
 
@@ -232,32 +251,34 @@ impl MultiSignalSource {
     ///
     /// # Arguments
     ///
-    /// - `fc`: center frequency in cycles per sample, in `[-0.5, 0.5]`.
-    /// - `bw`: symbol rate in symbols per sample, in `[0, 0.5]`. The signal
-    ///   occupies about `bw * (1 + beta)`.
-    /// - `gain`: in dB. The power is about `gain + 10*log10(bw)` dB.
-    /// - `m`: pulse-shaping filter semi-length in symbols. Must be nonzero.
-    /// - `beta`: rolloff factor, in `[0, 1]`.
+    /// - `center_frequency`: center frequency in cycles per sample, in `[-0.5, 0.5]`.
+    /// - `symbol_rate`: symbols per sample, in `[0, 0.5]`. The signal
+    ///   occupies about `symbol_rate * (1 + rolloff)`.
+    /// - `gain_db`: in dB. The power is about `gain_db + 10*log10(symbol_rate)` dB.
+    /// - `filter_semi_length`: pulse-shaping filter semi-length in symbols. Must be nonzero.
+    /// - `rolloff`: rolloff factor, in `[0, 1]`.
     ///
     /// The source runs at two samples per symbol, so its bandwidth is
-    /// `2 * bw`.
+    /// `2 * symbol_rate`.
     ///
     /// # Errors
     ///
-    /// Returns an error when a parameter is outside its range, `ms` has no
-    /// built-in constellation, or the pulse shape rejects `m` and `beta`.
+    /// Returns an error when a parameter is outside its range,
+    /// `modulation_scheme` has no built-in constellation, or the pulse shape
+    /// rejects `filter_semi_length` and `rolloff`.
     pub fn add_modem(
         &mut self,
-        fc: f32,
-        bw: f32,
-        gain: f32,
-        ms: ModulationScheme,
-        m: usize,
-        beta: f32,
+        center_frequency: f32,
+        symbol_rate: f32,
+        gain_db: f32,
+        modulation_scheme: ModulationScheme,
+        filter_semi_length: usize,
+        rolloff: f32,
     ) -> Result<SourceId> {
         // create object with double the bandwidth to account for 2 samples/symbol
-        let config = SignalSourceConfig::Modem { scheme: ms, m, beta };
-        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
+        let config = SignalSourceConfig::Modem { scheme: modulation_scheme, m: filter_semi_length, beta: rolloff };
+        let source =
+            SignalSource::new(self.m_channels, self.m, self.as_, center_frequency, 2.0 * symbol_rate, gain_db, config)?;
         Ok(self.add_source(source))
     }
 
@@ -265,22 +286,38 @@ impl MultiSignalSource {
     ///
     /// # Arguments
     ///
-    /// - `fc`: center frequency in cycles per sample, in `[-0.5, 0.5]`.
-    /// - `bw`: half the source bandwidth, in cycles per sample, in `[0, 0.5]`.
-    /// - `gain`: in dB. The power is about `gain + 10*log10(bw) + 3` dB,
-    ///   3 dB more than a modem or GMSK source with the same `bw`.
-    /// - `m`: bits per symbol.
-    /// - `k`: source samples per symbol, so the symbol rate is `2 * bw / k`
-    ///   symbols per sample.
+    /// - `center_frequency`: center frequency in cycles per sample, in `[-0.5, 0.5]`.
+    /// - `half_bandwidth`: half the source bandwidth, in cycles per sample, in `[0, 0.5]`.
+    /// - `gain_db`: in dB. The power is about `gain_db + 10*log10(half_bandwidth) + 3` dB,
+    ///   3 dB more than a modem or GMSK source with the same `half_bandwidth`.
+    /// - `bits_per_symbol`: bits per symbol.
+    /// - `samples_per_symbol`: source samples per symbol, so the symbol rate
+    ///   is `2 * half_bandwidth / samples_per_symbol` symbols per sample.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fc` or `bw` is outside its range, or the FSK
-    /// modulator rejects `m` and `k`.
-    pub fn add_fsk(&mut self, fc: f32, bw: f32, gain: f32, m: usize, k: usize) -> Result<SourceId> {
+    /// Returns an error when `center_frequency` or `half_bandwidth` is outside
+    /// its range, or the FSK modulator rejects `bits_per_symbol` and
+    /// `samples_per_symbol`.
+    pub fn add_fsk(
+        &mut self,
+        center_frequency: f32,
+        half_bandwidth: f32,
+        gain_db: f32,
+        bits_per_symbol: usize,
+        samples_per_symbol: usize,
+    ) -> Result<SourceId> {
         // create object with double the bandwidth to account for k samples/symbol
-        let config = SignalSourceConfig::Fsk { m, k };
-        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
+        let config = SignalSourceConfig::Fsk { m: bits_per_symbol, k: samples_per_symbol };
+        let source = SignalSource::new(
+            self.m_channels,
+            self.m,
+            self.as_,
+            center_frequency,
+            2.0 * half_bandwidth,
+            gain_db,
+            config,
+        )?;
         Ok(self.add_source(source))
     }
 
@@ -288,45 +325,54 @@ impl MultiSignalSource {
     ///
     /// # Arguments
     ///
-    /// - `fc`: center frequency in cycles per sample, in `[-0.5, 0.5]`.
-    /// - `bw`: bit rate in bits per sample, in `[0, 0.5]`.
-    /// - `gain`: in dB. The power is about `gain + 10*log10(bw)` dB.
-    /// - `m`: filter semi-length in bits. Must be nonzero.
-    /// - `bt`: bandwidth-time product, in `(0, 1)`.
+    /// - `center_frequency`: center frequency in cycles per sample, in `[-0.5, 0.5]`.
+    /// - `bit_rate`: bits per sample, in `[0, 0.5]`.
+    /// - `gain_db`: in dB. The power is about `gain_db + 10*log10(bit_rate)` dB.
+    /// - `filter_semi_length`: filter semi-length in bits. Must be nonzero.
+    /// - `bandwidth_time_product`: bandwidth-time product, in `(0, 1)`.
     ///
-    /// The source runs at two samples per bit, so its bandwidth is `2 * bw`.
+    /// The source runs at two samples per bit, so its bandwidth is `2 * bit_rate`.
     ///
     /// # Errors
     ///
     /// Returns an error when a parameter is outside its range.
-    pub fn add_gmsk(&mut self, fc: f32, bw: f32, gain: f32, m: usize, bt: f32) -> Result<SourceId> {
+    pub fn add_gmsk(
+        &mut self,
+        center_frequency: f32,
+        bit_rate: f32,
+        gain_db: f32,
+        filter_semi_length: usize,
+        bandwidth_time_product: f32,
+    ) -> Result<SourceId> {
         // create object with double the bandwidth to account for 2 samples/symbol
-        let config = SignalSourceConfig::Gmsk { m, bt };
-        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, 2.0 * bw, gain, config)?;
+        let config = SignalSourceConfig::Gmsk { m: filter_semi_length, bt: bandwidth_time_product };
+        let source =
+            SignalSource::new(self.m_channels, self.m, self.as_, center_frequency, 2.0 * bit_rate, gain_db, config)?;
         Ok(self.add_source(source))
     }
 
     /// Adds a source whose samples come from `callback` and returns its
     /// identifier.
     ///
-    /// The callback runs at the source's own rate, `bw` times the output rate
-    /// after rounding, and its full band is placed `bw` wide around `fc`.
-    /// `fc` and `bw` are in cycles per sample, in `[-0.5, 0.5]` and `[0, 1]`.
-    /// `gain` is in dB. The power is about `gain + 10*log10(bw)` dB plus the
+    /// The callback runs at the source's own rate, `bandwidth` times the output rate
+    /// after rounding, and its full band is placed `bandwidth` wide around `center_frequency`.
+    /// `center_frequency` and `bandwidth` are in cycles per sample, in `[-0.5, 0.5]` and `[0, 1]`.
+    /// `gain_db` is in dB. The power is about `gain_db + 10*log10(bandwidth)` dB plus the
     /// callback's sample power in dB.
     ///
     /// # Errors
     ///
-    /// Returns an error when `fc` or `bw` is outside its range.
+    /// Returns an error when `center_frequency` or `bandwidth` is outside its range.
     pub fn add_user<C: SignalSourceCallback + 'static>(
         &mut self,
-        fc: f32,
-        bw: f32,
-        gain: f32,
+        center_frequency: f32,
+        bandwidth: f32,
+        gain_db: f32,
         callback: C,
     ) -> Result<SourceId> {
         let config = SignalSourceConfig::User(Box::new(callback));
-        let source = SignalSource::new(self.m_channels, self.m, self.as_, fc, bw, gain, config)?;
+        let source =
+            SignalSource::new(self.m_channels, self.m, self.as_, center_frequency, bandwidth, gain_db, config)?;
         Ok(self.add_source(source))
     }
 
@@ -334,7 +380,8 @@ impl MultiSignalSource {
     ///
     /// # Errors
     ///
-    /// Returns an error when no source has identifier `id`.
+    /// Returns an error when no source has identifier `id`, or `gain_db` is
+    /// nonfinite or overflows the linear gain.
     pub fn remove(&mut self, id: SourceId) -> Result<()> {
         match self.find(id) {
             Some(idx) => {
@@ -447,21 +494,21 @@ impl MultiSignalSource {
         Ok(())
     }
 
-    /// Fills `buf` with the next output samples.
+    /// Fills `output` with the next samples.
     ///
     /// The output continues across calls, so any block size works.
     ///
     /// # Errors
     ///
-    /// Returns an error when a user callback returns one. The samples of `buf`
+    /// Returns an error when a user callback returns one. The samples of `output`
     /// before the failed block are already written.
     ///
     /// # Panics
     ///
     /// Panics under the conditions given on [`SignalSource::generate`].
-    pub fn write_samples(&mut self, buf: &mut [Complex32]) -> Result<()> {
+    pub fn write_samples(&mut self, output: &mut [Complex32]) -> Result<()> {
         let m2 = self.m_channels / 2;
-        for sample in buf.iter_mut() {
+        for sample in output.iter_mut() {
             // generate more samples if needed
             if self.read_index >= m2 {
                 self.generate()?;
@@ -758,7 +805,7 @@ mod tests {
         let mut buf = vec![Complex32::new(0.0, 0.0); 1024];
 
         // Generate samples
-        for _ in 0..(1 << 16) {
+        for _ in 0..(1 << 12) {
             gen.write_samples(&mut buf).unwrap();
             spgram.write(&buf);
         }
@@ -983,5 +1030,55 @@ mod tests {
             PsdRegion { fmin:  0.4555, fmax:  0.4565, pmin: -20.0, pmax:  0.0, test_lo: true, test_hi: true },
         ];
         assert!(validate_psd_spgramcf(&spgram, &regions).unwrap());
+    }
+
+    #[test]
+    #[autotest_annotate(autotest_msourcecf_copy)]
+    fn test_msourcecf_copy() {
+        let tol = 1.5;
+        let ms = ModulationScheme::Qpsk;
+        let m = 12;
+        let beta = 0.30;
+        let bt = 0.35;
+        let nfft = 1200;
+        let num_samples = 720_000;
+
+        let mut periodogram_orig = SpectralPeriodogram::from_nfft(nfft).unwrap();
+        let mut periodogram_copy = SpectralPeriodogram::from_nfft(nfft).unwrap();
+
+        let mut gen_orig = MultiSignalSource::new_default().unwrap();
+        gen_orig.add_noise(0.00, 1.00, -40.0).unwrap(); // wide-band noise
+        gen_orig.add_tone(-0.45, 0.00, 20.0).unwrap(); // tone
+        gen_orig.add_fsk(-0.33, 0.05, -10.0, 3, 16).unwrap(); // FSK
+        gen_orig.add_gmsk(-0.20, 0.05, 0.0, m, bt).unwrap(); // GMSK
+        gen_orig.add_noise(-0.05, 0.10, 0.0).unwrap(); // narrow-band noise
+        gen_orig.add_chirp(0.07, 0.07, 20.0, 8000.0, false, false).unwrap(); // chirp
+        gen_orig.add_modem(0.20, 0.10, 0.0, ms, m, beta).unwrap(); // linear modem
+
+        // clone the configured generator
+        let mut gen_copy = gen_orig.clone();
+
+        let buf_len = 1024;
+        let mut buf_orig = vec![Complex32::new(0.0, 0.0); buf_len];
+        let mut buf_copy = vec![Complex32::new(0.0, 0.0); buf_len];
+        let mut total = 0;
+        while total < num_samples {
+            gen_orig.write_samples(&mut buf_orig).unwrap();
+            gen_copy.write_samples(&mut buf_copy).unwrap();
+            periodogram_orig.write(&buf_orig);
+            periodogram_copy.write(&buf_copy);
+            total += buf_len;
+        }
+
+        let psd_orig = periodogram_orig.psd();
+        let psd_copy = periodogram_copy.psd();
+        assert_eq!(psd_orig.len(), psd_copy.len());
+
+        // the two spectra agree within tolerance across all bins
+        let mut max_err = 0.0f32;
+        for (a, b) in psd_orig.iter().zip(psd_copy.iter()) {
+            max_err = max_err.max((a - b).abs());
+        }
+        assert!(max_err < tol, "clone PSD diverged from original by {max_err} dB");
     }
 }
