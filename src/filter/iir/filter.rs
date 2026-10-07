@@ -362,22 +362,26 @@ where
 /// including `scale`.
 ///
 /// `b` and `a` hold three coefficients per section in ascending powers of
-/// `z^-1`, and `nsos` is the number of sections. The result is the product of
-/// the section responses. With `nsos == 0` the result is `scale`. A zero
-/// section denominator gives a nonfinite response.
+/// `z^-1`. The result is the product of the section responses. With empty
+/// slices the result is `scale`. A zero section denominator gives a
+/// nonfinite response.
 ///
 /// # Panics
 ///
-/// Panics when `b` or `a` is shorter than `3 * nsos`.
-pub fn iir_filter_freqresponse_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> Complex32
+/// Panics when the coefficient slices differ in length or their length is not
+/// a multiple of three.
+pub fn iir_filter_freqresponse_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> Complex32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
+    assert_eq!(b.len(), a.len(), "section coefficient lengths must match");
+    assert!(b.len().is_multiple_of(3), "section coefficient length must be divisible by three");
+
     let mut h;
 
     h = Complex32::from(1.0);
 
-    for i in 0..nsos {
+    for i in 0..b.len() / 3 {
         let hb = b[3 * i].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 0.0)
             + b[3 * i + 1].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 1.0)
             + b[3 * i + 2].into() * Complex32::from_polar(1.0, -2.0 * std::f32::consts::PI * fc * 2.0);
@@ -414,12 +418,13 @@ where
 ///
 /// # Panics
 ///
-/// Panics when `b` or `a` is shorter than `3 * nsos`.
-pub fn iir_filter_get_psd_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, nsos: usize, fc: f32) -> f32
+/// Panics when the coefficient slices differ in length or their length is not
+/// a multiple of three.
+pub fn iir_filter_get_psd_sos<Coeff>(b: &[Coeff], a: &[Coeff], scale: Coeff, fc: f32) -> f32
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
-    let h = iir_filter_freqresponse_sos(b, a, scale, nsos, fc);
+    let h = iir_filter_freqresponse_sos(b, a, scale, fc);
     10.0 * (h * h.conj()).re.log10()
 }
 
@@ -455,23 +460,24 @@ where
 ///
 /// `fc` is in cycles per sample. `b` and `a` hold three coefficients per
 /// section, and the estimate is the sum of the section delays. Only the real
-/// parts of the coefficients are used. With `nsos == 0` the result is zero, and
+/// parts of the coefficients are used. With empty slices the result is zero, and
 /// `fc` is not checked.
 ///
 /// # Errors
 ///
-/// Returns an error when `fc` is nonfinite or outside `[-0.5, 0.5]`.
-///
-/// # Panics
-///
-/// Panics when `b` or `a` is shorter than `3 * nsos`.
-pub fn iir_filter_groupdelay_sos<Coeff>(b: &[Coeff], a: &[Coeff], nsos: usize, fc: f32) -> Result<f32>
+/// Returns an error when `fc` is nonfinite or outside `[-0.5, 0.5]`, or when
+/// the coefficient slices differ in length or their length is not a multiple
+/// of three.
+pub fn iir_filter_groupdelay_sos<Coeff>(b: &[Coeff], a: &[Coeff], fc: f32) -> Result<f32>
 where
     Coeff: ComplexFloat<Real = f32> + Into<Complex32>,
 {
+    if b.len() != a.len() || !b.len().is_multiple_of(3) {
+        return Err(Error::Config("section coefficient lengths must match and be divisible by three".into()));
+    }
     let mut groupdelay = 0.0;
 
-    for i in 0..nsos {
+    for i in 0..b.len() / 3 {
         let b_re: [f32; 3] = [b[3 * i].re(), b[3 * i + 1].re(), b[3 * i + 2].re()];
         let a_re: [f32; 3] = [a[3 * i].re(), a[3 * i + 1].re(), a[3 * i + 2].re()];
 
@@ -969,7 +975,7 @@ where
         if self.filter_type == IirFilterType::Norm {
             iir_filter_freqresponse(&self.b, &self.a, self.scale, fc)
         } else {
-            iir_filter_freqresponse_sos(&self.b, &self.a, self.scale, self.qsos.len(), fc)
+            iir_filter_freqresponse_sos(&self.b, &self.a, self.scale, fc)
         }
     }
 
@@ -981,7 +987,7 @@ where
         if self.filter_type == IirFilterType::Norm {
             iir_filter_get_psd(&self.b, &self.a, self.scale, fc)
         } else {
-            iir_filter_get_psd_sos(&self.b, &self.a, self.scale, self.qsos.len(), fc)
+            iir_filter_get_psd_sos(&self.b, &self.a, self.scale, fc)
         }
     }
 
@@ -996,7 +1002,7 @@ where
         if self.filter_type == IirFilterType::Norm {
             iir_filter_groupdelay(&self.b, &self.a, fc)
         } else {
-            iir_filter_groupdelay_sos(&self.b, &self.a, self.qsos.len(), fc)
+            iir_filter_groupdelay_sos(&self.b, &self.a, fc)
         }
     }
 }
@@ -1026,7 +1032,7 @@ mod tests {
         for fc in [-0.25, 0.25] {
             for h in [
                 iir_filter_freqresponse(&b, &a, 2.0, fc),
-                iir_filter_freqresponse_sos(&b_sos, &a_sos, 2.0, 2, fc),
+                iir_filter_freqresponse_sos(&b_sos, &a_sos, 2.0, fc),
                 q.freqresponse(fc),
                 q_sos.freqresponse(fc),
             ] {
@@ -1053,13 +1059,13 @@ mod tests {
             let expected_psd = 10.0 * expected.norm_sqr().log10();
             for h in [
                 iir_filter_freqresponse(&b, &a, scale, fc),
-                iir_filter_freqresponse_sos(&b_sos, &a_sos, scale, 2, fc),
+                iir_filter_freqresponse_sos(&b_sos, &a_sos, scale, fc),
             ] {
                 assert_abs_diff_eq!(h.re, expected.re, epsilon = 1e-6);
                 assert_abs_diff_eq!(h.im, expected.im, epsilon = 1e-6);
             }
             assert_abs_diff_eq!(iir_filter_get_psd(&b, &a, scale, fc), expected_psd, epsilon = 1e-5);
-            assert_abs_diff_eq!(iir_filter_get_psd_sos(&b_sos, &a_sos, scale, 2, fc), expected_psd, epsilon = 1e-5);
+            assert_abs_diff_eq!(iir_filter_get_psd_sos(&b_sos, &a_sos, scale, fc), expected_psd, epsilon = 1e-5);
 
             for mut q in [
                 IirFilter::<Complex32, Complex32>::new(&b, &a).unwrap(),
