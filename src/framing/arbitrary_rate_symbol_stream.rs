@@ -32,38 +32,38 @@ impl ArbitraryRateSymbolStream {
         Self::new_linear(FirFilterShape::Arkaiser, 0.5, 7, 0.3, ModulationScheme::Qpsk)
     }
 
-    /// Creates a stream with symbol rate `bandwidth`.
+    /// Creates a stream with symbol rate `symbol_rate`.
     ///
-    /// `bandwidth` is in symbols per output sample and must be in
+    /// `symbol_rate` is in symbols per output sample and must be in
     /// `[0.001, 1]`. `filter_delay` is the filter semi-length in symbols, and
     /// `excess_bandwidth` is the rolloff factor. The gain starts at one.
     ///
     /// With a Nyquist or root-Nyquist shape, the signal occupies about
-    /// `bandwidth * (1 + excess_bandwidth)` cycles per sample. A `bandwidth`
+    /// `symbol_rate * (1 + excess_bandwidth)` cycles per sample. A `symbol_rate`
     /// above `1 / (1 + excess_bandwidth)` is accepted but aliases.
     ///
     /// # Errors
     ///
-    /// Returns an error when `bandwidth` is outside its range or
+    /// Returns an error when `symbol_rate` is outside its range or
     /// [`SymbolStream::new_linear`] rejects the other parameters.
     pub fn new_linear(
         filter_shape: FirFilterShape,
-        bandwidth: f32,
+        symbol_rate: f32,
         filter_delay: usize,
         excess_bandwidth: f32,
         modulation_scheme: ModulationScheme,
     ) -> Result<Self> {
         const BW_MIN: f32 = 0.001;
         const BW_MAX: f32 = 1.000;
-        if !(BW_MIN..=BW_MAX).contains(&bandwidth) {
-            return Err(Error::Config(format!("symbol bandwidth ({}) must be in [{},{}]", bandwidth, BW_MIN, BW_MAX)));
+        if !(BW_MIN..=BW_MAX).contains(&symbol_rate) {
+            return Err(Error::Config(format!("symbol rate ({}) must be in [{},{}]", symbol_rate, BW_MIN, BW_MAX)));
         }
 
         let symstream = SymbolStream::new_linear(filter_shape, 2, filter_delay, excess_bandwidth, modulation_scheme)?;
-        let rate = 0.5 / bandwidth;
+        let rate = 0.5 / symbol_rate;
         let resamp = MultistageResampler::new(rate, 60.0)?;
 
-        let buf_len = 1 << nextpow2((0.5 / bandwidth).ceil() as u32)?;
+        let buf_len = 1 << nextpow2((0.5 / symbol_rate).ceil() as u32)?;
         let buf = vec![Complex32::new(0.0, 0.0); buf_len];
 
         let mut q = Self { symstream, resamp, buf, buf_size: 0, buf_index: 0 };
@@ -92,18 +92,18 @@ impl ArbitraryRateSymbolStream {
     ///
     /// The value is recomputed from the resampler rate, so it can differ from
     /// the constructor argument by rounding.
-    pub fn bw(&self) -> f32 {
-        1.0 / (self.resamp.rate() * self.symstream.k() as f32)
+    pub fn symbol_rate(&self) -> f32 {
+        1.0 / (self.resamp.rate() * self.symstream.samples_per_symbol() as f32)
     }
 
     /// Returns the shaping filter semi-length in symbols.
-    pub fn m(&self) -> usize {
-        self.symstream.m()
+    pub fn filter_semi_length(&self) -> usize {
+        self.symstream.filter_semi_length()
     }
 
     /// Returns the rolloff factor of the shaping filter.
-    pub fn beta(&self) -> f32 {
-        self.symstream.beta()
+    pub fn rolloff(&self) -> f32 {
+        self.symstream.rolloff()
     }
 
     /// Changes the modulation scheme.
@@ -115,8 +115,8 @@ impl ArbitraryRateSymbolStream {
     ///
     /// Returns an error when `modulation_scheme` has no built-in
     /// constellation. The stream is unchanged on error.
-    pub fn set_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
-        self.symstream.set_scheme(modulation_scheme)
+    pub fn set_modulation_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
+        self.symstream.set_modulation_scheme(modulation_scheme)
     }
 
     /// Returns the modulation scheme.
@@ -165,12 +165,12 @@ impl ArbitraryRateSymbolStream {
         Ok(())
     }
 
-    /// Fills `buf` with the next samples of the stream.
+    /// Fills `output` with the next samples of the stream.
     ///
     /// The stream continues across calls, so any block size works. It never
     /// returns an error.
-    pub fn write_samples(&mut self, buf: &mut [Complex32]) -> Result<()> {
-        for sample in buf.iter_mut() {
+    pub fn write_samples(&mut self, output: &mut [Complex32]) -> Result<()> {
+        for sample in output.iter_mut() {
             if self.buf_index == self.buf_size {
                 self.fill_buffer()?;
             }
