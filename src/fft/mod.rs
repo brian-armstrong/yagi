@@ -77,21 +77,16 @@ impl<T: FftNum> Fft<T> {
         self.fft.process(output);
     }
 
-    /// Exchanges the two halves of the first `n` elements of `input`.
+    /// Exchanges the two halves of `input`.
     ///
-    /// For even `n`, this moves the zero-frequency bin to index `n / 2`.
-    /// For odd `n`, it exchanges the first two `floor(n / 2)`-element halves
+    /// For even lengths, this moves the zero-frequency bin to the midpoint.
+    /// For odd lengths, it exchanges the first two `floor(n / 2)`-element halves
     /// and leaves the final element in place. DC moves to index `n / 2`, but
     /// the negative and positive frequency bins are not in sorted order. For
     /// an ordered odd-length spectrum, rotate the bins by `(n + 1) / 2`
-    /// instead. `n` need not equal the plan length.
-    ///
-    /// # Panics
-    ///
-    /// Panics when `input` has fewer than `2 * (n / 2)` elements. Keep `n` at
-    /// most `input.len()`.
-    pub fn shift(&self, input: &mut [Complex<T>], n: usize) {
-        let n2 = if n.is_multiple_of(2) { n / 2 } else { (n - 1) / 2 };
+    /// instead. Here `n` is `input.len()` and need not equal the plan length.
+    pub fn shift(&self, input: &mut [Complex<T>]) {
+        let n2 = input.len() / 2;
         for i in 0..n2 {
             input.swap(i, i + n2);
         }
@@ -142,7 +137,7 @@ mod tests {
             Complex::new(1, 1),
         ];
         let fft = Fft::new(4, Direction::Forward);
-        fft.shift(&mut input, 4);
+        fft.shift(&mut input);
         assert_eq!(input, expected);
     }
 
@@ -170,8 +165,24 @@ mod tests {
             Complex::new(3, 3),
         ];
         let fft = Fft::new(8, Direction::Forward);
-        fft.shift(&mut input, 8);
+        fft.shift(&mut input);
         assert_eq!(input, expected);
+    }
+
+    #[test]
+    fn test_shift_odd_prefix_and_empty() {
+        let fft = Fft::new(4, Direction::Forward);
+        let mut input = [
+            Complex::new(0, 0),
+            Complex::new(1, 0),
+            Complex::new(2, 0),
+            Complex::new(3, 0),
+            Complex::new(4, 0),
+            Complex::new(5, 0),
+        ];
+        fft.shift(&mut input[..5]);
+        assert_eq!(input.map(|x| x.re), [2, 3, 0, 1, 4, 5]);
+        fft.shift(&mut input[..0]);
     }
 
     fn fft_test_runner(x: &[Complex<f32>], test: &[Complex<f32>], n: usize) {

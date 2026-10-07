@@ -433,7 +433,7 @@ mod tests {
         }
         let fft = Fft::new(nfft, Direction::Forward);
         fft.run(&buf_time, &mut buf_freq);
-        fft.shift(&mut buf_freq, nfft);
+        fft.shift(&mut buf_freq);
 
         // Compute bandwidth of window, ensure reasonable range
         let mut bw = 0.0;
