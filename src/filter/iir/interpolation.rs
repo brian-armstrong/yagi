@@ -276,7 +276,7 @@ mod tests {
             PsdRegion{ fmin: -0.4*bw, fmax: 0.4*bw,  pmin: 0.0-tol, pmax: 0.0+tol, test_lo: true, test_hi: true },
             PsdRegion{ fmin: 0.6*bw,  fmax: 0.5,     pmin: 0.0,     pmax: -as_+tol, test_lo: false, test_hi: true },
         ];
-        assert!(validate_psd_spectrum(&psd, nfft, &regions).unwrap());
+        assert!(validate_psd_spectrum(&psd, &regions).unwrap());
     }
 
     // baseline tests using create_kaiser() method

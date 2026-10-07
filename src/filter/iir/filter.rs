@@ -1043,6 +1043,18 @@ mod tests {
     }
 
     #[test]
+    fn test_iir_sos_helpers_use_slice_length() {
+        let b = [1.0f32, 0.0, 0.0, 0.0, 1.0, 0.0];
+        let a = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
+        let whole = iir_filter_freqresponse_sos(&b, &a, 1.0, 0.25);
+        let first = iir_filter_freqresponse_sos(&b[..3], &a[..3], 1.0, 0.25);
+        assert_abs_diff_eq!(whole.re, 0.0, epsilon = 1e-6);
+        assert_abs_diff_eq!(first.re, 1.0, epsilon = 1e-6);
+        assert!(iir_filter_groupdelay_sos(&b, &a[..3], 0.0).is_err());
+        assert!(iir_filter_groupdelay_sos(&b[..5], &a[..5], 0.0).is_err());
+    }
+
+    #[test]
     fn test_iirfilt_freqresponse_complex_power() {
         // H(z) = 1 / ((1 - 0.5j*z^-1) * (1 - 0.25*z^-1)).
         // The first factor gives gains of 2 and 2/3 at +1/4 and -1/4.
@@ -1057,10 +1069,9 @@ mod tests {
         for (fc, gain) in [(-0.25, 2.0 / 3.0), (0.25, 2.0)] {
             let expected = scale * gain / Complex32::new(1.0, fc);
             let expected_psd = 10.0 * expected.norm_sqr().log10();
-            for h in [
-                iir_filter_freqresponse(&b, &a, scale, fc),
-                iir_filter_freqresponse_sos(&b_sos, &a_sos, scale, fc),
-            ] {
+            for h in
+                [iir_filter_freqresponse(&b, &a, scale, fc), iir_filter_freqresponse_sos(&b_sos, &a_sos, scale, fc)]
+            {
                 assert_abs_diff_eq!(h.re, expected.re, epsilon = 1e-6);
                 assert_abs_diff_eq!(h.im, expected.im, epsilon = 1e-6);
             }
@@ -1173,7 +1184,7 @@ mod tests {
             PsdRegion { fmin: -0.002, fmax:  0.002, pmin: -tol, pmax: -20.0, test_lo: false, test_hi: true },
             PsdRegion { fmin:  0.200, fmax:  0.500, pmin: -tol, pmax:   tol, test_lo:  true, test_hi: true },
         ];
-        assert!(validate_psd_spectrum(&psd, nfft, &regions).unwrap());
+        assert!(validate_psd_spectrum(&psd, &regions).unwrap());
     }
 
     fn testbench_iirfilt_copy(format: IirFormat) {

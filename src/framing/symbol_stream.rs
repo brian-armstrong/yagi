@@ -375,7 +375,7 @@ mod tests {
             PsdRegion {fmin:  f1,  fmax:  0.5, pmin:  0.0, pmax: -80.0, test_lo: false, test_hi: true},
         ];
 
-        assert!(validate_psd_spectrum(&psd, nfft, &regions).unwrap());
+        assert!(validate_psd_spectrum(&psd, &regions).unwrap());
     }
 
     #[test]

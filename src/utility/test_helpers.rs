@@ -16,7 +16,8 @@ pub struct PsdRegion {
     pub test_hi: bool,
 }
 
-pub fn validate_psd_spectrum(psd: &[f32], nfft: usize, regions: &[PsdRegion]) -> Result<bool> {
+pub fn validate_psd_spectrum(psd: &[f32], regions: &[PsdRegion]) -> Result<bool> {
+    let nfft = psd.len();
     let mut fail = vec![false; nfft];
 
     for region in regions.iter() {
@@ -64,7 +65,7 @@ pub fn validate_psd_signal(buf: &[Complex<f32>], regions: &[PsdRegion]) -> Resul
         buf_psd[i] = 20.0 * buf_freq[(i + nfft / 2) % nfft].norm().log10();
     }
 
-    validate_psd_spectrum(&buf_psd, nfft, regions)
+    validate_psd_spectrum(&buf_psd, regions)
 }
 
 pub fn validate_psd_signalf(buf: &[f32], regions: &[PsdRegion]) -> Result<bool> {
@@ -84,7 +85,7 @@ pub fn validate_psd_firfilt(
         psd[i] = 20.0 * h.norm().log10();
     }
 
-    validate_psd_spectrum(&psd, nfft, regions)
+    validate_psd_spectrum(&psd, regions)
 }
 
 pub fn validate_psd_firfiltc(
@@ -99,7 +100,7 @@ pub fn validate_psd_firfiltc(
         psd[i] = 20.0 * h.norm().log10();
     }
 
-    validate_psd_spectrum(&psd, nfft, regions)
+    validate_psd_spectrum(&psd, regions)
 }
 
 pub fn validate_psd_iirfilt(iirfilt: &IirFilter<f32, f32>, nfft: usize, regions: &[PsdRegion]) -> Result<bool> {
@@ -110,13 +111,12 @@ pub fn validate_psd_iirfilt(iirfilt: &IirFilter<f32, f32>, nfft: usize, regions:
         psd[i] = 20.0 * h.norm().log10();
     }
 
-    validate_psd_spectrum(&psd, nfft, regions)
+    validate_psd_spectrum(&psd, regions)
 }
 
 pub fn validate_psd_spgramcf(spgram: &SpectralPeriodogram<Complex<f32>>, regions: &[PsdRegion]) -> Result<bool> {
-    let nfft = spgram.fft_size();
     let psd = spgram.psd();
-    validate_psd_spectrum(&psd, nfft, regions)
+    validate_psd_spectrum(&psd, regions)
 }
 
 /// Validate the common one-input/one-output block contract.
