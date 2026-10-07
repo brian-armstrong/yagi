@@ -508,6 +508,58 @@ mod tests {
     }
 
     #[test]
+    #[autotest_annotate(autotest_qdsync_set_buf_len)]
+    fn qdsync_set_buf_len() {
+        let seq_len = 2400;
+        let k = 2;
+        let m = 12;
+        let beta = 0.3f32;
+        let ftype = FirFilterShape::Arkaiser;
+
+        // generate synchronization sequence (unit-magnitude random phase)
+        let mut seq_tx = vec![Complex32::new(0.0, 0.0); seq_len];
+        for s in seq_tx.iter_mut() {
+            let theta = rand::random::<f32>() * 2.0 * std::f32::consts::PI;
+            *s = Complex32::from_polar(1.0, theta);
+        }
+
+        // create sync object using only the first 120 symbols as preamble
+        let mut q = QuadratureSynchronizer::new_linear(&seq_tx[..120], ftype, k, m, beta).unwrap();
+        q.set_range(0.001).unwrap();
+
+        let mut interp = FirInterpolationFilter::<Complex32>::new_prototype(ftype, k, m, beta, 0.0).unwrap();
+        let mut seq_rx: Vec<Complex32> = Vec::new();
+
+        let mut buf = vec![Complex32::new(0.0, 0.0); k];
+        for i in 0..(seq_len + 20 * m + 200) {
+            let s = if i < seq_len { seq_tx[i] } else { Complex32::new(0.0, 0.0) };
+            interp.execute(s, &mut buf).unwrap();
+            drain_all(&mut q, &buf, &mut seq_rx, seq_len);
+
+            // periodically resize the output block length
+            if i % 7 == 0 {
+                q.set_block_len(13 + 17 * (i % 11)).unwrap();
+            }
+        }
+
+        let rxy_hat = q.rxy();
+        let gamma_hat = q.gamma();
+        let dphi_hat = q.dphi();
+
+        let mut rmse = 0.0f32;
+        for &r in &seq_rx {
+            let e = r.norm() - 1.0;
+            rmse += e * e;
+        }
+        rmse = 10.0 * (rmse / seq_len as f32).log10();
+
+        assert!(rmse < -30.0, "rmse {rmse} not below -30 dB");
+        assert!(rxy_hat > 0.75, "rxy {rxy_hat} not above 0.75");
+        assert!(gamma_hat > 0.75, "gamma {gamma_hat} not above 0.75");
+        assert!(dphi_hat.abs() < 1e-3, "dphi {dphi_hat}");
+    }
+
+    #[test]
     #[autotest_annotate(autotest_qdsync_cccf_copy)]
     fn qdsync_cccf_copy() {
         let seq_len = 2400;
