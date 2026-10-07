@@ -17,10 +17,8 @@ use std::f32::consts::PI;
 ///
 /// The outermost symbols change the phase by `pi * modulation_index * (M - 1)`
 /// per symbol, where `M` is the constellation size. The change is measured as
-/// an angle in `(-pi, pi]`, so when `modulation_index * (M - 1)` is above one
-/// those symbols wrap and decode as other symbols, even without noise. With
-/// two bits per symbol and a `modulation_index` of 0.5, symbols 0 and 3 are
-/// misread.
+/// an angle in `(-pi, pi]`, so the modulation index must keep this phase
+/// strictly below `pi` to avoid aliasing.
 ///
 /// The demodulated symbols lag the transmitted ones by the modulator's
 /// delay plus this demodulator's [`Self::delay`]. See [`Self::delay`] for the
@@ -53,17 +51,13 @@ impl CpfskDemodulator {
     /// # Errors
     ///
     /// Returns an error when `bits_per_symbol` or `filter_delay` is zero,
-    /// `modulation_index` is zero or negative, `samples_per_symbol` is less
+    /// `modulation_index` is nonfinite, zero, negative, or at least
+    /// `1 / (2^bits_per_symbol - 1)`, `samples_per_symbol` is less
     /// than two or odd, or `excess_bandwidth` is outside `(0, 1]`. With more
     /// than one bit per symbol, [`CpfskFilterType::RcosFull`] and
     /// [`CpfskFilterType::RcosPartial`] also need at least four samples per
     /// symbol.
     ///
-    /// # Panics
-    ///
-    /// Panics when `bits_per_symbol` is at least the width of `usize` and
-    /// overflow checks are enabled. Without overflow checks, the shift wraps
-    /// and the constellation size is wrong.
     pub fn new(
         bits_per_symbol: usize,
         modulation_index: f32,
@@ -76,8 +70,11 @@ impl CpfskDemodulator {
         if bits_per_symbol == 0 {
             return Err(Error::Config("bits/symbol must be greater than 0".into()));
         }
-        if modulation_index <= 0.0 {
-            return Err(Error::Config("modulation index must be greater than 0".into()));
+        if !modulation_index.is_finite() || modulation_index <= 0.0 {
+            return Err(Error::Config("modulation index must be finite and greater than 0".into()));
+        }
+        if bits_per_symbol >= usize::BITS as usize {
+            return Err(Error::Config("bits/symbol is too large".into()));
         }
         if samples_per_symbol < 2 || !samples_per_symbol.is_multiple_of(2) {
             return Err(Error::Config("samples/symbol must be greater than 2 and even".into()));
@@ -96,6 +93,9 @@ impl CpfskDemodulator {
         let beta = excess_bandwidth;
 
         let m_size = 1 << bps;
+        if h * (m_size - 1) as f32 >= 1.0 {
+            return Err(Error::Config("modulation index aliases the outer symbols".into()));
+        }
 
         // create matched filter based on filter type (non-coherent demodulator)
         let (mf, symbol_delay, scale) = Self::create_matched_filter(k, m, beta, filter_type, m_size)?;
@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn test_cpfskdem_create() {
         // valid creation
-        let result = CpfskDemodulator::new(2, 0.5, 4, 3, 0.35, CpfskFilterType::Gmsk);
+        let result = CpfskDemodulator::new(2, 0.25, 4, 3, 0.35, CpfskFilterType::Gmsk);
         assert!(result.is_ok());
 
         // invalid bps
@@ -356,6 +356,17 @@ mod tests {
 
         let result = CpfskDemodulator::new(2, 0.5, 4, 3, 1.5, CpfskFilterType::Gmsk);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn cpfskdem_rejects_aliased_modulation_indices() {
+        for (bps, h) in [(1, 1.0), (2, 1.0 / 3.0), (2, 0.5), (3, 0.25)] {
+            assert!(CpfskDemodulator::new(bps, h, 4, 3, 0.35, CpfskFilterType::Square).is_err());
+        }
+        for h in [f32::NAN, f32::INFINITY] {
+            assert!(CpfskDemodulator::new(1, h, 4, 3, 0.35, CpfskFilterType::Square).is_err());
+        }
+        assert!(CpfskDemodulator::new(2, 0.25, 4, 3, 0.35, CpfskFilterType::Square).is_ok());
     }
 
     #[test]
