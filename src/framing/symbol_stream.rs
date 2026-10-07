@@ -104,17 +104,17 @@ impl SymbolStream {
     }
 
     /// Returns the number of output samples per symbol.
-    pub fn k(&self) -> usize {
+    pub fn samples_per_symbol(&self) -> usize {
         self.k
     }
 
     /// Returns the filter semi-length in symbols.
-    pub fn m(&self) -> usize {
+    pub fn filter_semi_length(&self) -> usize {
         self.m
     }
 
     /// Returns the rolloff factor of the shaping filter.
-    pub fn beta(&self) -> f32 {
+    pub fn rolloff(&self) -> f32 {
         self.beta
     }
 
@@ -128,7 +128,7 @@ impl SymbolStream {
     ///
     /// Returns an error when `modulation_scheme` has no built-in
     /// constellation. The stream is unchanged on error.
-    pub fn set_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
+    pub fn set_modulation_scheme(&mut self, modulation_scheme: ModulationScheme) -> Result<()> {
         self.modem = Modem::new(modulation_scheme)?;
         Ok(())
     }
@@ -165,12 +165,12 @@ impl SymbolStream {
         Ok(())
     }
 
-    /// Fills `buf` with the next samples of the stream.
+    /// Fills `output` with the next samples of the stream.
     ///
     /// The stream continues across calls, so any block size works. It never
     /// returns an error.
-    pub fn write_samples(&mut self, buf: &mut [Complex32]) -> Result<()> {
-        for sample in buf.iter_mut() {
+    pub fn write_samples(&mut self, output: &mut [Complex32]) -> Result<()> {
+        for sample in output.iter_mut() {
             if self.buf_index == 0 {
                 self.fill_buffer()?;
             }
