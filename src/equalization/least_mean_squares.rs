@@ -12,10 +12,6 @@ use num_complex::ComplexFloat;
 /// on the input level. Updates start once the history is full.
 ///
 /// Weights are in FIR order, with the first applied to the newest sample.
-/// [`Self::weights`] returns them in that order and
-/// [`Self::set_coefficients`] takes them back. [`Self::coefficients`] returns
-/// the internal form instead, which is reversed and conjugated, and is not a
-/// valid input to `set_coefficients`.
 #[derive(Clone, Debug)]
 #[doc(alias = "Eqlms")]
 pub struct LeastMeanSquaresEqualizer<T> {
@@ -62,7 +58,7 @@ where
     /// Creates an equalizer with initial weights in FIR order.
     ///
     /// `coefficients[0]` is applied to the newest sample, the same order that
-    /// [`Self::weights`] returns. The learning rate starts at 0.5.
+    /// [`Self::coefficients`] writes. The learning rate starts at 0.5.
     ///
     /// # Errors
     ///
@@ -77,35 +73,6 @@ where
 
         q.reset();
         Ok(q)
-    }
-
-    /// Replaces the weights with `coefficients`, in FIR order.
-    ///
-    /// The output of [`Self::weights`] can be passed here unchanged. The
-    /// output of [`Self::coefficients`] cannot. The new weights also become
-    /// the ones [`Self::reset`] restores. The sample history is unchanged.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the length of `coefficients` differs from
-    /// [`Self::length`]. The equalizer is unchanged on error.
-    pub fn set_coefficients(&mut self, coefficients: &[T]) -> Result<()> {
-        if coefficients.len() != self.h_len {
-            return Err(Error::Config(format!(
-                "coefficient length must match equalizer length: {} != {}",
-                coefficients.len(),
-                self.h_len
-            )));
-        }
-
-        for ((initial_coefficient, active_weight), &coefficient) in
-            self.h0.iter_mut().zip(self.w0.iter_mut()).zip(coefficients.iter().rev())
-        {
-            let coefficient = coefficient.conj();
-            *initial_coefficient = coefficient;
-            *active_weight = coefficient;
-        }
-        Ok(())
     }
 
     fn new_base(filter_length: usize) -> Result<Self> {
@@ -247,22 +214,53 @@ where
         self.h_len
     }
 
-    /// Returns the weights in internal form, which is history order and
-    /// conjugated.
+    /// Replaces the weights with `coefficients`, in FIR order.
     ///
-    /// The first element applies to the oldest sample, and complex weights
-    /// are conjugated. This is not the form [`Self::set_coefficients`] takes.
-    /// Use [`Self::weights`] to save weights for restoring later.
-    pub fn coefficients(&self) -> &[T] {
-        &self.w0
+    /// The sample history is unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the length of `coefficients` differs from
+    /// [`Self::length`]. The equalizer is unchanged on error.
+    pub fn set_coefficients(&mut self, coefficients: &[T]) -> Result<()> {
+        if coefficients.len() != self.h_len {
+            return Err(Error::Config(format!(
+                "coefficient length must match equalizer length: {} != {}",
+                coefficients.len(),
+                self.h_len
+            )));
+        }
+
+        for ((initial_coefficient, active_weight), &coefficient) in
+            self.h0.iter_mut().zip(self.w0.iter_mut()).zip(coefficients.iter().rev())
+        {
+            let coefficient = coefficient.conj();
+            *initial_coefficient = coefficient;
+            *active_weight = coefficient;
+        }
+        Ok(())
     }
 
-    /// Returns a copy of the weights in FIR order.
+    /// Writes the coefficients to `coefficients` in FIR order.
     ///
-    /// The first weight applies to the newest sample. The result can be
-    /// passed to [`Self::set_coefficients`] unchanged.
-    pub fn weights(&self) -> Vec<T> {
-        self.w0.iter().rev().map(|&x| x.conj()).collect()
+    /// `coefficients[0]` is applied to the newest sample.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the length of `coefficients` differs
+    /// from [`Self::length`]. `coefficients` is unchanged on error.
+    pub fn coefficients(&self, coefficients: &mut [T]) -> Result<()> {
+        if coefficients.len() != self.h_len {
+            return Err(Error::Config(format!(
+                "output coefficients array length must match equalizer length: {} != {}",
+                coefficients.len(),
+                self.h_len
+            )));
+        }
+        for (hc, &wc) in coefficients.iter_mut().zip(self.w0.iter().rev()) {
+            *hc = wc.conj();
+        }
+        Ok(())
     }
 
     /// Pushes one received sample into the history.
@@ -428,7 +426,9 @@ mod tests {
             eq.step_blind(estimate);
             eq.step(Complex::new(0.0, 0.0), estimate);
         }
-        assert!(eq.weights().iter().all(|w| w.re.is_finite() && w.im.is_finite()));
+        let mut h = [Complex::new(0.0, 0.0); 3];
+        eq.coefficients(&mut h).unwrap();
+        assert!(h.iter().all(|w| w.re.is_finite() && w.im.is_finite()));
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -644,12 +644,9 @@ mod tests {
         assert!(q.decim_execute(&[], 0).is_err());
 
         // test getting weights
-        let h = q.coefficients();
+        let mut h = vec![Complex::new(0.0, 0.0); h_len];
+        q.coefficients(&mut h).unwrap();
         for (i, &coeff) in h.iter().enumerate() {
-            assert_eq!(coeff, if i == k * m { Complex::new(1.0, 0.0) } else { Complex::new(0.0, 0.0) });
-        }
-        let w = q.coefficients();
-        for (i, &coeff) in w.iter().enumerate() {
             assert_eq!(coeff, if i == k * m { Complex::new(1.0, 0.0) } else { Complex::new(0.0, 0.0) });
         }
     }
@@ -664,10 +661,37 @@ mod tests {
 
         equalizer.set_coefficients(&[1.0, 0.0, 0.0]).unwrap();
         assert_eq!(equalizer.execute().unwrap(), 3.0);
-        assert_eq!(equalizer.weights(), [1.0, 0.0, 0.0]);
+        let mut h = [0.0f32; 3];
+        equalizer.coefficients(&mut h).unwrap();
+        assert_eq!(h, [1.0, 0.0, 0.0]);
 
         assert!(equalizer.set_coefficients(&[1.0, 0.0]).is_err());
         assert_eq!(equalizer.execute().unwrap(), 3.0);
+    }
+
+    #[test]
+    fn eqlms_complex_weights_round_trip_in_fir_order() {
+        let weights = [Complex::new(1.0, 2.0), Complex::new(3.0, -1.0), Complex::new(-2.0, 1.0)];
+        let samples = [Complex::new(1.0, 1.0), Complex::new(2.0, -1.0), Complex::new(-1.0, 2.0)];
+        let expected = weights[0] * samples[2] + weights[1] * samples[1] + weights[2] * samples[0];
+
+        let mut equalizer = LeastMeanSquaresEqualizer::from_coefficients(&weights).unwrap();
+        equalizer.push_block(&samples);
+        assert_eq!(equalizer.execute().unwrap(), expected);
+        let mut h = [Complex::new(0.0, 0.0); 3];
+        equalizer.coefficients(&mut h).unwrap();
+        assert_eq!(h, weights);
+
+        let mut saved = [Complex::new(0.0, 0.0); 3];
+        equalizer.coefficients(&mut saved).unwrap();
+        equalizer.set_coefficients(&saved).unwrap();
+        assert_eq!(equalizer.execute().unwrap(), expected);
+        equalizer.coefficients(&mut saved).unwrap();
+        assert_eq!(saved, weights);
+        assert_eq!(equalizer.execute().unwrap(), expected);
+        equalizer.reset();
+        equalizer.coefficients(&mut saved).unwrap();
+        assert_eq!(saved, weights);
     }
 
     #[test]
@@ -706,8 +730,10 @@ mod tests {
         }
 
         // get and compare coefficients
-        let w0 = q0.coefficients();
-        let w1 = q1.coefficients();
+        let mut w0 = [Complex::new(0.0, 0.0); 21];
+        let mut w1 = [Complex::new(0.0, 0.0); 21];
+        q0.coefficients(&mut w0).unwrap();
+        q1.coefficients(&mut w1).unwrap();
         assert_eq!(w0, w1);
     }
 

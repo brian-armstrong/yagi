@@ -11,12 +11,7 @@ use crate::matrix::{FloatComplex, MatrixRef};
 /// equalizer keeps a `length x length` matrix, so memory and work per update
 /// grow with the square of the length.
 ///
-/// The weight setters and getters use different orders.
-/// [`Self::from_coefficients`] and [`Self::set_coefficients`] take history
-/// order, with the first weight applied to the oldest sample.
-/// [`Self::weights`] and [`Self::train`] use FIR order, with the first weight
-/// applied to the newest sample. Reverse the output of `weights` before
-/// passing it to either setter.
+/// Weights are in FIR order, with the first applied to the newest sample.
 #[derive(Clone, Debug)]
 #[doc(alias = "Eqrls")]
 pub struct RecursiveLeastSquaresEqualizer<T> {
@@ -54,11 +49,10 @@ where
         Ok(q)
     }
 
-    /// Creates an equalizer with initial weights in history order.
+    /// Creates an equalizer with initial weights in FIR order.
     ///
-    /// `coefficients[0]` is applied to the oldest sample. This is the reverse
-    /// of the order [`Self::weights`] returns. The forgetting factor starts at
-    /// 0.99.
+    /// `coefficients[0]` is applied to the newest sample. The forgetting
+    /// factor starts at 0.99.
     ///
     /// # Errors
     ///
@@ -66,7 +60,9 @@ where
     /// overflows `usize`.
     pub fn from_coefficients(coefficients: &[T]) -> Result<Self> {
         let mut q = Self::new_base(coefficients.len())?;
-        q.h0.copy_from_slice(coefficients);
+        for (hc, &c) in q.h0.iter_mut().zip(coefficients.iter().rev()) {
+            *hc = c;
+        }
         q.reset();
         Ok(q)
     }
@@ -93,12 +89,11 @@ where
         })
     }
 
-    /// Replaces the weights with `coefficients`, in history order.
+    /// Replaces the weights with `coefficients`, in FIR order.
     ///
-    /// `coefficients[0]` is applied to the oldest sample. Reverse the output
-    /// of [`Self::weights`] before passing it here. The new weights also
-    /// become the ones [`Self::reset`] restores. The sample history and the
-    /// internal matrix are unchanged.
+    /// The first weight applies to the newest sample. These
+    /// coefficients are restored by [`Self::reset`]. The sample
+    /// history and the internal matrix are unchanged.
     ///
     /// # Errors
     ///
@@ -113,8 +108,28 @@ where
             )));
         }
 
-        self.h0.copy_from_slice(coefficients);
-        self.w0.copy_from_slice(coefficients);
+        for ((initial, active), &weight) in self.h0.iter_mut().zip(&mut self.w0).zip(coefficients.iter().rev()) {
+            *initial = weight;
+            *active = weight;
+        }
+        Ok(())
+    }
+
+    /// Writes the coefficients to `coefficients` in FIR order.
+    ///
+    /// `coefficients[0]` is applied to the newest sample.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the length of `coefficients` differs from the equalizer
+    /// length. `coefficients` is unchanged on error.
+    pub fn coefficients(&self, coefficients: &mut [T]) -> Result<()> {
+        if coefficients.len() != self.p {
+            return Err(Error::Config("output coefficients array length must match filter order".into()));
+        }
+        for (hc, &wc) in coefficients.iter_mut().zip(self.w0.iter().rev()) {
+            *hc = wc;
+        }
         Ok(())
     }
 
@@ -217,49 +232,27 @@ where
         Ok(())
     }
 
-    /// Writes the weights to `w` in FIR order.
-    ///
-    /// `w[0]` is applied to the newest sample. Reverse `w` before passing it
-    /// to [`Self::set_coefficients`] or [`Self::from_coefficients`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the length of `w` differs from the equalizer
-    /// length. `w` is unchanged on error.
-    pub fn weights(&self, w: &mut [T]) -> Result<()> {
-        if w.len() != self.p {
-            return Err(Error::Config("output weights array length must match filter order".into()));
-        }
-        for i in 0..self.p {
-            w[i] = self.w0[self.p - i - 1];
-        }
-        Ok(())
-    }
-
-    /// Resets the equalizer and trains it on `n` received samples `x` and
+    /// Resets the equalizer and trains it on the received samples `x` and
     /// desired samples `d`.
     ///
     /// `w` gives the starting weights and receives the trained ones, both in
-    /// FIR order like [`Self::weights`]. The starting weights do not become
-    /// the ones [`Self::reset`] restores. Extra elements of `x` and `d` are
-    /// ignored.
+    /// FIR order like [`Self::coefficients`]. The starting weights do not become
+    /// the ones [`Self::reset`] restores.
     ///
     /// # Errors
     ///
-    /// Returns an error when `n` is less than the equalizer length, the
-    /// length of `w` differs from it, or `x` or `d` holds fewer than `n`
-    /// samples. The equalizer and `w` are unchanged on error.
-    pub fn train(&mut self, w: &mut [T], x: &[T], d: &[T], n: usize) -> Result<()> {
-        if n < self.p {
+    /// Returns an error when `x` is shorter than the equalizer length, the
+    /// length of `w` differs from it, or `x` and `d` differ in length. The
+    /// equalizer and `w` are unchanged on error.
+    pub fn train(&mut self, w: &mut [T], x: &[T], d: &[T]) -> Result<()> {
+        if x.len() < self.p {
             return Err(Error::Config("training sequence less than filter order".into()));
         }
         if w.len() != self.p {
             return Err(Error::Config("weight length must match equalizer length".into()));
         }
-        if x.len() < n || d.len() < n {
-            return Err(Error::Config(
-                "training input and desired lengths must cover the requested sample count".into(),
-            ));
+        if x.len() != d.len() {
+            return Err(Error::Config("training input and desired lengths must match".into()));
         }
 
         self.reset();
@@ -268,13 +261,13 @@ where
             self.w0[i] = w[self.p - i - 1];
         }
 
-        for i in 0..n {
+        for i in 0..x.len() {
             self.push(x[i]);
             let d_hat = self.execute()?;
             self.step(d[i], d_hat)?;
         }
 
-        self.weights(w)
+        self.coefficients(w)
     }
 }
 
@@ -341,7 +334,7 @@ mod tests {
         }
 
         // initialize weights, train equalizer
-        eq.train(&mut w, &y, d, n).unwrap();
+        eq.train(&mut w, &y, &d[..n]).unwrap();
 
         // compare filter taps
         assert_abs_diff_eq!(w[0], 1.0f32, epsilon = tol);
@@ -401,8 +394,8 @@ mod tests {
         // get and compare coefficients
         let mut w0 = vec![0.0f32; 9];
         let mut w1 = vec![0.0f32; 9];
-        q0.weights(&mut w0).unwrap();
-        q1.weights(&mut w1).unwrap();
+        q0.coefficients(&mut w0).unwrap();
+        q1.coefficients(&mut w1).unwrap();
         assert_eq!(w0, w1);
     }
 
@@ -411,10 +404,10 @@ mod tests {
         assert!(RecursiveLeastSquaresEqualizer::<f32>::new(0).is_err());
         assert!(RecursiveLeastSquaresEqualizer::<f32>::from_coefficients(&[]).is_err());
 
-        let coefficients = [1.0f32, 0.5, -0.25];
+        let coefficients = [-0.25f32, 0.5, 1.0];
         let equalizer = RecursiveLeastSquaresEqualizer::from_coefficients(&coefficients).unwrap();
         let mut weights = [0.0f32; 3];
-        equalizer.weights(&mut weights).unwrap();
+        equalizer.coefficients(&mut weights).unwrap();
         assert_eq!(weights, [-0.25, 0.5, 1.0]);
     }
 
@@ -426,14 +419,42 @@ mod tests {
         equalizer.push(3.0);
         assert_eq!(equalizer.execute().unwrap(), 3.0);
 
-        equalizer.set_coefficients(&[1.0, 0.0, 0.0]).unwrap();
+        equalizer.set_coefficients(&[0.0, 0.0, 1.0]).unwrap();
         assert_eq!(equalizer.execute().unwrap(), 1.0);
         let mut weights = [0.0f32; 3];
-        equalizer.weights(&mut weights).unwrap();
+        equalizer.coefficients(&mut weights).unwrap();
         assert_eq!(weights, [0.0, 0.0, 1.0]);
 
-        assert!(equalizer.set_coefficients(&[1.0, 0.0]).is_err());
+        assert!(equalizer.set_coefficients(&[0.0, 1.0]).is_err());
         assert_eq!(equalizer.execute().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn eqrls_complex_weights_round_trip_in_fir_order() {
+        use num_complex::Complex32;
+
+        let weights = [Complex32::new(1.0, 2.0), Complex32::new(3.0, -1.0), Complex32::new(-2.0, 1.0)];
+        let samples = [Complex32::new(1.0, 1.0), Complex32::new(2.0, -1.0), Complex32::new(-1.0, 2.0)];
+        let expected = weights[0] * samples[2] + weights[1] * samples[1] + weights[2] * samples[0];
+
+        let mut equalizer = RecursiveLeastSquaresEqualizer::<Complex32>::new(3).unwrap();
+        equalizer.push(samples[0]);
+        equalizer.push(samples[1]);
+        equalizer.push(samples[2]);
+        equalizer.set_coefficients(&weights).unwrap();
+        assert_eq!(equalizer.execute().unwrap(), expected);
+
+        let mut saved = [Complex32::new(0.0, 0.0); 3];
+        equalizer.coefficients(&mut saved).unwrap();
+        assert_eq!(saved, weights);
+        equalizer.set_coefficients(&saved).unwrap();
+        assert_eq!(equalizer.execute().unwrap(), expected);
+        assert!(equalizer.set_coefficients(&saved[..2]).is_err());
+        equalizer.coefficients(&mut saved).unwrap();
+        assert_eq!(saved, weights);
+        equalizer.reset();
+        equalizer.coefficients(&mut saved).unwrap();
+        assert_eq!(saved, weights);
     }
 
     #[test]
@@ -443,8 +464,8 @@ mod tests {
         let input = [0.0f32; 3];
         let desired = [0.0f32; 3];
 
-        assert!(equalizer.train(&mut weights[..2], &input, &desired, 3).is_err());
-        assert!(equalizer.train(&mut weights, &input[..2], &desired, 3).is_err());
-        assert!(equalizer.train(&mut weights, &input, &desired[..2], 3).is_err());
+        assert!(equalizer.train(&mut weights[..2], &input, &desired).is_err());
+        assert!(equalizer.train(&mut weights, &input[..2], &desired).is_err());
+        assert!(equalizer.train(&mut weights, &input, &desired[..2]).is_err());
     }
 }
