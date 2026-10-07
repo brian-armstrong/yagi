@@ -67,13 +67,13 @@ impl CvsdCodec {
     /// # Errors
     ///
     /// Returns an error when `num_bits` is outside `1..=8` or
-    /// `slope_multiplier` is one or less.
+    /// `slope_multiplier` is nonfinite or one or less.
     pub fn new(num_bits: usize, slope_multiplier: f32) -> Result<Self> {
         if num_bits == 0 {
             return Err(Error::Config("cvsd num_bits must be positive".into()));
         }
-        if slope_multiplier <= 1.0 {
-            return Err(Error::Config("CVSD slope multiplier must be greater than 1".into()));
+        if !slope_multiplier.is_finite() || slope_multiplier <= 1.0 {
+            return Err(Error::Config("CVSD slope multiplier must be finite and greater than 1".into()));
         }
         if num_bits > 8 {
             return Err(Error::Config("cvsd num_bits must be no more than 8".into()));
@@ -263,6 +263,13 @@ impl CvsdCodec {
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn cvsd_rejects_nonfinite_slope_multiplier() {
+        for slope in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(CvsdCodec::new(3, slope).is_err());
+        }
+    }
 
     // check RMS error
     #[test]
