@@ -924,10 +924,6 @@ impl OfdmFrameSynchronizer {
     /// `max(cp_len, 2)` taps, capped at the number of pilot and data
     /// subcarriers.
     ///
-    /// # Errors
-    ///
-    /// Returns an error when no pilot or data subcarrier sits at an even bin
-    /// index. The first preamble symbols use only even bins.
     pub fn new(config: &OfdmFrameConfig) -> Result<Self> {
         let mut synchronizer = Self {
             config: config.clone(),

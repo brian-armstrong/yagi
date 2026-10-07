@@ -61,10 +61,6 @@ pub struct OfdmFrameGenerator {
 impl OfdmFrameGenerator {
     /// Creates a generator for the frame layout in `config`.
     ///
-    /// # Errors
-    ///
-    /// Returns an error when no pilot or data subcarrier sits at an even bin
-    /// index. The first preamble symbols use only even bins.
     pub fn new(config: &OfdmFrameConfig) -> Result<Self> {
         let num_subcarriers = config.num_subcarriers();
         let cp_len = config.cp_len();

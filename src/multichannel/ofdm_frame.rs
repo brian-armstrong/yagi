@@ -41,6 +41,8 @@ pub struct SubcarrierCounts {
 /// taper lengths, and the role of each subcarrier. A generator and the
 /// synchronizer that receives its frames must use equal configurations.
 /// The allocation is indexed by natural FFT bin.
+/// The default uses 64 subcarriers, a 16-sample prefix, a 4-sample taper,
+/// and the standard allocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OfdmFrameConfig {
     num_subcarriers: usize,
@@ -58,15 +60,17 @@ impl OfdmFrameConfig {
     /// `allocation` gives the role of each subcarrier in natural FFT-bin order
     /// and is copied. `None` selects the allocation that
     /// [`ofdmframe_init_default_sctype`] produces. The allocation must have at
-    /// least two pilot subcarriers and one data subcarrier.
+    /// least two pilot subcarriers, one data subcarrier, and one enabled
+    /// even-indexed subcarrier for the short preamble.
     ///
     /// # Errors
     ///
     /// Returns an error when `num_subcarriers` is odd or less than eight,
     /// `cp_len` exceeds `num_subcarriers`, `taper_len` exceeds `cp_len`,
     /// `allocation` does not have `num_subcarriers` entries, or the allocation
-    /// has too few pilot or data subcarriers. The default allocation has too
-    /// few pilots when `num_subcarriers` is eight.
+    /// has too few pilot or data subcarriers, or no enabled even-indexed
+    /// subcarrier. The default allocation has too few pilots when
+    /// `num_subcarriers` is eight.
     pub fn new(
         num_subcarriers: usize,
         cp_len: usize,
@@ -104,6 +108,11 @@ impl OfdmFrameConfig {
 
         let counts = ofdmframe_validate_sctype(&allocation)
             .map_err(|_| Error::Config("ofdmframe_config_create(), invalid subcarrier allocation".into()))?;
+        if !allocation.iter().step_by(2).any(|&t| t != SubcarrierType::Null) {
+            return Err(Error::Config(
+                "ofdmframe_config_create(), short preamble needs an enabled even-indexed subcarrier".into(),
+            ));
+        }
 
         Ok(Self { num_subcarriers, cp_len, taper_len, allocation, counts })
     }
@@ -138,6 +147,12 @@ impl OfdmFrameConfig {
     /// prefix.
     pub fn symbol_len(&self) -> usize {
         self.num_subcarriers + self.cp_len
+    }
+}
+
+impl Default for OfdmFrameConfig {
+    fn default() -> Self {
+        Self::new(64, 16, 4, None).expect("valid default OFDM frame configuration")
     }
 }
 
@@ -339,10 +354,10 @@ pub fn ofdmframe_init_sctype_range(f0: f32, f1: f32, p: &mut [SubcarrierType]) -
     if num_subcarriers < 6 {
         return Err(Error::Config("ofdmframe_init_sctype_range(), less than 6 subcarriers".into()));
     }
-    if f0 < -0.5 || f0 > 0.5 {
+    if !(-0.5..=0.5).contains(&f0) {
         return Err(Error::Config("ofdmframe_init_sctype_range(), lower frequency edge must be in [-0.5,0.5]".into()));
     }
-    if f1 < -0.5 || f1 > 0.5 {
+    if !(-0.5..=0.5).contains(&f1) {
         return Err(Error::Config("ofdmframe_init_sctype_range(), upper frequency edge must be in [-0.5,0.5]".into()));
     }
     if f0 >= f1 {
@@ -444,14 +459,12 @@ pub fn ofdmframe_sctype_string(p: &[SubcarrierType]) -> String {
 ///
 /// Returns an error when the string is not bracketed or holds a character
 /// other than `.`, `|` or `+`.
-///
-/// # Panics
-///
-/// Can panic on a string with non-ASCII characters, because its length is
-/// counted in bytes.
 pub fn ofdmframe_sctype_from_string(s: &str) -> Result<Vec<SubcarrierType>> {
     if s.len() < 2 || !s.starts_with('[') || !s.ends_with(']') {
         return Err(Error::Config("ofdmframe_sctype_from_string(), string must be bracketed".into()));
+    }
+    if !s.is_ascii() {
+        return Err(Error::Config("ofdmframe_sctype_from_string(), string must be ASCII".into()));
     }
     let num_subcarriers = s.len() - 2;
     let mut p = Vec::with_capacity(num_subcarriers);
@@ -475,6 +488,14 @@ mod tests {
     use test_macro::autotest_annotate;
 
     #[test]
+    fn ofdm_range_rejects_nan_edges() {
+        let mut types = [SubcarrierType::Null; 64];
+        assert!(ofdmframe_init_sctype_range(f32::NAN, 0.25, &mut types).is_err());
+        assert!(ofdmframe_init_sctype_range(-0.25, f32::NAN, &mut types).is_err());
+        assert!(types.iter().all(|t| *t == SubcarrierType::Null));
+    }
+
+    #[test]
     fn test_frame_config_validation_and_accessors() {
         assert!(OfdmFrameConfig::new(0, 16, 4, None).is_err());
         assert!(OfdmFrameConfig::new(7, 16, 4, None).is_err());
@@ -496,6 +517,22 @@ mod tests {
         assert_eq!(config.allocation().len(), 64);
         let counts = config.counts();
         assert_eq!(counts.null + counts.pilot + counts.data, 64);
+    }
+
+    #[test]
+    fn frame_config_requires_an_enabled_even_bin_for_s0() {
+        let mut allocation = vec![SubcarrierType::Null; 64];
+        allocation[1] = SubcarrierType::Pilot;
+        allocation[3] = SubcarrierType::Pilot;
+        allocation[5] = SubcarrierType::Data;
+        assert!(OfdmFrameConfig::new(64, 16, 4, Some(&allocation)).is_err());
+
+        allocation[2] = SubcarrierType::Data;
+        let config = OfdmFrameConfig::new(64, 16, 4, Some(&allocation)).unwrap();
+        assert_eq!(config.counts().pilot, 2);
+        assert_eq!(config.counts().data, 2);
+        assert!(crate::multichannel::OfdmFrameGenerator::new(&config).is_ok());
+        assert!(crate::multichannel::OfdmFrameSynchronizer::new(&config).is_ok());
     }
 
     #[test]
@@ -623,5 +660,10 @@ mod tests {
         let s = ofdmframe_sctype_string(&p);
         let p2 = ofdmframe_sctype_from_string(&s).unwrap();
         assert_eq!(p, p2);
+    }
+
+    #[test]
+    fn test_sctype_string_rejects_non_ascii() {
+        assert!(ofdmframe_sctype_from_string("[€€]").is_err());
     }
 }
