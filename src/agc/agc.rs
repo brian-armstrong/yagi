@@ -123,12 +123,6 @@ where
     /// squelch state hold, and the output is not multiplied by the scale. This
     /// never returns an error.
     ///
-    /// # Panics
-    ///
-    /// Panics when the squelch timeout is zero, an unlocked call runs in
-    /// [`AgcSquelchMode::SignalLo`], and overflow checks are enabled. Without
-    /// overflow checks, the squelch timer wraps and `Timeout` is effectively
-    /// never reported.
     pub fn execute(&mut self, input: T) -> Result<T> {
         let y = input * self.g;
         let y2 = (y * y.conj()).re();
@@ -387,8 +381,7 @@ where
     /// [`AgcSquelchMode::SignalLo`] before [`AgcSquelchMode::Timeout`].
     ///
     /// A signal that returns on the sample that uses up the timer still gives
-    /// `Timeout`. Use a nonzero timeout, since zero makes [`Self::execute`]
-    /// panic in `SignalLo` when overflow checks are enabled.
+    /// `Timeout`. Zero expires immediately when the signal falls.
     pub fn squelch_set_timeout(&mut self, timeout: usize) {
         self.squelch_timeout = timeout;
     }
@@ -432,17 +425,21 @@ where
                 self.squelch_timer = self.squelch_timeout;
                 if threshold_exceeded {
                     AgcSquelchMode::SignalHi
+                } else if self.squelch_timeout == 0 {
+                    AgcSquelchMode::Timeout
                 } else {
                     AgcSquelchMode::SignalLo
                 }
             }
             AgcSquelchMode::SignalLo => {
-                self.squelch_timer -= 1;
-                if self.squelch_timer == 0 {
+                if self.squelch_timeout == 0 || self.squelch_timer <= 1 {
+                    self.squelch_timer = 0;
                     AgcSquelchMode::Timeout
                 } else if threshold_exceeded {
+                    self.squelch_timer -= 1;
                     AgcSquelchMode::SignalHi
                 } else {
+                    self.squelch_timer -= 1;
                     AgcSquelchMode::SignalLo
                 }
             }
@@ -678,6 +675,25 @@ mod tests {
                 1900 => assert_eq!(mode, AgcSquelchMode::Enabled),
                 _ => {}
             }
+        }
+    }
+
+    #[test]
+    fn agc_zero_squelch_timeout_expires_immediately() {
+        let mut agc = Agc::<f32>::new();
+        agc.squelch_enable();
+        agc.squelch_set_threshold(100.0);
+        agc.squelch_set_timeout(0);
+        agc.squelch_mode = AgcSquelchMode::Fall;
+        agc.execute(0.0).unwrap();
+        assert_eq!(agc.squelch_status(), AgcSquelchMode::Timeout);
+
+        // Also handle a timeout changed to zero while already in SignalLo.
+        for timer in [0, 5] {
+            agc.squelch_mode = AgcSquelchMode::SignalLo;
+            agc.squelch_timer = timer;
+            agc.execute(0.0).unwrap();
+            assert_eq!(agc.squelch_status(), AgcSquelchMode::Timeout);
         }
     }
 
