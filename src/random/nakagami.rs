@@ -6,18 +6,17 @@ use crate::random::randgammaf;
 ///
 /// `m` is the shape and `omega` is the spread, the mean-square value of the
 /// distribution. The sample is the square root of a gamma sample from
-/// [`randgammaf`], with the same cost and the same rare infinite result. A NaN
-/// `m` never returns.
+/// [`randgammaf`], with the same cost and the same rare infinite result.
 ///
 /// # Errors
 ///
-/// Returns an error when `m` is less than `0.5`, `omega` is zero or negative,
-/// or `omega / m` is zero, as it is for an infinite `m`.
+/// Returns an error when `m` or `omega` is nonfinite, `m` is less than `0.5`,
+/// or `omega` is zero or negative.
 pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
     // validate input
-    if m < 0.5 {
+    if !m.is_finite() || m < 0.5 {
         return Err(Error::Config("m cannot be less than 0.5".to_string()));
-    } else if omega <= 0.0 {
+    } else if !omega.is_finite() || omega <= 0.0 {
         return Err(Error::Config("omega must be greater than zero".to_string()));
     }
 
@@ -38,13 +37,13 @@ pub fn randnakmf(m: f32, omega: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `m` is less than `0.5` or `omega` is zero or
-/// negative.
+/// Returns an error when `m` or `omega` is nonfinite, `m` is less than `0.5`,
+/// or `omega` is zero or negative.
 pub fn randnakmf_pdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     // validate input
-    if m < 0.5 {
+    if !m.is_finite() || m < 0.5 {
         return Err(Error::Config("m cannot be less than 0.5".to_string()));
-    } else if omega <= 0.0 {
+    } else if !omega.is_finite() || omega <= 0.0 {
         return Err(Error::Config("omega must be greater than zero".to_string()));
     }
 
@@ -69,13 +68,14 @@ pub fn randnakmf_pdf(x: f32, m: f32, omega: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `m` is less than `0.5`, `omega` is zero or negative,
-/// or the calculation overflows or leaves `[0, 1]`.
+/// Returns an error when `m` or `omega` is nonfinite, `m` is less than `0.5`,
+/// `omega` is zero or negative, or the calculation overflows or leaves
+/// `[0, 1]`.
 pub fn randnakmf_cdf(x: f32, m: f32, omega: f32) -> Result<f32> {
     // validate input
-    if m < 0.5 {
+    if !m.is_finite() || m < 0.5 {
         return Err(Error::Config("m cannot be less than 0.5".to_string()));
-    } else if omega <= 0.0 {
+    } else if !omega.is_finite() || omega <= 0.0 {
         return Err(Error::Config("omega must be greater than zero".to_string()));
     }
 

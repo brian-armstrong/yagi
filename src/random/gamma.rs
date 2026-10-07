@@ -7,11 +7,11 @@ use crate::random::randf;
 /// `alpha` is the shape and `beta` is the scale. The distribution has mean
 /// `alpha * beta`. Each sample takes `floor(alpha)` uniform draws plus a
 /// rejection loop for the fractional part of `alpha`, so the cost grows with
-/// `alpha`. An infinite or NaN `alpha` never returns.
+/// `alpha`.
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha` or `beta` is zero or negative.
+/// Returns an error when `alpha` or `beta` is nonfinite, zero or negative.
 ///
 /// # Warning
 ///
@@ -19,9 +19,9 @@ use crate::random::randf;
 /// then infinite. Each draw is zero with probability `2^-24`.
 pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {
     // validate input
-    if alpha <= 0.0 {
+    if !alpha.is_finite() || alpha <= 0.0 {
         return Err(Error::Config("alpha must be greater than zero".to_string()));
-    } else if beta <= 0.0 {
+    } else if !beta.is_finite() || beta <= 0.0 {
         return Err(Error::Config("beta must be greater than zero".to_string()));
     }
 
@@ -49,12 +49,12 @@ pub fn randgammaf(alpha: f32, beta: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha` or `beta` is zero or negative.
+/// Returns an error when `alpha` or `beta` is nonfinite, zero or negative.
 pub fn randgammaf_pdf(x: f32, alpha: f32, beta: f32) -> Result<f32> {
     // validate input
-    if alpha <= 0.0 {
+    if !alpha.is_finite() || alpha <= 0.0 {
         return Err(Error::Config("alpha must be greater than zero".to_string()));
-    } else if beta <= 0.0 {
+    } else if !beta.is_finite() || beta <= 0.0 {
         return Err(Error::Config("beta must be greater than zero".to_string()));
     }
 

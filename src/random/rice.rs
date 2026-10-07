@@ -12,12 +12,13 @@ use num_complex::Complex;
 ///
 /// # Errors
 ///
-/// Returns an error when `k` is negative or `omega` is zero or negative.
+/// Returns an error when `k` or `omega` is nonfinite, `k` is negative, or
+/// `omega` is zero or negative.
 pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
     // validate input
-    if k < 0.0 {
+    if !k.is_finite() || k < 0.0 {
         return Err(Error::Config("k must be non-negative".to_string()));
-    } else if omega <= 0.0 {
+    } else if !omega.is_finite() || omega <= 0.0 {
         return Err(Error::Config("omega must be greater than zero".to_string()));
     }
 
@@ -37,7 +38,8 @@ pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `k` is negative or `omega` is zero or negative.
+/// Returns an error when `k` or `omega` is nonfinite, `k` is negative, or
+/// `omega` is zero or negative.
 ///
 /// # Warning
 ///
@@ -48,9 +50,9 @@ pub fn randricekf(k: f32, omega: f32) -> Result<f32> {
 /// `x = 1`, the result is zero although the true density is about 3.6.
 pub fn randricekf_pdf(x: f32, k: f32, omega: f32) -> Result<f32> {
     // validate input
-    if k < 0.0 {
+    if !k.is_finite() || k < 0.0 {
         return Err(Error::Config("k must be non-negative".to_string()));
-    } else if omega <= 0.0 {
+    } else if !omega.is_finite() || omega <= 0.0 {
         return Err(Error::Config("omega must be greater than zero".to_string()));
     }
 

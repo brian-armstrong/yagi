@@ -35,6 +35,39 @@ mod tests {
     use test_macro::autotest_annotate;
 
     #[test]
+    fn distribution_parameters_reject_nonfinite_values() {
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(randuf(bad, 1.0).is_err());
+            assert!(randuf_pdf(0.0, 0.0, bad).is_err());
+            assert!(randuf_cdf(0.0, bad, 1.0).is_err());
+            assert!(randnf_pdf(0.0, bad, 1.0).is_err());
+            assert!(randnf_cdf(0.0, 0.0, bad).is_err());
+            assert!(randexpf(bad).is_err());
+            assert!(randexpf_pdf(0.0, bad).is_err());
+            assert!(randexpf_cdf(0.0, bad).is_err());
+            assert!(randweibf(bad, 1.0, 0.0).is_err());
+            assert!(randweibf_pdf(0.0, 1.0, bad, 0.0).is_err());
+            assert!(randweibf_cdf(0.0, 1.0, 1.0, bad).is_err());
+            assert!(randricekf(bad, 1.0).is_err());
+            assert!(randricekf_pdf(0.0, 0.0, bad).is_err());
+            assert!(randgammaf(bad, 1.0).is_err());
+            assert!(randgammaf_pdf(0.0, 1.0, bad).is_err());
+            assert!(randnakmf(bad, 1.0).is_err());
+            assert!(randnakmf_pdf(0.0, 1.0, bad).is_err());
+        }
+    }
+
+    #[test]
+    fn uniform_wide_finite_interval() {
+        let a = -f32::MAX;
+        let b = f32::MAX;
+        assert_abs_diff_eq!(randuf_cdf(0.0, a, b).unwrap(), 0.5, epsilon = 1e-6);
+        assert!(randuf_pdf(0.0, a, b).unwrap().is_finite());
+        let x = randuf(a, b).unwrap();
+        assert!(x.is_finite() && x >= a && x <= b);
+    }
+
+    #[test]
     #[autotest_annotate(autotest_random_config)]
     fn test_random_config() {
         // Exponential: lambda out of range

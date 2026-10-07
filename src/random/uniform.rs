@@ -27,48 +27,46 @@ pub fn randf_cdf(x: f32) -> f32 {
 
 /// Returns a uniform random sample in `[a, b)`.
 ///
-/// Rounding can occasionally return `b` itself. The width `b - a` must not
-/// overflow `f32`.
+/// Rounding can occasionally return `b` itself. Interval arithmetic uses
+/// `f64` so finite `f32` endpoints can span the full range.
 ///
 /// # Errors
 ///
-/// Returns an error when `a` is not less than `b`.
+/// Returns an error when either endpoint is nonfinite or `a` is not less than `b`.
 pub fn randuf(a: f32, b: f32) -> Result<f32> {
-    if a >= b {
+    if !a.is_finite() || !b.is_finite() || a >= b {
         return Err(Error::Range(format!("randuf({},{}) has invalid range", a, b)));
     }
 
-    Ok(a + (b - a) * randf())
+    Ok((a as f64 + (b as f64 - a as f64) * randf() as f64) as f32)
 }
 
 /// Returns the probability density of the uniform distribution on `[a, b]`.
 ///
 /// The density is `1 / (b - a)` inside the interval and zero outside it. The
-/// width `b - a` must not overflow `f32`. A wider interval, such as
-/// `[-f32::MAX, f32::MAX]`, gives a density of zero throughout.
+/// width is computed in `f64` to support the full finite `f32` range.
 ///
 /// # Errors
 ///
-/// Returns an error when `a` is not less than `b`.
+/// Returns an error when either endpoint is nonfinite or `a` is not less than `b`.
 pub fn randuf_pdf(x: f32, a: f32, b: f32) -> Result<f32> {
-    if a >= b {
+    if !a.is_finite() || !b.is_finite() || a >= b {
         return Err(Error::Range(format!("randuf_pdf({},{},{}) has invalid range", x, a, b)));
     }
 
-    Ok(if x < a || x > b { 0.0 } else { 1.0 / (b - a) })
+    Ok(if x < a || x > b { 0.0 } else { (1.0 / (b as f64 - a as f64)) as f32 })
 }
 
 /// Returns the cumulative distribution of the uniform distribution on
 /// `[a, b]`.
 ///
-/// The width `b - a` must not overflow `f32`. A wider interval, such as
-/// `[-f32::MAX, f32::MAX]`, gives zero below about its midpoint and NaN above.
+/// Interval arithmetic uses `f64` to support the full finite `f32` range.
 ///
 /// # Errors
 ///
-/// Returns an error when `a` is not less than `b`.
+/// Returns an error when either endpoint is nonfinite or `a` is not less than `b`.
 pub fn randuf_cdf(x: f32, a: f32, b: f32) -> Result<f32> {
-    if a >= b {
+    if !a.is_finite() || !b.is_finite() || a >= b {
         return Err(Error::Range(format!("randuf_cdf({},{},{}) has invalid range", x, a, b)));
     }
 
@@ -77,7 +75,7 @@ pub fn randuf_cdf(x: f32, a: f32, b: f32) -> Result<f32> {
     } else if x > b {
         1.0
     } else {
-        (x - a) / (b - a)
+        ((x as f64 - a as f64) / (b as f64 - a as f64)) as f32
     })
 }
 

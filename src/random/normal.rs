@@ -63,9 +63,12 @@ pub fn cawgn(x: &mut Complex<f32>, nstd: f32) {
 ///
 /// # Errors
 ///
-/// Returns an error when `sig` is zero or negative.
+/// Returns an error when `eta` or `sig` is nonfinite, or `sig` is zero or negative.
 pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
-    if sig <= 0.0 {
+    if !eta.is_finite() {
+        return Err(Error::Config("mean must be finite".to_string()));
+    }
+    if !sig.is_finite() || sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));
     }
 
@@ -80,9 +83,12 @@ pub fn randnf_pdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `sig` is zero or negative.
+/// Returns an error when `eta` or `sig` is nonfinite, or `sig` is zero or negative.
 pub fn randnf_cdf(x: f32, eta: f32, sig: f32) -> Result<f32> {
-    if sig <= 0.0 {
+    if !eta.is_finite() {
+        return Err(Error::Config("mean must be finite".to_string()));
+    }
+    if !sig.is_finite() || sig <= 0.0 {
         return Err(Error::Config("standard deviation must be greater than zero".to_string()));
     }
 

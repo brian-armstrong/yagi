@@ -8,13 +8,17 @@ use crate::random::randf;
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha` or `beta` is zero or negative.
+/// Returns an error when a parameter is nonfinite, or `alpha` or `beta` is
+/// zero or negative.
 pub fn randweibf(alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
-    if alpha <= 0.0 {
+    if !alpha.is_finite() || alpha <= 0.0 {
         return Err(Error::Config("alpha must be greater than zero".to_string()));
-    } else if beta <= 0.0 {
+    } else if !beta.is_finite() || beta <= 0.0 {
         return Err(Error::Config("beta must be greater than zero".to_string()));
+    }
+    if !gamma.is_finite() {
+        return Err(Error::Config("gamma must be finite".to_string()));
     }
 
     let u = loop {
@@ -34,13 +38,17 @@ pub fn randweibf(alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha` or `beta` is zero or negative.
+/// Returns an error when a parameter is nonfinite, or `alpha` or `beta` is
+/// zero or negative.
 pub fn randweibf_pdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
-    if alpha <= 0.0 {
+    if !alpha.is_finite() || alpha <= 0.0 {
         return Err(Error::Config("alpha must be greater than zero".to_string()));
-    } else if beta <= 0.0 {
+    } else if !beta.is_finite() || beta <= 0.0 {
         return Err(Error::Config("beta must be greater than zero".to_string()));
+    }
+    if !gamma.is_finite() {
+        return Err(Error::Config("gamma must be finite".to_string()));
     }
 
     if x < gamma {
@@ -58,13 +66,17 @@ pub fn randweibf_pdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `alpha` or `beta` is zero or negative.
+/// Returns an error when a parameter is nonfinite, or `alpha` or `beta` is
+/// zero or negative.
 pub fn randweibf_cdf(x: f32, alpha: f32, beta: f32, gamma: f32) -> Result<f32> {
     // validate input
-    if alpha <= 0.0 {
+    if !alpha.is_finite() || alpha <= 0.0 {
         return Err(Error::Config("alpha must be greater than zero".to_string()));
-    } else if beta <= 0.0 {
+    } else if !beta.is_finite() || beta <= 0.0 {
         return Err(Error::Config("beta must be greater than zero".to_string()));
+    }
+    if !gamma.is_finite() {
+        return Err(Error::Config("gamma must be finite".to_string()));
     }
 
     if x <= gamma {
