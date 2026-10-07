@@ -5,17 +5,12 @@ use crate::error::{Error, Result};
 /// Bit offset `0` is the most significant bit of `src[0]`, and the field is
 /// written most significant bit first. A field that crosses the end of `src`
 /// writes only the bits that fit. Other bits of `src` are unchanged. `b`
-/// should be in `1..=8`.
+/// must be in `1..=8`.
 ///
 /// # Errors
 ///
-/// Returns an error when `k` is `8 * src.len()` or more, or `b` exceeds
-/// eight. `src` is unchanged on error.
-///
-/// # Panics
-///
-/// Panics when `b` is zero and overflow checks are enabled. Without overflow
-/// checks, a zero width can overwrite bits of `src`.
+/// Returns an error when `k` is `8 * src.len()` or more, or `b` is outside
+/// `1..=8`. `src` is unchanged on error.
 pub fn pack_array(src: &mut [u8], k: usize, b: usize, sym_in: u8) -> Result<()> {
     let n = src.len();
 
@@ -23,8 +18,8 @@ pub fn pack_array(src: &mut [u8], k: usize, b: usize, sym_in: u8) -> Result<()> 
     if k >= 8 * n {
         return Err(Error::Range(format!("pack_array(), bit index {} exceeds array length {}", k, 8 * n)));
     }
-    if b > 8 {
-        return Err(Error::Range("pack_array(), symbol size cannot exceed 8 bits".into()));
+    if !(1..=8).contains(&b) {
+        return Err(Error::Range("pack_array(), symbol size must be in 1..=8 bits".into()));
     }
 
     // find base index
@@ -70,17 +65,12 @@ pub fn pack_array(src: &mut [u8], k: usize, b: usize, sym_in: u8) -> Result<()> 
 ///
 /// Bit offset `0` is the most significant bit of `src[0]`. The field is
 /// returned in the low bits of the result, and bits beyond the end of `src`
-/// read as zero. `b` should be in `1..=8`.
+/// read as zero. `b` must be in `1..=8`.
 ///
 /// # Errors
 ///
-/// Returns an error when `k` is `8 * src.len()` or more, or `b` exceeds
-/// eight.
-///
-/// # Panics
-///
-/// Panics when `b` is zero, `k` is a multiple of eight, and overflow checks
-/// are enabled. Otherwise a zero width returns zero.
+/// Returns an error when `k` is `8 * src.len()` or more, or `b` is outside
+/// `1..=8`.
 pub fn unpack_array(src: &[u8], k: usize, b: usize) -> Result<u8> {
     let n = src.len();
 
@@ -88,8 +78,8 @@ pub fn unpack_array(src: &[u8], k: usize, b: usize) -> Result<u8> {
     if k >= 8 * n {
         return Err(Error::Range(format!("unpack_array(), bit index {} exceeds array length {}", k, 8 * n)));
     }
-    if b > 8 {
-        return Err(Error::Range("unpack_array(), symbol size cannot exceed 8 bits".into()));
+    if !(1..=8).contains(&b) {
+        return Err(Error::Range("unpack_array(), symbol size must be in 1..=8 bits".into()));
     }
 
     // find base index
@@ -220,23 +210,22 @@ pub fn unpack_bytes(sym_in: &[u8], sym_out: &mut [u8]) -> Result<usize> {
 ///
 /// # Errors
 ///
-/// Returns an error when `sym_out` cannot hold
+/// Returns an error when either width is outside `1..=8`, or `sym_out` cannot hold
 /// `ceil(sym_in.len() * sym_in_bps / sym_out_bps)` symbols. The output is
 /// unchanged on error. Elements beyond the written output are unchanged on
 /// success.
-///
-/// # Panics
-///
-/// Panics when `sym_out_bps` is zero. The widths are not otherwise checked.
-/// A zero `sym_in_bps` writes nothing, and a width above eight can panic or
-/// silently drop bits.
 pub fn repack_bytes(sym_in: &[u8], sym_in_bps: usize, sym_out: &mut [u8], sym_out_bps: usize) -> Result<usize> {
+    if !(1..=8).contains(&sym_in_bps) || !(1..=8).contains(&sym_out_bps) {
+        return Err(Error::Range("repack_bytes(), symbol widths must be in 1..=8 bits".into()));
+    }
     let sym_in_len = sym_in.len();
     let sym_out_len = sym_out.len();
 
     // compute number of output symbols and determine if output array
     // is sufficiently sized
-    let total_bits = sym_in_len * sym_in_bps;
+    let total_bits = sym_in_len
+        .checked_mul(sym_in_bps)
+        .ok_or_else(|| Error::Range("repack_bytes(), bit count overflows usize".into()))?;
     let req_sym_out_len = total_bits.div_ceil(sym_out_bps);
     if sym_out_len < req_sym_out_len {
         return Err(Error::Config(format!(
@@ -441,6 +430,18 @@ pub fn msb_index(x: u32) -> u32 {
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn bit_pack_rejects_invalid_widths() {
+        let mut output = [0xa5u8; 2];
+        for width in [0, 9] {
+            assert!(pack_array(&mut output, 0, width, 1).is_err());
+            assert!(unpack_array(&output, 0, width).is_err());
+            assert!(repack_bytes(&[1], width, &mut output, 1).is_err());
+            assert!(repack_bytes(&[1], 1, &mut output, width).is_err());
+            assert_eq!(output, [0xa5; 2]);
+        }
+    }
 
     #[test]
     #[autotest_annotate(autotest_count_ones)]
