@@ -614,11 +614,6 @@ pub fn poly_findroots_durandkerner(p: &[f64], roots: &mut [Complex<f64>]) -> Res
 /// conditioned, especially when repeated or closely spaced, and such inputs
 /// can fail to converge.
 ///
-/// Each quadratic factor is solved with the direct quadratic formula, so a
-/// factor whose two roots differ greatly in magnitude loses the smaller one to
-/// cancellation. For `[1, -1e9, 1]` the roots come out as 1e9 and 0 rather
-/// than 1e9 and 1e-9.
-///
 /// # Errors
 ///
 /// Returns an error when `p` has fewer than two coefficients, a coefficient
@@ -675,9 +670,22 @@ pub fn poly_findroots_bairstow(p: &[f64], roots: &mut [Complex<f64>]) -> Result<
                 poly_findroots_bairstow_persistent(&p_buf[..n], &mut pr_buf[..n - 2], &mut u, &mut v)?;
             }
 
-            // Compute complex roots of x^2 + u*x + v
-            let r0 = Complex::new(-0.5 * u, 0.0) + 0.5 * Complex::new(u * u - 4.0 * v, 0.0).sqrt();
-            let r1 = Complex::new(-0.5 * u, 0.0) - 0.5 * Complex::new(u * u - 4.0 * v, 0.0).sqrt();
+            // Compute roots of x^2 + u*x + v. For real roots, form the
+            // larger-magnitude root without subtraction, then use r0*r1 = v
+            // to avoid cancellation in the smaller root.
+            let discriminant = u * u - 4.0 * v;
+            let (r0, r1) = if discriminant >= 0.0 {
+                let large = -0.5 * (u + discriminant.sqrt().copysign(u));
+                let small = if large == 0.0 { 0.0 } else { v / large };
+                if u < 0.0 {
+                    (Complex::new(large, 0.0), Complex::new(small, 0.0))
+                } else {
+                    (Complex::new(small, 0.0), Complex::new(large, 0.0))
+                }
+            } else {
+                let half_sqrt = 0.5 * Complex::new(discriminant, 0.0).sqrt();
+                (Complex::new(-0.5 * u, 0.0) + half_sqrt, Complex::new(-0.5 * u, 0.0) - half_sqrt)
+            };
 
             result[root_index] = r0;
             result[root_index + 1] = r1;
@@ -817,8 +825,7 @@ fn poly_sort_roots_compare(a: &Complex<f64>, b: &Complex<f64>) -> Ordering {
 /// The roots are found in `f64` by [`poly_findroots_bairstow`] and then
 /// rounded to `f32`, so they share its limits. Roots of high-order
 /// polynomials are poorly conditioned, especially when repeated or closely
-/// spaced, and roots of very different magnitude can lose the smaller one.
-/// Use a dedicated numerical library when those cases must be handled
+/// spaced. Use a dedicated numerical library when those cases must be handled
 /// reliably.
 ///
 /// # Errors
@@ -1428,6 +1435,30 @@ mod tests {
         polyf_findroots(&coefficients, &mut roots).unwrap();
 
         assert_eq!(roots, [Complex::new(1.5, 0.0)]);
+    }
+
+    #[test]
+    fn test_poly_findroots_bairstow_preserves_small_quadratic_root() {
+        for middle in [-1e9f64, 1e9] {
+            let mut roots = [Complex::new(0.0f64, 0.0); 2];
+            poly_findroots_bairstow(&[1.0, middle, 1.0], &mut roots).unwrap();
+            roots.sort_by(|a, b| a.norm().total_cmp(&b.norm()));
+            let sign = -middle.signum();
+            assert!((roots[0].re - sign * 1e-9).abs() < 1e-21);
+            assert!((roots[1].re - sign * 1e9).abs() < 1e-6);
+            assert_eq!(roots[0].im, 0.0);
+            assert_eq!(roots[1].im, 0.0);
+
+            let mut single_roots = [Complex::new(0.0f32, 0.0); 2];
+            polyf_findroots(&[1.0, middle as f32, 1.0], &mut single_roots).unwrap();
+            single_roots.sort_by(|a, b| a.norm().total_cmp(&b.norm()));
+            assert!((single_roots[0].re - sign as f32 * 1e-9).abs() < 1e-15);
+            assert!((single_roots[1].re - sign as f32 * 1e9).abs() < 1e3);
+        }
+
+        let mut zero_roots = [Complex::new(1.0f64, 1.0); 2];
+        poly_findroots_bairstow(&[0.0, 0.0, 1.0], &mut zero_roots).unwrap();
+        assert_eq!(zero_roots, [Complex::new(0.0, 0.0); 2]);
     }
 
     #[test]
