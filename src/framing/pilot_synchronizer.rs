@@ -51,13 +51,14 @@ impl PilotSynchronizer {
     ///
     /// `payload_len` and `pilot_spacing` must match the transmitting
     /// [`PilotGenerator`](crate::framing::PilotGenerator). A payload shorter
-    /// than `pilot_spacing` gives a frame with a single pilot, which
-    /// [`Self::execute`] cannot use.
+    /// than `pilot_spacing` gives a frame with a single pilot, which cannot
+    /// estimate carrier frequency.
     ///
     /// # Errors
     ///
-    /// Returns an error when `payload_len` is zero, `pilot_spacing` is less
-    /// than two, or the frame needs more than about `2^31` pilots.
+    /// Returns an error when `payload_len` is shorter than `pilot_spacing`,
+    /// `pilot_spacing` is less than two, or the frame needs more than about
+    /// `2^31` pilots.
     ///
     /// # Panics
     ///
@@ -71,6 +72,9 @@ impl PilotSynchronizer {
         }
         if pilot_spacing < 2 {
             return Err(Error::Config("pilot spacing must be at least 2 symbols".into()));
+        }
+        if payload_len < pilot_spacing {
+            return Err(Error::Config("at least two pilots are required".into()));
         }
 
         // derived values
@@ -162,14 +166,11 @@ impl PilotSynchronizer {
     /// report this frame after the call. An offset outside the range given on
     /// the type yields a wrongly corrected payload without an error.
     ///
-    /// The frequency estimate needs at least two pilots. With a single pilot,
-    /// or when every received pilot is zero, the estimates and the payload
-    /// become NaN and the call still succeeds.
-    ///
     /// # Errors
     ///
-    /// Returns an error when either slice has the wrong length. The estimates
-    /// and `payload` are unchanged on error.
+    /// Returns an error when either slice has the wrong length or the received
+    /// pilots cannot give a frequency or gain estimate. The estimates and
+    /// `payload` are unchanged on error.
     pub fn execute(&mut self, frame: &[Complex32], payload: &mut [Complex32]) -> Result<()> {
         if frame.len() != self.frame_len {
             return Err(Error::Config("unexpected frame length".into()));
@@ -181,6 +182,9 @@ impl PilotSynchronizer {
         // extract pilots and de-rotate with known sequence
         for i in 0..self.num_pilots {
             self.buf_time[i] = frame[i * self.pilot_spacing] * self.pilots[i].conj();
+        }
+        if self.buf_time[..self.num_pilots].iter().all(|x| *x == Complex32::new(0.0, 0.0)) {
+            return Err(Error::Value("received pilots have zero energy".into()));
         }
 
         // compute frequency offset by computing transform and finding peak
@@ -202,9 +206,12 @@ impl PilotSynchronizer {
         let yneg = self.buf_freq[ineg].abs();
         let a = 0.5 * (ypos + yneg) - y0;
         let b = 0.5 * (ypos - yneg);
+        if a == 0.0 {
+            return Err(Error::Value("pilot frequency peak cannot be interpolated".into()));
+        }
         let idx = -b / (2.0 * a);
         let index = i0 as f32 + idx;
-        self.dphi_hat = (if i0 > self.nfft / 2 { index - self.nfft as f32 } else { index }) * 2.0 * PI
+        let dphi_hat = (if i0 > self.nfft / 2 { index - self.nfft as f32 } else { index }) * 2.0 * PI
             / (self.nfft * self.pilot_spacing) as f32;
 
         // estimate carrier phase offset
@@ -212,9 +219,13 @@ impl PilotSynchronizer {
         // phase (more accurate than interpolating the FFT phase directly)
         let mut metric = Complex32::new(0.0, 0.0);
         for i in 0..self.num_pilots {
-            let phase = -self.dphi_hat * i as f32 * self.pilot_spacing as f32;
+            let phase = -dphi_hat * i as f32 * self.pilot_spacing as f32;
             metric += self.buf_time[i] * Complex32::from_polar(1.0, phase);
         }
+        if metric == Complex32::new(0.0, 0.0) {
+            return Err(Error::Value("received pilots have zero coherent gain".into()));
+        }
+        self.dphi_hat = dphi_hat;
         self.phi_hat = metric.arg();
         self.g_hat = metric.abs() / self.num_pilots as f32;
 
@@ -256,6 +267,17 @@ mod tests {
     use approx::assert_abs_diff_eq;
     use std::f32::consts::FRAC_1_SQRT_2;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn pilot_sync_rejects_unidentifiable_pilots() {
+        assert!(PilotSynchronizer::new(1, 2).is_err());
+        let mut sync = PilotSynchronizer::new(4, 2).unwrap();
+        let zero_frame = vec![Complex32::new(0.0, 0.0); sync.frame_len()];
+        let mut payload = vec![Complex32::new(7.0, 0.0); 4];
+        assert!(sync.execute(&zero_frame, &mut payload).is_err());
+        assert!(payload.iter().all(|&x| x == Complex32::new(7.0, 0.0)));
+        assert_eq!(sync.gain(), 1.0);
+    }
 
     // test simple recovery of frame in noise
     #[allow(clippy::too_many_arguments)]
