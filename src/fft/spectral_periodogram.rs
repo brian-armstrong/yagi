@@ -83,16 +83,14 @@ where
     /// is scaled to unit energy. The Kaiser window uses `beta = 10`, and the
     /// KBD window uses `beta = 3`.
     ///
-    /// A window whose coefficients are all zero cannot be scaled to unit
-    /// energy, and every bin then reads as the PSD floor. The only such window
-    /// is a [`WindowType::Hann`] window of length two.
     ///
     /// # Errors
     ///
     /// Returns an error when `fft_size` is less than two, `window_length` is
     /// zero or exceeds `fft_size`, `hop_size` is zero, or `window_type` is
     /// [`WindowType::Unknown`]. Also returns an error when `window_length` is
-    /// odd and `window_type` is [`WindowType::Kaiser`] or [`WindowType::Kbd`].
+    /// odd and `window_type` is [`WindowType::Kbd`], or when the window has
+    /// zero or nonfinite energy.
     pub fn new(fft_size: usize, window_type: WindowType, window_length: usize, hop_size: usize) -> Result<Self> {
         // validate input
         if fft_size < 2 {
@@ -104,7 +102,7 @@ where
         if window_length == 0 {
             return Err(Error::Config("window size must be greater than zero".into()));
         }
-        if window_type == WindowType::Kaiser && !window_length.is_multiple_of(2) {
+        if window_type == WindowType::Kbd && !window_length.is_multiple_of(2) {
             return Err(Error::Config("KBD window length must be even".into()));
         }
         if hop_size == 0 {
@@ -157,6 +155,9 @@ where
             g += w * w;
         }
 
+        if !g.is_finite() || g <= 0.0 {
+            return Err(Error::Config("window energy must be finite and positive".into()));
+        }
         g = 1.0 / g.sqrt();
 
         // scale window and copy
@@ -174,8 +175,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `fft_size` is less than four or `fft_size / 2` is
-    /// odd.
+    /// Returns an error when `fft_size` is less than four.
     pub fn from_nfft(fft_size: usize) -> Result<Self> {
         if fft_size < 2 {
             return Err(Error::Config("fft size must be at least 2".into()));
@@ -223,10 +223,10 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when `alpha` is neither `-1.0` nor in `[0, 1]`. The
-    /// mode is unchanged on error.
+    /// Returns an error when `alpha` is nonfinite or neither `-1.0` nor in
+    /// `[0, 1]`. The mode is unchanged on error.
     pub fn set_alpha(&mut self, _alpha: f32) -> Result<()> {
-        if _alpha != -1.0 && (_alpha < 0.0 || _alpha > 1.0) {
+        if !_alpha.is_finite() || (_alpha != -1.0 && !(0.0..=1.0).contains(&_alpha)) {
             return Err(Error::Config("alpha must be in {-1,[0,1]}".into()));
         }
 
@@ -247,8 +247,16 @@ where
     ///
     /// The value is only stored. No method reads it, and it does not affect
     /// the transform.
-    pub fn set_freq(&mut self, _freq: f32) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the frequency is nonfinite.
+    pub fn set_freq(&mut self, _freq: f32) -> Result<()> {
+        if !_freq.is_finite() {
+            return Err(Error::Config("center frequency must be finite".into()));
+        }
         self.frequency = _freq;
+        Ok(())
     }
 
     /// Stores a sample rate in samples per second.
@@ -258,9 +266,9 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error when the rate is zero or negative.
+    /// Returns an error when the rate is nonfinite, zero or negative.
     pub fn set_rate(&mut self, _rate: f32) -> Result<()> {
-        if _rate <= 0.0 {
+        if !_rate.is_finite() || _rate <= 0.0 {
             return Err(Error::Config("sample rate must be greater than zero".into()));
         }
         self.sample_rate = _rate;
@@ -791,6 +799,34 @@ mod tests {
 
         let mut q = SpectralPeriodogram::<Complex32>::from_nfft(540).unwrap();
         assert!(q.set_rate(-10e6).is_err());
+    }
+
+    #[test]
+    fn periodogram_validates_window_energy_and_parity() {
+        assert!(SpectralPeriodogram::<Complex32>::new(6, WindowType::Kaiser, 3, 1).is_ok());
+        assert!(SpectralPeriodogram::<Complex32>::from_nfft(6).is_ok());
+        assert!(SpectralPeriodogram::<Complex32>::new(6, WindowType::Kbd, 3, 1).is_err());
+        assert!(SpectralPeriodogram::<Complex32>::new(2, WindowType::Hann, 2, 1).is_err());
+    }
+
+    #[test]
+    fn periodogram_rejects_nonfinite_alpha_without_changing_mode() {
+        let mut periodogram = SpectralPeriodogram::<Complex32>::from_nfft(8).unwrap();
+        periodogram.set_alpha(0.25).unwrap();
+        for alpha in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(periodogram.set_alpha(alpha).is_err());
+            assert_eq!(periodogram.alpha(), 0.25);
+        }
+    }
+
+    #[test]
+    fn periodogram_rejects_nonfinite_freq_rate() {
+        let mut periodogram = SpectralPeriodogram::<Complex32>::from_nfft(8).unwrap();
+        assert!(periodogram.set_freq(f32::NAN).is_err());
+        assert!(periodogram.set_rate(f32::NAN).is_err());
+        assert!(periodogram.set_rate(f32::INFINITY).is_err());
+        assert!(periodogram.set_freq(0.125).is_ok());
+        assert!(periodogram.set_rate(48_000.0).is_ok());
     }
 
     #[test]
