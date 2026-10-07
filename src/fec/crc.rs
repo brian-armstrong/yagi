@@ -198,10 +198,6 @@ const CRC32_TABLE: [u32; 256] = {
 /// The key occupies the low `8 * scheme.key_len()` bits of the result.
 /// [`CrcScheme::None`] and [`CrcScheme::Unknown`] give zero.
 ///
-/// # Panics
-///
-/// Panics under the same condition as [`checksum_generate_key`] when
-/// `scheme` is [`CrcScheme::Checksum`].
 pub fn generate_key(scheme: CrcScheme, msg: &[u8]) -> u32 {
     match scheme {
         CrcScheme::Unknown => 0,
@@ -222,9 +218,7 @@ pub fn generate_key(scheme: CrcScheme, msg: &[u8]) -> u32 {
 ///
 /// # Panics
 ///
-/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`, or under the
-/// same condition as [`checksum_generate_key`] when `scheme` is
-/// [`CrcScheme::Checksum`].
+/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
 pub fn append_key(scheme: CrcScheme, msg: &mut [u8], msg_len: usize) {
     let key_len = scheme.key_len();
     let key = generate_key(scheme, &msg[..msg_len]);
@@ -240,10 +234,6 @@ pub fn append_key(scheme: CrcScheme, msg: &mut [u8], msg_len: usize) {
 /// always returns `false`. A match does not prove the message is error-free,
 /// because different messages can share a key.
 ///
-/// # Panics
-///
-/// Panics under the same condition as [`checksum_generate_key`] when
-/// `scheme` is [`CrcScheme::Checksum`].
 pub fn validate_message(scheme: CrcScheme, msg: &[u8], key: u32) -> bool {
     match scheme {
         CrcScheme::Unknown => false,
@@ -261,9 +251,7 @@ pub fn validate_message(scheme: CrcScheme, msg: &[u8], key: u32) -> bool {
 ///
 /// # Panics
 ///
-/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`, or under the
-/// same condition as [`checksum_generate_key`] when `scheme` is
-/// [`CrcScheme::Checksum`].
+/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
 pub fn check_key(scheme: CrcScheme, msg: &[u8], msg_len: usize) -> bool {
     let key_len = scheme.key_len();
 
@@ -285,15 +273,10 @@ pub fn check_key(scheme: CrcScheme, msg: &[u8], msg_len: usize) -> bool {
 /// The checksum is the two's complement of the byte sum modulo 256, so the
 /// bytes and the checksum sum to zero modulo 256.
 ///
-/// # Panics
-///
-/// Panics when the byte sum exceeds `u32::MAX` and overflow checks are
-/// enabled. That takes more than 16 MiB of input. Without overflow checks,
-/// the checksum is still correct.
 pub fn checksum_generate_key(data: &[u8]) -> u8 {
-    let sum: u32 = data.iter().map(|&b| b as u32).sum();
-    // mask and convert to 2's complement
-    (!(sum as u8)).wrapping_add(1)
+    let sum = data.iter().fold(0u8, |sum, &byte| sum.wrapping_add(byte));
+    // convert to 2's complement
+    (!sum).wrapping_add(1)
 }
 
 //
@@ -421,6 +404,12 @@ mod tests {
     #[autotest_annotate(autotest_checksum)]
     fn test_checksum() {
         crc_test(CrcScheme::Checksum, 16);
+    }
+
+    #[test]
+    fn test_checksum_wraps_long_message() {
+        let data = vec![255u8; u32::MAX as usize / 255 + 1];
+        assert_eq!(checksum_generate_key(&data), data.len() as u8);
     }
 
     #[test]
