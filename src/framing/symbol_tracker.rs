@@ -106,7 +106,7 @@ impl SymbolTracker {
         if filter_delay == 0 {
             return Err(Error::Config("filter delay must be greater than zero".into()));
         }
-        if excess_bandwidth <= 0.0 || excess_bandwidth > 1.0 {
+        if !(excess_bandwidth > 0.0 && excess_bandwidth <= 1.0) {
             return Err(Error::Config("filter excess bandwidth must be in (0,1]".into()));
         }
         if modulation_scheme == ModulationScheme::Unknown {
@@ -204,17 +204,17 @@ impl SymbolTracker {
     }
 
     /// Returns the number of input samples per symbol.
-    pub fn k(&self) -> usize {
+    pub fn samples_per_symbol(&self) -> usize {
         self.k
     }
 
     /// Returns the matched-filter semi-length in symbols.
-    pub fn m(&self) -> usize {
+    pub fn filter_semi_length(&self) -> usize {
         self.m
     }
 
     /// Returns the rolloff factor given at construction.
-    pub fn beta(&self) -> f32 {
+    pub fn rolloff(&self) -> f32 {
         self.beta
     }
 
@@ -262,16 +262,13 @@ impl SymbolTracker {
     ///
     /// # Errors
     ///
-    /// Returns an error when `bandwidth` is negative, above 50, or NaN. The
-    /// loops are unchanged on error, but [`Self::bandwidth`] reports the
-    /// rejected value unless `bandwidth` was negative.
+    /// Returns an error when `bandwidth` is outside `[0, 50]`. The loops and
+    /// stored bandwidth are unchanged on error.
     pub fn set_bandwidth(&mut self, bandwidth: f32) -> Result<()> {
         // validate input
-        if bandwidth < 0.0 {
-            return Err(Error::Config("bandwidth must be in [0,1]".into()));
+        if !(0.0..=50.0).contains(&bandwidth) {
+            return Err(Error::Config("bandwidth must be in [0,50]".into()));
         }
-
-        self.bw = bandwidth;
 
         // set bandwidths accordingly
         let agc_bandwidth = 0.02 * bandwidth;
@@ -290,6 +287,7 @@ impl SymbolTracker {
 
         // phase-locked loop
         self.nco.pll_set_bandwidth(pll_bandwidth);
+        self.bw = bandwidth;
         Ok(())
     }
 
@@ -336,16 +334,8 @@ impl SymbolTracker {
     ///
     /// Symbols left pending by [`Self::execute_block`] come first. A sample
     /// usually completes zero or one new symbol, one per `samples_per_symbol`
-    /// samples on average. This never returns an error.
-    ///
-    /// # Warning
-    ///
-    /// Once equalizer adaptation has begun, a run of zero-valued input that
-    /// fills the equalizer history can make the equalizer coefficients NaN.
-    /// Constant-modulus mode always fails this way, and decision-directed mode
-    /// can. Every later output is then NaN until [`Self::reset`]. Disable
-    /// adaptation with [`Self::disable_equalizer_adaptation`] across gaps in
-    /// the signal.
+    /// samples on average. Zero-energy equalizer updates are skipped, so a
+    /// gap in the signal leaves the weights unchanged.
     pub fn execute(&mut self, input: Complex32) -> Result<&[Complex32]> {
         self.output.clear();
         self.output.append(&mut self.pending);
@@ -414,7 +404,6 @@ impl SymbolTracker {
         Ok(count)
     }
 
-
     fn process_sample(&mut self, input: Complex32) -> Result<()> {
         // run sample through automatic gain control
         let v = self.agc.execute(input)?;
@@ -477,6 +466,26 @@ mod tests {
     use super::*;
     use crate::framing::SymbolStream;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn symbol_tracker_zero_input_stays_finite() {
+        let mut tracker = SymbolTracker::new(None, 2, 7, 0.3, ModulationScheme::Qpsk).unwrap();
+        for _ in 0..600 {
+            for &sample in tracker.execute(Complex32::new(0.0, 0.0)).unwrap() {
+                assert!(sample.re.is_finite() && sample.im.is_finite());
+            }
+        }
+    }
+
+    #[test]
+    fn symbol_tracker_rejected_bandwidth_preserves_value() {
+        let mut tracker = SymbolTracker::new(None, 2, 7, 0.3, ModulationScheme::Qpsk).unwrap();
+        let original = tracker.bandwidth();
+        for bad in [f32::NAN, f32::INFINITY, -0.1, 50.1] {
+            assert!(tracker.set_bandwidth(bad).is_err());
+            assert_eq!(tracker.bandwidth(), original);
+        }
+    }
 
     fn testbench_symtrack_cccf(k: usize, m: usize, beta: f32, ms: ModulationScheme) {
         let ftype = FirFilterShape::Arkaiser;
@@ -577,9 +586,9 @@ mod tests {
         q.disable_equalizer_adaptation();
 
         // test access methods
-        assert_eq!(q.k(), 4);
-        assert_eq!(q.m(), 12);
-        assert_eq!(q.beta(), 0.25);
+        assert_eq!(q.samples_per_symbol(), 4);
+        assert_eq!(q.filter_semi_length(), 12);
+        assert_eq!(q.rolloff(), 0.25);
         assert_eq!(q.filter_shape(), Some(FirFilterShape::Arkaiser));
         assert_eq!(q.modulation_scheme(), ModulationScheme::Qam64);
 
