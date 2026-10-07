@@ -144,16 +144,15 @@ where
     ///
     /// The update weights a sample `k` steps in the past by `lambda^k`. Values
     /// near one average over more past samples and track changes more
-    /// slowly. The factor must lie in `(0, 1]`. Zero is accepted, but
-    /// [`Self::step`] then divides by zero and the weights become nonfinite.
+    /// slowly. The factor must lie in `(0, 1]`.
     ///
     /// # Errors
     ///
-    /// Returns an error when `forgetting_factor` is outside `[0, 1]`. The
+    /// Returns an error when `forgetting_factor` is outside `(0, 1]`. The
     /// factor is unchanged on error.
     pub fn set_bw(&mut self, forgetting_factor: f32) -> Result<()> {
-        if !(0.0..=1.0).contains(&forgetting_factor) {
-            return Err(Error::Config("forgetting factor must be in (0,1)".into()));
+        if !(forgetting_factor > 0.0 && forgetting_factor <= 1.0) {
+            return Err(Error::Config("forgetting factor must be in (0,1]".into()));
         }
         self.lambda = forgetting_factor;
         Ok(())
@@ -286,6 +285,15 @@ mod tests {
     use crate::random::randnf;
     use approx::assert_abs_diff_eq;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn rls_rejects_zero_forgetting_factor() {
+        let mut eq = RecursiveLeastSquaresEqualizer::<f32>::new(3).unwrap();
+        let original = eq.bw();
+        assert!(eq.set_bw(0.0).is_err());
+        assert!(eq.set_bw(f32::NAN).is_err());
+        assert_eq!(eq.bw(), original);
+    }
 
     #[rustfmt::skip]
     const EQRLS_RRRF_AUTOTEST_DATA_SEQUENCE: [f32; 64] = [
