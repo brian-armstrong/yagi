@@ -1,12 +1,19 @@
-// Multichannel module
-// Current state:
-// - firpfbch: FIR polyphase filterbank channelizer (analyzer/synthesizer)
-// - firpfbch2: FIR polyphase filterbank channelizer with 2x output rate
-// - firpfbchr: FIR polyphase filterbank channelizer with rational rate
-// - ofdmframe: subcarrier allocation and PLCP sequences shared by the
-//   generator and synchronizer
-// - ofdmframegen: OFDM frame generator
-// - ofdmframesync: OFDM frame synchronizer
+//! Multichannel filter banks and OFDM frame processing.
+//!
+//! The channelizers convert blocks of time samples to or from frequency
+//! channels. The OFDM generator and synchronizer share an
+//! [`OfdmFrameConfig`] that defines the subcarrier allocation, cyclic-prefix
+//! length and taper length.
+//!
+//! Channelizer channel arrays, OFDM allocation slices and recovered OFDM
+//! symbols all use natural FFT-bin order. Bin zero is DC, followed by the
+//! positive frequencies, then the negative frequencies. For `M` channels,
+//! index `k` is centered at `k/M` cycles per time-domain sample, modulo one
+//! cycle per sample, so index `M - 1` is at `-1/M`.
+//!
+//! The channelizers do not share an analysis gain. A tone that reads near
+//! `M` on one analyzer can read near one on another, so each constructor
+//! states the gain of its built-in prototype.
 
 mod ofdm_frame;
 mod ofdm_frame_generator;
