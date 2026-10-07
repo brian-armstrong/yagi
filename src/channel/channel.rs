@@ -247,10 +247,10 @@ impl Channel {
         if self.enabled_shadowing {
             return Err(Error::Mode("channel_add_shadowing(), shadowing already enabled".into()));
         }
-        if sigma <= 0.0 {
+        if !sigma.is_finite() || sigma <= 0.0 {
             return Err(Error::Mode("channel_add_shadowing(), standard deviation less than or equal to zero".into()));
         }
-        if fd <= 0.0 || fd >= 0.5 {
+        if !(fd > 0.0 && fd < 0.5) {
             return Err(Error::Mode("channel_add_shadowing(), Doppler frequency must be in (0,0.5)".into()));
         }
 
@@ -346,6 +346,14 @@ mod tests {
 
     use super::*;
     use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn shadowing_rejects_nonfinite_config() {
+        let mut channel = Channel::new();
+        assert!(channel.add_shadowing(f32::NAN, 0.1).is_err());
+        assert!(channel.add_shadowing(1.0, f32::NAN).is_err());
+        assert!(channel.add_shadowing(1.0, 0.1).is_ok());
+    }
 
     /// deterministic test signal, matching the C cross-check harness
     fn test_signal(n: usize) -> Vec<Complex32> {
