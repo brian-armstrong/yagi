@@ -591,7 +591,7 @@ impl OfdmFrameAcquisition {
         // check conditions for g_hat:
         //  1. magnitude should be large (near unity) when aligned
         //  2. phase should be very near zero (time aligned)
-        let phase_limit = 0.1 * std::f32::consts::PI;
+        let phase_limit = 0.2 * std::f32::consts::PI;
         let magnitude_ok = g_hat.norm() > self.sync_threshold;
         let detected = magnitude_ok && g_hat.arg().abs() < phase_limit;
 
@@ -1786,4 +1786,46 @@ mod tests {
         assert_eq!(last_result.consumed, sym);
         assert_eq!(first_result.consumed + last_result.consumed, y.len());
     }
+
+    #[test]
+    fn test_ofdmframesync_rejects_noise_and_tones() {
+        use crate::channel::Channel;
+
+        for prefix in [16, 48] {
+            let config = OfdmFrameConfig::new(64, prefix, 4, None).unwrap();
+            for kind in ["noise", "tone"] {
+                let trials = if kind == "noise" { 1000 } else { 200 };
+                let mut false_symbols = 0;
+                let mut false_frames = 0;
+                for trial in 0..trials {
+                    let mut channel = Channel::new_seeded(0x0FD2_0000 + trial as u64);
+                    channel.add_awgn(-40.0, 10.0);
+                    let input: Vec<Complex32> = if kind == "noise" {
+                        vec![Complex32::new(0.0, 0.0); 4096]
+                    } else {
+                        let frequency = ((trial * 37 % 1000) + 1) as f32 / 2048.0;
+                        (0..4096)
+                            .map(|i| Complex32::from_polar(1.0, std::f32::consts::TAU * frequency * i as f32))
+                            .collect()
+                    };
+                    let mut samples = input.clone();
+                    channel.execute_block(&input, &mut samples).unwrap();
+                    let mut fs = OfdmFrameSynchronizer::new(&config).unwrap();
+                    let mut consumed = 0;
+                    while consumed < samples.len() {
+                        let output = fs.execute(&samples[consumed..]).unwrap();
+                        consumed += output.consumed;
+                        if output.symbol.is_some() {
+                            false_symbols += 1;
+                            fs.reset();
+                        }
+                    }
+                    false_frames += usize::from(fs.mode == FrameSyncMode::Receiving);
+                }
+                assert_eq!(false_symbols, 0, "Cyclic Prefix {prefix}: false OFDM symbols in {kind}");
+                assert_eq!(false_frames, 0, "Cyclic Prefix {prefix}: false frame acquisition in {kind}");
+            }
+        }
+    }
+
 }
