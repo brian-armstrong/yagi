@@ -159,14 +159,11 @@ pub fn nextpow2(mut x: u32) -> Result<u32> {
 
 /// Returns the binomial coefficient `n choose k`.
 ///
-/// For `n` up to 12, the result is exact. Larger `n` goes through a difference
-/// of [`lngammaf`] values in `f32`, rounded to a whole number. A coefficient
-/// above the `f32` range gives infinity, as for `nchoosek(200, 100)`.
-///
-/// The log values grow with `n` and nearly cancel, so accuracy falls as `n`
-/// grows, whatever the size of the result. `nchoosek(1_000_000, 1)` returns
-/// 1_202_604 rather than 1_000_000. For `n` near `u32::MAX` the difference
-/// can round to zero, so `nchoosek(u32::MAX, 100)` returns 1.
+/// For `n` up to 12, the result is exact. Larger `n` uses an `f64`
+/// multiplicative product for small `k` and an `f64` log-gamma difference
+/// otherwise, rounded to a whole number before conversion to `f32`. A
+/// coefficient above the `f32` range gives infinity. Finite results may
+/// round when stored as `f32`.
 ///
 /// # Errors
 ///
@@ -183,11 +180,24 @@ pub fn nchoosek(n: u32, k: u32) -> Result<f32> {
 
     // use lngamma() function when n is large
     if n > 12 {
-        let t0 = lngammaf(n as f32 + 1.0);
-        let t1 = lngammaf((n - k) as f32 + 1.0);
-        let t2 = lngammaf(k as f32 + 1.0);
+        let small_k = n - k;
+        if small_k <= 32 {
+            // For small k, the product avoids cancellation even when n is
+            // near u32::MAX. These intermediate coefficients fit in f64.
+            let mut value = 1.0f64;
+            for i in 1..=small_k {
+                value *= (k + i) as f64 / i as f64;
+            }
+            return Ok(value.round() as f32);
+        }
 
-        return Ok((t0 - t1 - t2).exp().round());
+        // The large log-gamma terms nearly cancel. Evaluate the static
+        // coefficient in f64 so their difference retains useful precision.
+        let t0 = libm::lgamma(n as f64 + 1.0);
+        let t1 = libm::lgamma((n - k) as f64 + 1.0);
+        let t2 = libm::lgamma(k as f64 + 1.0);
+
+        return Ok((t0 - t1 - t2).exp().round() as f32);
     }
 
     // old method
@@ -292,6 +302,13 @@ mod tests {
 
         // test very large numbers
         assert_abs_diff_eq!(nchoosek(124, 5).unwrap(), 225150024.0, epsilon = 5000.0);
+    }
+
+    #[test]
+    fn test_nchoosek_large_n() {
+        assert_eq!(nchoosek(1_000_000, 1).unwrap(), 1_000_000.0);
+        assert_eq!(nchoosek(u32::MAX, 1).unwrap(), u32::MAX as f32);
+        assert_eq!(nchoosek(u32::MAX, 100).unwrap(), f32::INFINITY);
     }
 
     #[test]
