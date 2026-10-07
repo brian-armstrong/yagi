@@ -35,7 +35,7 @@ impl FskDemodulator {
     /// # Errors
     ///
     /// Returns an error when `bits_per_symbol` is zero, `samples_per_symbol`
-    /// is outside `2..=2048`, `bandwidth` is negative or at least 0.5, or two
+    /// is outside `2..=2048`, `bandwidth` is outside `(0, 0.5)`, or two
     /// tones fall in the same FFT bin. Increasing samples per symbol or
     /// choosing a different bandwidth can separate them.
     ///
@@ -52,7 +52,7 @@ impl FskDemodulator {
         if !(2..=2048).contains(&samples_per_symbol) {
             return Err(Error::Config("samples/symbol must be in [2^m, 2048]".into()));
         }
-        if !(0.0..0.5).contains(&bandwidth) {
+        if !(bandwidth > 0.0 && bandwidth < 0.5) {
             return Err(Error::Config("bandwidth must be in (0,0.5)".into()));
         }
 
@@ -239,6 +239,10 @@ mod tests {
 
         let result = FskDemodulator::new(2, 8, 0.6);
         assert!(result.is_err());
+
+        assert!(FskDemodulator::new(2, 8, 0.0).is_err());
+        assert!(FskDemodulator::new(2, 8, -0.0).is_err());
+        assert!(FskDemodulator::new(2, 8, f32::NAN).is_err());
     }
 
     #[test]
