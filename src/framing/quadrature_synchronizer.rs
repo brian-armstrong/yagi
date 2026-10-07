@@ -259,12 +259,6 @@ impl QuadratureSynchronizer {
     ///
     /// This never returns an error.
     ///
-    /// # Panics
-    ///
-    /// Panics under the same condition as
-    /// [`FrameDetector::execute`](crate::framing::FrameDetector::execute).
-    /// It can also panic if the detector's timing estimate lies outside
-    /// `(-1, 1)`. The estimate is normally within `[-0.5, 0.5]`.
     pub fn execute<'a>(&'a mut self, input: &[Complex32]) -> Result<QuadratureSynchronizerOutput<'a>> {
         // deliver a full block already buffered from a previous call before
         // consuming any new input
@@ -308,9 +302,6 @@ impl QuadratureSynchronizer {
     ///
     /// This never returns an error.
     ///
-    /// # Panics
-    ///
-    /// Panics under the same conditions as [`Self::execute`].
     pub fn execute_symbols_into(
         &mut self,
         input: &[Complex32],
@@ -346,7 +337,7 @@ impl QuadratureSynchronizer {
 
         if let Some(v) = detected {
             // get estimates
-            let tau_hat = self.detector.tau();
+            let tau_hat = self.detector.tau().clamp(-0.5, 0.5);
             let gamma_hat = self.detector.gamma();
             let dphi_hat = self.detector.dphi();
             let phi_hat = self.detector.phi();
