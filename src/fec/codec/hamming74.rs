@@ -2,6 +2,7 @@
 // 1/2-rate (7,4) Hamming code
 //
 
+use crate::error::Result;
 use crate::fec::scheme::block_enc_msg_len;
 use crate::utility::{pack_array, unpack_array};
 
@@ -37,11 +38,11 @@ const DEC_GENTAB: [u8; 128] = [
 ///
 ///  msg_dec        :   decoded message [size: dec_msg_len x 1]
 ///  msg_enc        :   encoded message [size: ...]
-pub fn hamming74_encode(msg_dec: &[u8], msg_enc: &mut [u8]) {
+pub fn hamming74_encode(msg_dec: &[u8], msg_enc: &mut [u8]) -> Result<()> {
     let dec_msg_len = msg_dec.len();
 
     // compute encoded message length
-    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7);
+    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7)?;
 
     // pack_array writes only the bits it is given, so clear first
     msg_enc[..enc_msg_len].fill(0);
@@ -63,6 +64,7 @@ pub fn hamming74_encode(msg_dec: &[u8], msg_enc: &mut [u8]) {
         pack_array(msg_enc, k, 7, m1).unwrap();
         k += 7;
     }
+    Ok(())
 }
 
 /// decode block of data using Hamming(7,4) decoder
@@ -70,9 +72,9 @@ pub fn hamming74_encode(msg_dec: &[u8], msg_enc: &mut [u8]) {
 ///  dec_msg_len    :   decoded message length (number of bytes)
 ///  msg_enc        :   encoded message [size: ...]
 ///  msg_dec        :   decoded message [size: dec_msg_len x 1]
-pub fn hamming74_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) {
+pub fn hamming74_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
     // compute encoded message length
-    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7);
+    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7)?;
 
     let mut k = 0usize; // array bit index
 
@@ -91,6 +93,7 @@ pub fn hamming74_decode(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) 
 
     debug_assert_eq!(k, 14 * dec_msg_len);
     debug_assert!(k <= enc_msg_len * 8);
+    Ok(())
 }
 
 // soft decoding of one symbol
@@ -127,9 +130,9 @@ fn soft_decode_symbol(soft_bits: &[u8]) -> u8 {
 ///  dec_msg_len    :   decoded message length (number of bytes)
 ///  msg_enc        :   encoded message [size: 8*enc_msg_len x 1]
 ///  msg_dec        :   decoded message [size: dec_msg_len x 1]
-pub fn hamming74_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) {
+pub fn hamming74_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
     // compute encoded message length
-    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7);
+    let enc_msg_len = block_enc_msg_len(dec_msg_len, 4, 7)?;
 
     let mut k = 0usize; // array bit index
 
@@ -144,6 +147,7 @@ pub fn hamming74_decode_soft(dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [
 
     debug_assert_eq!(k, 14 * dec_msg_len);
     debug_assert!(k <= 8 * enc_msg_len);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -160,7 +164,7 @@ mod tests {
         let fs = FecScheme::Hamming74;
 
         // create arrays
-        let n_enc = fs.enc_msg_len(n);
+        let n_enc = fs.enc_msg_len(n).unwrap();
         let mut msg_enc = vec![0u8; n_enc];
         let mut msg_dec = [0u8; 4];
 

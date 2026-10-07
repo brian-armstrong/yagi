@@ -144,7 +144,7 @@ mod tests {
         let fs = FecScheme::Hamming84;
 
         // create arrays
-        let n_enc = fs.enc_msg_len(n);
+        let n_enc = fs.enc_msg_len(n).unwrap();
         let mut msg_enc = vec![0u8; n_enc];
         let mut msg_dec = [0u8; 4];
 

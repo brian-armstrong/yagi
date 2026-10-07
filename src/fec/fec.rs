@@ -82,11 +82,10 @@ impl Fec {
     /// Returns the encoded length in bytes for a message of `dec_msg_len`
     /// bytes.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when the length overflows `usize` and overflow checks are
-    /// enabled. Without overflow checks, the length wraps and is wrong.
-    pub fn enc_msg_len(&self, dec_msg_len: usize) -> usize {
+    /// Returns an error when the encoded length overflows `usize`.
+    pub fn enc_msg_len(&self, dec_msg_len: usize) -> Result<usize> {
         self.scheme.enc_msg_len(dec_msg_len)
     }
 
@@ -110,14 +109,11 @@ impl Fec {
     /// Returns an error when `msg_enc` is too short, a convolutional message is
     /// shorter than its minimum, or a Reed-Solomon message is empty. The
     /// minimum is 2 bytes for `K=7`, 3 bytes for `K=9`, and 4 bytes for
-    /// `K=15`. `msg_enc` is unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics under the same condition as [`Self::enc_msg_len`].
+    /// `K=15`, or the encoded length overflows `usize`. `msg_enc` is unchanged
+    /// on error.
     pub fn encode(&mut self, msg_dec: &[u8], msg_enc: &mut [u8]) -> Result<()> {
         let dec_len = msg_dec.len();
-        let enc_len = self.enc_msg_len(dec_len);
+        let enc_len = self.enc_msg_len(dec_len)?;
 
         if msg_enc.len() < enc_len {
             return Err(Error::Config(format!("encoded buffer too small: {} < {}", msg_enc.len(), enc_len)));
@@ -130,7 +126,9 @@ impl Fec {
             FecScheme::None => pass_encode(msg_dec, msg_enc),
             FecScheme::Rep3 => rep3_encode(msg_dec, msg_enc),
             FecScheme::Rep5 => rep5_encode(msg_dec, msg_enc),
-            FecScheme::Hamming74 => hamming74_encode(msg_dec, msg_enc),
+            FecScheme::Hamming74 => {
+                hamming74_encode(msg_dec, msg_enc)?;
+            }
             FecScheme::Hamming84 => hamming84_encode(msg_dec, msg_enc),
             FecScheme::Hamming128 => hamming128_encode(msg_dec, msg_enc),
             FecScheme::Golay2412 => golay2412_encode(msg_dec, msg_enc),
@@ -160,13 +158,10 @@ impl Fec {
     ///
     /// Returns an error when either buffer is too short, or `dec_msg_len` is
     /// below the convolutional minimum or zero for Reed-Solomon, as for
-    /// [`Self::encode`]. `msg_dec` is unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics under the same condition as [`Self::enc_msg_len`].
+    /// [`Self::encode`], or the encoded length overflows `usize`.
+    /// `msg_dec` is unchanged on error.
     pub fn decode(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
-        let enc_len = self.enc_msg_len(dec_msg_len);
+        let enc_len = self.enc_msg_len(dec_msg_len)?;
 
         if msg_enc.len() < enc_len {
             return Err(Error::Config(format!("encoded buffer too small: {} < {}", msg_enc.len(), enc_len)));
@@ -183,7 +178,9 @@ impl Fec {
             FecScheme::None => pass_decode(&msg_enc[..dec_msg_len], msg_dec),
             FecScheme::Rep3 => rep3_decode(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Rep5 => rep5_decode(dec_msg_len, msg_enc, msg_dec),
-            FecScheme::Hamming74 => hamming74_decode(dec_msg_len, msg_enc, msg_dec),
+            FecScheme::Hamming74 => {
+                hamming74_decode(dec_msg_len, msg_enc, msg_dec)?;
+            }
             FecScheme::Hamming84 => hamming84_decode(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Hamming128 => hamming128_decode(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Golay2412 => golay2412_decode(dec_msg_len, msg_enc, msg_dec),
@@ -233,17 +230,13 @@ impl Fec {
     ///
     /// # Errors
     ///
-    /// Returns an error under the same conditions as [`Self::decode`].
-    /// `msg_dec` is unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics when `8 * enc_msg_len(dec_msg_len)` overflows `usize` and
-    /// overflow checks are enabled. Without overflow checks, the length wraps
-    /// and is wrong.
+    /// Returns an error under the same conditions as [`Self::decode`], or when
+    /// the soft encoded length overflows `usize`. `msg_dec` is unchanged on
+    /// error.
     pub fn decode_soft(&mut self, dec_msg_len: usize, msg_enc: &[u8], msg_dec: &mut [u8]) -> Result<()> {
-        let enc_len = self.enc_msg_len(dec_msg_len);
-        let soft_len = enc_len * 8;
+        let enc_len = self.enc_msg_len(dec_msg_len)?;
+        let soft_len =
+            enc_len.checked_mul(8).ok_or_else(|| Error::Range("soft encoded length overflows usize".into()))?;
 
         if msg_enc.len() < soft_len {
             return Err(Error::Config(format!("soft encoded buffer too small: {} < {}", msg_enc.len(), soft_len)));
@@ -259,7 +252,9 @@ impl Fec {
             FecScheme::Unknown => return Err(Error::Config("cannot decode with unknown scheme".into())),
             FecScheme::Rep3 => rep3_decode_soft(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Rep5 => rep5_decode_soft(dec_msg_len, msg_enc, msg_dec),
-            FecScheme::Hamming74 => hamming74_decode_soft(dec_msg_len, msg_enc, msg_dec),
+            FecScheme::Hamming74 => {
+                hamming74_decode_soft(dec_msg_len, msg_enc, msg_dec)?;
+            }
             FecScheme::Hamming84 => hamming84_decode_soft(dec_msg_len, msg_enc, msg_dec),
             FecScheme::Hamming128 => hamming128_decode_soft(dec_msg_len, msg_enc, msg_dec),
             FecScheme::ConvV27
@@ -311,6 +306,14 @@ mod tests {
     use test_macro::autotest_annotate;
 
     #[test]
+    fn fec_length_and_soft_decode_report_overflow() {
+        let fec = Fec::new(FecScheme::Rep3).unwrap();
+        assert!(fec.enc_msg_len(usize::MAX).is_err());
+        let mut plain = Fec::new(FecScheme::None).unwrap();
+        assert!(plain.decode_soft(usize::MAX / 8 + 1, &[], &mut []).is_err());
+    }
+
+    #[test]
     fn test_fec_pass() {
         // pass-through doesn't correct errors, so test without corruption
         let mut fec = Fec::new(FecScheme::None).unwrap();
@@ -329,7 +332,7 @@ mod tests {
         for n in 1..=5usize {
             let msg: Vec<u8> = (0..n).map(|i| (0x31 + 37 * i) as u8).collect();
             let mut fec = Fec::new(FecScheme::Hamming74).unwrap();
-            let mut encoded = vec![0u8; fec.enc_msg_len(n)];
+            let mut encoded = vec![0u8; fec.enc_msg_len(n).unwrap()];
             fec.encode(&msg, &mut encoded).unwrap();
 
             let mut decoded = vec![0u8; n];
@@ -373,7 +376,7 @@ mod tests {
         let msg_org: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
 
         // allocate buffers
-        let enc_len = fec.enc_msg_len(n);
+        let enc_len = fec.enc_msg_len(n).unwrap();
         let mut msg_enc = vec![0u8; enc_len];
         let mut msg_dec = vec![0u8; n];
 
@@ -555,7 +558,7 @@ mod tests {
         let msg_org: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
 
         // allocate buffers
-        let n_enc = fec.enc_msg_len(n);
+        let n_enc = fec.enc_msg_len(n).unwrap();
         let mut msg_enc = vec![0u8; n_enc];
         let mut msg_soft = vec![0u8; 8 * n_enc];
         let mut msg_dec = vec![0u8; n];
@@ -719,7 +722,12 @@ mod tests {
         for n in 1..=32usize {
             let r = n % 3;
             let expected = (n - r) / 3 * 6 + r * 3;
-            assert_eq!(fec.enc_msg_len(n), expected, "enc_msg_len disagrees with encoder layout for length {}", n);
+            assert_eq!(
+                fec.enc_msg_len(n).unwrap(),
+                expected,
+                "enc_msg_len disagrees with encoder layout for length {}",
+                n
+            );
         }
     }
 
@@ -731,7 +739,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let msg_org: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
 
-        let enc_len = fec.enc_msg_len(n);
+        let enc_len = fec.enc_msg_len(n).unwrap();
         let mut msg_enc = vec![0u8; enc_len];
         let mut msg_dec = vec![0u8; n];
 
@@ -755,7 +763,7 @@ mod tests {
         let mut fec = Fec::new(FecScheme::RsM8).unwrap();
 
         // compute and test encoded message length
-        let enc_msg_len = fec.enc_msg_len(dec_msg_len);
+        let enc_msg_len = fec.enc_msg_len(dec_msg_len).unwrap();
         assert_eq!(enc_msg_len, 255);
 
         let msg_org: Vec<u8> = (0..dec_msg_len).map(|i| (i & 0xff) as u8).collect();
@@ -791,7 +799,7 @@ mod tests {
             let mut rng = rand::thread_rng();
             let msg_org: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
 
-            let n_enc = fec.enc_msg_len(n);
+            let n_enc = fec.enc_msg_len(n).unwrap();
             let mut msg_enc = vec![0u8; n_enc];
             fec.encode(&msg_org, &mut msg_enc).unwrap();
 
@@ -817,7 +825,7 @@ mod tests {
     fn fec_test_copy(scheme: FecScheme, n: usize) {
         let mut q0 = Fec::new(scheme).unwrap();
 
-        let n_enc = q0.enc_msg_len(n);
+        let n_enc = q0.enc_msg_len(n).unwrap();
         let mut rng = rand::thread_rng();
         let msg_org: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
 
@@ -1042,7 +1050,7 @@ mod tests {
                 let r = n % data_bytes;
                 let expected = (n - r) / data_bytes * (data_bytes + 1) + if r != 0 { r + 1 } else { 0 };
                 assert_eq!(
-                    fec.enc_msg_len(n),
+                    fec.enc_msg_len(n).unwrap(),
                     expected,
                     "{:?} enc_msg_len disagrees with encoder layout for length {}",
                     scheme,
@@ -1059,7 +1067,7 @@ mod tests {
         let msg: [u8; 4] = [0x25, 0x62, 0x3F, 0x52];
 
         let mut fec = Fec::new(FecScheme::Rep3).unwrap();
-        let n_enc = fec.enc_msg_len(n);
+        let n_enc = fec.enc_msg_len(n).unwrap();
         let mut msg_enc = vec![0u8; n_enc];
         let mut msg_dec = [0u8; 4];
 
@@ -1086,7 +1094,7 @@ mod tests {
         let msg: [u8; 4] = [0x25, 0x62, 0x3F, 0x52];
 
         let mut fec = Fec::new(FecScheme::Rep5).unwrap();
-        let n_enc = fec.enc_msg_len(n);
+        let n_enc = fec.enc_msg_len(n).unwrap();
         let mut msg_enc = vec![0u8; n_enc];
         let mut msg_dec = [0u8; 4];
 

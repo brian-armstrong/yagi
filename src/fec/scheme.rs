@@ -1,6 +1,12 @@
 //
 // forward error-correction scheme
 //
+use crate::error::{Error, Result};
+
+fn length_overflow() -> Error {
+    Error::Range("encoded message length overflows usize".into())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Forward error-correction code.
 ///
@@ -341,28 +347,30 @@ impl FecScheme {
     ///
     /// The length of [`Self::Unknown`] is zero.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics when the length overflows `usize` and overflow checks are
-    /// enabled. Without overflow checks, the length wraps and is wrong.
-    pub fn enc_msg_len(&self, dec_msg_len: usize) -> usize {
+    /// Returns an error when the encoded length overflows `usize`.
+    pub fn enc_msg_len(&self, dec_msg_len: usize) -> Result<usize> {
         match self {
-            FecScheme::Unknown => 0,
-            FecScheme::None => dec_msg_len,
-            FecScheme::Rep3 => 3 * dec_msg_len,
-            FecScheme::Rep5 => 5 * dec_msg_len,
+            FecScheme::Unknown => Ok(0),
+            FecScheme::None => Ok(dec_msg_len),
+            FecScheme::Rep3 => dec_msg_len.checked_mul(3).ok_or_else(length_overflow),
+            FecScheme::Rep5 => dec_msg_len.checked_mul(5).ok_or_else(length_overflow),
             FecScheme::Hamming74 => block_enc_msg_len(dec_msg_len, 4, 7),
             FecScheme::Hamming84 => block_enc_msg_len(dec_msg_len, 4, 8),
             FecScheme::Hamming128 => block_enc_msg_len(dec_msg_len, 8, 12),
             FecScheme::Golay2412 => block_enc_msg_len(dec_msg_len, 12, 24),
-            FecScheme::Secded2216 => dec_msg_len + dec_msg_len.div_ceil(2),
-            FecScheme::Secded3932 => dec_msg_len + dec_msg_len.div_ceil(4),
-            FecScheme::Secded7264 => dec_msg_len + dec_msg_len.div_ceil(8),
+            FecScheme::Secded2216 => dec_msg_len.checked_add(dec_msg_len.div_ceil(2)).ok_or_else(length_overflow),
+            FecScheme::Secded3932 => dec_msg_len.checked_add(dec_msg_len.div_ceil(4)).ok_or_else(length_overflow),
+            FecScheme::Secded7264 => dec_msg_len.checked_add(dec_msg_len.div_ceil(8)).ok_or_else(length_overflow),
             // convolutional codes
-            FecScheme::ConvV27 => 2 * dec_msg_len + 2, // (K-1)/r=12, round up to 2 bytes
-            FecScheme::ConvV29 => 2 * dec_msg_len + 2, // (K-1)/r=16, 2 bytes
-            FecScheme::ConvV39 => 3 * dec_msg_len + 3, // (K-1)/r=24, 3 bytes
-            FecScheme::ConvV615 => 6 * dec_msg_len + 11, // (K-1)/r=84, round up to 11 bytes
+            FecScheme::ConvV27 | FecScheme::ConvV29 => {
+                dec_msg_len.checked_mul(2).and_then(|n| n.checked_add(2)).ok_or_else(length_overflow)
+            }
+            FecScheme::ConvV39 => dec_msg_len.checked_mul(3).and_then(|n| n.checked_add(3)).ok_or_else(length_overflow),
+            FecScheme::ConvV615 => {
+                dec_msg_len.checked_mul(6).and_then(|n| n.checked_add(11)).ok_or_else(length_overflow)
+            }
 
             FecScheme::ConvV27P23 => conv_punctured_enc_msg_len(dec_msg_len, 7, 2),
             FecScheme::ConvV27P34 => conv_punctured_enc_msg_len(dec_msg_len, 7, 3),
@@ -386,7 +394,7 @@ impl FecScheme {
 impl std::str::FromStr for FecScheme {
     type Err = crate::error::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Self::from_short_name(s)
     }
 }
@@ -396,18 +404,18 @@ impl std::str::FromStr for FecScheme {
 ///  dec_msg_len    :   decoded message length (bytes)
 ///  m              :   input block size (bits)
 ///  k              :   output block size (bits)
-pub(crate) fn block_enc_msg_len(dec_msg_len: usize, m: usize, k: usize) -> usize {
+pub(crate) fn block_enc_msg_len(dec_msg_len: usize, m: usize, k: usize) -> Result<usize> {
     // compute total number of bits in decoded message
-    let num_bits_in = dec_msg_len * 8;
+    let num_bits_in = (dec_msg_len as u128).checked_mul(8).ok_or_else(length_overflow)?;
 
     // compute total number of blocks: ceil(num_bits_in/m)
-    let num_blocks = num_bits_in.div_ceil(m);
+    let num_blocks = num_bits_in.div_ceil(m as u128);
 
     // compute total number of bits out
-    let num_bits_out = num_blocks * k;
+    let num_bits_out = num_blocks.checked_mul(k as u128).ok_or_else(length_overflow)?;
 
     // compute total number of bytes out: ceil(num_bits_out/8)
-    num_bits_out.div_ceil(8)
+    num_bits_out.div_ceil(8).try_into().map_err(|_| length_overflow())
 }
 
 /// Compute encoded message length for punctured convolutional codes.
@@ -415,11 +423,11 @@ pub(crate) fn block_enc_msg_len(dec_msg_len: usize, m: usize, k: usize) -> usize
 /// Mirrors liquid's `fec_conv_get_enc_msg_len`: the base rate-1/2 code emits
 /// `n = len*8 + K - 1` bits per output stream, and puncturing at rate
 /// `p/(p+1)` keeps `n + ceil(n/p)` bits in total.
-pub(crate) fn conv_punctured_enc_msg_len(dec_msg_len: usize, k: usize, p: usize) -> usize {
-    let num_bits_in = dec_msg_len * 8;
-    let n = num_bits_in + k - 1;
-    let num_bits_out = n + n.div_ceil(p);
-    num_bits_out.div_ceil(8)
+pub(crate) fn conv_punctured_enc_msg_len(dec_msg_len: usize, k: usize, p: usize) -> Result<usize> {
+    let num_bits_in = (dec_msg_len as u128).checked_mul(8).ok_or_else(length_overflow)?;
+    let n = num_bits_in.checked_add(k as u128 - 1).ok_or_else(length_overflow)?;
+    let num_bits_out = n.checked_add(n.div_ceil(p as u128)).ok_or_else(length_overflow)?;
+    num_bits_out.div_ceil(8).try_into().map_err(|_| length_overflow())
 }
 
 /// Number of parity bytes for the m=8 Reed-Solomon code
@@ -433,21 +441,40 @@ pub(crate) const RS_M8_KK: usize = 223;
 /// possible, each carrying `nroots` parity bytes. Blocks shorter than `kk`
 /// are shortened codes: the missing symbols are treated as virtual zero
 /// padding that is never transmitted.
-pub(crate) fn rs_enc_msg_len(dec_msg_len: usize, nroots: usize, kk: usize) -> usize {
+pub(crate) fn rs_enc_msg_len(dec_msg_len: usize, nroots: usize, kk: usize) -> Result<usize> {
     if dec_msg_len == 0 {
-        return 0;
+        return Ok(0);
     }
 
     let num_blocks = dec_msg_len.div_ceil(kk);
     let dec_block_len = dec_msg_len.div_ceil(num_blocks);
 
-    (dec_block_len + nroots) * num_blocks
+    dec_block_len
+        .checked_add(nroots)
+        .and_then(|n| n.checked_mul(num_blocks))
+        .ok_or_else(length_overflow)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn encoded_lengths_reject_overflow_without_rejecting_representable_lengths() {
+        for scheme in FecScheme::ALL {
+            if scheme != FecScheme::None {
+                assert!(scheme.enc_msg_len(usize::MAX).is_err(), "{scheme:?}");
+            }
+        }
+        assert_eq!(FecScheme::None.enc_msg_len(usize::MAX), Ok(usize::MAX));
+
+        // Bit counts exceed usize here, but the encoded byte counts fit.
+        let n = usize::MAX / 2;
+        let hamming = ((n as u128) * 8).div_ceil(4) * 7;
+        assert_eq!(FecScheme::Hamming74.enc_msg_len(n), Ok(hamming.div_ceil(8) as usize));
+        assert!(FecScheme::ConvV27P23.enc_msg_len(n).is_ok());
+    }
 
     // (scheme, name, conv, punctured, rs, hamming, repeat). liquid's autotests
     // spot-check a subset, but driving all of them means a newly added scheme
@@ -581,7 +608,7 @@ mod tests {
 
             // pick a length that divides evenly for every block code here
             let n = 8 * 3usize;
-            let measured = n as f32 / scheme.enc_msg_len(n) as f32;
+            let measured = n as f32 / scheme.enc_msg_len(n).unwrap() as f32;
 
             assert!(
                 (measured - scheme.rate()).abs() < 1e-6,

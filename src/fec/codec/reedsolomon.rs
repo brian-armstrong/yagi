@@ -254,7 +254,7 @@ mod tests {
             let layout = RsLayout::new(n, RS_M8_NROOTS, RS_M8_KK);
             assert_eq!(
                 layout.enc_msg_len(),
-                rs_enc_msg_len(n, RS_M8_NROOTS, RS_M8_KK),
+                rs_enc_msg_len(n, RS_M8_NROOTS, RS_M8_KK).unwrap(),
                 "layout disagrees with enc_msg_len for length {}",
                 n
             );

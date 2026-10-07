@@ -427,7 +427,7 @@ mod tests {
                 }
                 let msg: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
 
-                let mut encoded = vec![0u8; scheme.enc_msg_len(n)];
+                let mut encoded = vec![0u8; scheme.enc_msg_len(n).unwrap()];
                 let mut decoded = vec![0u8; n];
 
                 c.encode(&msg, &mut encoded).unwrap();
@@ -447,7 +447,7 @@ mod tests {
             let n = 64;
 
             let msg: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
-            let mut encoded = vec![0u8; scheme.enc_msg_len(n)];
+            let mut encoded = vec![0u8; scheme.enc_msg_len(n).unwrap()];
             let mut decoded = vec![0u8; n];
 
             c.encode(&msg, &mut encoded).unwrap();
@@ -473,7 +473,7 @@ mod tests {
             let n = 32;
 
             let msg: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
-            let mut encoded = vec![0u8; scheme.enc_msg_len(n)];
+            let mut encoded = vec![0u8; scheme.enc_msg_len(n).unwrap()];
             c.encode(&msg, &mut encoded).unwrap();
 
             // expand to soft bits: 255 for a 1, 0 for a 0. The unpunctured
@@ -544,7 +544,7 @@ mod tests {
 
             let n = 64;
             let msg: Vec<u8> = (0..n).map(|_| rng.gen::<u8>()).collect();
-            let mut encoded = vec![0u8; scheme.enc_msg_len(n)];
+            let mut encoded = vec![0u8; scheme.enc_msg_len(n).unwrap()];
             let mut decoded = vec![0u8; n];
 
             c.encode(&msg, &mut encoded).unwrap();
@@ -590,7 +590,7 @@ mod tests {
 
                 assert_eq!(
                     ours,
-                    conv_punctured_enc_msg_len(n, k, p),
+                    conv_punctured_enc_msg_len(n, k, p).unwrap(),
                     "{}: punctured length disagrees with liquid at n={}",
                     name,
                     n
@@ -619,7 +619,13 @@ mod tests {
                 let want = liquid_len(params.rate, params.order, n);
 
                 // the scheme table must report liquid's length
-                assert_eq!(scheme.enc_msg_len(n), want, "{}: scheme length disagrees with liquid at n={}", name, n);
+                assert_eq!(
+                    scheme.enc_msg_len(n).unwrap(),
+                    want,
+                    "{}: scheme length disagrees with liquid at n={}",
+                    name,
+                    n
+                );
 
                 let mut encoded = vec![0u8; want];
                 let msg = vec![0xa5u8; n];
@@ -667,7 +673,7 @@ mod tests {
             let mut q = Fec::new(scheme).unwrap();
             let msg: Vec<u8> = (0..n).map(|i| ((i * 37 + 11) & 0xff) as u8).collect();
 
-            let mut got = vec![0u8; q.enc_msg_len(n)];
+            let mut got = vec![0u8; q.enc_msg_len(n).unwrap()];
             q.encode(&msg, &mut got).unwrap();
 
             assert_eq!(got.len(), want.len(), "{:?} n={}: encoded length", scheme, n);
@@ -693,7 +699,7 @@ mod tests {
             for n in [256usize, 200, 64, 33, 8] {
                 let msg: Vec<u8> = (0..n).map(|i| ((i * 91 + 7) & 0xff) as u8).collect();
 
-                let mut enc = vec![0u8; scheme.enc_msg_len(n)];
+                let mut enc = vec![0u8; scheme.enc_msg_len(n).unwrap()];
                 c.encode(&msg, &mut enc).unwrap();
 
                 let mut dec = vec![0u8; n];
