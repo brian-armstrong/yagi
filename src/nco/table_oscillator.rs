@@ -18,13 +18,11 @@ const SYNTH_PLL_BANDWIDTH_DEFAULT: f32 = 0.1;
 /// [`Self::half_previous`] and [`Self::half_next`] give the midpoints to the
 /// neighboring entries, for early and late timing correlations.
 ///
-/// Phase and frequency are stored as `f32`, and the default frequency
-/// `2*pi / len` is rounded. Over long runs the selected entry drifts from an
-/// exact count of steps, skipping or repeating an entry. With a table of 1023
-/// entries the first slip can come after about 190,000 steps. Two oscillators
-/// with the same table and the same sequence of calls slip identically, so
-/// they stay aligned with each other, but not with a code that advances by an
-/// exact count.
+/// Phase and frequency are stored as `f32`, so over long runs the selected
+/// entry can skip or repeat relative to an exact count of steps. With a
+/// table of 1023 entries the first slip can come after about 190,000 steps.
+/// Use [`TableSequence`](crate::sequence::TableSequence) when a code must
+/// advance by exactly one entry per step.
 ///
 /// The phase is kept in `[-pi, pi]` by adding or subtracting at most one turn
 /// per update. Keep the frequency and each phase offset within one turn in
@@ -372,6 +370,27 @@ impl TableOscillator {
             return Err(Error::Range("synth despread input too small".into()));
         }
 
+        self.despread_triple_chips(&input[..self.tab.len()])
+    }
+
+    /// Correlates like [`Self::despread_triple`] over all of `input`, which
+    /// can be shorter than the table.
+    ///
+    /// The oscillator steps once per sample, so a symbol spread over part of
+    /// the table leaves it at the entry for the next symbol.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `input` is empty or longer than [`Self::length`].
+    /// The oscillator is unchanged on error.
+    pub fn despread_triple_partial(&mut self, input: &[Complex32]) -> Result<(Complex32, Complex32, Complex32)> {
+        if input.is_empty() || input.len() > self.tab.len() {
+            return Err(Error::Range("synth despread input length out of range".into()));
+        }
+        self.despread_triple_chips(input)
+    }
+
+    fn despread_triple_chips(&mut self, input: &[Complex32]) -> Result<(Complex32, Complex32, Complex32)> {
         let mut despread_early = Complex32::new(0.0, 0.0);
         let mut despread_punctual = Complex32::new(0.0, 0.0);
         let mut despread_late = Complex32::new(0.0, 0.0);
@@ -380,7 +399,7 @@ impl TableOscillator {
         let mut sum_punctual = 0.0f32;
         let mut sum_late = 0.0f32;
 
-        for &xi in &input[..self.tab.len()] {
+        for &xi in input {
             despread_early += xi * self.prev_half.conj();
             despread_punctual += xi * self.current.conj();
             despread_late += xi * self.next_half.conj();
