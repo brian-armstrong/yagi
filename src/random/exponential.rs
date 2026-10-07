@@ -7,10 +7,10 @@ use crate::random::randf;
 ///
 /// # Errors
 ///
-/// Returns an error when `lambda` is zero or negative.
+/// Returns an error when `lambda` is nonfinite, zero or negative.
 pub fn randexpf(lambda: f32) -> Result<f32> {
     // validate input
-    if lambda <= 0.0 {
+    if !lambda.is_finite() || lambda <= 0.0 {
         return Err(Error::Range(format!("randexpf({}) has invalid range", lambda)));
     }
 
@@ -33,10 +33,10 @@ pub fn randexpf(lambda: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `lambda` is zero or negative.
+/// Returns an error when `lambda` is nonfinite, zero or negative.
 pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
-    if lambda <= 0.0 {
+    if !lambda.is_finite() || lambda <= 0.0 {
         return Err(Error::Range(format!("randexpf_pdf({},{}) has invalid range", x, lambda)));
     }
 
@@ -54,10 +54,10 @@ pub fn randexpf_pdf(x: f32, lambda: f32) -> Result<f32> {
 ///
 /// # Errors
 ///
-/// Returns an error when `lambda` is zero or negative.
+/// Returns an error when `lambda` is nonfinite, zero or negative.
 pub fn randexpf_cdf(x: f32, lambda: f32) -> Result<f32> {
     // validate input
-    if lambda <= 0.0 {
+    if !lambda.is_finite() || lambda <= 0.0 {
         return Err(Error::Range(format!("randexpf_cdf({},{}) has invalid range", x, lambda)));
     }
 
