@@ -13,10 +13,8 @@ use num_complex::Complex32;
 /// close to bin centers. The decided symbol is the one whose tone bin has the
 /// largest magnitude. There is no timing or frequency recovery.
 ///
-/// Each tone needs a bin of its own. The constructor compares only neighboring
-/// symbols, so it accepts some settings where two non-adjacent tones share a
-/// bin. `new(2, 4, 0.49)` is one, and symbols 0 and 3 then decode as the same
-/// symbol.
+/// Each tone needs a bin of its own. Settings that map two tones to the same
+/// FFT bin are rejected.
 pub struct FskDemodulator {
     k: usize,                 // samples per symbol
     m_size: usize,            // constellation size (M)
@@ -38,9 +36,8 @@ impl FskDemodulator {
     ///
     /// Returns an error when `bits_per_symbol` is zero, `samples_per_symbol`
     /// is outside `2..=2048`, `bandwidth` is negative or at least 0.5, or two
-    /// the tones of two neighboring symbols fall in the same FFT bin. A wider
-    /// `bandwidth` or more samples per symbol separates the tones. Collisions
-    /// between non-adjacent symbols are not caught, as described on the type.
+    /// tones fall in the same FFT bin. Increasing samples per symbol or
+    /// choosing a different bandwidth can separate them.
     ///
     /// # Panics
     ///
@@ -91,16 +88,20 @@ impl FskDemodulator {
         let mut demod_map = vec![0; m_size];
         for (i, dm) in demod_map.iter_mut().enumerate() {
             let freq = ((i as f32) - m2) * bandwidth / m2;
-            let idx = freq * k_size as f32;
-            let index = if idx < 0.0 { (idx + k_size as f32).round() as usize } else { idx.round() as usize };
-            *dm = index;
+            // round the signed bin first, then wrap.
+            // wrapping the fractional frequency before rounding
+            // can produce index k_size near dc
+            let idx = (freq * k_size as f32).round() as isize;
+            *dm = idx.rem_euclid(k_size as isize) as usize;
         }
 
-        // Check for uniqueness
-        for i in 1..m_size {
-            if demod_map[i] == demod_map[i - 1] {
+        // aliasing can make non-neighboring tones collide
+        let mut used_bins = vec![false; k_size];
+        for &bin in &demod_map {
+            if used_bins[bin] {
                 return Err(Error::Config("demod map is not unique; consider increasing bandwidth".into()));
             }
+            used_bins[bin] = true;
         }
 
         let buf_time = vec![Complex32::new(0.0, 0.0); k_size];
@@ -130,11 +131,6 @@ impl FskDemodulator {
     /// Returns an error when the length of `input` is not
     /// `samples_per_symbol`. The demodulator is unchanged on error.
     ///
-    /// # Panics
-    ///
-    /// Panics for some narrow settings that the constructor accepts, where the
-    /// tone just below zero frequency rounds to one past the last FFT bin.
-    /// `new(1, 2, 0.01)` is one example.
     pub fn demodulate(&mut self, input: &[Complex32]) -> Result<usize> {
         if input.len() != self.k {
             return Err(Error::Range("input length must match samples/symbol".into()));
@@ -243,6 +239,22 @@ mod tests {
 
         let result = FskDemodulator::new(2, 8, 0.6);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn fskdem_rejects_colliding_tones_and_wraps_bins() {
+        // These tones are distinct numerically but alias to the same FFT bin.
+        assert!(FskDemodulator::new(2, 4, 0.49).is_err());
+        assert!(FskDemodulator::new(1, 2, 0.01).is_err());
+
+        // A valid low-bandwidth configuration still decodes both tones.
+        let mut demod = FskDemodulator::new(1, 4, 0.06).unwrap();
+        let mut modulator = crate::modem::FskModulator::new(1, 4, 0.06).unwrap();
+        for symbol in 0..2 {
+            let mut samples = [Complex32::new(0.0, 0.0); 4];
+            modulator.modulate(symbol, &mut samples).unwrap();
+            assert_eq!(demod.demodulate(&samples).unwrap(), symbol);
+        }
     }
 
     #[test]
