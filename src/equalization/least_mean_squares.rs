@@ -360,11 +360,9 @@ where
     /// # Warning
     ///
     /// The update divides by the energy of the sample history, which is kept
-    /// as a running `f32` sum. An all-zero history gives nonfinite weights,
-    /// even with a zero learning rate. After a long run followed by a large
-    /// drop in input level, the running sum can drift far from the true
-    /// energy, or below zero. The update is then mis-scaled or reversed in
-    /// sign. Neither case is reported.
+    /// as a running `f32` sum. An update with zero or nonfinite energy is
+    /// skipped. After a long run followed by a large drop in input level,
+    /// the running sum can drift from the true energy and mis-scale updates.
     pub fn step(&mut self, d: T, d_hat: T) {
         if !self.buf_full {
             if self.count < self.h_len {
@@ -372,6 +370,9 @@ where
             } else {
                 self.buf_full = true;
             }
+        }
+        if !self.x2_sum.is_finite() || self.x2_sum <= 0.0 {
+            return;
         }
 
         let alpha = d - d_hat;
@@ -390,11 +391,11 @@ where
     /// The desired value is `d_hat / |d_hat|`, the estimate scaled to unit
     /// magnitude. This suits signals with constant magnitude, such as PSK.
     ///
-    /// # Warning
-    ///
-    /// A zero `d_hat` makes the weights nonfinite once the history is full.
-    /// This also applies to the blind updates in [`Self::execute_block`].
+    /// A zero estimate leaves the weights unchanged.
     pub fn step_blind(&mut self, d_hat: T) {
+        if d_hat.abs() == 0.0 {
+            return;
+        }
         let d = d_hat / d_hat.abs();
         self.step(d, d_hat)
     }
@@ -417,6 +418,18 @@ mod tests {
     use crate::utility::test_helpers::validate_block_execute;
     use num_complex::Complex;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn eqlms_zero_history_keeps_finite_weights() {
+        let mut eq = LeastMeanSquaresEqualizer::<Complex<f32>>::new(3).unwrap();
+        for _ in 0..4 {
+            eq.push(Complex::new(0.0, 0.0));
+            let estimate = eq.execute().unwrap();
+            eq.step_blind(estimate);
+            eq.step(Complex::new(0.0, 0.0), estimate);
+        }
+        assert!(eq.weights().iter().all(|w| w.re.is_finite() && w.im.is_finite()));
+    }
 
     #[allow(clippy::too_many_arguments)]
     fn testbench_eqlms(
