@@ -1128,19 +1128,18 @@ pub fn gray_decode(symbol_in: u32) -> u32 {
 
 /// Packs soft bit values into a symbol.
 ///
-/// The first `bps` values of `soft_bits` are read, most significant bit
+/// The values of `soft_bits` are read, most significant bit
 /// first. Values above 127 become one bits, and values of 127 or less,
 /// including the no-preference value 127, become zero bits. So packing the
 /// output of [`Modem::demodulate_soft`] can differ from the symbol it
-/// returned. When `soft_bits` holds fewer than `bps` values, only those are
-/// packed, giving a symbol with fewer bits.
+/// returned.
 ///
 /// # Errors
 ///
-/// Returns an error when `bps` is greater than eight.
-pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
+/// Returns an error when `soft_bits` holds more than eight values.
+pub fn pack_soft_bits(soft_bits: &[u8]) -> Result<u32> {
     // validate input
-    if bps > MAX_MOD_BITS_PER_SYMBOL {
+    if soft_bits.len() > MAX_MOD_BITS_PER_SYMBOL {
         return Err(Error::Config(format!(
             "pack_soft_bits(), bits/symbol exceeds maximum ({})",
             MAX_MOD_BITS_PER_SYMBOL
@@ -1148,7 +1147,7 @@ pub fn pack_soft_bits(soft_bits: &[u8], bps: usize) -> Result<u32> {
     }
 
     let mut s = 0;
-    for &bit in soft_bits.iter().take(bps) {
+    for &bit in soft_bits {
         s <<= 1;
         s |= if bit > SOFTBIT_ERASURE { 1 } else { 0 };
     }
@@ -1554,7 +1553,7 @@ mod tests {
             assert_eq!(s, i);
 
             // check soft bits
-            let sym_soft = pack_soft_bits(&soft_bits, bps).unwrap();
+            let sym_soft = pack_soft_bits(&soft_bits).unwrap();
             assert_eq!(sym_soft, i);
 
             // check phase error, evm, etc.
