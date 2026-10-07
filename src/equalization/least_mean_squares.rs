@@ -285,28 +285,24 @@ where
         Ok(self.w0.iter().zip(r).map(|(&w, &x)| w.conj() * x).sum())
     }
 
-    /// Pushes `k` samples and returns one estimate, for decimation by `k`.
+    /// Pushes `input` and returns one estimate, for decimation by
+    /// `input.len()`.
     ///
     /// The estimate is computed right after `input[0]` is pushed. The other
-    /// `k - 1` samples are pushed afterwards. The weights are unchanged.
-    /// Extra input is ignored.
+    /// samples are pushed afterwards. The weights are unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when `k` is zero. The equalizer is unchanged on error.
-    ///
-    /// # Panics
-    ///
-    /// Panics when `input` is shorter than `k`. When `input` is not empty,
-    /// its first sample has already been pushed.
-    pub fn decim_execute(&mut self, input: &[T], k: usize) -> Result<T> {
-        if k == 0 {
-            return Err(Error::Config("down-sampling rate 'k' must be greater than 0".into()));
+    /// Returns an error when `input` is empty. The equalizer is unchanged on
+    /// error.
+    pub fn decim_execute(&mut self, input: &[T]) -> Result<T> {
+        if input.is_empty() {
+            return Err(Error::Config("decimation input must not be empty".into()));
         }
 
         self.push(input[0]);
         let y = self.execute()?;
-        self.push_block(&input[1..k]);
+        self.push_block(&input[1..]);
         Ok(y)
     }
 
@@ -497,7 +493,7 @@ mod tests {
             fchannel.execute_block(&mut buf_interp, &mut buf).unwrap();
 
             // run through equalizing filter as decimator
-            let sym_out = eq.decim_execute(&buf, k).unwrap();
+            let sym_out = eq.decim_execute(&buf).unwrap();
 
             // skip first m+p symbols
             if i < m + p {
@@ -641,7 +637,7 @@ mod tests {
         assert!(q.set_bw(-1.0).is_err());
 
         // other configurations
-        assert!(q.decim_execute(&[], 0).is_err());
+        assert!(q.decim_execute(&[]).is_err());
 
         // test getting weights
         let mut h = vec![Complex::new(0.0, 0.0); h_len];
