@@ -56,16 +56,16 @@ impl TimeVaryingMultipathChannel {
     /// # Errors
     ///
     /// Returns an error when `num_taps` is zero, `standard_deviation` is
-    /// negative, or `decorrelation_rate` is outside `(0, 1]`.
+    /// negative or nonfinite, or `decorrelation_rate` is outside `(0, 1]`.
     pub fn new(num_taps: usize, standard_deviation: f32, decorrelation_rate: f32) -> Result<Self> {
         // validate input
         if num_taps < 1 {
             return Err(Error::Config("number of channel taps must be at least one".into()));
         }
-        if standard_deviation < 0.0 {
+        if !standard_deviation.is_finite() || standard_deviation < 0.0 {
             return Err(Error::Config("tap standard deviation must be nonnegative".into()));
         }
-        if decorrelation_rate <= 0.0 || decorrelation_rate > 1.0 {
+        if !(decorrelation_rate > 0.0 && decorrelation_rate <= 1.0) {
             return Err(Error::Config("tap decorrelation rate must be in (0,1]".into()));
         }
 
@@ -184,6 +184,8 @@ mod tests {
 
     #[test]
     fn test_tvmpch_rejects_invalid_config() {
+        assert!(TimeVaryingMultipathChannel::new(2, f32::NAN, 0.05).is_err());
+        assert!(TimeVaryingMultipathChannel::new(2, 0.1, f32::NAN).is_err());
         assert!(TimeVaryingMultipathChannel::new(0, 0.1, 0.05).is_err());
         assert!(TimeVaryingMultipathChannel::new(31, -0.1, 0.05).is_err());
         assert!(TimeVaryingMultipathChannel::new(31, 0.1, -0.01).is_err());
