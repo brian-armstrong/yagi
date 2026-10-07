@@ -375,7 +375,7 @@ impl MultiSignalSource {
     ///
     /// Returns an error when no source has identifier `id`.
     pub fn set_gain(&mut self, id: SourceId, gain_db: f32) -> Result<()> {
-        self.source_mut(id)?.set_gain(gain_db);
+        self.source_mut(id)?.set_gain(gain_db)?;
         Ok(())
     }
 

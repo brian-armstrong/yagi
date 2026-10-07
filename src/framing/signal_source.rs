@@ -292,8 +292,8 @@ impl SignalSource {
     ///
     /// Returns an error when `num_channels` is odd or less than two,
     /// `filter_semi_length` is zero, `center_frequency` or `bandwidth` is
-    /// outside its range, or the channelizer or waveform settings are
-    /// rejected.
+    /// outside its range, `gain_db` is nonfinite or overflows its linear
+    /// gain, or the channelizer or waveform settings are rejected.
     pub fn new(
         num_channels: usize,
         filter_semi_length: usize,
@@ -309,11 +309,14 @@ impl SignalSource {
         if filter_semi_length == 0 {
             return Err(Error::Config("invalid channelizer filter semi-length; must be greater than 0".into()));
         }
-        if center_frequency < -0.5 || center_frequency > 0.5 {
+        if !(-0.5..=0.5).contains(&center_frequency) {
             return Err(Error::Config("invalid frequency offset; must be in [-0.5, 0.5]".into()));
         }
-        if bandwidth < 0.0 || bandwidth > 1.0 {
+        if !(0.0..=1.0).contains(&bandwidth) {
             return Err(Error::Config("invalid bandwidth; must be in [0, 1]".into()));
+        }
+        if !gain_db.is_finite() || !10.0f32.powf(gain_db / 20.0).is_finite() {
+            return Err(Error::Config("gain must be finite and representable".into()));
         }
 
         // set channelizer values appropriately
@@ -349,7 +352,11 @@ impl SignalSource {
             SignalSourceConfig::Tone => SourceState::Tone,
             SignalSourceConfig::Chirp { duration, negate, single } => {
                 let mut nco = Nco::new(NcoBackend::InterpolatedLookupTable);
-                let num = (duration * bandwidth).round() as u64;
+                let sweep_len = (duration * bandwidth).round();
+                if !sweep_len.is_finite() || sweep_len < 1.0 {
+                    return Err(Error::Config("chirp sweep must contain at least one source sample".into()));
+                }
+                let num = sweep_len as u64;
                 let df = 2.0 * PI / (num as f32) * (if negate { -1.0 } else { 1.0 });
                 nco.set_frequency(if negate { PI } else { -PI });
                 SourceState::Chirp(ChirpState { nco, df, negate, single, num, timer: num })
@@ -462,8 +469,17 @@ impl SignalSource {
     ///
     /// The output power also depends on the bandwidth and waveform. See
     /// [`Self::new`].
-    pub fn set_gain(&mut self, gain_db: f32) {
-        self.gain = 10.0f32.powf(gain_db / 20.0);
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `gain_db` is nonfinite or its linear gain overflows.
+    pub fn set_gain(&mut self, gain_db: f32) -> Result<()> {
+        let gain = 10.0f32.powf(gain_db / 20.0);
+        if !gain_db.is_finite() || !gain.is_finite() {
+            return Err(Error::Config("gain must be finite and representable".into()));
+        }
+        self.gain = gain;
+        Ok(())
     }
 
     /// Returns the amplitude gain in dB.
@@ -487,7 +503,7 @@ impl SignalSource {
     /// Returns an error when `frequency` is outside `[-0.5, 0.5]`. The
     /// frequency is unchanged on error.
     pub fn set_frequency(&mut self, frequency: f32) -> Result<()> {
-        if frequency < -0.5 || frequency > 0.5 {
+        if !(-0.5..=0.5).contains(&frequency) {
             return Err(Error::Config("invalid frequency offset; must be in [-0.5, 0.5]".into()));
         }
 
@@ -557,10 +573,7 @@ impl SignalSource {
     ///
     /// # Panics
     ///
-    /// Panics for a chirp whose sweep length, `round(duration * bandwidth)`,
-    /// is zero and overflow checks are enabled. Without overflow checks such a
-    /// chirp does not sweep. Also panics when an earlier user callback
-    /// panicked.
+    /// Panics when an earlier user callback panicked.
     pub fn generate(&mut self) -> Result<Complex32> {
         let sample = match &mut self.source {
             SourceState::User(ref user) => {
@@ -623,21 +636,21 @@ impl SignalSource {
     /// Generates one block and adds it to the parent's frequency bins.
     ///
     /// The block is `p_channels() / 2` source samples. Its frequency bins are
-    /// scaled by the gain and added to `buf`, the parent's `m_channels()`
+    /// scaled by the gain and added to `spectrum`, the parent's `m_channels()`
     /// synthesizer bins in channel order, around the center frequency. Other
     /// bins are unchanged.
     ///
     /// # Errors
     ///
-    /// Returns an error when a user callback returns one. `buf` is unchanged on
+    /// Returns an error when a user callback returns one. `spectrum` is unchanged on
     /// error, but the source may have advanced.
     ///
     /// # Panics
     ///
-    /// Can panic when `buf` is shorter than [`Self::m_channels`], after the
+    /// Can panic when `spectrum` is shorter than [`Self::m_channels`], after the
     /// source has advanced. Also panics under the same conditions as
     /// [`Self::generate`].
-    pub fn generate_into(&mut self, buf: &mut [Complex32]) -> Result<()> {
+    pub fn generate_into(&mut self, spectrum: &mut [Complex32]) -> Result<()> {
         let p2 = self.p_channels / 2;
 
         // fill input buffer for channelizer
@@ -654,7 +667,7 @@ impl SignalSource {
         // copy upper frequency band (base index = self.index)
         let base_index = self.index;
         for i in 0..p2 {
-            buf[(base_index + i) % self.m_channels] += self.buf_freq[i] * g;
+            spectrum[(base_index + i) % self.m_channels] += self.buf_freq[i] * g;
         }
 
         // copy lower frequency band
@@ -664,7 +677,7 @@ impl SignalSource {
         }
         base_index -= p2;
         for i in 0..p2 {
-            buf[(base_index + i) % self.m_channels] += self.buf_freq[i + p2] * g;
+            spectrum[(base_index + i) % self.m_channels] += self.buf_freq[i + p2] * g;
         }
 
         self.num_samples += p2 as u64;
@@ -676,6 +689,18 @@ impl SignalSource {
 mod tests {
     use super::*;
     use test_macro::autotest_annotate;
+
+    #[test]
+    fn signal_source_rejects_nan_configuration() {
+        assert!(SignalSource::new(8, 2, 60.0, f32::NAN, 0.25, 0.0, SignalSourceConfig::Tone).is_err());
+        assert!(SignalSource::new(8, 2, 60.0, 0.0, f32::NAN, 0.0, SignalSourceConfig::Tone).is_err());
+        assert!(SignalSource::new(8, 2, 60.0, 0.0, 0.25, f32::NAN, SignalSourceConfig::Tone).is_err());
+        let mut source = SignalSource::new(8, 2, 60.0, 0.0, 0.25, 0.0, SignalSourceConfig::Tone).unwrap();
+        assert!(source.set_frequency(f32::NAN).is_err());
+        assert_eq!(source.frequency(), 0.0);
+        assert!(source.set_gain(f32::NAN).is_err());
+        assert_eq!(source.gain(), 0.0);
+    }
 
     #[test]
     #[autotest_annotate(autotest_qsourcecf_config)]
@@ -729,6 +754,14 @@ mod tests {
             let sample = q.generate().unwrap();
             // chirp should have magnitude ~1
             assert!((sample.norm() - 1.0).abs() < 0.1);
+        }
+    }
+
+    #[test]
+    fn test_qsourcecf_chirp_rejects_zero_sweep() {
+        for duration in [0.0, 1.0, f32::NAN, f32::INFINITY] {
+            let config = SignalSourceConfig::Chirp { duration, negate: false, single: false };
+            assert!(SignalSource::new(64, 12, 60.0, 0.0, 0.2, 0.0, config).is_err());
         }
     }
 
