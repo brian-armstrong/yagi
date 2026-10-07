@@ -410,9 +410,11 @@ where
     ///
     /// Outputs left pending by [`Self::execute_block`] are returned first.
     ///
-    /// This never returns an error. While the timing loop is unlocked, a NaN
-    /// input sample, or an infinite one, can make the call never return.
+    /// # Errors
+    ///
+    /// Returns [`Error::Value`] for a nonfinite input sample.
     pub fn execute(&mut self, input: T) -> Result<&[T]> {
+        Self::validate_sample(input)?;
         self.output.clear();
         self.output.append(&mut self.pending);
         self.step(input)?;
@@ -434,8 +436,10 @@ where
     /// [`Self::flush`]. When all of `input` is consumed, the output count is
     /// about `input.len() / rate()`.
     ///
-    /// This never returns an error. While the timing loop is unlocked, a NaN
-    /// input sample, or an infinite one, can make the call never return.
+    /// # Errors
+    ///
+    /// Returns [`Error::Value`] when an input sample is nonfinite. That sample
+    /// is not consumed.
     pub fn execute_block(&mut self, input: &[T], output: &mut [T]) -> Result<SymbolSynchronizerBlockOutput> {
         let mut result = SymbolSynchronizerBlockOutput::default();
 
@@ -488,6 +492,7 @@ where
     }
 
     fn step(&mut self, x: T) -> Result<()> {
+        Self::validate_sample(x)?;
         self.mf.push(x);
         self.dmf.push(x);
 
@@ -501,13 +506,11 @@ where
             if self.decim_counter == self.k_out {
                 self.decim_counter = 0;
 
-                if self.is_locked {
-                    continue;
+                if !self.is_locked {
+                    dmf = self.dmf.execute(self.b)?;
+                    self.advance_internal_loop(mf, dmf);
+                    self.tau_decim = self.tau;
                 }
-
-                dmf = self.dmf.execute(self.b)?;
-                self.advance_internal_loop(mf, dmf);
-                self.tau_decim = self.tau;
             }
 
             self.decim_counter += 1;
@@ -531,6 +534,13 @@ where
 
         self.rate += self.rate_adjustment * self.q_hat;
         self.del = self.rate + self.q_hat;
+    }
+
+    fn validate_sample(x: T) -> Result<()> {
+        if !x.re().is_finite() || !x.im().is_finite() {
+            return Err(Error::Value("symbol synchronizer input must be finite".into()));
+        }
+        Ok(())
     }
 }
 
@@ -1155,5 +1165,36 @@ mod tests {
             sync.execute_block(&[], &mut first).unwrap(),
             SymbolSynchronizerBlockOutput { consumed: 0, written: 0 }
         );
+    }
+
+    #[test]
+    fn symsync_rejects_nonfinite_input_without_poisoning_timing() {
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let mut sync = SymbolSynchronizer::<f32>::new_kaiser(2, 7, 32).unwrap();
+            let mut reference = sync.clone();
+            assert!(matches!(sync.execute(bad), Err(Error::Value(_))));
+            assert_eq!(sync.execute(0.5).unwrap(), reference.execute(0.5).unwrap());
+            assert_eq!(sync.del(), reference.del());
+
+            let mut output = [0.0; 8];
+            assert!(matches!(sync.execute_block(&[bad], &mut output), Err(Error::Value(_))));
+            assert_eq!(sync.execute(0.25).unwrap(), reference.execute(0.25).unwrap());
+        }
+
+        let mut sync = SymbolSynchronizer::<Complex32>::new_kaiser(2, 7, 32).unwrap();
+        for bad in [Complex32::new(f32::NAN, 0.0), Complex32::new(0.0, f32::INFINITY)] {
+            assert!(matches!(sync.execute(bad), Err(Error::Value(_))));
+        }
+        assert!(sync.execute(Complex32::new(1.0, -1.0)).is_ok());
+    }
+
+    #[test]
+    fn symsync_locked_loop_keeps_advancing() {
+        let mut sync = SymbolSynchronizer::<f32>::new_kaiser(2, 7, 32).unwrap();
+        sync.lock();
+        let mut output = [0.0; 32];
+        let progress = sync.execute_block(&[0.5; 16], &mut output).unwrap();
+        assert_eq!(progress.consumed, 16);
+        assert!(progress.written > 0);
     }
 }
