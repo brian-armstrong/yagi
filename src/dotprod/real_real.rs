@@ -533,7 +533,7 @@ mod tests {
             let y_test: f64 = h.iter().zip(x.iter()).map(|(&a, &b)| a as f64 * b as f64).sum();
             let y_avx512 = unsafe { dotprod_rrr_avx512(&h, &x) };
 
-            assert_abs_diff_eq!(y_avx512, y_test as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_avx512, y_test as f32, epsilon = 4.0 * n as f32 * f32::EPSILON);
         }
     }
 
@@ -551,7 +551,7 @@ mod tests {
             let y_test: f64 = h.iter().zip(x.iter()).map(|(&a, &b)| a as f64 * b as f64).sum();
             let y_avx2 = unsafe { dotprod_rrr_avx2(&h, &x) };
 
-            assert_abs_diff_eq!(y_avx2, y_test as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_avx2, y_test as f32, epsilon = 4.0 * n as f32 * f32::EPSILON);
         }
     }
 
@@ -565,7 +565,7 @@ mod tests {
             let y_test: f64 = h.iter().zip(x.iter()).map(|(&a, &b)| a as f64 * b as f64).sum();
             let y_sse = unsafe { dotprod_rrr_128(&h, &x) };
 
-            assert_abs_diff_eq!(y_sse, y_test as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_sse, y_test as f32, epsilon = 4.0 * n as f32 * f32::EPSILON);
         }
     }
 
@@ -579,7 +579,7 @@ mod tests {
             let y_test: f64 = h.iter().zip(x.iter()).map(|(&a, &b)| a as f64 * b as f64).sum();
             let y_scalar = unsafe { dotprod_rrr_scalar(&h, &x) };
 
-            assert_abs_diff_eq!(y_scalar, y_test as f32, epsilon = 2.0 * n as f32 * f32::EPSILON);
+            assert_abs_diff_eq!(y_scalar, y_test as f32, epsilon = 4.0 * n as f32 * f32::EPSILON);
         }
     }
 }

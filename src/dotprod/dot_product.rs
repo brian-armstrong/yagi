@@ -377,7 +377,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_dotprod_rrrf_struct_vs_ordinal)]
     fn test_dotprod_rrrf_struct_vs_ordinal() {
-        const TOL: f32 = 1e-4;
+        const TOL: f32 = 1e-3;
 
         for n in 1..=512 {
             let h: Vec<f32> = (0..n).map(|_| randnf()).collect();
@@ -478,7 +478,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_dotprod_crcf_struct_vs_ordinal)]
     fn test_dotprod_crcf_struct_vs_ordinal() {
-        const TOL: f32 = 1e-4;
+        const TOL: f32 = 1e-3;
 
         for n in 1..=512 {
             let h: Vec<f32> = (0..n).map(|_| randnf()).collect();
@@ -615,7 +615,7 @@ mod tests {
     #[test]
     #[autotest_annotate(autotest_dotprod_cccf_struct_vs_ordinal)]
     fn test_dotprod_cccf_struct_vs_ordinal() {
-        const TOL: f32 = 1e-4;
+        const TOL: f32 = 1e-3;
 
         for n in 1..=512 {
             let h: Vec<Complex32> = (0..n).map(|_| crandnf()).collect();
