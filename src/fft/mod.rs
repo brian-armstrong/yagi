@@ -3,13 +3,16 @@
 //! [`Fft`] performs unnormalized complex transforms. A forward transform
 //! followed by a backward transform produces the input scaled by its length.
 //! [`RealToRealFft`] provides DCT and DST variants. [`SpectralPeriodogram`]
-//! accumulates windowed spectral estimates.
+//! accumulates windowed spectral estimates, and [`AsciiSpectrogram`] renders
+//! such an estimate as a row of characters for a terminal.
 
 extern crate rustfft;
 
+mod ascii_spectrogram;
 mod real_to_real;
 mod spectral_periodogram;
 
+pub use ascii_spectrogram::AsciiSpectrogram;
 pub use real_to_real::{fft_r2r_run, RealToRealFft, RealToRealFftKind};
 pub use spectral_periodogram::{SpectralPeriodogram, SPGRAM_PSD_MIN};
 
