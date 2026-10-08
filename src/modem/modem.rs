@@ -826,8 +826,7 @@ impl Modem {
     ///
     /// Some schemes give only hard values of 0 and 255: `Psk2`, `Psk4`, all
     /// `Dpsk` sizes, `Ask2`, `Ask256`, `Qam4`, `Ook`, `Sqam32`, `Sqam128` and
-    /// `Pi4Dqpsk`. For table constellations, including the presets, the soft
-    /// values are unreliable.
+    /// `Pi4Dqpsk`.
     ///
     /// This never returns an error.
     ///

@@ -55,7 +55,7 @@ impl Modem {
             }
 
             for k in 0..self.bits_per_symbol {
-                if (s >> (self.bits_per_symbol - k - 1)) & 0x01 == 0 {
+                if (index >> (self.bits_per_symbol - k - 1)) & 0x01 == 0 {
                     if d < dmin_0[k] {
                         dmin_0[k] = d;
                     }
@@ -99,5 +99,41 @@ impl Modem {
             *symbol -= mean;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn table_soft_bits_use_each_constellation_points_own_index() {
+        let table = [
+            Complex32::new(-1.0, -1.0),
+            Complex32::new(-1.0, 1.0),
+            Complex32::new(1.0, -1.0),
+            Complex32::new(1.0, 1.0),
+        ];
+        let mut modem = Modem::from_table(&table).unwrap();
+        let received = Complex32::new(-0.3, -0.2);
+        let mut soft_bits = [0; 2];
+        assert_eq!(modem.demodulate_soft(received, &mut soft_bits).unwrap(), 0);
+
+        let points: Vec<_> = (0..4).map(|i| modem.modulate(i).unwrap()).collect();
+        let gamma = 1.2 * 2.0;
+        for (bit, got) in soft_bits.into_iter().enumerate() {
+            let mask = 1 << (1 - bit);
+            let nearest = |value| {
+                points
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| (index & mask != 0) == value)
+                    .map(|(_, point)| (received - point).norm_sqr())
+                    .fold(4.0f32, f32::min)
+            };
+            let expected = (((nearest(false) - nearest(true)) * gamma) * 16.0 + 127.0)
+                .clamp(0.0, 255.0) as u8;
+            assert_eq!(got, expected, "bit {bit}");
+        }
     }
 }
