@@ -922,14 +922,12 @@ impl Modem {
         let p = self.demod_soft_p;
 
         for i in 0..p {
-            let soft_neighbors = self.demod_soft_neighbors.as_ref().unwrap();
-            let neighbor = soft_neighbors[(symbol_out * p + i) as usize] as u32;
+            let neighbor = self.demod_soft_neighbors.as_ref().unwrap()[(symbol_out * p + i) as usize] as u32;
             let x_hat = self.modulate(neighbor)?;
             let e = symbol_in - x_hat;
             let d = (e.re * e.re) + (e.im * e.im);
-            let soft_neighbors = self.demod_soft_neighbors.as_ref().unwrap();
             for k in 0..bps {
-                let bit = (soft_neighbors[(symbol_out * p + i) as usize] >> (bps - k - 1)) & 0x01;
+                let bit = (neighbor >> (bps - k - 1)) & 0x01;
                 if bit != 0 {
                     if d < dmin_1[k] {
                         dmin_1[k] = d;
@@ -1053,21 +1051,11 @@ impl Modem {
         if p > (self.constellation_size - 1) as u32 {
             return Err(Error::Internal("too many neighbors".into()));
         }
-        self.demod_soft_p = p;
-        self.demod_soft_neighbors = Some(vec![0; self.constellation_size * p as usize]);
-
         let constellation_size = self.constellation_size;
+        let mut neighbors = vec![None; constellation_size * p as usize];
         let mut c = vec![Complex32::new(0.0, 0.0); constellation_size];
         for (i, ci) in c.iter_mut().enumerate() {
             *ci = self.modulate(i as u32)?;
-        }
-
-        let neighbors = self.demod_soft_neighbors.as_mut().unwrap();
-
-        for i in 0..constellation_size {
-            for k in 0..p {
-                neighbors[i * p as usize + k as usize] = constellation_size as u8;
-            }
         }
 
         for i in 0..constellation_size {
@@ -1080,7 +1068,7 @@ impl Modem {
                     }
 
                     for l in 0..p {
-                        if neighbors[i * p as usize + l as usize] == j as u8 {
+                        if neighbors[i * p as usize + l as usize] == Some(j as u8) {
                             symbol_valid = false;
                         }
                     }
@@ -1089,11 +1077,17 @@ impl Modem {
 
                     if d < dmin && symbol_valid {
                         dmin = d;
-                        neighbors[i * p as usize + k as usize] = j as u8;
+                        neighbors[i * p as usize + k as usize] = Some(j as u8);
                     }
                 }
             }
         }
+        let neighbors = neighbors
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| Error::Internal("soft neighbor table is incomplete".into()))?;
+        self.demod_soft_neighbors = Some(neighbors);
+        self.demod_soft_p = p;
         Ok(())
     }
 }
@@ -1608,6 +1602,27 @@ mod tests {
     #[autotest_annotate(autotest_demodsoft_psk256)]
     fn test_demodsoft_psk256() {
         modemcf_test_demodsoft(ModulationScheme::Psk256);
+    }
+
+    #[test]
+    fn test_256_point_soft_neighbors_include_symbol_zero() {
+        for scheme in [ModulationScheme::Psk256, ModulationScheme::Qam256, ModulationScheme::Apsk256] {
+            let modem = Modem::new(scheme).unwrap();
+            let neighbors = modem.demod_soft_neighbors.as_ref().unwrap();
+            assert!(neighbors.contains(&0), "{scheme:?} has no symbol-zero neighbor");
+        }
+
+        let mut modem = Modem::new(ModulationScheme::Psk256).unwrap();
+        assert!(modem.demod_soft_neighbors.as_ref().unwrap()[2..4].contains(&0));
+        let symbol = modem.modulate(1).unwrap();
+        let zero = modem.modulate(0).unwrap();
+        let mut soft_bits = [0u8; 8];
+        assert_eq!(modem.demodulate_soft(symbol, &mut soft_bits).unwrap(), 1);
+
+        // Symbol zero is the closest point with the opposite low bit.
+        let distance = (symbol - zero).norm_sqr();
+        let expected = (127.0 + distance * (1.2 * 256.0) * 16.0).clamp(0.0, 255.0) as u8;
+        assert_eq!(soft_bits[7], expected);
     }
 
     // AUTOTESTS: generic DPSK
