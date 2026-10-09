@@ -212,20 +212,26 @@ pub fn generate_key(scheme: CrcScheme, msg: &[u8]) -> u32 {
 
 /// Generates a key and writes it after the message.
 ///
-/// The first `msg_len` bytes of `msg` are the message. The key is written
-/// immediately after them, most significant byte first. Bytes beyond the key
-/// are unchanged.
+/// `packet` holds the message followed by `scheme.key_len()` bytes reserved
+/// for the key. The key is written in those last bytes, most significant byte
+/// first. Pass a subslice when the backing buffer has extra space.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
-pub fn append_key(scheme: CrcScheme, msg: &mut [u8], msg_len: usize) {
+/// Returns an error when `packet` is shorter than the key.
+pub fn append_key(scheme: CrcScheme, packet: &mut [u8]) -> Result<()> {
     let key_len = scheme.key_len();
-    let key = generate_key(scheme, &msg[..msg_len]);
+    let msg_len = packet
+        .len()
+        .checked_sub(key_len)
+        .ok_or_else(|| Error::Range("packet is shorter than CRC key".into()))?;
+    let (msg, key_bytes) = packet.split_at_mut(msg_len);
+    let key = generate_key(scheme, msg);
 
-    for i in 0..key_len {
-        msg[msg_len + i] = ((key >> ((key_len - i - 1) * 8)) & 0xff) as u8;
+    for (i, byte) in key_bytes.iter_mut().enumerate() {
+        *byte = ((key >> ((key_len - i - 1) * 8)) & 0xff) as u8;
     }
+    Ok(())
 }
 
 /// Returns whether `key` matches the key generated for `msg`.
@@ -244,24 +250,29 @@ pub fn validate_message(scheme: CrcScheme, msg: &[u8], key: u32) -> bool {
 
 /// Returns whether the key written after a message matches it.
 ///
-/// The first `msg_len` bytes of `msg` are the message and the following
-/// `scheme.key_len()` bytes are the key, most significant byte first, as
-/// [`append_key`] writes it. See [`validate_message`] for how the key is
-/// compared.
+/// `packet` holds the message followed by its `scheme.key_len()`-byte key,
+/// most significant byte first, as [`append_key`] writes it. Pass a subslice
+/// when the backing buffer has extra space. See [`validate_message`] for how
+/// the key is compared.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when `msg_len + scheme.key_len()` exceeds `msg.len()`.
-pub fn check_key(scheme: CrcScheme, msg: &[u8], msg_len: usize) -> bool {
+/// Returns an error when `packet` is shorter than the key.
+pub fn check_key(scheme: CrcScheme, packet: &[u8]) -> Result<bool> {
     let key_len = scheme.key_len();
+    let msg_len = packet
+        .len()
+        .checked_sub(key_len)
+        .ok_or_else(|| Error::Range("packet is shorter than CRC key".into()))?;
+    let (msg, key_bytes) = packet.split_at(msg_len);
 
     // extract key from end of message
     let mut key = 0u32;
-    for i in 0..key_len {
-        key = (key << 8) | (msg[msg_len + i] as u32);
+    for &byte in key_bytes {
+        key = (key << 8) | (byte as u32);
     }
 
-    validate_message(scheme, &msg[..msg_len], key)
+    Ok(validate_message(scheme, msg, key))
 }
 
 //
@@ -398,6 +409,40 @@ mod tests {
                 assert!(!validate_message(scheme, &data_corrupt, key));
             }
         }
+    }
+
+    #[test]
+    fn crc_appended_key_uses_end_of_packet() {
+        let message = b"123456789";
+        for scheme in CrcScheme::ALL {
+            let packet_len = message.len() + scheme.key_len();
+            let mut backing = vec![0xa5; packet_len + 2];
+            backing[..message.len()].copy_from_slice(message);
+            append_key(scheme, &mut backing[..packet_len]).unwrap();
+
+            let expected_key = generate_key(scheme, message).to_be_bytes();
+            assert_eq!(&backing[message.len()..packet_len], &expected_key[4 - scheme.key_len()..]);
+            assert_eq!(&backing[packet_len..], &[0xa5, 0xa5]);
+            assert!(check_key(scheme, &backing[..packet_len]).unwrap());
+
+            if scheme.key_len() != 0 {
+                backing[0] ^= 1;
+                assert!(!check_key(scheme, &backing[..packet_len]).unwrap());
+            }
+        }
+
+        let mut unknown = message.to_vec();
+        append_key(CrcScheme::Unknown, &mut unknown).unwrap();
+        assert_eq!(unknown, message);
+        assert!(!check_key(CrcScheme::Unknown, &unknown).unwrap());
+    }
+
+    #[test]
+    fn crc_appended_key_rejects_short_packet() {
+        let mut packet = [0xa5];
+        assert!(matches!(append_key(CrcScheme::Crc32, &mut packet), Err(Error::Range(_))));
+        assert_eq!(packet, [0xa5]);
+        assert!(matches!(check_key(CrcScheme::Crc32, &packet), Err(Error::Range(_))));
     }
 
     #[test]
