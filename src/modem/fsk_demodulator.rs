@@ -130,7 +130,6 @@ impl FskDemodulator {
     ///
     /// Returns an error when the length of `input` is not
     /// `samples_per_symbol`. The demodulator is unchanged on error.
-    ///
     pub fn demodulate(&mut self, input: &[Complex32]) -> Result<usize> {
         if input.len() != self.k {
             return Err(Error::Range("input length must match samples/symbol".into()));
@@ -164,17 +163,12 @@ impl FskDemodulator {
     /// below it, divided by the peak magnitude. It is positive when the tone
     /// lies above the bin center. It is not in cycles per sample. Before the
     /// first decision the FFT buffers are zero, and the result is NaN.
-    ///
-    /// # Warning
-    ///
-    /// The peak is taken as the FFT bin whose index equals the decided
-    /// symbol, not that symbol's tone bin. The two differ for most settings,
-    /// and the result is then meaningless.
     pub fn frequency_error(&self) -> f32 {
         // Get index of peak bin
-        let vm = self.buf_freq[(self.s_demod + self.k_size - 1) % self.k_size].norm(); // previous
-        let v0 = self.buf_freq[self.s_demod].norm(); // peak
-        let vp = self.buf_freq[(self.s_demod + 1) % self.k_size].norm(); // post
+        let index = self.demod_map[self.s_demod];
+        let vm = self.buf_freq[(index + self.k_size - 1) % self.k_size].norm(); // previous
+        let v0 = self.buf_freq[index].norm(); // peak
+        let vp = self.buf_freq[(index + 1) % self.k_size].norm(); // post
 
         // Compute derivative
         (vp - vm) / v0
@@ -274,6 +268,18 @@ mod tests {
         assert!(dem.demodulate(&y_short).is_err());
 
         Ok(())
+    }
+
+    #[test]
+    fn fskdem_frequency_error_uses_decided_tone_bin() {
+        let mut demod = FskDemodulator::new(1, 8, 0.25).unwrap();
+        for (frequency, symbol, expected) in [(-0.20, 0, 0.37071475), (0.20, 1, -0.37071475)] {
+            let samples: Vec<_> = (0..8)
+                .map(|n| Complex32::from_polar(1.0, 2.0 * std::f32::consts::PI * frequency * n as f32))
+                .collect();
+            assert_eq!(demod.demodulate(&samples).unwrap(), symbol);
+            assert!((demod.frequency_error() - expected).abs() < 1e-4);
+        }
     }
 
     #[test]
