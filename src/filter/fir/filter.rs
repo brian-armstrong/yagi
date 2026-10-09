@@ -211,6 +211,22 @@ where
 /// Use [`Self::execute_one`] or [`Self::execute_block`] to filter a stream.
 /// To add samples without computing outputs, use [`Self::push`] or
 /// [`Self::write`] and read the output later with [`Self::execute`].
+///
+/// ```
+/// # use yagi::filter::FirFilter;
+/// // A four-tap moving average
+/// let mut filter = FirFilter::<f32, f32>::new(&[0.25; 4]).unwrap();
+///
+/// // Feed a ramp, reading the output after each new sample
+/// let mut output = 0.0;
+/// for i in 0..8 {
+///     filter.push(i as f32);
+///     output = filter.execute();
+/// }
+///
+/// // The last output is the average of the four most recent inputs (4, 5, 6, 7)
+/// assert!((output - 5.5).abs() < 1e-6);
+/// ```
 #[derive(Debug, Clone)]
 pub struct FirFilter<T, Coeff = T>
 where
