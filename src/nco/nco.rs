@@ -52,6 +52,31 @@ enum BackendState {
 ///
 /// The oscillator can track an input with a phase-locked loop. See
 /// [`Self::pll_step`] for the order of calls.
+///
+/// ```
+/// # use yagi::nco::{Nco, NcoBackend};
+/// # use num_complex::Complex32;
+/// # use std::f32::consts::PI;
+/// let mut nco = Nco::new(NcoBackend::InterpolatedLookupTable);
+/// nco.set_frequency(0.1 * 2.0 * PI); // 0.1 cycles per sample
+///
+/// // An arbitrary unit-magnitude waveform
+/// let input: Vec<Complex32> =
+///     (0..32).map(|i| Complex32::from_polar(1.0, 0.3 * i as f32)).collect();
+///
+/// // Mix each sample up, stepping the phase once per sample
+/// let mut shifted = vec![Complex32::new(0.0, 0.0); input.len()];
+/// nco.mix_block_up(&input, &mut shifted).unwrap();
+///
+/// // Rewind the phase to replay the same sequence and mix back down
+/// nco.set_phase(0.0);
+/// let mut recovered = vec![Complex32::new(0.0, 0.0); input.len()];
+/// nco.mix_block_down(&shifted, &mut recovered).unwrap();
+///
+/// for (x, y) in input.iter().zip(&recovered) {
+///     assert!((x - y).norm() < 1e-3);
+/// }
+/// ```
 #[derive(Debug, Clone)]
 #[doc(alias = "Osc")]
 pub struct Nco {
