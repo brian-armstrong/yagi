@@ -1,4 +1,4 @@
-use crate::buffer::{Window, WindowedDelay};
+use crate::buffer::Window;
 use crate::error::{Error, Result};
 use crate::filter;
 use num_complex::ComplexFloat;
@@ -23,8 +23,9 @@ pub struct LeastMeanSquaresEqualizer<T> {
     count: usize,
     buf_full: bool,
     buffer: Window<T>,
-    x2: WindowedDelay<f32>,
+    x2: Window<f32>,
     x2_sum: f32,
+    x2_sum_count: usize,
 }
 
 impl<T> LeastMeanSquaresEqualizer<T>
@@ -89,8 +90,9 @@ where
             count: 0,
             buf_full: false,
             buffer: Window::new(filter_length)?,
-            x2: WindowedDelay::new(filter_length)?,
+            x2: Window::new(filter_length)?,
             x2_sum: 0.0,
+            x2_sum_count: 0,
         })
     }
 
@@ -185,6 +187,7 @@ where
         self.count = 0;
         self.buf_full = false;
         self.x2_sum = 0.0;
+        self.x2_sum_count = 0;
     }
 
     /// Returns the learning rate.
@@ -351,12 +354,7 @@ where
     /// history. Nothing changes until [`Self::length`] samples have been
     /// pushed since the last reset.
     ///
-    /// # Warning
-    ///
-    /// The update divides by the energy of the sample history, which is kept
-    /// as a running `f32` sum. An update with zero or nonfinite energy is
-    /// skipped. After a long run followed by a large drop in input level,
-    /// the running sum can drift from the true energy and mis-scale updates.
+    /// An update with zero or nonfinite history energy is skipped.
     pub fn step(&mut self, d: T, d_hat: T) {
         if !self.buf_full {
             if self.count < self.h_len {
@@ -396,15 +394,22 @@ where
 
     fn update_sumsq(&mut self, x: T) {
         let x2_n = (x * x.conj()).re();
+        let x2_0 = self.x2.read()[0];
         self.x2.push(x2_n);
-        let x2_0 = self.x2.read();
         self.x2_sum += x2_n - x2_0;
+        self.x2_sum_count += 1;
+        if self.x2_sum_count == self.h_len || self.x2_sum < 0.0 || (self.x2_sum == 0.0 && x2_n > 0.0) {
+            // refresh from the current window to mitigate cancellation error
+            self.x2_sum = self.x2.read().iter().map(|&energy| energy as f64).sum::<f64>() as f32;
+            self.x2_sum_count = 0;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::buffer::WindowedDelay;
     use crate::filter::{FirFilter, FirFilterShape, FirInterpolationFilter};
     use crate::math::{hamming, sincf};
     use crate::modem::{Modem, ModulationScheme};
@@ -425,6 +430,27 @@ mod tests {
         let mut h = [Complex::new(0.0, 0.0); 3];
         eq.coefficients(&mut h).unwrap();
         assert!(h.iter().all(|w| w.re.is_finite() && w.im.is_finite()));
+    }
+
+    #[test]
+    fn eqlms_normalization_recovers_after_level_drop() {
+        let mut eq = LeastMeanSquaresEqualizer::<f32>::new(7).unwrap();
+        for _ in 0..2048 {
+            eq.push(1000.0);
+        }
+        for _ in 0..eq.length() {
+            eq.push(0.01);
+        }
+
+        let expected_energy = 7.0 * 0.01f32.powi(2);
+        assert!((eq.x2_sum - expected_energy).abs() < 1e-8);
+
+        let estimate = eq.execute().unwrap();
+        eq.step(estimate + 0.01, estimate);
+        let mut coefficients = [0.0; 7];
+        eq.coefficients(&mut coefficients).unwrap();
+        assert!(coefficients[0] > 0.05, "adaptation stalled after the level drop");
+        assert!(coefficients.iter().all(|w| w.is_finite()));
     }
 
     #[allow(clippy::too_many_arguments)]
