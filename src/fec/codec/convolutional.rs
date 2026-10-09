@@ -170,6 +170,14 @@ impl ConvDecoder {
 /// parameters and puncturing matrix for a scheme (None if not convolutional)
 pub fn conv_scheme_params(scheme: crate::fec::FecScheme) -> Option<(ConvParams, Option<Vec<Vec<bool>>>)> {
     let to_matrix = |m: &[&[bool]]| -> Option<Vec<Vec<bool>>> { Some(m.iter().map(|r| r.to_vec()).collect()) };
+    let to_v29_matrix = |m: &[&[bool]]| -> Option<Vec<Vec<bool>>> {
+        let mut rows: Vec<Vec<bool>> = m.iter().map(|r| r.to_vec()).collect();
+        // liquid swaps the rows at worse performance. preserve this for compat.
+        if cfg!(feature = "liquid-quirks") {
+            rows.swap(0, 1);
+        }
+        Some(rows)
+    };
 
     Some(match scheme {
         FecScheme::ConvV27 => (conv_params::CONV_V27, None),
@@ -182,12 +190,12 @@ pub fn conv_scheme_params(scheme: crate::fec::FecScheme) -> Option<(ConvParams, 
         FecScheme::ConvV27P56 => (conv_params::CONV_V27, to_matrix(&conv_params::PMATRIX_V27P56)),
         FecScheme::ConvV27P67 => (conv_params::CONV_V27, to_matrix(&conv_params::PMATRIX_V27P67)),
         FecScheme::ConvV27P78 => (conv_params::CONV_V27, to_matrix(&conv_params::PMATRIX_V27P78)),
-        FecScheme::ConvV29P23 => (conv_params::CONV_V29, to_matrix(&conv_params::PMATRIX_V29P23)),
-        FecScheme::ConvV29P34 => (conv_params::CONV_V29, to_matrix(&conv_params::PMATRIX_V29P34)),
-        FecScheme::ConvV29P45 => (conv_params::CONV_V29, to_matrix(&conv_params::PMATRIX_V29P45)),
-        FecScheme::ConvV29P56 => (conv_params::CONV_V29, to_matrix(&conv_params::PMATRIX_V29P56)),
-        FecScheme::ConvV29P67 => (conv_params::CONV_V29, to_matrix(&conv_params::PMATRIX_V29P67)),
-        FecScheme::ConvV29P78 => (conv_params::CONV_V29, to_matrix(&conv_params::PMATRIX_V29P78)),
+        FecScheme::ConvV29P23 => (conv_params::CONV_V29, to_v29_matrix(&conv_params::PMATRIX_V29P23)),
+        FecScheme::ConvV29P34 => (conv_params::CONV_V29, to_v29_matrix(&conv_params::PMATRIX_V29P34)),
+        FecScheme::ConvV29P45 => (conv_params::CONV_V29, to_v29_matrix(&conv_params::PMATRIX_V29P45)),
+        FecScheme::ConvV29P56 => (conv_params::CONV_V29, to_v29_matrix(&conv_params::PMATRIX_V29P56)),
+        FecScheme::ConvV29P67 => (conv_params::CONV_V29, to_v29_matrix(&conv_params::PMATRIX_V29P67)),
+        FecScheme::ConvV29P78 => (conv_params::CONV_V29, to_v29_matrix(&conv_params::PMATRIX_V29P78)),
         _ => return None,
     })
 }
@@ -663,13 +671,15 @@ mod tests {
             (S::ConvV27P23, 64, &CONV_V27P23_ENC_64),
             (S::ConvV27P78, 8, &CONV_V27P78_ENC_8),
             (S::ConvV27P78, 64, &CONV_V27P78_ENC_64),
+        ];
+        let liquid_v29: &[(S, usize, &[u8])] = &[
             (S::ConvV29P23, 8, &CONV_V29P23_ENC_8),
             (S::ConvV29P23, 64, &CONV_V29P23_ENC_64),
             (S::ConvV29P78, 8, &CONV_V29P78_ENC_8),
             (S::ConvV29P78, 64, &CONV_V29P78_ENC_64),
         ];
 
-        for &(scheme, n, want) in cases {
+        for &(scheme, n, want) in cases.iter().chain(liquid_v29.iter().filter(|_| cfg!(feature = "liquid-quirks"))) {
             let mut q = Fec::new(scheme).unwrap();
             let msg: Vec<u8> = (0..n).map(|i| ((i * 37 + 11) & 0xff) as u8).collect();
 
@@ -683,6 +693,50 @@ mod tests {
             let mut dec = vec![0u8; n];
             q.decode(n, want, &mut dec).unwrap();
             assert_eq!(dec, msg, "{:?} n={}: liquid codeword failed to decode", scheme, n);
+        }
+    }
+
+    #[test]
+    fn test_conv_v29_puncturing_wire_format() {
+        use crate::fec::codec::conv_params::*;
+        use crate::fec::Fec;
+
+        let cases: [(FecScheme, &[&[bool]]); 6] = [
+            (FecScheme::ConvV29P23, &PMATRIX_V29P23),
+            (FecScheme::ConvV29P34, &PMATRIX_V29P34),
+            (FecScheme::ConvV29P45, &PMATRIX_V29P45),
+            (FecScheme::ConvV29P56, &PMATRIX_V29P56),
+            (FecScheme::ConvV29P67, &PMATRIX_V29P67),
+            (FecScheme::ConvV29P78, &PMATRIX_V29P78),
+        ];
+        let msg: Vec<u8> = (0..8).map(|i| (i * 37 + 11) as u8).collect();
+
+        for (scheme, corrected_rows) in cases {
+            let mut codec = Fec::new(scheme).unwrap();
+            let mut actual = vec![0u8; scheme.enc_msg_len(msg.len()).unwrap()];
+            codec.encode(&msg, &mut actual).unwrap();
+
+            let period = corrected_rows[0].len();
+            let mut expected = vec![0u8; actual.len()];
+            let mut register = 0u16;
+            let mut out_bit = 0;
+            for i in 0..(msg.len() * 8 + 8) {
+                let input_bit = if i < msg.len() * 8 { get_bit(&msg, i) } else { 0 };
+                register = (register << 1 | u16::from(input_bit)) & 0x1ff;
+                for row in 0..2 {
+                    let matrix_row = if cfg!(feature = "liquid-quirks") { 1 - row } else { row };
+                    if corrected_rows[matrix_row][i % period] {
+                        let parity = ((register & CONV_V29.polys[row]).count_ones() & 1) as u8;
+                        expected[out_bit / 8] |= parity << (7 - out_bit % 8);
+                        out_bit += 1;
+                    }
+                }
+            }
+            assert_eq!(actual, expected, "{:?}: wrong puncturing wire format", scheme);
+
+            let mut decoded = vec![0u8; msg.len()];
+            codec.decode(msg.len(), &actual, &mut decoded).unwrap();
+            assert_eq!(decoded, msg, "{:?}: codeword did not decode", scheme);
         }
     }
 

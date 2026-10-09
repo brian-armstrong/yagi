@@ -67,15 +67,15 @@ pub enum FecScheme {
     ConvV27P78,
     /// Punctured convolutional code, rate 2/3, K=9, dfree=7.
     ConvV29P23,
-    /// Punctured convolutional code, rate 3/4, K=9, dfree=5.
+    /// Punctured convolutional code, rate 3/4, K=9, dfree=6 (5 with `liquid-quirks`).
     ConvV29P34,
-    /// Punctured convolutional code, rate 4/5, K=9, dfree=4.
+    /// Punctured convolutional code, rate 4/5, K=9, dfree=5 (4 with `liquid-quirks`).
     ConvV29P45,
-    /// Punctured convolutional code, rate 5/6, K=9, dfree=3.
+    /// Punctured convolutional code, rate 5/6, K=9, dfree=5 (3 with `liquid-quirks`).
     ConvV29P56,
     /// Punctured convolutional code, rate 6/7, K=9, dfree=4.
     ConvV29P67,
-    /// Punctured convolutional code, rate 7/8, K=9, dfree=3.
+    /// Punctured convolutional code, rate 7/8, K=9, dfree=4 (3 with `liquid-quirks`).
     ConvV29P78,
     // Reed-Solomon codes
     /// Reed-Solomon (255,223) code over bytes, rate 223/255.
