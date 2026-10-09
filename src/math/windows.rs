@@ -36,23 +36,31 @@ pub enum WindowType {
 /// Metadata describing a named window.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct WindowInfo {
+    window_type: WindowType,
     short_name: &'static str,
     long_name: &'static str,
 }
 
 // Define window information
-// The order of these must match the order of the WindowType variants
 const WINDOW_INFO: [WindowInfo; 10] = [
-    WindowInfo { short_name: "unknown", long_name: "unknown" },
-    WindowInfo { short_name: "hamming", long_name: "Hamming" },
-    WindowInfo { short_name: "hann", long_name: "Hann" },
-    WindowInfo { short_name: "blackmanharris4", long_name: "Blackman-harris (4-term)" },
-    WindowInfo { short_name: "blackmanharris7", long_name: "Blackman-harris (7-term)" },
-    WindowInfo { short_name: "kaiser", long_name: "Kaiser-Bessel" },
-    WindowInfo { short_name: "flattop", long_name: "flat top" },
-    WindowInfo { short_name: "triangular", long_name: "triangular" },
-    WindowInfo { short_name: "rcostaper", long_name: "raised-cosine taper" },
-    WindowInfo { short_name: "kbd", long_name: "Kaiser-Bessel derived" },
+    WindowInfo { window_type: WindowType::Unknown, short_name: "unknown", long_name: "unknown" },
+    WindowInfo { window_type: WindowType::Hamming, short_name: "hamming", long_name: "Hamming" },
+    WindowInfo { window_type: WindowType::Hann, short_name: "hann", long_name: "Hann" },
+    WindowInfo {
+        window_type: WindowType::BlackmanHarris4,
+        short_name: "blackmanharris4",
+        long_name: "Blackman-harris (4-term)",
+    },
+    WindowInfo {
+        window_type: WindowType::BlackmanHarris7,
+        short_name: "blackmanharris7",
+        long_name: "Blackman-harris (7-term)",
+    },
+    WindowInfo { window_type: WindowType::Kaiser, short_name: "kaiser", long_name: "Kaiser-Bessel" },
+    WindowInfo { window_type: WindowType::FlatTop, short_name: "flattop", long_name: "flat top" },
+    WindowInfo { window_type: WindowType::Triangular, short_name: "triangular", long_name: "triangular" },
+    WindowInfo { window_type: WindowType::RcosTaper, short_name: "rcostaper", long_name: "raised-cosine taper" },
+    WindowInfo { window_type: WindowType::Kbd, short_name: "kbd", long_name: "Kaiser-Bessel derived" },
 ];
 
 /// Prints the short and long name of each window family to standard output.
@@ -81,9 +89,9 @@ pub fn get_window_type(name: &str) -> Result<WindowType> {
     if name == "blackmanharris" {
         return Ok(WindowType::BlackmanHarris4);
     }
-    for (i, info) in WINDOW_INFO.iter().enumerate() {
+    for info in &WINDOW_INFO {
         if info.short_name == name {
-            return Ok(unsafe { std::mem::transmute::<u8, WindowType>(i as u8) });
+            return Ok(info.window_type);
         }
     }
     Err(Error::Config("Unknown window type".to_string()))
