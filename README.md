@@ -87,7 +87,7 @@ translation of liquid-dsp and will develop in its own direction moving forward.
 
 liquid-dsp has more than 1300 tests. The testing coverage helps to give confidence in yagi's port to Rust.
 The current status of the rewrite and testing efforts can be found at [LIQUID_COMPAT.md](LIQUID_COMPAT.md).
-More than 90% of these tests are now ported and passing. yagi currently targets liquid-dsp 1.6.0.
+More than 95% of these tests are now ported and passing. yagi currently targets liquid-dsp 1.6.0.
 
 Known gaps:
 
