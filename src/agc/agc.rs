@@ -19,6 +19,22 @@ const AGC_DEFAULT_BW: f32 = 1e-2;
 ///
 /// The optional squelch reports threshold crossings through
 /// [`Self::squelch_status`]. It does not mute the output.
+///
+/// ```
+/// # use yagi::agc::Agc;
+/// # use num_complex::Complex32;
+/// let mut agc = Agc::<Complex32>::new();
+///
+/// // Drive a weak constant-amplitude input until the gain settles
+/// let input = Complex32::new(0.1, 0.0);
+/// let mut output = input;
+/// for _ in 0..2000 {
+///     output = agc.execute(input).unwrap();
+/// }
+///
+/// // The loop pulls the output power toward one regardless of input level
+/// assert!((output.norm() - 1.0).abs() < 1e-2);
+/// ```
 #[derive(Clone, Debug)]
 pub struct Agc<T> {
     g: f32,
