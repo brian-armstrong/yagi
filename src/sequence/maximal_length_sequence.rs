@@ -62,7 +62,11 @@ impl MaximalLengthSequence {
     ///
     /// The nominal period is `2^degree - 1`. The polynomial and state are
     /// stored without validation. Encode the polynomial as described on the
-    /// type. Its highest set bit is not checked against `degree`.
+    /// type. Its highest set bit is not checked against `degree`. Because the
+    /// register is masked to `degree` bits after each step, polynomial bits at
+    /// or above `degree` have no effect when the initial state fits in the
+    /// register. [`Self::from_genpoly`] instead derives `degree` from the
+    /// highest set bit.
     ///
     /// A polynomial that is not primitive can give a period shorter than the
     /// nominal one. A zero initial state gives a sequence of all zeros.
