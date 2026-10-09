@@ -131,8 +131,7 @@ mod tests {
                     .map(|(_, point)| (received - point).norm_sqr())
                     .fold(4.0f32, f32::min)
             };
-            let expected = (((nearest(false) - nearest(true)) * gamma) * 16.0 + 127.0)
-                .clamp(0.0, 255.0) as u8;
+            let expected = (((nearest(false) - nearest(true)) * gamma) * 16.0 + 127.0).clamp(0.0, 255.0) as u8;
             assert_eq!(got, expected, "bit {bit}");
         }
     }
