@@ -8,7 +8,7 @@ const AGC_DEFAULT_BW: f32 = 1e-2;
 ///
 /// The controller multiplies each input sample by a linear gain and adjusts
 /// that gain so the smoothed output power moves toward one. A fixed output
-/// scale, [`Self::scale`], is then applied while tracking is unlocked. The
+/// scale, [`Self::scale`], is then applied to every output sample. The
 /// usual workflow is to acquire a signal, then call [`Self::lock`] to hold
 /// the gain for the rest of the burst.
 ///
@@ -134,10 +134,9 @@ where
     /// Applies the gain to one sample and updates the gain.
     ///
     /// The returned sample uses the gain from before the update. While
-    /// unlocked, the AGC updates its gain and squelch state and returns the
-    /// sample multiplied by [`Self::scale`]. While locked, the gain and
-    /// squelch state hold, and the output is not multiplied by the scale. This
-    /// never returns an error.
+    /// unlocked, the AGC updates its gain and squelch state. While locked, the
+    /// gain and squelch state hold. The output scale is applied in both cases.
+    /// This never returns an error.
     ///
     pub fn execute(&mut self, input: T) -> Result<T> {
         let y = input * self.g;
@@ -146,7 +145,7 @@ where
         self.y2_prime = (1.0 - self.alpha) * self.y2_prime + self.alpha * y2;
 
         if self.is_locked {
-            return Ok(y);
+            return Ok(y * self.scale);
         }
 
         if self.y2_prime > 1e-6_f32 {
@@ -200,13 +199,8 @@ where
 
     /// Holds the gain and squelch state at their current values.
     ///
-    /// The smoothed power estimate still updates while locked.
-    ///
-    /// # Warning
-    ///
-    /// Locked output is not multiplied by [`Self::scale`]. With a scale other
-    /// than one, the output amplitude changes by a factor of `1 / scale` at
-    /// the moment of locking, even though the gain is held.
+    /// The smoothed power estimate still updates while locked. The output
+    /// scale remains applied.
     pub fn lock(&mut self) {
         self.is_locked = true;
     }
@@ -314,16 +308,15 @@ where
         Ok(())
     }
 
-    /// Returns the linear scale applied to unlocked output.
+    /// Returns the linear scale applied to output.
     pub fn scale(&self) -> f32 {
         self.scale
     }
 
-    /// Sets the linear scale applied to unlocked output.
+    /// Sets the linear scale applied to output.
     ///
     /// The AGC drives the unscaled output toward unit magnitude, so the
-    /// scaled output settles near `scale`. Locked output is not scaled. See
-    /// [`Self::lock`].
+    /// scaled output settles near `scale`, including while locked.
     ///
     /// # Errors
     ///
@@ -747,6 +740,26 @@ mod tests {
         q.init(&buf_0).unwrap();
         // agc tracks to signal level
         assert_abs_diff_eq!(q.rssi(), 20.0 * gamma.log10(), epsilon = tol);
+    }
+
+    #[test]
+    fn agc_lock_preserves_output_scale() {
+        let mut q = Agc::<Complex32>::new();
+        q.set_bandwidth(0.0).unwrap();
+        q.set_gain(2.0).unwrap();
+        q.set_scale(3.0).unwrap();
+        let input = Complex32::new(1.0, -0.5);
+        let before = q.execute(input).unwrap();
+        assert_eq!(before, Complex32::new(6.0, -3.0));
+
+        q.lock();
+        assert_eq!(q.execute(input).unwrap(), before);
+        assert_eq!(q.gain(), 2.0);
+
+        q.set_scale(4.0).unwrap();
+        assert_eq!(q.execute(input).unwrap(), Complex32::new(8.0, -4.0));
+        q.unlock();
+        assert_eq!(q.execute(input).unwrap(), Complex32::new(8.0, -4.0));
     }
 
     #[test]
