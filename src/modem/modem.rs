@@ -596,6 +596,17 @@ type DemodulateSoftFn = fn(&mut Modem, Complex32, &mut [u8]) -> Result<u32>;
 /// use separate modems for the two directions, and call [`Self::reset`]
 /// between independent streams. The other schemes keep no state between
 /// symbols.
+///
+/// ```
+/// # use yagi::modem::{Modem, ModulationScheme};
+/// let mut modem = Modem::new(ModulationScheme::Qam16).unwrap();
+///
+/// // Modulate symbol and then demodulate back
+/// for symbol in 0..16 {
+///     let point = modem.modulate(symbol).unwrap();
+///     assert_eq!(modem.demodulate(point).unwrap(), symbol);
+/// }
+/// ```
 pub struct Modem {
     // common data
     scheme: ModulationScheme,  // modulation scheme
