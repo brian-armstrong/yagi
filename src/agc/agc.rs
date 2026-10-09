@@ -337,11 +337,6 @@ where
     /// returns to one. The bandwidth, scale, lock state and squelch state are
     /// unchanged.
     ///
-    /// The squared magnitudes are summed in `f32`, which overflows once the
-    /// sum passes about `3.4e38`, as it does for a single sample of `1e20`.
-    /// The gain then becomes zero and stays there, so prescale a high-level
-    /// block before calling this.
-    ///
     /// # Errors
     ///
     /// Returns an error when `x` is empty. The AGC is unchanged on error.
@@ -349,8 +344,16 @@ where
         if x.is_empty() {
             return Err(Error::Config("number of samples must be greater than zero".into()));
         }
-        let x2: f32 = x.iter().map(|&xi| (xi * xi.conj()).re()).sum::<f32>();
-        let x2 = (x2 / x.len() as f32).sqrt() + 1e-16;
+        // square the components in f64
+        let x2: f64 = x
+            .iter()
+            .map(|&xi| {
+                let re = xi.re() as f64;
+                let im = xi.im() as f64;
+                re * re + im * im
+            })
+            .sum();
+        let x2 = ((x2 / x.len() as f64).sqrt() + 1e-16) as f32;
         self.set_signal_level(x2)
     }
 
@@ -787,6 +790,20 @@ mod tests {
         // initialize gain on input array, but array has length 0
         let empty: Vec<Complex32> = Vec::new();
         assert!(q.init(&empty).is_err());
+    }
+
+    #[test]
+    fn agc_init_large_finite_samples_keeps_gain() {
+        let mut real = Agc::<f32>::new();
+        real.init(&[1e20]).unwrap();
+        assert!(real.gain().is_finite() && real.gain() > 0.0);
+        assert_abs_diff_eq!(real.execute(1e20).unwrap(), 1.0, epsilon = 1e-6);
+
+        let sample = Complex32::new(1e20, -1e20);
+        let mut complex = Agc::<Complex32>::new();
+        complex.init(&[sample]).unwrap();
+        assert!(complex.gain().is_finite() && complex.gain() > 0.0);
+        assert_abs_diff_eq!(complex.execute(sample).unwrap().norm(), 1.0, epsilon = 1e-6);
     }
 
     // copy test
