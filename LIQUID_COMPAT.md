@@ -361,7 +361,7 @@
 ## asgram
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| asgramcf_copy                            | ✅ | ❓ |
+| asgramcf_copy                            | ✅ | ✅ |
 
 
 ## fft_small
@@ -1100,7 +1100,7 @@
 | msourcecf_aggregate                      | ✅ | ✅ |
 | msourcecf_config                         | ✅ | ✅ |
 | msourcecf_accessor                       | ✅ | ✅ |
-| msourcecf_copy                           | ✅ | ❓ |
+| msourcecf_copy                           | ✅ | ✅ |
 
 
 ## ofdmflexframe
@@ -1154,12 +1154,12 @@
 ## qdsync_cccf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| qdsync_cccf_k2                           | ✅ | ❓ |
-| qdsync_cccf_k3                           | ✅ | ❓ |
-| qdsync_cccf_k4                           | ✅ | ❓ |
-| qdsync_set_buf_len                       | ✅ | ❓ |
-| qdsync_cccf_copy                         | ✅ | ❓ |
-| qdsync_cccf_config                       | ✅ | ❓ |
+| qdsync_cccf_k2                           | ✅ | ✅ |
+| qdsync_cccf_k3                           | ✅ | ✅ |
+| qdsync_cccf_k4                           | ✅ | ✅ |
+| qdsync_set_buf_len                       | ✅ | ✅ |
+| qdsync_cccf_copy                         | ✅ | ✅ |
+| qdsync_cccf_config                       | ✅ | ✅ |
 
 
 ## qpacketmodem
@@ -1188,13 +1188,13 @@
 ## qpilotsync
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| qpilotsync_100_16                        | ✅ | ❓ |
-| qpilotsync_200_20                        | ✅ | ❓ |
-| qpilotsync_300_24                        | ✅ | ❓ |
-| qpilotsync_400_28                        | ✅ | ❓ |
-| qpilotsync_500_32                        | ✅ | ❓ |
-| qpilotgen_config                         | ✅ | ❓ |
-| qpilotsync_config                        | ✅ | ❓ |
+| qpilotsync_100_16                        | ✅ | ✅ |
+| qpilotsync_200_20                        | ✅ | ✅ |
+| qpilotsync_300_24                        | ✅ | ✅ |
+| qpilotsync_400_28                        | ✅ | ✅ |
+| qpilotsync_500_32                        | ✅ | ✅ |
+| qpilotgen_config                         | ✅ | ✅ |
+| qpilotsync_config                        | ✅ | ✅ |
 
 
 ## qsource
@@ -1276,10 +1276,10 @@
 ## symtrack_cccf
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| symtrack_cccf_bpsk                       | ✅ | ❓ |
-| symtrack_cccf_qpsk                       | ✅ | ❓ |
-| symtrack_cccf_config_invalid             | ✅ | ❓ |
-| symtrack_cccf_config_valid               | ✅ | ❓ |
+| symtrack_cccf_bpsk                       | ✅ | ✅ |
+| symtrack_cccf_qpsk                       | ✅ | ✅ |
+| symtrack_cccf_config_invalid             | ✅ | ✅ |
+| symtrack_cccf_config_valid               | ✅ | ✅ |
 
 
 ## gcd
@@ -1889,23 +1889,23 @@
 ## gasearch
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| gasearch_peak                            | ✅ | ❓ |
-| chromosome_config                        | ✅ | ❓ |
-| gasearch_config                          | ✅ | ❓ |
+| gasearch_peak                            | ✅ | ✅ |
+| chromosome_config                        | ✅ | ✅ |
+| gasearch_config                          | ✅ | ✅ |
 
 
 ## gradsearch
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| gradsearch_rosenbrock                    | ✅ | ❓ |
-| gradsearch_maxutility                    | ✅ | ❓ |
+| gradsearch_rosenbrock                    | ✅ | ✅ |
+| gradsearch_maxutility                    | ✅ | ✅ |
 
 
 ## qnsearch
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| qnsearch_rosenbrock                      | ✅ | ❓ |
-| qnsearch_config                          | ✅ | ❓ |
+| qnsearch_rosenbrock                      | ✅ | ✅ |
+| qnsearch_config                          | ✅ | ✅ |
 
 
 ## qs1dsearch
@@ -1939,7 +1939,7 @@
 ## utility
 | Test | Liquid | Yagi |
 | ---- | ------ | ---- |
-| optim_rosenbrock                         | ✅ | ❓ |
+| optim_rosenbrock                         | ✅ | ✅ |
 
 
 ## compand
