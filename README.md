@@ -2,6 +2,8 @@
 
 [![GitHub Actions Status](https://img.shields.io/github/actions/workflow/status/brian-armstrong/yagi/rust.yml)](https://github.com/brian-armstrong/yagi/actions/workflows/rust.yml) [![crates.io](https://img.shields.io/crates/v/yagi)](https://crates.io/crates/yagi) [![docs.rs](https://img.shields.io/docsrs/yagi)](https://docs.rs/yagi)
 
+[Try the Browser Demo](https://brian-armstrong.github.io/yagi/lab.html#lab)
+
 ## Batteries-included DSP library for Rust.
 
 yagi aims to provide a wide set of functionality in one crate. This includes FIR and IIR filters, resampling, mixing, equalization, gain correction, OFDM primitives, Reed-Solomon error correction, and PSK, FSK, and QAM modulation. yagi does not contain any protocol-specific features but does offer many of the primitives needed to implement real protocols.
