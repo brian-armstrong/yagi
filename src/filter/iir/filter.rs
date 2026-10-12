@@ -497,6 +497,31 @@ where
 /// Every output is multiplied by [`Self::scale`], which starts at one. A new
 /// filter starts with zero-valued history. Use [`Self::execute`] to process one
 /// sample at a time, or [`Self::execute_block`] to process many.
+///
+/// ```
+/// # use yagi::filter::IirFilter;
+/// // A 4th-order Butterworth low-pass with its cutoff at 0.1 cycles/sample.
+/// let mut filter = IirFilter::<f32, f32>::new_lowpass(4, 0.1)?;
+///
+/// // DC is in the passband, so a constant input settles to unit gain.
+/// let mut dc = 0.0;
+/// for _ in 0..200 {
+///     dc = filter.execute(1.0);
+/// }
+/// assert!((dc - 1.0).abs() < 1e-3);
+///
+/// // A tone at the Nyquist rate is deep in the stopband and is rejected.
+/// let mut filter = IirFilter::<f32, f32>::new_lowpass(4, 0.1)?;
+/// let mut peak = 0.0f32;
+/// for i in 0..400 {
+///     let y = filter.execute(if i % 2 == 0 { 1.0 } else { -1.0 });
+///     if i > 200 {
+///         peak = peak.max(y.abs());
+///     }
+/// }
+/// assert!(peak < 1e-3);
+/// # Ok::<(), yagi::error::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct IirFilter<T, Coeff = T> {
     b: Vec<Coeff>,             // numerator (feed-forward coefficients)

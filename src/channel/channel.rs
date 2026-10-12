@@ -26,6 +26,30 @@ const MAX_MULTIPATH_LEN: usize = 1000;
 /// Shadowing and noise draw from the thread-local random-number generator,
 /// or from a private seeded generator when the channel is created with
 /// [`Self::new_seeded`].
+///
+/// Adding noise at a known SNR and measuring it back over a block of a
+/// unit-power signal recovers the requested ratio:
+///
+/// ```
+/// # use yagi::channel::Channel;
+/// # use num_complex::Complex32;
+/// let mut channel = Channel::new_seeded(0);
+/// channel.add_awgn(0.0, 20.0); // 0 dB noise floor, 20 dB SNR
+///
+/// // add_awgn scales a unit-power signal up to sit `snr` dB above the noise.
+/// let gain = 10.0f32.powf((20.0 + 0.0) / 20.0);
+/// let input = Complex32::new(1.0, 0.0);
+///
+/// let (mut signal, mut noise) = (0.0f64, 0.0f64);
+/// for _ in 0..20_000 {
+///     let reference = input * gain;
+///     let error = channel.execute(input) - reference;
+///     signal += reference.norm_sqr() as f64;
+///     noise += error.norm_sqr() as f64;
+/// }
+/// let measured_snr = 10.0 * (signal / noise).log10();
+/// assert!((measured_snr - 20.0).abs() < 0.5);
+/// ```
 #[derive(Debug, Clone)]
 pub struct Channel {
     // additive white Gauss noise

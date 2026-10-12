@@ -51,6 +51,25 @@ impl<T: rustfft::FftNum + std::default::Default> FftNum for T {}
 /// direction applies `1 / N` normalization. Bins are in natural order: DC at
 /// index zero, then increasing positive frequencies and wrapped negative
 /// frequencies.
+///
+/// ```
+/// # use yagi::fft::{Direction, Fft};
+/// # use num_complex::Complex32;
+/// let n = 64;
+/// let forward = Fft::<f32>::new(n, Direction::Forward);
+/// let inverse = Fft::<f32>::new(n, Direction::Backward);
+///
+/// let input: Vec<Complex32> = (0..n).map(|i| Complex32::new(i as f32, 0.0)).collect();
+/// let mut spectrum = vec![Complex32::new(0.0, 0.0); n];
+/// let mut roundtrip = vec![Complex32::new(0.0, 0.0); n];
+/// forward.run(&input, &mut spectrum);
+/// inverse.run(&spectrum, &mut roundtrip);
+///
+/// // Neither direction normalizes, so the round-trip is scaled by n.
+/// for (x, y) in input.iter().zip(&roundtrip) {
+///     assert!((x - y / n as f32).norm() < 1e-3);
+/// }
+/// ```
 #[derive(Clone)]
 pub struct Fft<T> {
     fft: Arc<dyn rustfft::Fft<T>>,

@@ -29,6 +29,23 @@ enum FecData {
 /// When there are more errors than the scheme is sure to correct, the output
 /// may be wrong with no indication. Check the result with a CRC, or use
 /// [`Packetizer`](crate::fec::Packetizer), which adds one.
+///
+/// ```
+/// # use yagi::fec::{Fec, FecScheme};
+/// // Hamming(7,4) corrects one flipped bit per codeword.
+/// let mut fec = Fec::new(FecScheme::Hamming74)?;
+/// let message = [0xa5, 0x3c];
+///
+/// let mut encoded = vec![0u8; fec.enc_msg_len(message.len())?];
+/// fec.encode(&message, &mut encoded)?;
+///
+/// encoded[0] ^= 0x01; // flip a bit in transit
+///
+/// let mut decoded = vec![0u8; message.len()];
+/// fec.decode(message.len(), &encoded, &mut decoded)?;
+/// assert_eq!(decoded, message);
+/// # Ok::<(), yagi::error::Error>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct Fec {
     scheme: FecScheme,

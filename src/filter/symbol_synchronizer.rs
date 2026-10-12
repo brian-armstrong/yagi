@@ -24,6 +24,56 @@ pub struct SymbolSynchronizerBlockOutput {
 /// produces, at the rate set with [`Self::set_output_rate`], one sample per
 /// symbol by default. [`Self::execute_block`] does the same for a slice. Each
 /// output is the matched-filter output divided by `samples_per_symbol`.
+///
+/// Recovering QPSK symbols from a pulse-shaped stream with warmup:
+///
+/// ```
+/// # use yagi::filter::{FirFilterShape, FirInterpolationFilter, SymbolSynchronizer};
+/// # use yagi::modem::{Modem, ModulationScheme};
+/// # use num_complex::Complex32;
+/// let sps = 4; // samples per symbol
+/// let m = 5; // matched-filter delay, in symbols
+/// let beta = 0.3; // excess bandwidth
+/// let delay = 0.0; // fractional delay
+///
+/// let mut modem = Modem::new(ModulationScheme::Qpsk)?;
+/// let mut interp =
+///     FirInterpolationFilter::<Complex32, f32>::new_prototype(FirFilterShape::Rrcos, sps, m, beta, delay)?;
+/// // 32 filter phases give 1/32-sample timing resolution.
+/// let mut sync =
+///     SymbolSynchronizer::<Complex32>::new_rnyquist(FirFilterShape::Rrcos, sps, m, beta, 32)?;
+///
+/// // A pseudo-random symbol stream
+/// let mut state = 1u32;
+/// let symbols: Vec<u32> = (0..800)
+///     .map(|_| {
+///         state = state.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+///         (state >> 16) & 0x3
+///     })
+///     .collect();
+///
+/// let points: Vec<Complex32> =
+///     symbols.iter().map(|&s| modem.modulate(s)).collect::<Result<_, _>>()?;
+/// let mut tx = vec![Complex32::new(0.0, 0.0); symbols.len() * sps];
+/// interp.execute_block(&points, &mut tx)?;
+///
+/// // Recover one sample per symbol and demodulate it as it arrives.
+/// // The stream is delayed by the matched-filter group delay, and the
+/// // timing loop needs a warm-up to converge.
+/// let delay = m + m;
+/// let warmup = 150;
+/// let mut index = 0; // symbols produced so far
+/// for &sample in &tx {
+///     for &symbol in sync.execute(sample)? {
+///         let recovered = modem.demodulate(symbol)?;
+///         if index >= delay + warmup {
+///             assert_eq!(recovered, symbols[index - delay]);
+///         }
+///         index += 1;
+///     }
+/// }
+/// # Ok::<(), yagi::error::Error>(())
+/// ```
 #[derive(Clone, Debug)]
 #[doc(alias = "Symsync")]
 pub struct SymbolSynchronizer<T> {

@@ -16,6 +16,21 @@ use std::f32;
 /// slightly from [`Self::rate`], and the number of outputs depends on the
 /// current state. Use [`Self::num_output`] to size an output buffer before
 /// each call. A constant input settles to a gain of about one.
+///
+/// ```
+/// # use yagi::filter::MultistageResampler;
+/// // Resample a stream to 1.5x its original rate.
+/// let mut resamp = MultistageResampler::<f32, f32>::new(1.5, 60.0)?;
+///
+/// let input = vec![1.0f32; 400];
+/// let mut output = vec![0.0f32; resamp.num_output(input.len())];
+/// let n = resamp.execute_block(&input, &mut output)?;
+///
+/// assert_eq!(n, 600); // about rate * input.len() samples out
+/// // Away from the warm-up, the constant input settles to unit gain.
+/// assert!((output[n - 1] - 1.0).abs() < 1e-2);
+/// # Ok::<(), yagi::error::Error>(())
+/// ```
 #[derive(Clone, Debug)]
 #[doc(alias = "MsResamp")]
 pub struct MultistageResampler<T, Coeff = T> {
