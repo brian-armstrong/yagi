@@ -1,5 +1,3 @@
-use core::f32;
-
 /// Running maximum over the most recent `hold + 1` samples.
 ///
 /// Each call records one sample and returns the largest of it and the
