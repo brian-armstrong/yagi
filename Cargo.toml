@@ -1,12 +1,20 @@
 [package]
 name = "yagi"
-version = "0.1.5"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.88"
 repository = "https://github.com/brian-armstrong/yagi"
 description = "Batteries-included DSP library"
 documentation = "https://docs.rs/yagi"
 license = "MIT"
+include = [
+    "/src/**",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/CONTRIBUTING.md",
+    "/LIQUID_COMPAT.md",
+]
 
 [profile.dev]
 opt-level = 1
