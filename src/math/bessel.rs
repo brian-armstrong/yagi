@@ -3,7 +3,6 @@
 //! These routines use fixed-length series and one asymptotic expression.
 
 use super::gamma;
-use std::f32;
 
 const NUM_BESSELI_ITERATIONS: usize = 64;
 const NUM_BESSELJ_ITERATIONS: usize = 128;
@@ -34,7 +33,7 @@ pub fn lnbesselif(nu: f32, z: f32) -> f32 {
 
     // special case: nu = 1/2, besseli(z) = sqrt(2/pi*z)*sinh(z)
     if nu == 0.5 {
-        return 0.5 * (2.0 / (f32::consts::PI * z)).ln() + z.sinh().ln();
+        return 0.5 * (2.0 / (std::f32::consts::PI * z)).ln() + z.sinh().ln();
     }
 
     // low signal approximation
@@ -81,7 +80,7 @@ pub fn besselif(nu: f32, z: f32) -> f32 {
 
     // special case: nu = 1/2, besseli(z) = sqrt(2/pi*z)*sinh(z)
     if nu == 0.5 {
-        return (2.0 / (f32::consts::PI * z)).sqrt() * z.sinh();
+        return (2.0 / (std::f32::consts::PI * z)).sqrt() * z.sinh();
     }
 
     // low signal approximation
@@ -166,7 +165,7 @@ pub fn besselj0f(z: f32) -> f32 {
     //   IEEE Trans. on Antennas and Propagation, vol. 43, no. 8,
     //   August, 1995
     if z.abs() > 10.0 {
-        return (2.0 / (f32::consts::PI * z.abs())).sqrt() * (z.abs() - f32::consts::FRAC_PI_4).cos();
+        return (2.0 / (std::f32::consts::PI * z.abs())).sqrt() * (z.abs() - std::f32::consts::FRAC_PI_4).cos();
     }
 
     let mut y = 0.0;
