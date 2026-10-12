@@ -28,7 +28,7 @@ Thank you for your interest in contributing to Yagi! This document provides guid
 1. Create a feature branch from `main`
 2. Make your changes with clear, focused commits
 3. Add tests for new functionality
-4. Ensure `cargo test` passes
+4. Ensure `cargo test` passes (including `simd` or `liquid-quirks` features when relevant)
 5. Ensure `cargo fmt` passes
 6. Open a PR with a clear description of the changes
 
@@ -36,12 +36,12 @@ Thank you for your interest in contributing to Yagi! This document provides guid
 
 Yagi is maintained on a best-effort basis. Please keep in mind:
 
-- Response times may vary — this is a side project, not a full-time job
+- Response times may vary. Yagi is a side project, not a full-time job
 - Feature requests are welcome but may not be implemented
 - PRs are appreciated, but acceptance is not guaranteed
 - The maintainer has final discretion on what gets merged
 
-This isn't meant to discourage contributions — quite the opposite. Clear expectations help everyone have a better experience. If you're unsure whether a contribution would be welcome, open an issue to discuss before investing significant time.
+That said, this isn't meant to discourage contributions. It is hoped that clear expectations will help everyone have a better experience. If you're unsure whether a contribution would be welcome, open an issue to discuss before investing significant time.
 
 ## Code Standards
 
@@ -60,7 +60,7 @@ Yagi inherits a comprehensive test suite from liquid-dsp. When porting or adding
 
 ## Development Process
 
-This project was initially developed with assistance from large language models. Contributions from all sources — human or AI-assisted — are welcome. What matters is code quality, correctness, and clear communication.
+This project was initially developed with assistance from large language models. Contributions from all sources, human or AI-assisted, are welcome. What matters is code quality, correctness, and clear communication.
 
 If you use AI tools in your contributions, no special disclosure is required, but please ensure you understand and can explain any code you submit.
 
